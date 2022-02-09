@@ -17,6 +17,7 @@ typedef enum {
   wisp_collect_garbage_tag,
   wisp_print_tag,
   wisp_getcc_tag,
+  wisp_FETCH_tag,
 
   WISP_N_BUILTINS
 } wisp_builtin_tag_t;

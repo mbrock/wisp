@@ -232,6 +232,38 @@ WISP_DEFUN ("*", wisp_multiply, 0, true)
   return wisp_fixnum (product);
 }
 
+#ifdef EMSCRIPTEN
+
+EM_JS(wisp_word_t, wisp_js_fetch, (const char *url), {
+  let urlString = UTF8ToString(url);
+  let promise = fetch(urlString);
+  let id = window.wisp.promise(promise);
+  return id;
+});
+
+#else
+
+wisp_word_t
+wisp_js_fetch (const char *url)
+{
+  return 1;
+}
+
+#endif
+
+WISP_DEFUN ("FETCH", wisp_FETCH, 1, false)
+(wisp_word_t url, wisp_word_t rest)
+{
+  const char *string =
+    wisp_string_buffer (wisp_deref (url));
+
+  wisp_word_t promise =
+    wisp_fixnum (wisp_js_fetch (string));
+
+  return wisp_make_instance_va
+    (wisp_intern_lisp ("PROMISE"), 1, promise);
+}
+
 void
 wisp_register_builtin_defun
 (wisp_defun_t defun)
@@ -292,4 +324,5 @@ wisp_defs (void)
   WISP_REGISTER (wisp_subtract, "X", "Y");
   WISP_REGISTER (wisp_multiply, "X", "Y");
   WISP_REGISTER (wisp_getcc, NULL);
+  WISP_REGISTER (wisp_FETCH, "URL");
 }

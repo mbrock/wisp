@@ -38,18 +38,35 @@ interface EmscriptenModule {
           arg1: string,
           arg2: string[],
           arg3: string[]) => number
-  
-  HEAPU8: { 
-    buffer: ArrayBufferLike 
-  } 
+
+  HEAPU8: {
+    buffer: ArrayBufferLike
+  }
 }
 
 let WispModule: EmscriptenModule
+
+interface WispGlue {
+  promise: (p: Promise<any>) => number
+  promises: Record<number, Promise<any>>
+}
 
 declare global {
   interface Window {
     WispModule: EmscriptenModule
     loadWisp: any
+    wisp: WispGlue
+  }
+}
+
+window.wisp = {
+  nextPromiseID: 1,
+  promises: {},
+
+  promise(p) {
+    let id = wisp.nextPromiseID
+    wisp.promises[id] = p
+    return wisp.nextPromiseID++
   }
 }
 
@@ -145,12 +162,12 @@ function Wisp() {
         height: "100%"
       }}
       className={ booted ? "fade-in now" : "fade-in later" }>
-      { booted 
+      { booted
         ? <>
             <Browser />
             <REPL />
             <Explorer />
-          </> 
+          </>
         : null }
     </div>
   )
@@ -213,7 +230,7 @@ function grokImmediate(_heap: DataView, x: number) {
   switch (widetag) {
   case "BUILTIN":
     return heapCache[x] = { builtin: headerData(x) }
-    
+
   default:
     throw new Error(`${widetagNumber}`)
   }
@@ -321,10 +338,10 @@ function grokValue(x: number) {
 }
 
 function listElements(
-  cons: { 
-    car?: any; cdr?: any; 
-    type?: symbol; 
-    name?: string; 
+  cons: {
+    car?: any; cdr?: any;
+    type?: symbol;
+    name?: string;
     function?: any }) {
 
   let items = []
@@ -418,7 +435,7 @@ function Browser() {
 
     setValue(grokValue(WispModule.ccall(
       "wisp_get_root_package", null, [], [])))
-    
+
     setHeapGraph(makeHeapGraph())
 
   }, [booted])
@@ -465,7 +482,7 @@ function ObjectView({ value }) {
         <table className="instance" onClick={toggle}>
           <tbody>
             <tr>
-              <td>Class</td> 
+              <td>Class</td>
               <td><ObjectView value={value.klass} /></td>
             </tr>
             {
@@ -781,8 +798,8 @@ function Slot(
       return <span style={{ color: "red" }}>({value} missing)</span>
     else {
       return (
-        <a 
-          style={{textDecoration: "none"}} 
+        <a
+          style={{textDecoration: "none"}}
           href={`#heap-${value & ~7}`}>
           ({value & ~7} {entry.type})
         </a>
@@ -802,7 +819,7 @@ function HeapView({ entries } : { entries: Record<string, HeapEntry> }) {
   }
 
   return (
-    <div className="flex column bg">
+    <div className="flex column bg hide">
       <header className="titlebar">
         <span>
           <b>Heap Inspector</b>
@@ -818,7 +835,7 @@ function HeapView({ entries } : { entries: Record<string, HeapEntry> }) {
   )
 
   function makeHeapEntryViews(): React.ReactNode {
-    return Object.entries(entries).map(([i, entry]) => 
+    return Object.entries(entries).map(([i, entry]) =>
       <div className="flex" key={i}>
         <div style={{
           width: "4rem",
@@ -843,7 +860,7 @@ function Explorer() {
 
   let { entries } = heapGraph
 
-  let makeHeapGraphButton = 
+  let makeHeapGraphButton =
     <button onClick={_e => setHeapGraph(makeHeapGraph())}>
       Load heap
     </button>

@@ -98,6 +98,7 @@ WISP_DEFINE_PLAN_TYPE (apply_plan);
 WISP_DEFINE_PLAN_TYPE (progn_plan);
 WISP_DEFINE_PLAN_TYPE (if_plan);
 WISP_DEFINE_PLAN_TYPE (funcall_plan);
+WISP_DEFINE_PLAN_TYPE (await_plan);
 
 bool
 wisp_term_irreducible (wisp_word_t term)
@@ -491,6 +492,20 @@ wisp_follow_plan (wisp_machine_t *machine)
       return true;
     }
 
+  else if (type == WISP_CACHE (AWAIT))
+    {
+      wisp_await_plan_t *await_plan =
+        wisp_get_await_plan (header);
+
+      machine->term = wisp_make_instance_va
+        (WISP_CACHE (AWAIT), 1, value);
+      machine->value = true;
+      machine->scopes = await_plan->scopes;
+      machine->plan = await_plan->next;
+
+      return false;
+    }
+
   wisp_crash ("bad plan");
 }
 
@@ -687,6 +702,24 @@ wisp_step_into_funcall (wisp_machine_t *machine,
 }
 
 bool
+wisp_step_into_await (wisp_machine_t *machine,
+                      wisp_word_t args)
+{
+  wisp_word_t promise = wisp_pop (&args);
+
+  wisp_word_t plan = wisp_make_instance_va
+    (WISP_CACHE (AWAIT), 2,
+     machine->scopes,
+     machine->plan);
+
+  machine->term = promise;
+  machine->value = false;
+  machine->plan = plan;
+
+  return true;
+}
+
+bool
 wisp_step (wisp_machine_t *machine)
 {
   wisp_word_t term = machine->term;
@@ -717,6 +750,8 @@ wisp_step (wisp_machine_t *machine)
         return wisp_step_into_if (machine, cdr);
       else if (car == WISP_CACHE (FUNCALL))
         return wisp_step_into_funcall (machine, cdr);
+      else if (car == WISP_CACHE (AWAIT))
+        return wisp_step_into_await (machine, cdr);
       else
         return wisp_step_into_symbol_call (machine, car, cdr);
     }

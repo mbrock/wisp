@@ -91,6 +91,11 @@ typedef struct __attribute__ ((__packed__)) {
 } wisp_if_plan_t;
 
 typedef struct __attribute__ ((__packed__)) {
+  wisp_word_t scopes;
+  wisp_word_t next;
+} wisp_await_plan_t;
+
+typedef struct __attribute__ ((__packed__)) {
   wisp_word_t params;
   wisp_word_t body;
   wisp_word_t scopes;
@@ -225,6 +230,7 @@ enum {
   WISP_CACHED_PROGN,
   WISP_CACHED_IF,
   WISP_CACHED_FUNCALL,
+  WISP_CACHED_AWAIT,
 
   wisp_cache_size
 };
