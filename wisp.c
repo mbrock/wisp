@@ -590,7 +590,11 @@ wisp_boot ()
 void
 wisp_stdlib ()
 {
-  wisp_eval_code ("(set-symbol-function 'identity (lambda (x) x))");
+  wisp_eval_code
+    ("(set-symbol-function 'identity (lambda (x) x))");
+
+  wisp_eval_code
+    ("(set-symbol-function 'list (lambda x x))");
 
   wisp_eval_code (
       "(set-symbol-function"
@@ -602,6 +606,17 @@ wisp_stdlib ()
       "              (cons (cons 'lambda"
       "                          (cons params"
       "                                (cons body nil))) nil)))))");
+
+  // XXX: Investigate why this doesn't work!
+  
+  /* wisp_eval_code */
+  /*   ("(set-symbol-function" */
+  /*    " 'defun" */
+  /*    " (macro" */
+  /*    "  (name params body)" */
+  /*    "  (list 'set-symbol-function (list 'quote name)" */
+  /*    "        (list 'lambda params body))))" */
+  /*    ); */
 
   wisp_eval_code (
       "(set-symbol-function"
