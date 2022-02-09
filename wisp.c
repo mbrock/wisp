@@ -594,29 +594,7 @@ wisp_stdlib ()
     ("(set-symbol-function 'identity (lambda (x) x))");
 
   wisp_eval_code
-    ("(set-symbol-function 'list (lambda x x))");
-
-  wisp_eval_code (
-      "(set-symbol-function"
-      " 'defun"
-      " (macro"
-      "  (name params body)"
-      "  (cons 'set-symbol-function"
-      "        (cons (cons 'quote (cons name nil))"
-      "              (cons (cons 'lambda"
-      "                          (cons params"
-      "                                (cons body nil))) nil)))))");
-
-  // XXX: Investigate why this doesn't work!
-  
-  /* wisp_eval_code */
-  /*   ("(set-symbol-function" */
-  /*    " 'defun" */
-  /*    " (macro" */
-  /*    "  (name params body)" */
-  /*    "  (list 'set-symbol-function (list 'quote name)" */
-  /*    "        (list 'lambda params body))))" */
-  /*    ); */
+    ("(set-symbol-function 'list (lambda xs xs))");
 
   wisp_eval_code (
       "(set-symbol-function"
@@ -629,12 +607,16 @@ wisp_stdlib ()
       "                          (cons params"
       "                                (cons body nil))) nil)))))");
 
+  wisp_eval_code
+    (
+     "(defmacro defun (name params . body)"
+     "  (list 'set-symbol-function (list 'quote name)  "
+     "        (cons 'lambda (cons params body))))"
+     );
+  
   wisp_eval_code ("(defun tag (tag attrs body)"
                   "  (make-instance 'dom-element"
                   "    (cons tag (cons attrs (cons body nil)))))");
-
-  wisp_eval_code ("(defun loop (x)"
-                  "  (loop (- x 1)))");
 }
 
 void wisp_defs (void);

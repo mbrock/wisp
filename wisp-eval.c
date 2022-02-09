@@ -407,6 +407,7 @@ wisp_follow_plan (wisp_machine_t *machine)
              apply_plan->scopes,
              apply_plan->next);
 
+          machine->scopes = apply_plan->scopes;
           machine->term = car;
           machine->value = false;
           machine->plan = next_apply_plan;
@@ -463,6 +464,7 @@ wisp_follow_plan (wisp_machine_t *machine)
              progn_plan->scopes,
              progn_plan->next);
 
+          machine->scopes = progn_plan->scopes;
           machine->term = car;
           machine->value = false;
           machine->plan = new_plan;
