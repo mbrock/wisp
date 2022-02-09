@@ -96,7 +96,7 @@ wisp_gc_copy_to_new_heap (wisp_word_t ptr)
   WISP_DEBUG ("   [0x%x] to [0x%x]\n", dst, dst + n);
 #endif
 
-  memcpy (wisp_heap_base + dst, data, n);
+  memcpy (wisp_heap + dst, data, n);
 
   data[0] = dst | lowtag;
 
@@ -176,12 +176,6 @@ wisp_flip (void)
 
   wisp_heap_used = WISP_STATIC_SPACE_SIZE;
   wisp_new_heap_scan = wisp_new_heap;
-
-  wisp_heap = wisp_heap_base;
-
-  /* memset (wisp_heap_base + wisp_new_heap + WISP_STATIC_SPACE_SIZE, */
-  /*         0, */
-  /*         heap_size - WISP_STATIC_SPACE_SIZE); */
 }
 
 WISP_EXPORT
@@ -232,7 +226,7 @@ wisp_tidy (void)
               wisp_heap_used / 1024.0,
               wisp_heap_used - old_size);
 
-  memset (wisp_heap_base + wisp_old_heap + WISP_STATIC_SPACE_SIZE,
+  memset (wisp_heap + wisp_old_heap + WISP_STATIC_SPACE_SIZE,
           0,
           heap_size - WISP_STATIC_SPACE_SIZE);
 }

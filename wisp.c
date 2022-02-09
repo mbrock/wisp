@@ -24,7 +24,6 @@
 #include "wisp.h"
 #include "wisp-builtins.h"
 
-void *wisp_heap_base;
 void *wisp_heap;
 
 int wisp_heap_used;
@@ -318,11 +317,10 @@ wisp_allocate_heap ()
 
   WISP_DEBUG ("Allocating %lu MB heap\n", heap_size / MEGABYTES);
 
-  wisp_heap_base = calloc (2 * heap_size, 1);
+  wisp_heap = calloc (2 * heap_size, 1);
   wisp_old_heap = heap_size;
   wisp_new_heap = 0;
   wisp_new_heap_scan = 0;
-  wisp_heap = wisp_heap_base;
 }
 
 int wisp_static_space_size = 40;
@@ -668,7 +666,7 @@ WISP_EXPORT
 void *
 wisp_get_heap_pointer ()
 {
-  return wisp_heap_base;
+  return wisp_heap;
 }
 
 WISP_EXPORT

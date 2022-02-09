@@ -175,10 +175,9 @@ extern wisp_defun_t wisp_builtins[];
 
 #define WISP_STATIC_SPACE_SIZE 40
 
-extern size_t heap_size;
-/* extern size_t heap_used; */
-extern void *wisp_heap_base;
 extern void *wisp_heap;
+extern size_t heap_size;
+
 extern int wisp_old_heap;
 extern int wisp_new_heap;
 extern int wisp_heap_used;
