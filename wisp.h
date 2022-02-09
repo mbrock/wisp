@@ -97,17 +97,23 @@ typedef struct __attribute__ ((__packed__)) {
   wisp_word_t macro;
 } wisp_closure_t;
 
+#define FUNARGS_0 (wisp_word_t)
+#define FUNARGS_1 (wisp_word_t, wisp_word_t)
+#define FUNARGS_2 (wisp_word_t, wisp_word_t, wisp_word_t)
+#define FUNARGS_3 (wisp_word_t, wisp_word_t, wisp_word_t, wisp_word_t)
+
 typedef union wisp_fun_ptr {
-  wisp_word_t (*a0) (void);
-  wisp_word_t (*a1) (wisp_word_t);
-  wisp_word_t (*a2) (wisp_word_t, wisp_word_t);
-  wisp_word_t (*a3) (wisp_word_t, wisp_word_t, wisp_word_t);
+  wisp_word_t (*a0) FUNARGS_0;
+  wisp_word_t (*a1) FUNARGS_1;
+  wisp_word_t (*a2) FUNARGS_2;
+  wisp_word_t (*a3) FUNARGS_3;
 } wisp_fun_ptr_t;
 
 typedef struct wisp_defun {
   uint32_t id;
   const char *name;
   int n_args;
+  bool varargs;
   bool evaluate_arguments;
   bool evaluate_result;
   wisp_word_t params;
@@ -116,35 +122,31 @@ typedef struct wisp_defun {
 
 extern wisp_defun_t wisp_builtins[];
 
-#define WISP_DEF(lisp_name, c_name, n_args_, evalargs, evalresult) \
-  wisp_word_t c_name FUNARGS_##n_args_;                            \
-  static wisp_defun_t c_name##_spec = {                            \
-    .id = c_name##_tag,                                            \
-    .name = lisp_name,                                             \
-    .evaluate_arguments = evalargs,                                \
-    .evaluate_result = evalresult,                                 \
-    .n_args = n_args_,                                             \
-    .params = NIL,                                                 \
-    .function = { .a ## n_args_ = c_name }                         \
-  };                                                               \
+#define WISP_DEF(lisp_name, c_name, n_args_, varargs_, ea, er) \
+  wisp_word_t c_name FUNARGS_##n_args_;                        \
+  static wisp_defun_t c_name##_spec = {                        \
+    .id = c_name##_tag,                                        \
+    .name = lisp_name,                                         \
+    .evaluate_arguments = ea,                                  \
+    .evaluate_result = er,                                     \
+    .n_args = n_args_,                                         \
+    .varargs = varargs_,                                       \
+    .params = NIL,                                             \
+    .function = { .a ## n_args_ = c_name }                     \
+  };                                                           \
   wisp_word_t c_name
 
-#define WISP_DEFUN(lisp_name, c_name, n_args) \
-  WISP_DEF (lisp_name, c_name, n_args, true, false)
+#define WISP_DEFUN(lisp_name, c_name, n_args, varargs) \
+  WISP_DEF (lisp_name, c_name, n_args, varargs, true, false)
 
-#define WISP_DEFMACRO(lisp_name, c_name, n_args) \
-  WISP_DEF (lisp_name, c_name, n_args, false, true)
+#define WISP_DEFMACRO(lisp_name, c_name, n_args, varargs) \
+  WISP_DEF (lisp_name, c_name, n_args, varargs, false, true)
 
-#define WISP_DEFEVAL(lisp_name, c_name, n_args) \
-  WISP_DEF (lisp_name, c_name, n_args, true, true)
+#define WISP_DEFEVAL(lisp_name, c_name, n_args, varargs) \
+  WISP_DEF (lisp_name, c_name, n_args, varargs, true, true)
 
-#define WISP_DEFQUOTE(lisp_name, c_name, n_args) \
-  WISP_DEF (lisp_name, c_name, n_args, false, false)
-
-#define FUNARGS_0 (void)
-#define FUNARGS_1 (wisp_word_t)
-#define FUNARGS_2 (wisp_word_t, wisp_word_t)
-#define FUNARGS_3 (wisp_word_t, wisp_word_t, wisp_word_t)
+#define WISP_DEFQUOTE(lisp_name, c_name, n_args, varargs) \
+  WISP_DEF (lisp_name, c_name, n_args, varargs, false, false)
 
 #define WISP_REGISTER(c_name, ...) {                            \
   c_name##_spec.params =                                        \
@@ -334,5 +336,8 @@ wisp_builtin_function (wisp_word_t builtin_name,
 
 void
 wisp_tidy (void);
+
+wisp_word_t
+wisp_pop (wisp_word_t *list);
 
 #endif

@@ -20,20 +20,20 @@
 
 wisp_defun_t wisp_builtins[WISP_N_BUILTINS];
 
-WISP_DEFQUOTE ("QUOTE", wisp_quote, 1)
-(wisp_word_t term)
+WISP_DEFQUOTE ("QUOTE", wisp_quote, 1, false)
+(wisp_word_t term, wisp_word_t rest)
 {
   return term;
 }
 
-WISP_DEFEVAL ("EVAL", wisp_eval, 1)
-(wisp_word_t term)
+WISP_DEFEVAL ("EVAL", wisp_eval, 1, false)
+(wisp_word_t term, wisp_word_t rest)
 {
   return term;
 }
 
-WISP_DEFMACRO ("LAMBDA", wisp_lambda, 2)
-(wisp_word_t lambda_list, wisp_word_t body)
+WISP_DEFMACRO ("LAMBDA", wisp_lambda, 2, false)
+(wisp_word_t lambda_list, wisp_word_t body, wisp_word_t rest)
 {
   wisp_word_t params = wisp_lambda_list_to_params (lambda_list);
 
@@ -44,8 +44,8 @@ WISP_DEFMACRO ("LAMBDA", wisp_lambda, 2)
   return closure;
 }
 
-WISP_DEFMACRO ("MACRO", wisp_macro, 2)
-(wisp_word_t lambda_list, wisp_word_t body)
+WISP_DEFMACRO ("MACRO", wisp_macro, 2, false)
+(wisp_word_t lambda_list, wisp_word_t body, wisp_word_t rest)
 {
   wisp_word_t params = wisp_lambda_list_to_params (lambda_list);
 
@@ -56,8 +56,8 @@ WISP_DEFMACRO ("MACRO", wisp_macro, 2)
   return closure;
 }
 
-WISP_DEFUN ("CONS", wisp_cons, 2)
-(wisp_word_t car, wisp_word_t cdr)
+WISP_DEFUN ("CONS", wisp_CONS, 2, false)
+(wisp_word_t car, wisp_word_t cdr, wisp_word_t rest)
 {
   wisp_word_t cons
     = wisp_alloc_raw (WISP_CONS_SIZE, WISP_LOWTAG_LIST_PTR);
@@ -69,22 +69,22 @@ WISP_DEFUN ("CONS", wisp_cons, 2)
   return cons;
 }
 
-WISP_DEFUN ("CAR", wisp_car, 1)
-(wisp_word_t list)
+WISP_DEFUN ("CAR", wisp_CAR, 1, false)
+(wisp_word_t list, wisp_word_t rest)
 {
   assert (WISP_IS_LIST_PTR (list));
   return (wisp_deref (list))[0];
 }
 
-WISP_DEFUN ("CDR", wisp_cdr, 1)
-(wisp_word_t list)
+WISP_DEFUN ("CDR", wisp_CDR, 1, false)
+(wisp_word_t list, wisp_word_t rest)
 {
   assert (WISP_IS_LIST_PTR (list));
   return (wisp_deref (list))[1];
 }
 
-WISP_DEFUN ("MAKE-INSTANCE", wisp_make_instance, 2)
-(wisp_word_t klass, wisp_word_t initargs)
+WISP_DEFUN ("MAKE-INSTANCE", wisp_make_instance, 2, false)
+(wisp_word_t klass, wisp_word_t initargs, wisp_word_t rest)
 {
   assert (wisp_is_symbol (klass));
 
@@ -101,8 +101,8 @@ WISP_DEFUN ("MAKE-INSTANCE", wisp_make_instance, 2)
     (klass, length, slots);
 }
 
-WISP_DEFUN ("SET-SYMBOL-FUNCTION", wisp_set_symbol_function, 2)
-(wisp_word_t symbol, wisp_word_t value)
+WISP_DEFUN ("SET-SYMBOL-FUNCTION", wisp_SET_SYMBOL_FUNCTION, 2, false)
+(wisp_word_t symbol, wisp_word_t value, wisp_word_t rest)
 {
   wisp_word_t *header = wisp_is_symbol (symbol);
   header[6] = value;
@@ -116,29 +116,29 @@ WISP_DEFUN ("SET-SYMBOL-FUNCTION", wisp_set_symbol_function, 2)
   return value;
 }
 
-WISP_DEFUN ("GC", wisp_collect_garbage, 0)
-(void)
+WISP_DEFUN ("GC", wisp_collect_garbage, 0, false)
+(wisp_word_t rest)
 {
   wisp_tidy ();
   return NIL;
 }
 
-WISP_DEFUN ("PRINT", wisp_print, 1)
-(wisp_word_t x)
+WISP_DEFUN ("PRINT", wisp_print, 1, false)
+(wisp_word_t x, wisp_word_t rest)
 {
   wisp_dump (stdout, x);
   putchar ('\n');
   return x;
 }
 
-WISP_DEFUN ("GET/CC", wisp_getcc, 0)
-(void)
+WISP_DEFUN ("GET/CC", wisp_getcc, 0, false)
+(wisp_word_t rest)
 {
   return wisp_machine->plan;
 }
 
-WISP_DEFUN ("SAVE-HEAP", wisp_save_heap, 1)
-(wisp_word_t pathname)
+WISP_DEFUN ("SAVE-HEAP", wisp_SAVE_HEAP, 1, false)
+(wisp_word_t pathname, wisp_word_t rest)
 {
   char *path = wisp_string_buffer (wisp_deref (pathname));
 
@@ -172,40 +172,58 @@ WISP_DEFUN ("SAVE-HEAP", wisp_save_heap, 1)
   return WISP_CACHE (T);
 }
 
-WISP_DEFUN ("+", wisp_add, 2)
-(wisp_word_t x, wisp_word_t y)
+WISP_DEFUN ("+", wisp_add, 0, true)
+(wisp_word_t args)
 {
-  if (!WISP_IS_FIXNUM (x))
-    wisp_crash ("not a number");
+  wisp_word_t sum = wisp_fixnum (0);
 
-  if (!WISP_IS_FIXNUM (y))
-    wisp_crash ("not a number");
+  while (args != NIL)
+    {
+      wisp_word_t x = wisp_pop (&args);
 
-  return x + y;
+      if (!WISP_IS_FIXNUM (x))
+        wisp_crash ("not a number");
+
+      sum += x;
+    }
+
+  return sum;
 }
 
-WISP_DEFUN ("-", wisp_subtract, 2)
-(wisp_word_t x, wisp_word_t y)
+WISP_DEFUN ("-", wisp_subtract, 1, true)
+(wisp_word_t x, wisp_word_t args)
 {
-  if (!WISP_IS_FIXNUM (x))
-    wisp_crash ("not a number");
+  int result = -x;
 
-  if (!WISP_IS_FIXNUM (y))
-    wisp_crash ("not a number");
+  while (args != NIL)
+    {
+      wisp_word_t y = wisp_pop (&args);
 
-  return x - y;
+      if (!WISP_IS_FIXNUM (y))
+        wisp_crash ("not a number");
+
+      result -= y;
+    }
+
+  return x;
 }
 
-WISP_DEFUN ("*", wisp_multiply, 2)
-(wisp_word_t x, wisp_word_t y)
+WISP_DEFUN ("*", wisp_multiply, 0, true)
+(wisp_word_t args)
 {
-  if (!WISP_IS_FIXNUM (x))
-    wisp_crash ("not a number");
+  wisp_word_t product = 1;
 
-  if (!WISP_IS_FIXNUM (y))
-    wisp_crash ("not a number");
+  while (args != NIL)
+    {
+      wisp_word_t x = wisp_pop (&args);
 
-  return ((x >> 2) * (y >> 2)) << 2;
+      if (!WISP_IS_FIXNUM (x))
+        wisp_crash ("not a number");
+
+      product *= x >> 2;
+    }
+
+  return wisp_fixnum (product);
 }
 
 void
@@ -219,6 +237,36 @@ wisp_register_builtin_defun
      (defun.id << 8) | WISP_WIDETAG_BUILTIN);
 }
 
+wisp_word_t
+wisp_cons (wisp_word_t car, wisp_word_t cdr)
+{
+  return wisp_CONS (car, cdr, NIL);
+}
+
+wisp_word_t
+wisp_car (wisp_word_t cons)
+{
+  return wisp_CAR (cons, NIL);
+}
+
+wisp_word_t
+wisp_cdr (wisp_word_t cons)
+{
+  return wisp_CDR (cons, NIL);
+}
+
+wisp_word_t
+wisp_set_symbol_function (wisp_word_t symbol, wisp_word_t function)
+{
+  return wisp_SET_SYMBOL_FUNCTION (symbol, function, NIL);
+}
+
+wisp_word_t
+wisp_save_heap (wisp_word_t path)
+{
+  return wisp_SAVE_HEAP (path, NIL);
+}
+
 void
 wisp_defs (void)
 {
@@ -226,11 +274,11 @@ wisp_defs (void)
   WISP_REGISTER (wisp_eval, "TERM");
   WISP_REGISTER (wisp_lambda, "LAMBDA-LIST", "BODY");
   WISP_REGISTER (wisp_macro, "LAMBDA-LIST", "BODY");
-  WISP_REGISTER (wisp_cons, "CAR", "CDR");
-  WISP_REGISTER (wisp_car, "CONS");
-  WISP_REGISTER (wisp_cdr, "CONS");
-  WISP_REGISTER (wisp_set_symbol_function, "SYMBOL", "FUNCTION");
-  WISP_REGISTER (wisp_save_heap, "HEAP-PATH");
+  WISP_REGISTER (wisp_CONS, "CAR", "CDR");
+  WISP_REGISTER (wisp_CAR, "CONS");
+  WISP_REGISTER (wisp_CDR, "CONS");
+  WISP_REGISTER (wisp_SET_SYMBOL_FUNCTION, "SYMBOL", "FUNCTION");
+  WISP_REGISTER (wisp_SAVE_HEAP, "HEAP-PATH");
   WISP_REGISTER (wisp_collect_garbage, NULL);
   WISP_REGISTER (wisp_print, "X");
   WISP_REGISTER (wisp_make_instance, "CLASS", "SLOTS");

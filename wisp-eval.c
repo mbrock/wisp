@@ -214,12 +214,15 @@ wisp_do_call (wisp_machine_t *machine,
       wisp_word_t values = plan->values;
       int args_length = wisp_length (values);
 
-      if (args_length != builtin.n_args)
-        wisp_crash ("wrong arguments");
+      if (args_length < builtin.n_args)
+        wisp_crash ("too few arguments");
 
-      wisp_word_t args[args_length];
+      if (args_length > builtin.n_args && !builtin.varargs)
+        wisp_crash ("too many arguments");
 
-      for (int i = 0; i < args_length; i++)
+      wisp_word_t args[builtin.n_args];
+
+      for (int i = 0; i < builtin.n_args; i++)
         {
           int parameter_index = backwards
             ? args_length - i - 1
@@ -241,10 +244,10 @@ wisp_do_call (wisp_machine_t *machine,
 
       switch (builtin.n_args)
         {
-        case 0: x = f.a0 (); break;
-        case 1: x = f.a1 (args[0]); break;
-        case 2: x = f.a2 (args[0], args[1]); break;
-        case 3: x = f.a3 (args[0], args[1], args[2]); break;
+        case 0: x = f.a0 (values); break;
+        case 1: x = f.a1 (args[0], values); break;
+        case 2: x = f.a2 (args[0], args[1], values); break;
+        case 3: x = f.a3 (args[0], args[1], args[2], values); break;
         default: wisp_not_implemented ();
         }
 
