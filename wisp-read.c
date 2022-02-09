@@ -20,6 +20,9 @@
 wisp_word_t
 wisp_read_list (const char **stream)
 {
+  while (isspace (**stream))
+    ++*stream;
+
   char c = **stream;
 
   if (c == ')')
@@ -28,10 +31,27 @@ wisp_read_list (const char **stream)
       return NIL;
     }
 
-  wisp_word_t car = wisp_read (stream);
-  wisp_word_t cdr = wisp_read_list (stream);
+  else if (c == '.')
+    {
+      ++*stream;
+      wisp_word_t cdr = wisp_read (stream);
 
-  return wisp_cons (car, cdr);
+      while (isspace (**stream))
+        ++*stream;
+
+      if (**stream != ')')
+        wisp_crash ("expected end of list");
+
+      ++*stream;
+
+      return cdr;
+    }
+  else
+    {
+      wisp_word_t car = wisp_read (stream);
+      wisp_word_t cdr = wisp_read_list (stream);
+      return wisp_cons (car, cdr);
+    }
 }
 
 bool
