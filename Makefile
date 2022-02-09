@@ -23,6 +23,6 @@ wisp: $(SOURCES)
 	$(CC) $(CFLAGS) $^ -o wisp
 
 test:
-	./wisp -e '(cons 1 (cons 2 nil))'
+	./wisp -e '(funcall (lambda (x . y) y) 1 2 3)'
 
 clean:; rm -rf wisp dist/* wasm/*

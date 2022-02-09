@@ -17,6 +17,25 @@
 
 #include "wisp.h"
 
+wisp_word_t
+wisp_reverse (wisp_word_t list)
+{
+  wisp_word_t result = NIL;
+
+  while (list != NIL)
+    {
+      wisp_word_t car = wisp_pop (&list);
+      result = wisp_cons (car, result);
+    }
+
+  return result;
+}
+
+bool
+wisp_step_into_call (wisp_machine_t *machine,
+                     wisp_word_t callee,
+                     wisp_word_t args);
+
 bool
 wisp_find_binding_in_scope (wisp_word_t scope,
                             wisp_word_t symbol,
@@ -132,23 +151,35 @@ wisp_get_closure (wisp_word_t value)
 wisp_word_t
 wisp_lambda_list_to_params (wisp_word_t lambda_list)
 {
-  int length = wisp_length (lambda_list);
-  wisp_word_t slots[length];
+  int length = 0;
+  wisp_word_t rest_symbol = NIL;
 
-  /* fprintf (stderr, ";; %d ", length); */
-  /* wisp_dump (lambda_list); */
-  /* fprintf (stderr, "\n"); */
+  wisp_word_t lambda_cons = lambda_list;
+  for (;;)
+    {
+      if (lambda_cons == NIL)
+        break;
+
+      if (!WISP_IS_LIST_PTR (lambda_cons))
+        {
+          rest_symbol = lambda_cons;
+          break;
+        }
+
+      wisp_word_t car = wisp_pop (&lambda_cons);
+      ++length;
+    }
+
+  wisp_word_t slots[1 + length];
 
   for (int i = 0; i < length; i++)
-    {
-      wisp_word_t *cons = wisp_deref (lambda_list);
-      slots[i] = cons[0];
-      lambda_list = cons[1];
-    }
+    slots[i] = wisp_pop (&lambda_list);
+
+  slots[length] = rest_symbol;
 
   wisp_word_t params =
     wisp_make_instance_with_slots
-    (WISP_CACHE (PARAMS), length, slots);
+    (WISP_CACHE (PARAMS), 1 + length, slots);
 
   return params;
 }
@@ -167,32 +198,46 @@ wisp_make_args_scope (wisp_word_t params,
   wisp_word_t *parameter_names =
     parameter_struct + 2;
 
-  wisp_word_t scope_slots[2 * parameter_count];
+  bool varargs =
+    parameter_names[parameter_count - 1] != NIL;
 
-  for (int i = 0; i < parameter_count; i++)
+  int slot_count =
+    varargs
+    ? parameter_count
+    : parameter_count - 1;
+
+  wisp_word_t scope_slots[2 * slot_count];
+
+  if (varargs && backwards)
+    {
+      backwards = false;
+      values = wisp_reverse (values);
+    }
+
+  for (int i = 0; i < slot_count; i++)
     {
       int parameter_index = backwards
-        ? parameter_count - i - 1
+        ? slot_count - i - 1
         : i;
-
-      assert (values != NIL);
-
-      wisp_word_t *cons = wisp_deref (values);
-      wisp_word_t car = cons[0];
-      wisp_word_t cdr = cons[1];
 
       scope_slots[parameter_index * 2] =
         parameter_names[parameter_index];
 
-      scope_slots[parameter_index * 2 + 1] =
-        car;
+      if (varargs && (parameter_index == slot_count - 1))
+        scope_slots[parameter_index * 2 + 1] = values;
+      else
+        {
+          wisp_word_t car = wisp_car (values);
+          wisp_word_t cdr = wisp_cdr (values);
 
-      values = cdr;
+          scope_slots[parameter_index * 2 + 1] = car;
+          values = cdr;
+        }
     }
 
   wisp_word_t args_scope =
     wisp_make_instance_with_slots
-    (WISP_CACHE (SCOPE), 2 * parameter_count, scope_slots);
+    (WISP_CACHE (SCOPE), 2 * slot_count, scope_slots);
 
   return args_scope;
 }
@@ -375,16 +420,13 @@ wisp_follow_plan (wisp_machine_t *machine)
       wisp_funcall_plan_t *funcall_plan =
         wisp_get_funcall_plan (header);
 
-      wisp_word_t apply_plan =
-        wisp_make_apply_plan
-        (value,
-         NIL,
-         funcall_plan->terms,
-         funcall_plan->scopes,
-         funcall_plan->next);
+      machine->scopes = funcall_plan->scopes;
+      machine->plan = funcall_plan->next;
 
-      machine->plan = apply_plan;
-      return true;
+      return wisp_step_into_call
+        (machine,
+         value,
+         funcall_plan->terms);
     }
 
   else if (type == WISP_CACHE (EVAL))
@@ -527,30 +569,33 @@ wisp_function_evaluates_arguments (wisp_word_t function)
 
 bool
 wisp_step_into_call (wisp_machine_t *machine,
-                     wisp_word_t callee,
+                     wisp_word_t function,
                      wisp_word_t args)
 {
-  wisp_word_t term = machine->term;
-  wisp_word_t scopes = machine->scopes;
-  wisp_word_t plan = machine->plan;
+  if (args == NIL)
+    return wisp_step_into_nullary_call
+      (machine, function);
 
+  else if (wisp_function_evaluates_arguments (function))
+    return wisp_start_evaluating_arguments
+      (machine, function, args);
+
+  else
+    return wisp_step_into_macro_call
+      (machine, function, args);
+}
+
+bool
+wisp_step_into_symbol_call (wisp_machine_t *machine,
+                            wisp_word_t callee,
+                            wisp_word_t args)
+{
   wisp_word_t *symbol = wisp_is_symbol (callee);
 
   if (symbol)
     {
       wisp_word_t function = symbol[6];
-
-      if (args == NIL)
-        return wisp_step_into_nullary_call
-          (machine, function);
-
-      else if (wisp_function_evaluates_arguments (function))
-        return wisp_start_evaluating_arguments
-          (machine, function, args);
-
-      else
-        return wisp_step_into_macro_call
-          (machine, function, args);
+      return wisp_step_into_call (machine, function, args);
     }
 
   wisp_crash ("bad call");
@@ -671,7 +716,7 @@ wisp_step (wisp_machine_t *machine)
       else if (car == WISP_CACHE (FUNCALL))
         return wisp_step_into_funcall (machine, cdr);
       else
-        return wisp_step_into_call (machine, car, cdr);
+        return wisp_step_into_symbol_call (machine, car, cdr);
     }
 
   else if (wisp_is_symbol (term))
