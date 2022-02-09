@@ -376,6 +376,7 @@ wisp_intern_basic_symbols ()
   WISP_CACHE (SET_SYMBOL_FUNCTION) =
     wisp_intern_lisp ("SET-SYMBOL-FUNCTION");
   WISP_CACHE (PROGN) = wisp_intern_lisp ("PROGN");
+  WISP_CACHE (IF) = wisp_intern_lisp ("IF");
 }
 
 bool

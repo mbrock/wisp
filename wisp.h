@@ -78,6 +78,13 @@ typedef struct __attribute__ ((__packed__)) {
 } wisp_progn_plan_t;
 
 typedef struct __attribute__ ((__packed__)) {
+  wisp_word_t true_case;
+  wisp_word_t false_case;
+  wisp_word_t scopes;
+  wisp_word_t next;
+} wisp_if_plan_t;
+
+typedef struct __attribute__ ((__packed__)) {
   wisp_word_t params;
   wisp_word_t body;
   wisp_word_t scopes;
@@ -208,6 +215,7 @@ enum {
   WISP_CACHED_WISP,
   WISP_CACHED_PACKAGE,
   WISP_CACHED_PROGN,
+  WISP_CACHED_IF,
 
   wisp_cache_size
 };

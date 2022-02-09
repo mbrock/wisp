@@ -80,6 +80,12 @@ wisp_get_progn_plan (wisp_word_t *header)
   return (wisp_progn_plan_t *) (header + 2);
 }
 
+wisp_if_plan_t *
+wisp_get_if_plan (wisp_word_t *header)
+{
+  return (wisp_if_plan_t *) (header + 2);
+}
+
 bool
 wisp_term_irreducible (wisp_word_t term)
 {
@@ -409,6 +415,24 @@ wisp_follow_plan (wisp_machine_t *machine)
         }
     }
 
+  else if (type == WISP_CACHE (IF))
+    {
+      wisp_if_plan_t *if_plan =
+        wisp_get_if_plan (header);
+
+      machine->value = false;
+
+      if (value != NIL)
+        machine->term = if_plan->true_case;
+      else
+        machine->term = if_plan->false_case;
+
+      machine->scopes = if_plan->scopes;
+      machine->plan = if_plan->next;
+
+      return true;
+    }
+
   wisp_crash ("bad plan");
 }
 
@@ -549,6 +573,39 @@ wisp_step_into_progn (wisp_machine_t *machine,
     }
 }
 
+wisp_word_t
+wisp_pop (wisp_word_t *list)
+{
+  wisp_word_t car = wisp_car (*list);
+  *list = wisp_cdr (*list);
+
+  return car;
+}
+
+bool
+wisp_step_into_if (wisp_machine_t *machine,
+                   wisp_word_t args)
+{
+  wisp_word_t condition = wisp_pop (&args);
+  wisp_word_t true_case = wisp_pop (&args);
+  wisp_word_t false_case = wisp_pop (&args);
+
+  assert (args == NIL);
+
+  wisp_word_t plan = wisp_make_instance_va
+    (WISP_CACHE (IF), 4,
+     true_case,
+     false_case,
+     machine->scopes,
+     machine->plan);
+
+  machine->term = condition;
+  machine->value = false;
+  machine->plan = plan;
+
+  return true;
+}
+
 bool
 wisp_step (wisp_machine_t *machine)
 {
@@ -576,6 +633,8 @@ wisp_step (wisp_machine_t *machine)
 
       if (car == WISP_CACHE (PROGN))
         return wisp_step_into_progn (machine, cdr);
+      else if (car == WISP_CACHE (IF))
+        return wisp_step_into_if (machine, cdr);
       else
         return wisp_step_into_call (machine, car, cdr);
     }
