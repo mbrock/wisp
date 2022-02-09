@@ -72,6 +72,12 @@ typedef struct __attribute__ ((__packed__)) {
 } wisp_apply_plan_t;
 
 typedef struct __attribute__ ((__packed__)) {
+  wisp_word_t terms;
+  wisp_word_t scopes;
+  wisp_word_t next;
+} wisp_progn_plan_t;
+
+typedef struct __attribute__ ((__packed__)) {
   wisp_word_t params;
   wisp_word_t body;
   wisp_word_t scopes;

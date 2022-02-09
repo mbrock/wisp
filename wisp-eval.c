@@ -74,6 +74,12 @@ wisp_get_apply_plan (wisp_word_t *header)
   return (wisp_apply_plan_t *) (header + 2);
 }
 
+wisp_progn_plan_t *
+wisp_get_progn_plan (wisp_word_t *header)
+{
+  return (wisp_progn_plan_t *) (header + 2);
+}
+
 bool
 wisp_term_irreducible (wisp_word_t term)
 {
@@ -370,6 +376,39 @@ wisp_follow_plan (wisp_machine_t *machine)
       return true;
     }
 
+  else if (type == WISP_CACHE (PROGN))
+    {
+      wisp_progn_plan_t *progn_plan =
+        wisp_get_progn_plan (header);
+
+      wisp_word_t terms = progn_plan->terms;
+
+      if (terms == NIL)
+        {
+          machine->scopes = progn_plan->scopes;
+          machine->plan = progn_plan->next;
+
+          return true;
+        }
+      else
+        {
+          wisp_word_t car = wisp_car (terms);
+          wisp_word_t cdr = wisp_cdr (terms);
+
+          wisp_word_t new_plan = wisp_make_instance_va
+            (WISP_CACHE (PROGN), 3,
+             cdr,
+             progn_plan->scopes,
+             progn_plan->next);
+
+          machine->term = car;
+          machine->value = false;
+          machine->plan = new_plan;
+
+          return true;
+        }
+    }
+
   wisp_crash ("bad plan");
 }
 
@@ -480,6 +519,37 @@ wisp_step_into_call (wisp_machine_t *machine,
 }
 
 bool
+wisp_step_into_progn (wisp_machine_t *machine,
+                      wisp_word_t sequence)
+{
+  assert (WISP_IS_PTR (sequence));
+
+  if (sequence == NIL)
+    {
+      machine->term = NIL;
+      machine->value = true;
+      return wisp_follow_plan (machine);
+    }
+  else
+    {
+      wisp_word_t car = wisp_car (sequence);
+      wisp_word_t cdr = wisp_cdr (sequence);
+
+      wisp_word_t plan = wisp_make_instance_va
+        (WISP_CACHE (PROGN), 3,
+         cdr,
+         machine->scopes,
+         machine->plan);
+
+      machine->term = car;
+      machine->value = false;
+      machine->plan = plan;
+
+      return true;
+    }
+}
+
+bool
 wisp_step (wisp_machine_t *machine)
 {
   wisp_word_t term = machine->term;
@@ -504,7 +574,10 @@ wisp_step (wisp_machine_t *machine)
       wisp_word_t car = cons[0];
       wisp_word_t cdr = cons[1];
 
-      return wisp_step_into_call (machine, car, cdr);
+      if (car == WISP_CACHE (PROGN))
+        return wisp_step_into_progn (machine, cdr);
+      else
+        return wisp_step_into_call (machine, car, cdr);
     }
 
   else if (wisp_is_symbol (term))
