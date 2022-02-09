@@ -1,0 +1,22 @@
+{
+  "name": "wisp",
+  "version": "0.5.0",
+  "description": "WebAssembly Lisp Machine",
+  "author": "Mikael Brockman",
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "react": "^17.0.2",
+    "react-complex-tree": "^1.1.4",
+    "react-cytoscapejs": "^1.2.1",
+    "react-dom": "^17.0.2",
+    "recoil": "^0.6.1"
+  },
+  "scripts": {
+    "build": "make"
+  },
+  "devDependencies": {
+    "@types/react": "^17.0.39",
+    "@types/react-cytoscapejs": "^1.2.2",
+    "@types/react-dom": "^17.0.11"
+  }
+}

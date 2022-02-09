@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -ex
+rm -rf dist/*
+
+esbuild index.tsx --outdir=dist --bundle --sourcemap \
+  --entry-names=[dir]/[name]-[hash]
+cd dist
+
+cp ../index.html .
+
+mvhash() {
+  hash=$(sha256sum "$1")
+  hash=$(echo "$hash" | head -c 8)
+  name=$(echo "$1" | sed "s/\./-$hash./")
+  mv "$1" "$name"
+}
+
+cp ../wasm/* .
+mvhash wisp.wasm
+
+result=$(ls wisp*.wasm)
+sed -i -e "s|wisp.wasm|$result|" wisp.js
+
+mvhash wisp.js
+
+result=$(ls index*.js)
+sed -i -e "s|index.js|$result|" index.html
+
+result=$(ls wisp*.js)
+sed -i -e "s|wisp.js|$result|" index.html

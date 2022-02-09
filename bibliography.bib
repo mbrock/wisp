@@ -1,0 +1,114 @@
+
+@article{cheney1970,
+  title = {A Nonrecursive List Compacting Algorithm},
+  author = {Cheney, C. J.},
+  date = {1970-11-01},
+  journaltitle = {Communications of the ACM},
+  shortjournal = {Commun. ACM},
+  volume = {13},
+  number = {11},
+  pages = {677--678},
+  issn = {0001-0782},
+  doi = {10.1145/362790.362798},
+  url = {https://doi.org/10.1145/362790.362798},
+  urldate = {2022-02-05},
+  abstract = {A simple nonrecursive list structure compacting scheme or garbage collector suitable for both compact and LISP-like list structures is presented. The algorithm avoids the need for recursion by using the partial structure as it is built up to keep track of those lists that have been copied.},
+  keywords = {compact list,garbage collection,LISP,list compacting},
+  file = {/home/mbrock/Zotero/storage/KDTS5AH4/chenney1970.pdf.pdf}
+}
+
+@inproceedings{danvy1990,
+  title = {Abstracting Control},
+  booktitle = {Proceedings of the 1990 {{ACM}} Conference on {{LISP}} and Functional Programming},
+  author = {Danvy, Olivier and Filinski, Andrzej},
+  date = {1990-05-01},
+  series = {{{LFP}} '90},
+  pages = {151--160},
+  publisher = {{Association for Computing Machinery}},
+  location = {{New York, NY, USA}},
+  doi = {10.1145/91556.91622},
+  url = {https://doi.org/10.1145/91556.91622},
+  urldate = {2022-02-05},
+  abstract = {The last few years have seen a renewed interest in continuations for expressing advanced control structures in programming languages, and new models such as Abstract Continuations have been proposed to capture these dimensions. This article investigates an alternative formulation, exploiting the latent expressive power of the standard continuation-passing style (CPS) instead of introducing yet other new concepts. We build on a single foundation: abstracting control as a hierarchy of continuations, each one modeling a specific language feature as acting on nested evaluation contexts. We show how iterating the continuation-passing conversion allows us to specify a wide range of control behavior. For example, two conversions yield an abstraction of Prolog-style backtracking. A number of other constructs can likewise be expressed in this framework; each is defined independently of the others, but all are arranged in a hierarchy making any interactions between them explicit. This approach preserves all the traditional results about CPS, e.g., its evaluation order independence. Accordingly, our semantics is directly implementable in a call-by-value language such as Scheme or ML. Furthermore, because the control operators denote simple, typable lambda-terms in CPS, they themselves can be statically typed. Contrary to intuition, the iterated CPS transformation does not yield huge results: except where explicitly needed, all continuations beyond the first one disappear due to the extensionality principle (η-reduction). Besides presenting a new motivation for control operators, this paper also describes an improved conversion into applicative-order CPS. The conversion operates in one pass by performing all administrative reductions at translation time; interestingly, it can be expressed very concisely using the new control operators. The paper also presents some examples of nondeterministic programming in direct style.},
+  isbn = {978-0-89791-368-3},
+  file = {/home/mbrock/Zotero/storage/2D9XFG6T/danvy1990.pdf.pdf}
+}
+
+@article{fenichel1969,
+  title = {A {{LISP}} Garbage-Collector for Virtual-Memory Computer Systems},
+  author = {Fenichel, Robert R. and Yochelson, Jerome C.},
+  date = {1969-11-01},
+  journaltitle = {Communications of the ACM},
+  shortjournal = {Commun. ACM},
+  volume = {12},
+  number = {11},
+  pages = {611--612},
+  issn = {0001-0782},
+  doi = {10.1145/363269.363280},
+  url = {https://doi.org/10.1145/363269.363280},
+  urldate = {2022-02-05},
+  keywords = {LISP: garbage-collector,list-processing,storage-allocation,virtual memory},
+  file = {/home/mbrock/Zotero/storage/GG33ZVIH/fenichel1969.pdf.pdf}
+}
+
+@article{flatt2007,
+  title = {Adding Delimited and Composable Control to a Production Programming Environment},
+  author = {Flatt, Matthew and Yu, Gang and Findler, Robert Bruce and Felleisen, Matthias},
+  date = {2007-10-01},
+  journaltitle = {ACM SIGPLAN Notices},
+  shortjournal = {SIGPLAN Not.},
+  volume = {42},
+  number = {9},
+  pages = {165--176},
+  issn = {0362-1340},
+  doi = {10.1145/1291220.1291178},
+  url = {https://doi.org/10.1145/1291220.1291178},
+  urldate = {2022-02-05},
+  abstract = {Operators for delimiting control and for capturing composable continuations litter the landscape of theoretical programming language research. Numerous papers explain their advantages, how the operators explain each other (or don't), and other aspects of the operators' existence. Production programming languages, however, do not support these operators, partly because their relationship to existing and demonstrably useful constructs - such as exceptions and dynamic binding - remains relatively unexplored. In this paper, we report on our effort of translating the theory of delimited and composable control into a viable implementation for a production system. The report shows how this effort involved a substantial design element, including work with a formal model, as well as significant practical exploration and engineering. The resulting version of PLT Scheme incorporates the expressive combination of delimited and composable control alongside dynamic-wind, dynamic binding, and exception handling. None of the additional operators subvert the intended benefits of existing control operators, so that programmers can freely mix and match control operators.},
+  file = {/home/mbrock/Zotero/storage/DJLSVXGY/flatt2007.pdf.pdf;/home/mbrock/Zotero/storage/GT2YQ629/Flatt et al. - 2007 - Adding delimited and composable control to a produ.pdf}
+}
+
+@inproceedings{haas2017,
+  title = {Bringing the Web up to Speed with {{WebAssembly}}},
+  booktitle = {Proceedings of the 38th {{ACM SIGPLAN Conference}} on {{Programming Language Design}} and {{Implementation}}},
+  author = {Haas, Andreas and Rossberg, Andreas and Schuff, Derek L. and Titzer, Ben L. and Holman, Michael and Gohman, Dan and Wagner, Luke and Zakai, Alon and Bastien, JF},
+  date = {2017-06-14},
+  series = {{{PLDI}} 2017},
+  pages = {185--200},
+  publisher = {{Association for Computing Machinery}},
+  location = {{New York, NY, USA}},
+  doi = {10.1145/3062341.3062363},
+  url = {https://doi.org/10.1145/3062341.3062363},
+  urldate = {2022-02-05},
+  abstract = {The maturation of the Web platform has given rise to sophisticated and demanding Web applications such as interactive 3D visualization, audio and video software, and games. With that, efficiency and security of code on the Web has become more important than ever. Yet JavaScript as the only built-in language of the Web is not well-equipped to meet these requirements, especially as a compilation target. Engineers from the four major browser vendors have risen to the challenge and collaboratively designed a portable low-level bytecode called WebAssembly. It offers compact representation, efficient validation and compilation, and safe low to no-overhead execution. Rather than committing to a specific programming model, WebAssembly is an abstraction over modern hardware, making it language-, hardware-, and platform-independent, with use cases beyond just the Web. WebAssembly has been designed with a formal semantics from the start. We describe the motivation, design and formal semantics of WebAssembly and provide some preliminary experience with implementations.},
+  isbn = {978-1-4503-4988-8},
+  keywords = {assembly languages,just-in-time compilers,programming languages,type systems,virtual machines},
+  file = {/home/mbrock/Zotero/storage/2IUN4DWZ/haas2017.pdf.pdf;/home/mbrock/Zotero/storage/99XKPDX4/Haas et al. - 2017 - Bringing the web up to speed with WebAssembly.pdf}
+}
+
+@misc{kent,
+  title = {A {{Monadic Framework}} for {{Delimited Continuations}}},
+  author = {Kent, R. and Simon, Dybvig and Jones, Peyton and Sabry, Amr},
+  abstract = {Delimited continuations are more expressive than traditional abortive continuations and they apparently require a framework beyond traditional continuation-passing style (CPS). We show that this is not the case: standard CPS is sufficient to explain the common control operators for delimited continuations. We demonstrate this fact and present an implementation as a Scheme library. We then investigate a typed account of delimited continuations that makes explicit where control effects can occur. This results in a monadic framework for typed and encapsulated delimited continuations, which we design and implement as a Haskell library. 1},
+  file = {/home/mbrock/Zotero/storage/FJU27GWF/Kent et al. - A Monadic Framework for Delimited Continuations.pdf;/home/mbrock/Zotero/storage/MHJKFFPN/summary.html}
+}
+
+@article{pinckney2020,
+  title = {Wasm/k: {{Delimited Continuations}} for {{WebAssembly}}},
+  shorttitle = {Wasm/k},
+  author = {Pinckney, Donald and Guha, Arjun and Brun, Yuriy},
+  date = {2020-11-17},
+  journaltitle = {Proceedings of the 16th ACM SIGPLAN International Symposium on Dynamic Languages},
+  eprint = {2010.01723},
+  eprinttype = {arxiv},
+  pages = {16--28},
+  doi = {10.1145/3426422.3426978},
+  url = {http://arxiv.org/abs/2010.01723},
+  urldate = {2022-02-05},
+  abstract = {WebAssembly is designed to be an alternative to JavaScript that is a safe, portable, and efficient compilation target for a variety of languages. The performance of high-level languages depends not only on the underlying performance of WebAssembly, but also on the quality of the generated WebAssembly code. In this paper, we identify several features of high-level languages that current approaches can only compile to WebAssembly by generating complex and inefficient code. We argue that these problems could be addressed if WebAssembly natively supported first-class continuations. We then present Wasm/k, which extends WebAssembly with delimited continuations. Wasm/k introduces no new value types, and thus does not require significant changes to the WebAssembly type system (validation). Wasm/k is safe, even in the presence of foreign function calls (e.g., to and from JavaScript). Finally, Wasm/k is amenable to efficient implementation: we implement Wasm/k as a local change to Wasmtime, an existing WebAssembly JIT. We evaluate Wasm/k by implementing C/k, which adds delimited continuations to C/C++. C/k uses Emscripten and its implementation serves as a case study on how to use Wasm/k in a compiler that targets WebAssembly. We present several case studies using C/k, and show that on implementing green threads, it can outperform the state-of-the-art approach Asyncify with an 18\% improvement in performance and a 30\% improvement in code size.},
+  archiveprefix = {arXiv},
+  keywords = {Computer Science - Programming Languages},
+  file = {/home/mbrock/Zotero/storage/PXSHRVQ7/Pinckney et al. - 2020 - Wasmk Delimited Continuations for WebAssembly.pdf;/home/mbrock/Zotero/storage/U9IR6Z8M/pinckney2020.pdf.pdf;/home/mbrock/Zotero/storage/3QSM47PA/2010.html}
+}
+
+

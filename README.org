@@ -1,0 +1,235 @@
+#+bibliography: bibliography.bib
+
+* Wisp
+
+Wisp is an interpreter for a Lisp-style language that runs as
+a WebAssembly module but can also compile to native code.
+
+It has a basic browser-based REPL written in TypeScript
+with React as well as a basic command-line REPL.
+
+This initial import has a working interpreter and garbage
+collector, but the language is very incomplete.
+
+The interpreter is a small-step evaluator in the "CEK machine"
+style, which means it has an explicit representation of the
+evaluation context, also known as the continuation.
+Continuations are heap-allocated Lisp objects that can be
+inspected and serialized.
+
+The heap can be saved as an image file and loaded again.
+We currently don't save and restore the evaluator's state, but
+this can be fixed easily; then we could save and restore even
+in the middle of executing code.
+
+The garbage collector uses stop & copy with two semispaces.
+It is not generational or fancy in any way, but it works.
+Collection is triggered between evaluation steps when heap
+usage exceeds a threshold.
+
+The TypeScript code reads the heap directly, so it needs to be
+kept in sync with the basic memory layout defined by the
+C code.
+
+** WebAssembly as a platform
+
+I want to have some kind of funny interactive computing
+platform that's very social and "portable" in the sense that
+you should be able to migrate between your browser, your
+laptop, the cloud, whatever.  I haven't yet figured out how to
+realize that.
+
+Well, I started seeing people talk about WebAssembly as a new
+platform.  It's in the major web browsers with strong support.
+It runs in Node, native runtimes like Wasmtime, embedded as a
+library, on cloud edge computing platforms, in Kubernetes, and
+so on.  It's similar to the eBPF system of the Linux kernel, a
+sandbox for portable fast low-level code.
+
+So it's not just a thing for making 3D games.  It's not Java,
+it's not a whole platform bundle.  I had a hunch that it would
+be cool to have a persistent Lisp environment made for this
+WebAssembly platform.
+
+The browsers let you have several parallel WebAssembly
+threads, aka web workers, with shared memory buffers and
+atomic operations, so we can implement real threads.
+[[https://emscripten.org/docs/porting/pthreads.html][Emscripten supports pthreads.]]
+
+** Lisp traditions, continuations, etc
+
+I always wanted my computer to be something more like a "Lisp
+Machine."  Emacs gives me some of that, but it's not optimal
+even as just a Lisp interpreter.  It definitely doesn't
+support delimited continuations; it only got lexical scoping
+recently.  Although it's relatively advanced in terms of
+bytecode and JIT compilation.  Concurrency is kind of a joke.
+So there's Common Lisp and McCLIM and stuff, which is
+beautiful and amazing.
+
+It's kind of underrated still how Common Lisp is stable since
+its ANSI standardization in 1994 but still has deep qualities
+that are lacking in contemporary systems.  It's really quite a
+competent design; well, it's a merger of several live Lisp
+traditions going back to the 1950s.  The object system itself
+is a minor miracle.  The full compiler is always available at
+runtime for dynamic compilation.  The conditional restart
+system makes almost all errors recoverable either
+automatically or by manual intervention.  The whole state of
+the system can be saved as core snapshots that
+reload instantly.
+
+I've become a bit confused about Lisp language traditions and
+what I want Wisp to be like.
+
+The Common Lisp tradition is my favorite because of the way it
+resembles a virtual machine environment, I guess?
+The conditional restart system is a great example: when an
+error occurs in a real system, there's often something you can
+do to solve it on the spot instead of just crashing.
+That's how I want computers to work in general, and it's
+definitely something I want in Wisp.
+
+But I don't really want to be limited by the ANSI Common Lisp
+standard.  In particular, I want first-class composable
+continuations.  Why?  Well, it just makes sense to be able to
+do various things with continuations, especially for
+implementing concurrency and backtracking and stuff like that.
+That's why there are Common Lisp packages for transforming
+code into continuation-passing style.  Even Ruby has callcc.
+It's like a low-hanging fruit of language design.
+
+** C, Rust, Zig
+
+I think Wisp probably ought to be written in Rust, or Zig,
+rather than C, but C is just easier for me right now.  In a
+way, Wisp is the anti-Rust, or like I would consider Rust a
+way to bootstrap a Lisp, but also to write fast Lisp extension
+modules.  The current code base could probably be translated
+to Zig in a few days.  Actually Zig can even translate C to
+Zig, but it didn't work on Wisp for some seemingly
+minor reason.
+
+** Ideas
+
+It would be very cool to have some form of data replication
+built into the system.  Like persistent variables that can be
+synchronized across nodes.  Especially CRDTs.
+
+ - Wisp Library
+ - Wisp Inspector
+ - Wisp Remote
+ - Wisp Emacs
+ - Wisp DOM
+ - Wisp React
+ - Wisp Threads
+ - Wisp Cluster
+
+* Wisp Internals
+
+** Memory Layout
+
+   A wisp word is 32 bits.
+
+   The least 3 significant bits hold a tag, the /lowtag/.
+
+*** Lowtag values
+
+    |-----+-----+-----------------|
+    | Tag | Hex | Type            |
+    |-----+-----+-----------------|
+    | 000 | 0x0 | FIXNUM          |
+    | 001 | 0x1 | FUNCTION-PTR    |
+    | 010 | 0x2 | OTHER-IMMEDIATE |
+    | 011 | 0x3 | LIST-PTR        |
+    | 100 | 0x4 | FIXNUM          |
+    | 101 | 0x5 | STRUCT-PTR      |
+    | 110 | 0x6 | OTHER-IMMEDIATE |
+    | 111 | 0x7 | OTHER-PTR       |
+    |-----+-----+-----------------|
+
+
+*** Symbols
+
+    A symbol is an OTHER-PTR to a SYMBOL-DATA.
+
+    But NIL is also used as a LIST-PTR.
+
+
+
+*** Packages
+
+    A package is an OTHER-PTR
+
+** CEK Machine
+
+   To evaluate Lisp code, we use a style of interpreter
+   known in the literature as the CEK machine, named after
+   its three registers: Control, Environment, Kontinuation.
+
+   We call the registers ~term~, ~scopes~, and ~plan~.
+
+   See the [[file:wisp-eval.c::wisp_step (wisp_machine_t *machine)][~wisp_step()~]] function.
+
+*** Plans
+
+    | Plan              | Meaning             |
+    |-------------------+---------------------|
+    | NIL               | Computation is done |
+    | APPLY vs ts e k   |                     |
+    | CALL vs e k       |                     |
+
+    A call like ~(f x y)~ ...
+
+
+*** Lisp forms based on what they evaluate
+
+    |-----------+-----------+--------|
+    | Form      | Arguments | Result |
+    |-----------+-----------+--------|
+    | QUOTE     | no        | no     |
+    | Macros    | no        | yes    |
+    | Functions | yes       | no     |
+    | EVAL      | yes       | yes    |
+    |-----------+-----------+--------|
+
+
+* Garbage Collection
+
+  Wisp has a simple stop-and-copy garbage collector following
+  the algorithm published by Cheney in 1970
+  [cite:@cheney1970].
+
+  To summarize the algorithm, we divide the heap in two halves
+  or "semispaces" which we call the new heap and the old heap,
+  and to collect garbage we copy all reachable objects into
+  the new heap and update all relevant pointers with an
+  iterative breadth-first traversal.
+
+  This traversal is very simple and doesn't use any recursive
+  functions.  We first copy the objects pointed to by roots
+  like current scope and continuation into the new heap just
+  by copying their memory with no inspection other than needed
+  to determine each object's byte size.  We've now filled up a
+  small prefix of the new heap with copied structures that
+  still refer to objects in the old heap.  Now we /scavenge/,
+  iterating from the start of the new heap through every slot
+  of an instance, every list element, etc, and copy those
+  objects in the same way as we did the roots.  As we scavenge
+  we move the /scan/ pointer so that the next round of
+  scavenging begins where we left off.  For each object we
+  copy into the new heap, we update its old heap location to
+  replace the object's first word with the pointer to its new
+  location.  Before copying an object we check for such a
+  /forwarding pointer/ or /broken heart/ so we don't copy the
+  same object twice.
+
+  Some objects are so foundational that it makes no sense to
+  allocate them in a garbage-collected heap.  NIL, especially,
+  should not be moved around.  We do this by just reserving a
+  small amount of space at the beginning of both semispaces.
+
+* Local Variables :noexport:
+  Local Variables:
+  fill-column: 62
+  End:

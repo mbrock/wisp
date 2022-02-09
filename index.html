@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang=en-us class=light>
+<meta charset=utf-8>
+
+<!--
+  This file is part of Wisp.
+
+  Wisp is free software: you can redistribute it and/or modify it under
+  the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or (at
+  your option) any later version.
+
+  Foobar is distributed in the hope that it will be useful, but WITHOUT
+  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+  FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+  License for more details.
+
+  You should have received a copy of the GNU Affero General Public
+  License along with Wisp. If not, see <https://www.gnu.org/licenses/>.
+-->
+
+<title>Wisp</title>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #eee;
+    font-size: 16px;
+    line-height: 20px;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    color: var(--fg);
+  }
+
+  .flex { display: flex; }
+  .row { flex-direction: row; }
+  .column { flex-direction: column; }
+  .wrap { flex-wrap: wrap; }
+  .gap { gap: .5rem; }
+  .border { border: 1px solid var(--border); }
+  .p { padding: 0.25rem; }
+  .px { padding: 0 0.25rem; }
+
+  html {
+    --bg: #ffff;
+    --bg-tint: #fffa;
+    --fg: #333;
+    --gradual-tint: rgba(0, 40, 80, 0.03);
+    --border: #0004;
+    --sans:
+      apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
+      helvetica neue, helvetica, Ubuntu, roboto, noto, arial, sans-serif;
+    --mono:
+      DM Mono, Source Code Pro, Inconsolata,
+      Menlo, Consolas, Monaco, Liberation Mono, Lucida Console, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    html {
+      --bg: #123;
+      --bg-tint: #234;
+      --fg: #fffa;
+      --border: rgba(125, 150, 175, 0.4);
+      --gradual-tint: #fff1;
+    }
+
+    body {
+      background: black;
+    }
+  }
+
+  tt { font-family: var(--mono); }
+  html { font-family: var(--mono); }
+
+  em {
+    font-style: normal;
+    font-weight: 600;
+  }
+
+  button, input, select, textarea {
+    font-family: var(--sans);
+    font-size: 100%;
+  }
+
+  #app {
+    height: 100vh;
+    width: 100vw;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #repl {
+    display: flex;
+    flex-direction: column;
+    /* height: 30em; */
+    height: 100%;
+    width: 70ch;
+    /* box-shadow: 5px 5px 15px 0px #0005; */
+    /* border-radius: 8px; */
+    /* transform: rotate3d(1, 1, 1, -2deg); */
+  }
+
+  #repl #output {
+    background: var(--bg);
+    color: var(--fg);
+  }
+
+  #repl, .browser {
+    border: 0px solid var(--border);
+  }
+
+  #output {
+    flex-grow: 1;
+    padding: 5px 10px;
+    overflow-y: auto;
+  }
+
+  .stderr {
+    opacity: 0.6;
+  }
+
+  .stdin {
+    opacity: 0.8;
+    /* font-style: italic; */
+  }
+
+  .stdin::before {
+    content: "evaluating ";
+    font-family: var(--sans);
+    opacity: 0.7;
+    margin-right: 0.5rem;
+  }
+
+  /* .stdout::before { */
+  /*   content: "→"; */
+  /*   padding-right: .5rem; */
+  /* } */
+
+  form {
+    display: flex;
+    /* border-top: 2px solid #ccc; */
+    align-items: center;
+    background: var(--bg-tint);
+  }
+
+  .browser {
+    background: var(--bg);
+    max-width: 32ch;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  .bg { background: var(--bg); }
+
+  .scroll-y {
+    overflow-y: auto;
+  }
+
+  .bg { background: var(--bg); }
+
+  form > span {
+    padding-left: .5rem;
+  }
+
+  input {
+    flex-grow: 1;
+    border: 0;
+    padding: 0.5rem 1rem;
+    background: inherit;
+    color: inherit;
+  }
+
+  input:focus {
+    outline: 0;
+  }
+
+  .list {
+    display: inline-flex;
+    flex-wrap: wrap;
+  }
+
+  .list > *:not(:last-child) {
+    margin-right: 5px;
+  }
+
+  td:first-child {
+    white-space: nowrap;
+    padding-right: 0.5rem;
+    vertical-align: center;
+    font-family: var(--sans);
+  }
+
+  .symbol {
+    /* border: 1px solid #222; */
+    /* padding: 0 .5rem; */
+    /* background: #fff1; */
+  }
+
+  .list {
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    background: var(--gradual-tint);
+    align-items: center;
+  }
+
+  .list .list {
+    margin: 3px;
+  }
+
+  .chunk {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: .25rem;
+    align-items: center;
+  }
+
+  .chunk > * {
+    margin-right: .5rem;
+  }
+
+  .instance {
+    padding: 0 5px;
+    background: var(--gradual-tint);
+    cursor: pointer;
+    border: 1px solid var(--border);
+    margin: 0px;
+  }
+
+  .instance:hover, .list:hover {
+    border-color: rgb(0, 0, 0, 1.0);
+  }
+
+  .p-1 { padding: .5rem .75rem; }
+
+  .fade-in {
+    opacity: 0;
+    transition: 0.25s ease-in opacity;
+  }
+
+  .fade-in.now {
+    opacity: 1;
+  }
+
+  /* * { text-transform: lowercase; } */
+
+  .titlebar {
+    padding: 5px 10px;
+    background: var(--bg);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  ul {
+    list-style-type: none;
+  }
+
+  li {
+    margin-left: .5rem;
+    line-height: 130%;
+  }
+
+  header {
+    font-family: var(--sans);
+    text-transform: lowercase;
+    font-variant: small-caps;
+  }
+
+</style>
+
+<div id=app>
+</div>
+
+<script src=wisp.js></script>
+<script src=index.js></script>

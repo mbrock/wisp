@@ -1,0 +1,3 @@
+BasedOnStyle: GNU
+IndentWidth: 2
+ColumnLimit: 72
