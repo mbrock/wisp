@@ -64,6 +64,12 @@ typedef struct {
 extern wisp_machine_t *wisp_machine;
 
 typedef struct __attribute__ ((__packed__)) {
+  wisp_word_t terms;
+  wisp_word_t scopes;
+  wisp_word_t next;
+} wisp_funcall_plan_t;
+
+typedef struct __attribute__ ((__packed__)) {
   wisp_word_t function;
   wisp_word_t values;
   wisp_word_t terms;
@@ -216,6 +222,7 @@ enum {
   WISP_CACHED_PACKAGE,
   WISP_CACHED_PROGN,
   WISP_CACHED_IF,
+  WISP_CACHED_FUNCALL,
 
   wisp_cache_size
 };

@@ -68,23 +68,17 @@ wisp_make_apply_plan (wisp_word_t function,
     (WISP_CACHE (APPLY), 5, function, values, terms, scopes, next);
 }
 
-wisp_apply_plan_t *
-wisp_get_apply_plan (wisp_word_t *header)
-{
-  return (wisp_apply_plan_t *) (header + 2);
-}
+#define WISP_DEFINE_PLAN_TYPE(name)                \
+  wisp_##name##_t *                                \
+  wisp_get_##name (wisp_word_t *header)            \
+  {                                                \
+    return (wisp_##name##_t *) (header + 2);       \
+  }
 
-wisp_progn_plan_t *
-wisp_get_progn_plan (wisp_word_t *header)
-{
-  return (wisp_progn_plan_t *) (header + 2);
-}
-
-wisp_if_plan_t *
-wisp_get_if_plan (wisp_word_t *header)
-{
-  return (wisp_if_plan_t *) (header + 2);
-}
+WISP_DEFINE_PLAN_TYPE (apply_plan);
+WISP_DEFINE_PLAN_TYPE (progn_plan);
+WISP_DEFINE_PLAN_TYPE (if_plan);
+WISP_DEFINE_PLAN_TYPE (funcall_plan);
 
 bool
 wisp_term_irreducible (wisp_word_t term)
@@ -373,6 +367,23 @@ wisp_follow_plan (wisp_machine_t *machine)
         }
     }
 
+  else if (type == WISP_CACHE (FUNCALL))
+    {
+      wisp_funcall_plan_t *funcall_plan =
+        wisp_get_funcall_plan (header);
+
+      wisp_word_t apply_plan =
+        wisp_make_apply_plan
+        (value,
+         NIL,
+         funcall_plan->terms,
+         funcall_plan->scopes,
+         funcall_plan->next);
+
+      machine->plan = apply_plan;
+      return true;
+    }
+
   else if (type == WISP_CACHE (EVAL))
     {
       /* fprintf (stderr, "; eval\n"); */
@@ -607,6 +618,25 @@ wisp_step_into_if (wisp_machine_t *machine,
 }
 
 bool
+wisp_step_into_funcall (wisp_machine_t *machine,
+                        wisp_word_t args)
+{
+  wisp_word_t function = wisp_pop (&args);
+
+  wisp_word_t plan = wisp_make_instance_va
+    (WISP_CACHE (FUNCALL), 3,
+     args,
+     machine->scopes,
+     machine->plan);
+
+  machine->term = function;
+  machine->value = false;
+  machine->plan = plan;
+
+  return true;
+}
+
+bool
 wisp_step (wisp_machine_t *machine)
 {
   wisp_word_t term = machine->term;
@@ -635,6 +665,8 @@ wisp_step (wisp_machine_t *machine)
         return wisp_step_into_progn (machine, cdr);
       else if (car == WISP_CACHE (IF))
         return wisp_step_into_if (machine, cdr);
+      else if (car == WISP_CACHE (FUNCALL))
+        return wisp_step_into_funcall (machine, cdr);
       else
         return wisp_step_into_call (machine, car, cdr);
     }
