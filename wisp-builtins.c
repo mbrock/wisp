@@ -32,26 +32,32 @@ WISP_DEFEVAL ("EVAL", wisp_eval, 1, false)
   return term;
 }
 
-WISP_DEFMACRO ("LAMBDA", wisp_lambda, 2, false)
-(wisp_word_t lambda_list, wisp_word_t body, wisp_word_t rest)
+WISP_DEFMACRO ("LAMBDA", wisp_lambda, 1, true)
+(wisp_word_t lambda_list, wisp_word_t rest)
 {
   wisp_word_t params = wisp_lambda_list_to_params (lambda_list);
 
   wisp_word_t closure = wisp_make_instance_va
     (WISP_CACHE (CLOSURE), 4,
-     params, body, wisp_machine->scopes, NIL);
+     params,
+     wisp_cons (WISP_CACHE (PROGN), rest),
+     wisp_machine->scopes,
+     NIL);
 
   return closure;
 }
 
-WISP_DEFMACRO ("MACRO", wisp_macro, 2, false)
-(wisp_word_t lambda_list, wisp_word_t body, wisp_word_t rest)
+WISP_DEFMACRO ("MACRO", wisp_macro, 1, true)
+(wisp_word_t lambda_list, wisp_word_t rest)
 {
   wisp_word_t params = wisp_lambda_list_to_params (lambda_list);
 
   wisp_word_t closure = wisp_make_instance_va
     (WISP_CACHE (CLOSURE), 4,
-     params, body, wisp_machine->scopes, WISP_CACHE (MACRO));
+     params,
+     wisp_cons (WISP_CACHE (PROGN), rest),
+     wisp_machine->scopes,
+     WISP_CACHE (MACRO));
 
   return closure;
 }
