@@ -229,6 +229,50 @@ synchronized across nodes.  Especially CRDTs.
   should not be moved around.  We do this by just reserving a
   small amount of space at the beginning of both semispaces.
 
+* Asynchronous Operations
+
+Let's say we want to fetch a URL from Wisp code:
+
+#+begin_src lisp
+  (print (await (fetch "https://httpbin.org/get")))
+#+end_src
+
+Here ~FETCH~ returns a promise and ~AWAIT~ blocks until that
+promise is resolved.
+
+What needs to happen for this to work?
+
+First, the fetch needs to invoke JavaScript code that returns
+a promise.  But we can't store JavaScript objects as Wisp
+values directly, so we need to maintain some kind of mapping
+between IDs and ~Promise~ objects.
+
+Then, to await, we need to pause the current execution until
+the promise is resolved.  Let's ignore concurrency for now.
+
+The REPL should pause, whether in a terminal or in the
+browser.  It would be nice if we would see a spinner.  And we
+should be able to cancel the wait, e.g. by hitting ~ESC~ in
+the terminal or clicking a button in the browser.
+
+So let's say ~wisp_step~ returns a special value that
+indicates to the runtime that we're waiting for something.
+This could also be a field in the ~wisp_machine_t~ structure.
+
+Oh, maybe there's a special kind of value like ~#<await
+promise-id>~ for which ~wisp_step~ returns ~false~ but keeps a
+continuation in the ~plan~ field.  Then the JavaScript runtime
+just needs to notice that and handle it.  Once the promise is
+resolved, it can replace the ~term~ field and
+continue stepping.
+
+** Plan for Asynchronous Operations
+*** TODO Implement a simple ~FETCH~ function.
+*** TODO Implement a simple ~AWAIT~ function.
+*** TODO Implement actual waiting.
+*** TODO Implement a spinner.
+*** TODO Implement cancelling.
+
 * Local Variables :noexport:
   Local Variables:
   fill-column: 62
