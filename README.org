@@ -273,6 +273,35 @@ continue stepping.
 *** TODO Implement a spinner.
 *** TODO Implement cancelling.
 
+* Thoughts on Deno
+
+So we should be able to run Wisp in some other runtime than
+the browser.  So far that's been trivial with Emscripten
+because we use only standard I/O, but now we're using ~fetch~.
+
+OK, so we probably don't want to spend time on making a native
+Linux REPL for the terminal.  But if we can use a JavaScript
+runtime, it's much easier.  Then I thought: we should
+use [[https://deno.land][Deno]].
+
+But Deno isn't really compatible with Emscripten. Maybe that's
+a sign that we should move away from Emscripten.
+
+Towards what? Well, how about Zig?
+
+* Zig again
+
+OK, I've wanted to switch to Zig before.  Maybe it's best to
+do it before the C code grows huge.
+
+Zig is going to be self-hosting, by the way, Andrew is working
+on it all the time.  I think that means Zig itself will be
+able to run in WebAssembly?  Now that's fun.
+
+Well, it's quite a project.  Is it worth it?  I think so.
+Maybe it's not the most exciting thing to do right now?
+On the other hand, maybe it is.
+
 * Local Variables :noexport:
   Local Variables:
   fill-column: 62
