@@ -346,4 +346,7 @@ wisp_tidy (void);
 wisp_word_t
 wisp_pop (wisp_word_t *list);
 
+wisp_word_t
+wisp_eval_code (const char *code);
+
 #endif

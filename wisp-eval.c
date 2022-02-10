@@ -17,6 +17,30 @@
 
 #include "wisp.h"
 
+wisp_machine_t
+wisp_initial_machine (wisp_word_t term)
+{
+  return (wisp_machine_t){ .term = term, .plan = NIL, .scopes = NIL };
+}
+
+WISP_EXPORT
+wisp_word_t
+wisp_eval_code (const char *code)
+{
+  /* WISP_DEBUG ("evaluating %s\n", code); */
+
+  wisp_word_t term = wisp_read (&code);
+
+  wisp_machine_t machine = wisp_initial_machine (term);
+  wisp_machine = &machine;
+
+  while (wisp_step (&machine))
+    if (wisp_heap_used >= heap_size * wisp_gc_fraction)
+      wisp_tidy ();
+
+  return machine.term;
+}
+
 wisp_word_t
 wisp_reverse (wisp_word_t list)
 {
@@ -499,10 +523,13 @@ wisp_follow_plan (wisp_machine_t *machine)
 
       machine->term = wisp_make_instance_va
         (WISP_CACHE (AWAIT), 1, value);
-      machine->value = true;
+      machine->value = false;
       machine->scopes = await_plan->scopes;
       machine->plan = await_plan->next;
 
+      // We return false to say that evaluation has stopped, but we
+      // also set the machine value to false to say that we are
+      // waiting for a value from the outer runtime.
       return false;
     }
 
@@ -772,4 +799,52 @@ wisp_step (wisp_machine_t *machine)
     }
 
   wisp_crash ("bad term");
+}
+
+WISP_EXPORT
+bool
+wisp_eval_code_async (const char *code)
+{
+  wisp_word_t term = wisp_read (&code);
+
+  wisp_machine_t machine = wisp_initial_machine (term);
+  wisp_machine = &machine;
+
+  while (wisp_step (&machine))
+    if (wisp_heap_used >= heap_size * wisp_gc_fraction)
+      wisp_tidy ();
+
+  return !machine.value;
+}
+
+WISP_EXPORT
+uint32_t
+wisp_get_promise_id ()
+{
+  assert (wisp_machine != NULL);
+
+  wisp_word_t *data = wisp_deref (wisp_machine->term);
+
+  assert (data[0] == WISP_INSTANCE_HEADER (1));
+  assert (data[1] == WISP_CACHE (AWAIT));
+  assert (WISP_IS_FIXNUM (data[2]));
+
+  return data[2] >> 2;
+}
+
+WISP_EXPORT
+bool
+wisp_resume_await (wisp_word_t result)
+{
+  assert (wisp_machine != NULL);
+  assert (wisp_machine->value == false);
+
+  wisp_machine->term = result;
+  wisp_machine->value = true;
+
+  while (wisp_step (wisp_machine))
+    if (wisp_heap_used >= heap_size * wisp_gc_fraction)
+      wisp_tidy ();
+
+  return !wisp_machine->value;
 }

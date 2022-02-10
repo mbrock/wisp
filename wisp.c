@@ -269,6 +269,7 @@ wisp_intern_symbol (wisp_word_t name, wisp_word_t package)
   return symbol;
 }
 
+WISP_EXPORT
 wisp_word_t
 wisp_string_n (const char *source, int length)
 {
@@ -461,12 +462,6 @@ wisp_set_symbol_variable (wisp_word_t symbol, wisp_word_t value)
   fprintf (stderr, "\n");
 }
 
-wisp_machine_t
-wisp_initial_machine (wisp_word_t term)
-{
-  return (wisp_machine_t){ .term = term, .plan = NIL, .scopes = NIL };
-}
-
 wisp_word_t
 wisp_make_list (int count, ...)
 {
@@ -513,35 +508,6 @@ void
 wisp_setup (void)
 {
   wisp_set_symbol_variable (NIL, NIL);
-}
-
-WISP_EXPORT
-wisp_word_t
-wisp_eval_code (const char *code)
-{
-  /* WISP_DEBUG ("evaluating %s\n", code); */
-
-  wisp_word_t term = wisp_read (&code);
-
-  wisp_machine_t machine = wisp_initial_machine (term);
-  wisp_machine = &machine;
-
-  int i = 0;
-
-  while (wisp_step (&machine))
-    {
-      if (wisp_heap_used >= heap_size * wisp_gc_fraction)
-        {
-          /* WISP_DEBUG ("step %d gc\n", i); */
-          wisp_tidy ();
-        }
-
-      ++i;
-    }
-
-  wisp_machine = NULL;
-
-  return machine.term;
 }
 
 void

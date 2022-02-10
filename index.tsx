@@ -564,15 +564,46 @@ function REPL() {
     setInput(e.target.value)
   }, [])
 
-  function evalCode(code: string) {
+  async function evalCode(code: string) {
     console.log(code)
+    let result
 
-    let result = WispModule.ccall(
-      "wisp_eval_code",
+    let awaited = WispModule.ccall(
+      "wisp_eval_code_async",
       "number",
       ["string"],
       [code]
     )
+
+    while (awaited) {
+      let promiseId = WispModule.ccall(
+        "wisp_get_promise_id",
+        "number",
+        [], []
+      )
+
+      let promise = wisp.promises[promiseId]
+      console.log("awaiting", promise)
+
+      let jsString = await promise
+
+      let lengthBytes =
+        WispModule.lengthBytesUTF8(jsString) + 1
+
+      let stringOnWasmHeap =
+        WispModule._malloc(lengthBytes)
+
+      WispModule.stringToUTF8(jsString, stringOnWasmHeap, lengthBytes)
+
+      awaited = WispModule.ccall(
+        "wisp_resume_await",
+        "number",
+        ["u8*"],
+        [stringOnWasmHeap]
+      )
+
+      WispModule._free(stringOnWasmHeap)
+    }
 
     setHeapGraph(makeHeapGraph())
 

@@ -236,7 +236,7 @@ WISP_DEFUN ("*", wisp_multiply, 0, true)
 
 EM_JS(wisp_word_t, wisp_js_fetch, (const char *url), {
   let urlString = UTF8ToString(url);
-  let promise = fetch(urlString);
+  let promise = fetch(urlString).then(x => x.text());
   let id = window.wisp.promise(promise);
   return id;
 });
