@@ -267,9 +267,9 @@ resolved, it can replace the ~term~ field and
 continue stepping.
 
 ** Plan for Asynchronous Operations
-*** TODO Implement a simple ~FETCH~ function.
-*** TODO Implement a simple ~AWAIT~ function.
-*** TODO Implement actual waiting.
+*** DONE Implement a simple ~FETCH~ function.
+*** DONE Implement a simple ~AWAIT~ function.
+*** DONE Implement actual waiting.
 *** TODO Implement a spinner.
 *** TODO Implement cancelling.
 
