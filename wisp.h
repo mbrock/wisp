@@ -230,6 +230,7 @@ enum {
   WISP_CACHED_PROGN,
   WISP_CACHED_IF,
   WISP_CACHED_FUNCALL,
+  WISP_CACHED_PROMISE,
   WISP_CACHED_AWAIT,
 
   wisp_cache_size
@@ -348,5 +349,8 @@ wisp_pop (wisp_word_t *list);
 
 wisp_word_t
 wisp_eval_code (const char *code);
+
+void
+debugger (void);
 
 #endif

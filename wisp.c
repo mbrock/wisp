@@ -150,7 +150,7 @@ wisp_string_buffer (wisp_word_t *header)
   return (char *)&(header[1]);
 }
 
-__inline__ static void
+void
 debugger (void)
 {
 #if defined(__x86_64__)
@@ -379,6 +379,7 @@ wisp_intern_basic_symbols ()
   WISP_CACHE (PROGN) = wisp_intern_lisp ("PROGN");
   WISP_CACHE (IF) = wisp_intern_lisp ("IF");
   WISP_CACHE (FUNCALL) = wisp_intern_lisp ("FUNCALL");
+  WISP_CACHE (PROMISE) = wisp_intern_lisp ("PROMISE");
   WISP_CACHE (AWAIT) = wisp_intern_lisp ("AWAIT");
 }
 
@@ -563,16 +564,25 @@ wisp_stdlib ()
   wisp_eval_code
     ("(set-symbol-function 'list (lambda xs xs))");
 
-  wisp_eval_code (
-      "(set-symbol-function"
-      " 'defmacro"
-      " (macro"
-      "  (name params body)"
-      "  (cons 'set-symbol-function"
-      "        (cons (cons 'quote (cons name nil))"
-      "              (cons (cons 'macro"
-      "                          (cons params"
-      "                                (cons body nil))) nil)))))");
+  wisp_eval_code
+    ("(set-symbol-function "
+     " 'defmacro "
+     " (macro "
+     "  (name params . body) "
+     "  (list 'set-symbol-function (list 'quote name) "
+     "        (cons 'macro (cons params body))))) "
+     );
+  
+  /* wisp_eval_code ( */
+  /*     "(set-symbol-function" */
+  /*     " 'defmacro" */
+  /*     " (macro" */
+  /*     "  (name params body)" */
+  /*     "  (cons 'set-symbol-function" */
+  /*     "        (cons (cons 'quote (cons name nil))" */
+  /*     "              (cons (cons 'macro" */
+  /*     "                          (cons params" */
+  /*     "                                (cons body nil))) nil)))))"); */
 
   wisp_eval_code
     (
@@ -581,9 +591,16 @@ wisp_stdlib ()
      "        (cons 'lambda (cons params body))))"
      );
   
-  wisp_eval_code ("(defun tag (tag attrs body)"
-                  "  (make-instance 'dom-element"
-                  "    (cons tag (cons attrs (cons body nil)))))");
+  wisp_eval_code
+    ("(defun tag (tag attrs body)"
+     "  (make-instance 'dom-element"
+     "    (list tag attrs body)))");
+
+  wisp_eval_code
+    ("(defun test-fetch ()"
+     "  (print \"fetching\")"
+     "  (print (await (fetch \"https://httpbin.org/ip\")))"
+     "  (print \"fetched\"))");
 }
 
 void wisp_defs (void);

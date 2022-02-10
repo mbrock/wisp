@@ -759,6 +759,8 @@ wisp_step (wisp_machine_t *machine)
 
   if (machine->value || wisp_term_irreducible (term))
     {
+      machine->value = true;
+
       if (plan == NIL)
         return false;
       else
@@ -801,20 +803,30 @@ wisp_step (wisp_machine_t *machine)
   wisp_crash ("bad term");
 }
 
+wisp_machine_t the_machine;
+
 WISP_EXPORT
 bool
 wisp_eval_code_async (const char *code)
 {
   wisp_word_t term = wisp_read (&code);
 
-  wisp_machine_t machine = wisp_initial_machine (term);
-  wisp_machine = &machine;
+  the_machine = wisp_initial_machine (term);
+  wisp_machine = &the_machine;
 
-  while (wisp_step (&machine))
+  while (wisp_step (&the_machine))
     if (wisp_heap_used >= heap_size * wisp_gc_fraction)
       wisp_tidy ();
 
-  return !machine.value;
+  return !the_machine.value;
+}
+
+WISP_EXPORT
+wisp_word_t
+wisp_get_machine_term ()
+{
+  assert (wisp_machine != NULL);
+  return wisp_machine->term;
 }
 
 WISP_EXPORT
@@ -823,13 +835,18 @@ wisp_get_promise_id ()
 {
   assert (wisp_machine != NULL);
 
-  wisp_word_t *data = wisp_deref (wisp_machine->term);
+  wisp_word_t *await = wisp_deref (wisp_machine->term);
 
-  assert (data[0] == WISP_INSTANCE_HEADER (1));
-  assert (data[1] == WISP_CACHE (AWAIT));
-  assert (WISP_IS_FIXNUM (data[2]));
+  assert (await[0] == WISP_INSTANCE_HEADER (1));
+  assert (await[1] == WISP_CACHE (AWAIT));
+  assert (WISP_IS_STRUCT_PTR (await[2]));
 
-  return data[2] >> 2;
+  wisp_word_t *promise = wisp_deref (await[2]);
+  assert (promise[0] == WISP_INSTANCE_HEADER (1));
+  assert (promise[1] == WISP_CACHE (PROMISE));
+  assert (WISP_IS_FIXNUM (promise[2]));
+
+  return promise[2] >> 2;
 }
 
 WISP_EXPORT

@@ -37,7 +37,7 @@ interface EmscriptenModule {
   ccall: (arg0: string,
           arg1: string,
           arg2: string[],
-          arg3: string[]) => number
+          arg3: any[]) => number
 
   HEAPU8: {
     buffer: ArrayBufferLike
@@ -49,6 +49,7 @@ let WispModule: EmscriptenModule
 interface WispGlue {
   promise: (p: Promise<any>) => number
   promises: Record<number, Promise<any>>
+  nextPromiseID: number
 }
 
 declare global {
@@ -59,7 +60,7 @@ declare global {
   }
 }
 
-window.wisp = {
+let wisp: WispGlue = {
   nextPromiseID: 1,
   promises: {},
 
@@ -69,6 +70,8 @@ window.wisp = {
     return wisp.nextPromiseID++
   }
 }
+
+window.wisp = wisp
 
 NIL["function"] = NIL
 
@@ -566,7 +569,7 @@ function REPL() {
 
   async function evalCode(code: string) {
     console.log(code)
-    let result
+    let result: number
 
     let awaited = WispModule.ccall(
       "wisp_eval_code_async",
@@ -583,9 +586,10 @@ function REPL() {
       )
 
       let promise = wisp.promises[promiseId]
-      console.log("awaiting", promise)
 
       let jsString = await promise
+
+      delete wisp.promises[promiseId]
 
       let lengthBytes =
         WispModule.lengthBytesUTF8(jsString) + 1
@@ -595,15 +599,26 @@ function REPL() {
 
       WispModule.stringToUTF8(jsString, stringOnWasmHeap, lengthBytes)
 
+      let wispString =
+        WispModule.ccall(
+          "wisp_string_n",
+          "number",
+          ["u8*", "u32"],
+          [stringOnWasmHeap, lengthBytes]
+        )
+
       awaited = WispModule.ccall(
         "wisp_resume_await",
         "number",
-        ["u8*"],
-        [stringOnWasmHeap]
+        ["number"],
+        [wispString]
       )
 
       WispModule._free(stringOnWasmHeap)
     }
+
+    result =
+      WispModule.ccall("wisp_get_machine_term", "number", [], [])
 
     setHeapGraph(makeHeapGraph())
 
