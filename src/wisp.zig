@@ -37,7 +37,7 @@ const W = packed struct {
         return @intToEnum(Lowtag, self.raw & 7);
     }
 
-    pub fn widetag(self: W) Lowtag {
+    pub fn widetag(self: W) Widetag {
         return @intToEnum(Widetag, self.raw & 0xff);
     }
 
@@ -46,7 +46,7 @@ const W = packed struct {
     }
 
     pub fn fixnum(self: W) u30 {
-        return @intCast(u30, std.math.shr(u32, self.raw, 2));
+        return @intCast(u30, self.raw / 4);
     }
 
     pub fn immediate(self: W) u24 {
@@ -357,7 +357,7 @@ const StringStruct = packed struct {
     header: W,
     firstByte: u8,
 
-    fn slice(self: StringStruct) []u8 {
+    fn slice(self: *StringStruct) []u8 {
         var bytes = @ptrCast([*]u8, &self.firstByte);
         var length = self.header.immediate();
         return bytes[0..length];
@@ -415,7 +415,7 @@ const BasicType = enum {
 const staticSpaceSize: u32 = 40;
 
 const Wisp = struct {
-    heap: *Heap,
+    heap: Heap,
     builtins: [builtinCount]?Builtin,
     symbolCache: [symbolCacheSize]W,
     basePackage: W,
@@ -452,8 +452,8 @@ const Wisp = struct {
     }
 
     pub fn stringsEqual(self: Wisp, x: W, y: W) !bool {
-        const xData = self.getDataPointer(.string, x);
-        const yData = self.getDataPointer(.string, y);
+        const xData = try self.getDataPointer(.string, x);
+        const yData = try self.getDataPointer(.string, y);
 
         if (xData.header.widetag() != .string) {
             return Error.NotAString;
@@ -466,7 +466,7 @@ const Wisp = struct {
         return std.mem.eql(u8, xData.slice(), yData.slice());
     }
 
-    pub fn cons(self: Wisp, car: W, cdr: W) !W {
+    pub fn cons(self: *Wisp, car: W, cdr: W) !W {
         var pointer = try self.heap.allocateWords(2, .listptr);
 
         (try self.heap.derefCons(pointer)).* = Cons{
@@ -477,7 +477,7 @@ const Wisp = struct {
         return pointer;
     }
 
-    pub fn list(self: Wisp, items: anytype) !W {
+    pub fn list(self: *Wisp, items: anytype) !W {
         var result = NIL;
         var i: usize = 0;
 
@@ -534,21 +534,21 @@ fn makeSymbol(wisp: *Wisp, name: W, package: W) !W {
 }
 
 fn internSymbol(wisp: *Wisp, name: W, package: W) !W {
-    var packageData = wisp.getDataPointer(BasicType.package, package);
+    var packageData = try wisp.getDataPointer(BasicType.package, package);
 
     assert(packageData.header.widetag() == BasicType.package.widetag());
-    assert(packageData.typeDescriptor == wisp.typeSymbol(.package));
+    assert(packageData.typeDescriptor.raw == wisp.typeSymbol(.package).raw);
 
     var cur = packageData.symbols;
 
-    while (cur != NIL) {
+    while (!cur.isNil()) {
         assert(cur.isListPointer());
 
         var cons = try wisp.heap.derefCons(cur);
         var symbolData = try wisp.getSymbolData(cons.car);
         var symbolName = symbolData.name;
 
-        if (wisp.stringsEqual(symbolName, name)) {
+        if (try wisp.stringsEqual(symbolName, name)) {
             return cons.car;
         }
 
@@ -564,14 +564,15 @@ fn internSymbol(wisp: *Wisp, name: W, package: W) !W {
     return symbol;
 }
 
-fn start(heap: *Heap) !Wisp {
+fn start(heap: Heap) !Wisp {
     var nil = @ptrCast(*SymbolStruct, try heap.deref(NIL));
+    var theHeap = heap;
 
-    heap.used = alignToDoubleWord(7 * 4);
+    theHeap.used = alignToDoubleWord(7 * 4);
 
     nil.* = SymbolStruct{
         .header = symbolHeader,
-        .name = try makeString(heap, "NIL"),
+        .name = try makeString(&theHeap, "NIL"),
         .package = NIL,
         .value = NIL,
         .function = NIL,
@@ -581,22 +582,23 @@ fn start(heap: *Heap) !Wisp {
 
     var symbolCache = [_]W{W{ .raw = 3 }} ** symbolCacheSize;
     var wisp = Wisp{
-        .heap = heap,
+        .heap = theHeap,
         .builtins = [_]?Builtin{null} ** builtinCount,
         .symbolCache = symbolCache,
         .basePackage = NIL,
     };
 
-    var packageSymbol = try makeSymbol(&wisp, try makeString(wisp.heap, "PACKAGE"), NIL);
+    var packageSymbol = try makeSymbol(&wisp, try makeString(&wisp.heap, "PACKAGE"), NIL);
     var packageSymbolData = try wisp.getDataPointer(BasicType.symbol, packageSymbol);
 
     symbolCache[@enumToInt(SymbolCacheTag.PACKAGE)] = packageSymbol;
 
-    var wispPackage = try makePackage(&wisp, try makeString(wisp.heap, "WISP"));
+    var wispPackage = try makePackage(&wisp, try makeString(&wisp.heap, "WISP"));
     var wispPackageData = try wisp.getDataPointer(BasicType.package, wispPackage);
 
     wispPackageData.symbols = try wisp.list([_]W{ packageSymbol, NIL });
     packageSymbolData.package = wispPackage;
+    wisp.basePackage = wispPackage;
 
     return wisp;
 }
@@ -605,7 +607,7 @@ test "start" {
     var heap = try emptyHeap(std.testing.allocator, 1024);
     defer heap.free();
 
-    _ = try start(&heap);
+    _ = try start(heap);
 }
 
 fn stringBuffer(data: [*]W) [*]u8 {
@@ -635,9 +637,16 @@ fn makeString(heap: *Heap, text: []const u8) !W {
     return stringPtr;
 }
 
+test "print one" {
+    var list = std.ArrayList(u8).init(std.testing.allocator);
+    defer list.deinit();
+    try list.writer().print("{}", .{1});
+    try std.testing.expectEqualStrings("1", list.items);
+}
+
 fn print(wisp: *Wisp, writer: anytype, word: W) anyerror!void {
     if (word.isFixnum()) {
-        try writer.print("{}", .{word.fixnum()});
+        try writer.print("{d}", .{word.fixnum()});
     } else if (word.isNil()) {
         try writer.print("NIL", .{});
     } else if (word.isListPointer()) {
@@ -660,27 +669,68 @@ fn print(wisp: *Wisp, writer: anytype, word: W) anyerror!void {
         }
 
         try writer.print(")", .{});
+    } else if (word.isOtherPointer()) {
+        try writer.print("[otherptr {}]", .{word.raw});
     } else {
-        try writer.print("[unknown {}]", .{word});
+        try writer.print("[unknown {}]", .{word.raw});
     }
 }
 
 fn expectPrintResult(wisp: *Wisp, expected: []const u8, x: W) !void {
     var list = std.ArrayList(u8).init(std.testing.allocator);
     defer list.deinit();
-    try print(wisp, list.writer(), x);
+    const writer = list.writer();
+
+    try print(wisp, &writer, x);
     try std.testing.expectEqualStrings(expected, list.items);
 }
 
-test "print" {
+fn testWisp() !Wisp {
     var heap = try emptyHeap(std.testing.allocator, 1024);
-    defer heap.free();
+    return try start(heap);
+}
 
-    var wisp = try start(&heap);
+test "print fixnum" {
+    var wisp = try testWisp();
+    defer wisp.heap.free();
+
+    try expectPrintResult(&wisp, "1", fixnum(1));
+}
+
+test "print lists" {
+    var wisp = try testWisp();
+    defer wisp.heap.free();
 
     try expectPrintResult(
         &wisp,
         "(1 2 3)",
         try wisp.list([_]W{ fixnum(1), fixnum(2), fixnum(3) }),
+    );
+
+    try expectPrintResult(
+        &wisp,
+        "(1 . 2)",
+        try wisp.cons(fixnum(1), fixnum(2)),
+    );
+
+    try expectPrintResult(
+        &wisp,
+        "(1 . 2)",
+        try wisp.cons(fixnum(1), fixnum(2)),
+    );
+}
+
+test "print symbols" {
+    var wisp = try testWisp();
+    defer wisp.heap.free();
+
+    try expectPrintResult(
+        &wisp,
+        "FOO",
+        try internSymbol(
+            &wisp,
+            try makeString(&wisp.heap, "FOO"),
+            wisp.basePackage,
+        ),
     );
 }
