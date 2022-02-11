@@ -29,6 +29,10 @@ const Widetag = enum(u8) {
 const W = packed struct {
     raw: u32,
 
+    pub fn isNil(self: W) bool {
+        return self.raw == 3;
+    }
+
     pub fn lowtag(self: W) Lowtag {
         return @intToEnum(Lowtag, self.raw & 7);
     }
@@ -154,6 +158,8 @@ const SymbolCacheTag = enum {
     FUNCALL,
     PROMISE,
     AWAIT,
+    SYMBOL,
+    STRING,
 };
 
 const BuiltinTag = enum(u24) {
@@ -228,8 +234,6 @@ fn FunctionType(comptime f: anytype) type {
 }
 
 const Heap = struct {
-    const staticSpaceSize: u32 = 40;
-
     size: u29,
     used: u29,
     data: []u8,
@@ -253,7 +257,7 @@ const Heap = struct {
 
     pub fn derefCons(self: Heap, ptr: W) ![*]Cons {
         return if (ptr.isListPointer())
-            @ptrCast([*]Cons, self.deref())
+            @ptrCast([*]Cons, try self.deref(ptr))
         else
             Error.NotACons;
     }
@@ -274,12 +278,12 @@ const Heap = struct {
     }
 
     pub fn allocateWords(heap: *Heap, n: usize, lowtag: Lowtag) !W {
-        return heap.allocate(4 * n, lowtag);
+        return heap.allocate(@intCast(u29, 4 * n), lowtag);
     }
 };
 
-fn alignToDoubleWord(x: u32) u32 {
-    return (x + Lowtag.mask) & ~Lowtag.mask;
+fn alignToDoubleWord(x: u32) u29 {
+    return @intCast(u29, (x + Lowtag.mask) & ~Lowtag.mask);
 }
 
 test "align to double word" {
@@ -310,7 +314,7 @@ fn emptyHeap(allocator: std.mem.Allocator, size: u29) !Heap {
     return Heap{
         .allocator = allocator,
         .size = size,
-        .used = Heap.staticSpaceSize,
+        .used = 0,
         .data = try allocator.alloc(u8, size),
         .area = .{
             .old = size / 2,
@@ -334,7 +338,7 @@ test "allocate" {
 
     const foo = try heap.allocate(16, Lowtag.listptr);
 
-    try expectEqual(Heap.staticSpaceSize, foo.offset());
+    try expectEqual(@as(u29, 0), foo.offset());
     try expectEqual(Lowtag.listptr, foo.lowtag());
 }
 
@@ -357,8 +361,9 @@ const StringStruct = packed struct {
 };
 
 const PackageStruct = packed struct {
-    const slotCount = 2;
+    const slotCount = 3;
     header: W,
+    typeDescriptor: W,
     name: W,
     symbols: W,
 };
@@ -398,10 +403,12 @@ const BasicType = enum {
     pub fn castDataPointer(
         comptime self: BasicType,
         pointer: [*]W,
-    ) [self.Struct()]W {
-        return @ptrCast(self.Struct(), pointer);
+    ) [*]self.Struct() {
+        return @ptrCast([*]self.Struct(), pointer);
     }
 };
+
+const staticSpaceSize: u32 = 40;
 
 const Wisp = struct {
     heap: *Heap,
@@ -410,15 +417,15 @@ const Wisp = struct {
     basePackage: W,
 
     pub fn symbol(self: Wisp, tag: SymbolCacheTag) W {
-        return self.symbolCache[tag];
+        return self.symbolCache[@enumToInt(tag)];
     }
 
-    pub fn getSymbolData(self: Wisp, ptr: W) ![*]W {
-        if (!ptr.isOtherPointer() and ptr != NIL) {
+    pub fn getSymbolData(self: Wisp, ptr: W) ![*]SymbolStruct {
+        if (!ptr.isOtherPointer() and !ptr.isNil()) {
             return Error.NotASymbol;
         }
 
-        const data = self.heap.deref(ptr);
+        const data = try self.heap.deref(ptr);
 
         return BasicType.symbol.castDataPointer(data);
     }
@@ -427,8 +434,8 @@ const Wisp = struct {
         wisp: Wisp,
         comptime t: BasicType,
         w: W,
-    ) t.Struct() {
-        const pointer = wisp.heap.deref(w);
+    ) ![*]t.Struct() {
+        const pointer = try wisp.heap.deref(w);
         return t.castDataPointer(pointer);
     }
 
@@ -436,6 +443,7 @@ const Wisp = struct {
         return switch (t) {
             .symbol => self.symbol(.SYMBOL),
             .package => self.symbol(.PACKAGE),
+            .string => self.symbol(.STRING),
         };
     }
 
@@ -453,11 +461,22 @@ const Wisp = struct {
 
         return std.mem.eql(u8, xData.slice(), yData.slice());
     }
+
+    pub fn cons(self: Wisp, car: W, cdr: W) !W {
+        var pointer = try self.heap.allocateWords(2, .listptr);
+
+        (try self.heap.derefCons(pointer)).* = Cons{
+            .car = car,
+            .cdr = cdr,
+        };
+
+        return pointer;
+    }
 };
 
-fn makeInstance(wisp: *Wisp, comptime t: BasicType, slots: []W) !W {
-    var pointer = wisp.heap.allocateWords(2 + slots.len, Lowtag.structptr);
-    var data = wisp.heap.deref(pointer);
+fn makeInstance(wisp: *Wisp, comptime t: BasicType, slots: anytype) !W {
+    var pointer = try wisp.heap.allocateWords(2 + slots.len, Lowtag.structptr);
+    var data = try wisp.heap.deref(pointer);
 
     data[0] = makeHeader(1 + slots.len, Widetag.instance);
     data[1] = wisp.typeSymbol(t);
@@ -470,11 +489,7 @@ fn makeInstance(wisp: *Wisp, comptime t: BasicType, slots: []W) !W {
 }
 
 fn makePackage(wisp: *Wisp, name: W) !W {
-    return makeInstance(
-        wisp.heap,
-        wisp.symbol(.CACHE),
-        .{ name, NIL },
-    );
+    return makeInstance(wisp, .package, [_]W{ name, NIL });
 }
 
 const symbolHeader = makeHeader(
@@ -482,31 +497,8 @@ const symbolHeader = makeHeader(
     .symbol,
 );
 
-fn internSymbol(wisp: *Wisp, name: W, package: W) !W {
-    var packageData = wisp.getDataPointer(BasicType.package, package);
-
-    assert(packageData[0].widetag() == BasicType.package.widetag());
-    assert(packageData[1] == wisp.typeSymbol(.package));
-
-    var cur = packageData[3];
-
-    while (cur != NIL) {
-        assert(cur.isListPointer());
-
-        var cons = try wisp.heap.derefCons(cur);
-        var symbolData = try wisp.getSymbolData(cons.car);
-        var symbolName = symbolData.name;
-
-        if (wisp.stringsEqual(symbolName, name)) {
-            return cons.car;
-        }
-
-        cur = cons.cdr;
-    }
-
-    // No symbol found; create it.
-
-    var symbol = wisp.heap.allocateWords(
+fn makeSymbol(wisp: *Wisp, name: W, package: W) !W {
+    var symbol = try wisp.heap.allocateWords(
         1 + BasicType.symbol.Struct().slotCount,
         .otherptr,
     );
@@ -526,8 +518,42 @@ fn internSymbol(wisp: *Wisp, name: W, package: W) !W {
     return symbol;
 }
 
+fn internSymbol(wisp: *Wisp, name: W, package: W) !W {
+    var packageData = wisp.getDataPointer(BasicType.package, package);
+
+    assert(packageData.header.widetag() == BasicType.package.widetag());
+    assert(packageData.typeDescriptor == wisp.typeSymbol(.package));
+
+    var cur = packageData.symbols;
+
+    while (cur != NIL) {
+        assert(cur.isListPointer());
+
+        var cons = try wisp.heap.derefCons(cur);
+        var symbolData = try wisp.getSymbolData(cons.car);
+        var symbolName = symbolData.name;
+
+        if (wisp.stringsEqual(symbolName, name)) {
+            return cons.car;
+        }
+
+        cur = cons.cdr;
+    }
+
+    // No symbol found; create it.
+    var symbol = try makeSymbol(wisp, name, package);
+
+    // Push it onto the package's symbol list.
+    packageData.symbols = try wisp.cons(symbol, packageData.symbols);
+
+    return symbol;
+}
+
 fn start(heap: *Heap) !Wisp {
     var nil = @ptrCast([*]SymbolStruct, try heap.deref(NIL));
+
+    heap.*.used = alignToDoubleWord(7 * 4);
+
     nil.* = SymbolStruct{
         .header = symbolHeader,
         .name = try makeString(heap, "NIL"),
@@ -539,15 +565,25 @@ fn start(heap: *Heap) !Wisp {
     };
 
     var symbolCache = [_]W{W{ .raw = 3 }} ** symbolCacheSize;
-
-    symbolCache[@enumToInt(SymbolCacheTag.PACKAGE)] = NIL;
-
-    return Wisp{
+    var wisp = Wisp{
         .heap = heap,
         .builtins = [_]?Builtin{null} ** builtinCount,
-        .symbolCache = [_]W{W{ .raw = 3 }} ** symbolCacheSize,
+        .symbolCache = symbolCache,
         .basePackage = NIL,
     };
+
+    var packageSymbol = try makeSymbol(&wisp, try makeString(wisp.heap, "PACKAGE"), NIL);
+    var packageSymbolData = try wisp.getDataPointer(BasicType.symbol, packageSymbol);
+
+    symbolCache[@enumToInt(SymbolCacheTag.PACKAGE)] = packageSymbol;
+
+    var wispPackage = try makePackage(&wisp, try makeString(wisp.heap, "WISP"));
+    var wispPackageData = try wisp.getDataPointer(BasicType.package, wispPackage);
+
+    wispPackageData.*.symbols = try wisp.cons(packageSymbol, try wisp.cons(NIL, NIL));
+    packageSymbolData.*.package = wispPackage;
+
+    return wisp;
 }
 
 test "start" {
