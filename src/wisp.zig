@@ -30,15 +30,31 @@ const W = packed struct {
     raw: u32,
 
     pub fn lowtag(self: W) Lowtag {
-        return @intToEnum(Lowtag, @bitCast(Pointer, self).lowtag);
+        return @intToEnum(Lowtag, self.raw & 7);
+    }
+
+    pub fn widetag(self: W) Lowtag {
+        return @intToEnum(Widetag, self.raw & 0xff);
     }
 
     pub fn offset(self: W) u29 {
-        return @bitCast(Pointer, self).offset;
+        return @intCast(u29, self.raw & ~Lowtag.mask);
     }
 
     pub fn fixnum(self: W) u30 {
-        return @bitCast(Fixnum, self).value;
+        return @intCast(u30, std.math.shr(u32, self.raw, 2));
+    }
+
+    pub fn immediate(self: W) u24 {
+        return @intCast(u24, std.math.shr(u32, self.raw, 8));
+    }
+
+    pub fn isListPointer(self: W) bool {
+        return self.lowtag() == .listptr;
+    }
+
+    pub fn isOtherPointer(self: W) bool {
+        return self.lowtag() == .otherptr;
     }
 };
 
@@ -46,22 +62,13 @@ test "W" {
     const w1 = W{ .raw = 3 };
     try expectEqual(Lowtag.listptr, w1.lowtag());
     try expectEqual(@as(u29, 0), w1.offset());
-    try expectEqual(@as(u30, 123), (W{ .raw = 123 << 2 }).fixnum());
+    try expectEqual(@as(u30, 1234), (W{ .raw = 1234 << 2 }).fixnum());
+    try expectEqual(@as(u29, 1024), (W{ .raw = 1024 }).offset());
 }
 
-const Pointer = packed struct {
-    lowtag: u3,
-    offset: u29,
-};
-
-const Fixnum = packed struct {
-    zero: u2,
-    value: u30,
-};
-
-const Immediate = packed struct {
-    value: u24,
-    widetag: u8,
+const Cons = packed struct {
+    car: W,
+    cdr: W,
 };
 
 const Machine = struct {
@@ -237,12 +244,21 @@ const Heap = struct {
         self.allocator.free(self.data);
     }
 
-    pub fn deref(self: Heap, ptr: W) [*]W {
-        assert(isPointer(ptr.lowtag()));
-        return @ptrCast([*]W, self.data[ptr.offset()..]);
+    pub fn deref(self: Heap, ptr: W) ![*]W {
+        return if (isPointer(ptr.lowtag()))
+            @ptrCast([*]W, self.data[ptr.offset()..])
+        else
+            Error.NotAPointer;
     }
 
-    fn allocate(heap: *Heap, size: u29, tag: Lowtag) !W {
+    pub fn derefCons(self: Heap, ptr: W) ![*]Cons {
+        return if (ptr.isListPointer())
+            @ptrCast([*]Cons, self.deref())
+        else
+            Error.NotACons;
+    }
+
+    pub fn allocate(heap: *Heap, size: u29, tag: Lowtag) !W {
         assert(isPointer(tag));
 
         const alignedSize = alignToDoubleWord(size);
@@ -255,6 +271,10 @@ const Heap = struct {
 
             return makePointer(heap.area.new, i, tag);
         }
+    }
+
+    pub fn allocateWords(heap: *Heap, n: usize, lowtag: Lowtag) !W {
+        return heap.allocate(4 * n, lowtag);
     }
 };
 
@@ -300,17 +320,12 @@ fn emptyHeap(allocator: std.mem.Allocator, size: u29) !Heap {
 }
 
 fn makeHeader(data: u24, widetag: Widetag) W {
-    return @bitCast(W, Immediate{
-        .value = data,
-        .widetag = @enumToInt(widetag),
-    });
+    return W{ .raw = (data << 8) | @enumToInt(widetag) };
 }
 
 fn makePointer(area: u29, offset: u29, lowtag: Lowtag) W {
-    return @bitCast(W, Pointer{
-        .offset = area + offset,
-        .lowtag = @enumToInt(lowtag),
-    });
+    assert(isAligned(area + offset));
+    return W{ .raw = (area + offset) | @enumToInt(lowtag) };
 }
 
 test "allocate" {
@@ -323,36 +338,215 @@ test "allocate" {
     try expectEqual(Lowtag.listptr, foo.lowtag());
 }
 
+const Error = error{
+    NotASymbol,
+    NotACons,
+    NotAPointer,
+    NotAString,
+};
+
+const StringStruct = packed struct {
+    header: W,
+    firstByte: u8,
+
+    fn slice(self: StringStruct) []u8 {
+        var bytes = @ptrCast([*]u8, &self.firstByte);
+        var length = self.header.immediate();
+        return bytes[0..length];
+    }
+};
+
+const PackageStruct = packed struct {
+    const slotCount = 2;
+    header: W,
+    name: W,
+    symbols: W,
+};
+
+const SymbolStruct = packed struct {
+    const slotCount = 5;
+    header: W,
+    value: W,
+    unused: W,
+    plist: W,
+    name: W,
+    package: W,
+    function: W,
+};
+
+const BasicType = enum {
+    symbol,
+    package,
+    string,
+
+    fn widetag(self: BasicType) Widetag {
+        return switch (self) {
+            .symbol => .symbol,
+            .package => .instance,
+            .string => .string,
+        };
+    }
+
+    fn Struct(comptime self: BasicType) type {
+        return switch (self) {
+            .symbol => SymbolStruct,
+            .package => PackageStruct,
+            .string => StringStruct,
+        };
+    }
+
+    pub fn castDataPointer(
+        comptime self: BasicType,
+        pointer: [*]W,
+    ) [self.Struct()]W {
+        return @ptrCast(self.Struct(), pointer);
+    }
+};
+
 const Wisp = struct {
     heap: *Heap,
     builtins: [builtinCount]?Builtin,
     symbolCache: [symbolCacheSize]W,
+    basePackage: W,
 
     pub fn symbol(self: Wisp, tag: SymbolCacheTag) W {
         return self.symbolCache[tag];
     }
+
+    pub fn getSymbolData(self: Wisp, ptr: W) ![*]W {
+        if (!ptr.isOtherPointer() and ptr != NIL) {
+            return Error.NotASymbol;
+        }
+
+        const data = self.heap.deref(ptr);
+
+        return BasicType.symbol.castDataPointer(data);
+    }
+
+    pub fn getDataPointer(
+        wisp: Wisp,
+        comptime t: BasicType,
+        w: W,
+    ) t.Struct() {
+        const pointer = wisp.heap.deref(w);
+        return t.castDataPointer(pointer);
+    }
+
+    pub fn typeSymbol(self: Wisp, t: BasicType) W {
+        return switch (t) {
+            .symbol => self.symbol(.SYMBOL),
+            .package => self.symbol(.PACKAGE),
+        };
+    }
+
+    pub fn stringsEqual(self: Wisp, x: W, y: W) !bool {
+        const xData = self.getDataPointer(.string, x);
+        const yData = self.getDataPointer(.string, y);
+
+        if (xData.header.widetag() != .string) {
+            return Error.NotAString;
+        }
+
+        if (yData.header.widetag() != .string) {
+            return Error.NotAString;
+        }
+
+        return std.mem.eql(u8, xData.slice(), yData.slice());
+    }
 };
 
-const symbolSlots = 6;
+fn makeInstance(wisp: *Wisp, comptime t: BasicType, slots: []W) !W {
+    var pointer = wisp.heap.allocateWords(2 + slots.len, Lowtag.structptr);
+    var data = wisp.heap.deref(pointer);
 
-const Headers = struct {
-    const symbol = makeHeader(symbolSlots, .symbol);
-};
+    data[0] = makeHeader(1 + slots.len, Widetag.instance);
+    data[1] = wisp.typeSymbol(t);
+
+    for (slots) |slot, i| {
+        data[2 + i] = slot;
+    }
+
+    return pointer;
+}
+
+fn makePackage(wisp: *Wisp, name: W) !W {
+    return makeInstance(
+        wisp.heap,
+        wisp.symbol(.CACHE),
+        .{ name, NIL },
+    );
+}
+
+const symbolHeader = makeHeader(
+    BasicType.symbol.Struct().slotCount,
+    .symbol,
+);
+
+fn internSymbol(wisp: *Wisp, name: W, package: W) !W {
+    var packageData = wisp.getDataPointer(BasicType.package, package);
+
+    assert(packageData[0].widetag() == BasicType.package.widetag());
+    assert(packageData[1] == wisp.typeSymbol(.package));
+
+    var cur = packageData[3];
+
+    while (cur != NIL) {
+        assert(cur.isListPointer());
+
+        var cons = try wisp.heap.derefCons(cur);
+        var symbolData = try wisp.getSymbolData(cons.car);
+        var symbolName = symbolData.name;
+
+        if (wisp.stringsEqual(symbolName, name)) {
+            return cons.car;
+        }
+
+        cur = cons.cdr;
+    }
+
+    // No symbol found; create it.
+
+    var symbol = wisp.heap.allocateWords(
+        1 + BasicType.symbol.Struct().slotCount,
+        .otherptr,
+    );
+
+    var symbolData = try wisp.getSymbolData(symbol);
+
+    symbolData.* = SymbolStruct{
+        .header = symbolHeader,
+        .name = name,
+        .package = package,
+        .value = NIL,
+        .function = NIL,
+        .plist = NIL,
+        .unused = NIL,
+    };
+
+    return symbol;
+}
 
 fn start(heap: *Heap) !Wisp {
-    var nil: [*]W = heap.deref(NIL);
-    nil[0] = Headers.symbol;
-    nil[1] = NIL;
-    nil[2] = NIL;
-    nil[3] = NIL;
-    nil[4] = try makeString(heap, "NIL");
-    nil[5] = NIL;
-    nil[6] = NIL;
+    var nil = @ptrCast([*]SymbolStruct, try heap.deref(NIL));
+    nil.* = SymbolStruct{
+        .header = symbolHeader,
+        .name = try makeString(heap, "NIL"),
+        .package = NIL,
+        .value = NIL,
+        .function = NIL,
+        .plist = NIL,
+        .unused = NIL,
+    };
+
+    var symbolCache = [_]W{W{ .raw = 3 }} ** symbolCacheSize;
+
+    symbolCache[@enumToInt(SymbolCacheTag.PACKAGE)] = NIL;
 
     return Wisp{
         .heap = heap,
         .builtins = [_]?Builtin{null} ** builtinCount,
         .symbolCache = [_]W{W{ .raw = 3 }} ** symbolCacheSize,
+        .basePackage = NIL,
     };
 }
 
@@ -373,7 +567,7 @@ fn makeString(heap: *Heap, text: []const u8) !W {
         .otherptr,
     );
 
-    const data = heap.deref(stringPtr);
+    const data = try heap.deref(stringPtr);
     const buffer = stringBuffer(data);
 
     data[0] = makeHeader(
