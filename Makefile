@@ -1,4 +1,4 @@
-default: wisp web test
+default: zig-out/bin/wisp
 web: wasm/wisp.js dist/index.html
 
 SOURCES = \
@@ -15,6 +15,9 @@ EMCCFLAGS += -s EXPORTED_RUNTIME_METHODS=$(EM_METHODS)
 EMCCFLAGS += -s EXPORTED_FUNCTIONS=_malloc,_free,_main
 EMCCFLAGS += -lidbfs.js
 EMCCFLAGS += -s MODULARIZE=1 -s 'EXPORT_NAME="loadWisp"'
+
+zig-out/bin/wisp: build.zig src/wisp.zig
+	zig build test
 
 wasm/wisp.js: $(SOURCES)
 	emcc $(CFLAGS) $^ -o $@ $(EMCCFLAGS)

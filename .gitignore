@@ -9,3 +9,5 @@ node_modules
 /README.pdf
 /README.tex
 .log
+zig-out
+zig-cache
