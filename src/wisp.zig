@@ -53,6 +53,10 @@ const W = packed struct {
         return @intCast(u24, std.math.shr(u32, self.raw, 8));
     }
 
+    pub fn isFixnum(self: W) bool {
+        return self.raw & 3 == 0;
+    }
+
     pub fn isListPointer(self: W) bool {
         return self.lowtag() == .listptr;
     }
@@ -294,7 +298,7 @@ test "align to double word" {
 }
 
 fn fixnum(x: u32) W {
-    return x << 2;
+    return W{ .raw = x << 2 };
 }
 
 fn isAligned(x: u32) bool {
@@ -472,6 +476,17 @@ const Wisp = struct {
 
         return pointer;
     }
+
+    pub fn list(self: Wisp, items: anytype) !W {
+        var result = NIL;
+        var i: usize = 0;
+
+        while (i < items.len) : (i += 1) {
+            result = try self.cons(items[items.len - 1 - i], result);
+        }
+
+        return result;
+    }
 };
 
 fn makeInstance(wisp: *Wisp, comptime t: BasicType, slots: anytype) !W {
@@ -580,7 +595,7 @@ fn start(heap: *Heap) !Wisp {
     var wispPackage = try makePackage(&wisp, try makeString(wisp.heap, "WISP"));
     var wispPackageData = try wisp.getDataPointer(BasicType.package, wispPackage);
 
-    wispPackageData.symbols = try wisp.cons(packageSymbol, try wisp.cons(NIL, NIL));
+    wispPackageData.symbols = try wisp.list([_]W{ packageSymbol, NIL });
     packageSymbolData.package = wispPackage;
 
     return wisp;
@@ -618,4 +633,54 @@ fn makeString(heap: *Heap, text: []const u8) !W {
     buffer[text.len] = 0;
 
     return stringPtr;
+}
+
+fn print(wisp: *Wisp, writer: anytype, word: W) anyerror!void {
+    if (word.isFixnum()) {
+        try writer.print("{}", .{word.fixnum()});
+    } else if (word.isNil()) {
+        try writer.print("NIL", .{});
+    } else if (word.isListPointer()) {
+        try writer.print("(", .{});
+
+        var cur = word;
+        while (!cur.isNil()) {
+            var cons = try wisp.heap.derefCons(cur);
+            try print(wisp, writer, cons.car);
+            if (cons.cdr.isNil()) {
+                break;
+            } else if (cons.cdr.isListPointer()) {
+                try writer.print(" ", .{});
+                cur = cons.cdr;
+            } else {
+                try writer.print(" . ", .{});
+                try print(wisp, writer, cons.cdr);
+                break;
+            }
+        }
+
+        try writer.print(")", .{});
+    } else {
+        try writer.print("[unknown {}]", .{word});
+    }
+}
+
+fn expectPrintResult(wisp: *Wisp, expected: []const u8, x: W) !void {
+    var list = std.ArrayList(u8).init(std.testing.allocator);
+    defer list.deinit();
+    try print(wisp, list.writer(), x);
+    try std.testing.expectEqualStrings(expected, list.items);
+}
+
+test "print" {
+    var heap = try emptyHeap(std.testing.allocator, 1024);
+    defer heap.free();
+
+    var wisp = try start(&heap);
+
+    try expectPrintResult(
+        &wisp,
+        "(1 2 3)",
+        try wisp.list([_]W{ fixnum(1), fixnum(2), fixnum(3) }),
+    );
 }
