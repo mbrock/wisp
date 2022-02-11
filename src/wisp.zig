@@ -255,9 +255,9 @@ const Heap = struct {
             Error.NotAPointer;
     }
 
-    pub fn derefCons(self: Heap, ptr: W) ![*]Cons {
+    pub fn derefCons(self: Heap, ptr: W) !*Cons {
         return if (ptr.isListPointer())
-            @ptrCast([*]Cons, try self.deref(ptr))
+            @ptrCast(*Cons, try self.deref(ptr))
         else
             Error.NotACons;
     }
@@ -403,8 +403,8 @@ const BasicType = enum {
     pub fn castDataPointer(
         comptime self: BasicType,
         pointer: [*]W,
-    ) [*]self.Struct() {
-        return @ptrCast([*]self.Struct(), pointer);
+    ) *self.Struct() {
+        return @ptrCast(*self.Struct(), pointer);
     }
 };
 
@@ -420,7 +420,7 @@ const Wisp = struct {
         return self.symbolCache[@enumToInt(tag)];
     }
 
-    pub fn getSymbolData(self: Wisp, ptr: W) ![*]SymbolStruct {
+    pub fn getSymbolData(self: Wisp, ptr: W) !*SymbolStruct {
         if (!ptr.isOtherPointer() and !ptr.isNil()) {
             return Error.NotASymbol;
         }
@@ -434,7 +434,7 @@ const Wisp = struct {
         wisp: Wisp,
         comptime t: BasicType,
         w: W,
-    ) ![*]t.Struct() {
+    ) !*t.Struct() {
         const pointer = try wisp.heap.deref(w);
         return t.castDataPointer(pointer);
     }
@@ -550,9 +550,9 @@ fn internSymbol(wisp: *Wisp, name: W, package: W) !W {
 }
 
 fn start(heap: *Heap) !Wisp {
-    var nil = @ptrCast([*]SymbolStruct, try heap.deref(NIL));
+    var nil = @ptrCast(*SymbolStruct, try heap.deref(NIL));
 
-    heap.*.used = alignToDoubleWord(7 * 4);
+    heap.used = alignToDoubleWord(7 * 4);
 
     nil.* = SymbolStruct{
         .header = symbolHeader,
@@ -580,8 +580,8 @@ fn start(heap: *Heap) !Wisp {
     var wispPackage = try makePackage(&wisp, try makeString(wisp.heap, "WISP"));
     var wispPackageData = try wisp.getDataPointer(BasicType.package, wispPackage);
 
-    wispPackageData.*.symbols = try wisp.cons(packageSymbol, try wisp.cons(NIL, NIL));
-    packageSymbolData.*.package = wispPackage;
+    wispPackageData.symbols = try wisp.cons(packageSymbol, try wisp.cons(NIL, NIL));
+    packageSymbolData.package = wispPackage;
 
     return wisp;
 }
