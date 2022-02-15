@@ -677,6 +677,8 @@ fn print(wisp: *Wisp, writer: anytype, word: W) anyerror!void {
     } else |_| {
         if (word.isOtherPointer()) {
             try writer.print("[otherptr {}]", .{word.raw});
+        } else if (word.lowtag() == .structptr) {
+            try writer.print("«instance»", .{});
         } else {
             try writer.print("[unknown {}]", .{word.raw});
         }
@@ -739,5 +741,16 @@ test "print symbols" {
             try makeString(&wisp.heap, "FOO"),
             wisp.basePackage,
         ),
+    );
+}
+
+test "print structs" {
+    var wisp = try testWisp();
+    defer wisp.heap.free();
+
+    try expectPrintResult(
+        &wisp,
+        "«instance»",
+        wisp.basePackage,
     );
 }
