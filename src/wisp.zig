@@ -2,6 +2,8 @@ const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 const assert = std.debug.assert;
 
+const ziglyph = @import("ziglyph");
+
 pub fn main() anyerror!void {
     std.log.info("Wisp Zig", .{});
 }
@@ -351,6 +353,8 @@ const Error = error{
     NotACons,
     NotAPointer,
     NotAString,
+    ReadError,
+    EOF,
 };
 
 const StringStruct = packed struct {
@@ -669,19 +673,26 @@ fn print(wisp: *Wisp, writer: anytype, word: W) anyerror!void {
         }
 
         try writer.print(")", .{});
-    } else if (wisp.getSymbolData(word)) |symbol| {
-        try writer.print(
-            "{s}",
-            .{try wisp.stringBufferAsSlice(symbol.name)},
-        );
-    } else |_| {
-        if (word.isOtherPointer()) {
-            try writer.print("[otherptr {}]", .{word.raw});
-        } else if (word.lowtag() == .structptr) {
-            try writer.print("«instance»", .{});
+    } else if (word.isOtherPointer()) {
+        const data = try wisp.heap.deref(word);
+        if (data[0].raw == symbolHeader.raw) {
+            const symbol = try wisp.getSymbolData(word);
+            try writer.print(
+                "{s}",
+                .{try wisp.stringBufferAsSlice(symbol.name)},
+            );
+        } else if (data[0].widetag() == .string) {
+            try writer.print(
+                "\"{s}\"",
+                .{try wisp.stringBufferAsSlice(word)},
+            );
         } else {
-            try writer.print("[unknown {}]", .{word.raw});
+            try writer.print("[otherptr {}]", .{word.raw});
         }
+    } else if (word.lowtag() == .structptr) {
+        try writer.print("«instance»", .{});
+    } else {
+        try writer.print("[unknown {}]", .{word.raw});
     }
 }
 
@@ -753,4 +764,261 @@ test "print structs" {
         "«instance»",
         wisp.basePackage,
     );
+}
+
+test "print strings" {
+    var wisp = try testWisp();
+    defer wisp.heap.free();
+
+    try expectPrintResult(
+        &wisp,
+        "\"hello\"",
+        try makeString(&wisp.heap, "hello"),
+    );
+}
+
+test "read roundtrips" {
+    try expectParsingRoundtrip("NIL");
+    try expectParsingRoundtrip("123");
+    try expectParsingRoundtrip("FOO");
+    try expectParsingRoundtrip("\"Hello, world!\"");
+}
+
+test "read list roundtrips" {
+    try expectParsingRoundtrip("(FOO)");
+    try expectParsingRoundtrip("(FOO (1 2 3) BAR)");
+    try expectParsingRoundtrip("(1 . 2)");
+}
+
+test "read code roundtrips" {
+    try expectParsingRoundtrip("(DEFUN FOO (X Y) (+ X Y))");
+}
+
+test "read symbol uppercasing" {
+    var wisp = try testWisp();
+    defer wisp.heap.free();
+
+    const symbol = try read(&wisp, "foobar");
+    const data = try wisp.getSymbolData(symbol);
+
+    try std.testing.expectEqualStrings(
+        "FOOBAR",
+        try wisp.stringBufferAsSlice(data.name),
+    );
+}
+
+fn expectParsingRoundtrip(text: []const u8) !void {
+    var wisp = try testWisp();
+    defer wisp.heap.free();
+
+    var list = std.ArrayList(u8).init(std.testing.allocator);
+    defer list.deinit();
+    const writer = list.writer();
+
+    const x = try read(&wisp, text);
+
+    try print(&wisp, &writer, x);
+    try std.testing.expectEqualStrings(text, list.items);
+}
+
+const Reader = struct {
+    utf8: std.unicode.Utf8Iterator,
+    wisp: *Wisp,
+
+    fn read(self: *Reader) anyerror!W {
+        try self.skipSpace();
+
+        const next = try self.peek();
+        if (next) |c| {
+            if (c == '(') {
+                return self.readList();
+            } else if (isSymbolCharacter(c)) {
+                return self.readSymbol();
+            } else if (ziglyph.isAsciiDigit(c)) {
+                return self.readNumber();
+            } else if (c == '"') {
+                return self.readString();
+            } else {
+                return Error.ReadError;
+            }
+        } else {
+            return Error.ReadError;
+        }
+    }
+
+    fn readWhile(
+        self: *Reader,
+        predicate: fn (u21) bool,
+    ) ![]const u8 {
+        var scout = std.unicode.Utf8Iterator{
+            .bytes = self.utf8.bytes,
+            .i = self.utf8.i,
+        };
+
+        var n: usize = 0;
+        while (true) {
+            const slice = scout.peek(1);
+            if (slice.len == 0) {
+                break;
+            } else {
+                const c = try std.unicode.utf8Decode(slice);
+                if (predicate(c)) {
+                    n += 1;
+                    _ = scout.nextCodepoint();
+                } else {
+                    break;
+                }
+            }
+        }
+
+        const text = self.utf8.peek(n);
+        self.utf8 = scout;
+
+        return text;
+    }
+
+    fn readSymbol(self: *Reader) !W {
+        const text = try self.readWhile(isSymbolCharacter);
+        const uppercase = try ziglyph.toUpperStr(
+            self.wisp.heap.allocator,
+            text,
+        );
+
+        defer self.wisp.heap.allocator.free(uppercase);
+
+        const string = try makeString(
+            &self.wisp.heap,
+            uppercase,
+        );
+
+        const symbol = try internSymbol(
+            self.wisp,
+            string,
+            self.wisp.basePackage,
+        );
+
+        return symbol;
+    }
+
+    fn readNumber(self: *Reader) !W {
+        const numberText = try self.readWhile(ziglyph.isAsciiDigit);
+
+        var result: u30 = 0;
+        var magnitude = std.math.pow(
+            u30,
+            10,
+            @intCast(u30, numberText.len - 1),
+        );
+        for (numberText) |c| {
+            result += magnitude * (c - '0');
+            magnitude /= 10;
+        }
+
+        return fixnum(result);
+    }
+
+    fn readString(self: *Reader) !W {
+        try self.skipOnly('"');
+
+        const text = try self.readWhile(isNotEndOfString);
+
+        return makeString(&self.wisp.heap, text);
+    }
+
+    fn readList(self: *Reader) !W {
+        try self.skipOnly('(');
+        return self.readListTail();
+    }
+
+    fn readListTail(self: *Reader) anyerror!W {
+        try self.skipSpace();
+        const next = try self.peek();
+        if (next) |c| {
+            switch (c) {
+                ')' => {
+                    try self.skipOnly(')');
+                    return NIL;
+                },
+
+                '.' => {
+                    try self.skipOnly('.');
+
+                    const cdr = try self.read();
+
+                    try self.skipSpace();
+                    try self.skipOnly(')');
+
+                    return cdr;
+                },
+
+                else => {
+                    const car = try self.read();
+                    const cdr = try self.readListTail();
+
+                    return self.wisp.cons(car, cdr);
+                },
+            }
+        } else {
+            return Error.EOF;
+        }
+    }
+
+    fn skipOnly(self: *Reader, c: u21) !void {
+        if ((try self.peek()) != c) {
+            return Error.ReadError;
+        }
+
+        _ = try self.skip();
+    }
+
+    fn peek(self: *Reader) !?u21 {
+        const slice = self.utf8.peek(1);
+        if (slice.len == 0) {
+            return null;
+        } else {
+            return try std.unicode.utf8Decode(slice);
+        }
+    }
+
+    fn skip(self: *Reader) !u21 {
+        return self.utf8.nextCodepoint().?;
+    }
+
+    fn skipSpace(self: *Reader) !void {
+        while (try self.peek()) |c| {
+            switch (c) {
+                ' ', '\n' => {
+                    _ = try self.skip();
+                },
+
+                else => {
+                    return;
+                },
+            }
+        }
+    }
+};
+
+fn isNotEndOfString(c: u21) bool {
+    return c != '"';
+}
+
+fn isSymbolCharacter(c: u21) bool {
+    if (ziglyph.isLetter(c)) {
+        return true;
+    } else {
+        return switch (c) {
+            '+', '-', '*', '/', '@', '=', '^', '%', '$' => true,
+            else => false,
+        };
+    }
+}
+
+fn read(wisp: *Wisp, stream: []const u8) !W {
+    var reader = Reader{
+        .utf8 = (try std.unicode.Utf8View.init(stream)).iterator(),
+        .wisp = wisp,
+    };
+
+    return reader.read();
 }
