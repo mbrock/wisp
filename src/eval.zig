@@ -11,6 +11,7 @@ const Wisp = wisp.Wisp;
 const Machine = wisp.Machine;
 
 pub const Error = error{
+    NotImplemented,
     UnknownTerm,
     VariableNotFound,
     TooManySteps,
@@ -86,10 +87,117 @@ pub fn step(ctx: *Wisp, machine: Machine) !Machine {
             next.term = (try ctx.getCons(cons.cdr)).car;
             return next;
         } else {
-            return error.NotImplemented;
+            return stepIntoSymbolCall(ctx, machine, cons.car, cons.cdr);
         }
     } else {
         return Error.UnknownTerm;
+    }
+}
+
+fn stepIntoSymbolCall(
+    ctx: *Wisp,
+    machine: Machine,
+    car: W,
+    cdr: W,
+) !Machine {
+    const symbolData = try ctx.getSymbolData(car);
+    return stepIntoCall(ctx, machine, symbolData.function, cdr);
+}
+
+const Direction = enum { backward, foreward };
+
+fn stepIntoCall(
+    ctx: *Wisp,
+    machine: Machine,
+    function: W,
+    arglist: W,
+) !Machine {
+    if (arglist.eq(NIL)) {
+        return Error.NotImplemented;
+    } else if (try evaluatesArguments(ctx, function)) {
+        return stepIntoArgumentList(ctx, machine, function, arglist);
+    } else {
+        return doCall(ctx, machine, .foreward, wisp.Plan{
+            .next = machine.plan,
+            .scopes = machine.scopes,
+            .data = wisp.PlanData{
+                .APPLY = .{
+                    .terms = NIL,
+                    .values = arglist,
+                    .function = function,
+                },
+            },
+        });
+    }
+}
+
+fn stepIntoArgumentList(
+    ctx: *Wisp,
+    machine: Machine,
+    function: W,
+    arglist: W,
+) !Machine {
+    const termList = try ctx.getCons(arglist);
+
+    var next = machine;
+    next.term = termList.car;
+    next.value = false;
+    next.plan = try makeApplyPlan(
+        ctx,
+        function,
+        NIL,
+        termList.cdr,
+        machine.scopes,
+        machine.plan,
+    );
+
+    return next;
+}
+
+fn makeApplyPlan(
+    ctx: *Wisp,
+    function: W,
+    values: W,
+    terms: W,
+    scopes: W,
+    next: W,
+) !W {
+    var slots: [5]W = .{ function, values, terms, scopes, next };
+    return ctx.makeInstance(ctx.symbol(.APPLY), slots);
+}
+
+fn doCall(
+    ctx: *Wisp,
+    machine: Machine,
+    direction: Direction,
+    plan: wisp.Plan,
+) !Machine {
+    const function = plan.data.APPLY.function;
+
+    if (function.widetag() == .builtin) {
+        if (ctx.builtins[function.immediate()]) |builtin| {
+            _ = builtin;
+            _ = direction;
+            _ = machine;
+            return Error.NotImplemented;
+        } else {
+            return Error.NotImplemented;
+        }
+    } else {
+        return Error.NotImplemented;
+    }
+}
+
+fn evaluatesArguments(ctx: *Wisp, function: W) !bool {
+    if (function.widetag() == .builtin) {
+        if (ctx.builtins[function.immediate()]) |builtin| {
+            return builtin.evalArgs;
+        } else {
+            return Error.NotImplemented;
+        }
+    } else {
+        const closureData = try ctx.getDataPointer(.closure, function);
+        return closureData.macro.eq(NIL);
     }
 }
 
@@ -273,4 +381,8 @@ pub fn evalTopLevel(ctx: *Wisp, term: W, max_steps: u32) !W {
     }
 
     return Error.TooManySteps;
+}
+
+test "(+ 1 2)" {
+    try expectEval("(+ 1 2)", "3");
 }

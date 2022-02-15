@@ -27,6 +27,7 @@ test "read roundtrips" {
     try expectParsingRoundtrip("NIL");
     try expectParsingRoundtrip("123");
     try expectParsingRoundtrip("FOO");
+    try expectParsingRoundtrip("FÖÖ");
     try expectParsingRoundtrip("\"Hello, world!\"");
 }
 

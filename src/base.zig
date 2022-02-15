@@ -99,7 +99,7 @@ pub var machine = Machine{
     .plan = NIL,
 };
 
-pub const PlanData = packed union(enum) {
+pub const PlanData = union(enum) {
     APPLY: struct {
         terms: W,
         values: W,
@@ -122,17 +122,10 @@ pub const PlanData = packed union(enum) {
     AWAIT: struct {},
 };
 
-pub const Plan = packed struct {
+pub const Plan = struct {
     next: W,
     scopes: W,
     data: PlanData,
-};
-
-pub const Closure = packed struct {
-    params: W,
-    body: W,
-    scopes: W,
-    macro: W,
 };
 
 pub const Builtin = struct {
@@ -402,11 +395,21 @@ pub const SymbolStruct = packed struct {
     function: W,
 };
 
+pub const ClosureStruct = packed struct {
+    header: W,
+    typeDescriptor: W,
+    params: W,
+    body: W,
+    scopes: W,
+    macro: W,
+};
+
 pub const BasicType = enum {
     string,
     symbol,
     package,
     scope,
+    closure,
 
     fn widetag(self: BasicType) Widetag {
         return switch (self) {
@@ -414,6 +417,7 @@ pub const BasicType = enum {
             .symbol => .symbol,
             .package => .instance,
             .scope => .instance,
+            .closure => .instance,
         };
     }
 
@@ -423,6 +427,7 @@ pub const BasicType = enum {
             .symbol => SymbolStruct,
             .package => PackageStruct,
             .scope => ScopeStruct,
+            .closure => ClosureStruct,
         };
     }
 
@@ -470,6 +475,7 @@ pub const Wisp = struct {
             .package => self.symbol(.PACKAGE),
             .string => self.symbol(.STRING),
             .scope => self.symbol(.SCOPE),
+            .closure => self.symbol(.CLOSURE),
         };
     }
 
@@ -528,20 +534,32 @@ pub const Wisp = struct {
     pub fn internString(self: *Wisp, string: []const u8, package: W) !W {
         return internSymbol(self, try makeString(&self.heap, string), package);
     }
+
+    pub fn makeInstance(self: *Wisp, typeDescriptor: W, slots: anytype) !W {
+        var pointer = try self.heap.allocateWords(
+            2 + slots.len,
+            Lowtag.structptr,
+        );
+
+        var data = try self.heap.deref(pointer);
+
+        data[0] = makeHeader(
+            1 + @intCast(u24, slots.len),
+            Widetag.instance,
+        );
+
+        data[1] = typeDescriptor;
+
+        for (slots) |slot, i| {
+            data[2 + i] = slot;
+        }
+
+        return pointer;
+    }
 };
 
 pub fn makeInstance(wisp: *Wisp, comptime t: BasicType, slots: anytype) !W {
-    var pointer = try wisp.heap.allocateWords(2 + slots.len, Lowtag.structptr);
-    var data = try wisp.heap.deref(pointer);
-
-    data[0] = makeHeader(1 + @intCast(u24, slots.len), Widetag.instance);
-    data[1] = wisp.typeSymbol(t);
-
-    for (slots) |slot, i| {
-        data[2 + i] = slot;
-    }
-
-    return pointer;
+    return wisp.makeInstance(wisp.typeSymbol(t), slots);
 }
 
 pub fn makePackage(wisp: *Wisp, name: W) !W {
