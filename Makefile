@@ -6,6 +6,9 @@ SOURCES = \
   wisp-tidy.c wisp-builtins.c \
   wisp-read.c wisp-dump.c
 
+ZIGSOURCES = \
+  src/wisp.zig src/read.zig src/print.zig src/eval.zig
+
 CFLAGS += -g
 
 EM_METHODS = ccall,cwrap,FS,ENV,IDBFS,lengthBytesUTF8,stringToUTF8
@@ -16,7 +19,7 @@ EMCCFLAGS += -s EXPORTED_FUNCTIONS=_malloc,_free,_main
 EMCCFLAGS += -lidbfs.js
 EMCCFLAGS += -s MODULARIZE=1 -s 'EXPORT_NAME="loadWisp"'
 
-zig-out/bin/wisp: build.zig src/wisp.zig src/read.zig src/print.zig
+zig-out/bin/wisp: build.zig $(ZIGSOURCES)
 	zig build test
 
 wasm/wisp.js: $(SOURCES)

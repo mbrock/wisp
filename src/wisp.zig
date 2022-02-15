@@ -3,6 +3,11 @@ const std = @import("std");
 const base = @import("./base.zig");
 const read = @import("./read.zig");
 const print = @import("./print.zig");
+const eval = @import("./eval.zig");
+
+test {
+    std.testing.refAllDecls(@This());
+}
 
 fn expectParsingRoundtrip(text: []const u8) !void {
     var ctx = try base.testWisp();

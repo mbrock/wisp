@@ -346,6 +346,7 @@ pub const Error = error{
     NotASymbol,
     NotACons,
     NotAPointer,
+    NotAnInstance,
     NotAString,
     ReadError,
     EOF,
@@ -370,6 +371,18 @@ pub const PackageStruct = packed struct {
     symbols: W,
 };
 
+pub const ScopeStruct = packed struct {
+    header: W,
+    typeDescriptor: W,
+    firstWord: W,
+
+    fn scopeSlice(self: *ScopeStruct) []W {
+        var words = @ptrCast([*]W, &self.firstWord);
+        var length = self.header.immediate() - 1;
+        return words[0..length];
+    }
+};
+
 pub const SymbolStruct = packed struct {
     const slotCount = 5;
     header: W,
@@ -382,23 +395,26 @@ pub const SymbolStruct = packed struct {
 };
 
 pub const BasicType = enum {
+    string,
     symbol,
     package,
-    string,
+    scope,
 
     fn widetag(self: BasicType) Widetag {
         return switch (self) {
+            .string => .string,
             .symbol => .symbol,
             .package => .instance,
-            .string => .string,
+            .scope => .instance,
         };
     }
 
     fn Struct(comptime self: BasicType) type {
         return switch (self) {
+            .string => StringStruct,
             .symbol => SymbolStruct,
             .package => PackageStruct,
-            .string => StringStruct,
+            .scope => ScopeStruct,
         };
     }
 
@@ -444,6 +460,7 @@ pub const Wisp = struct {
             .symbol => self.symbol(.SYMBOL),
             .package => self.symbol(.PACKAGE),
             .string => self.symbol(.STRING),
+            .scope => self.symbol(.SCOPE),
         };
     }
 
@@ -461,6 +478,15 @@ pub const Wisp = struct {
             return Error.NotAString;
         } else {
             return data.slice();
+        }
+    }
+
+    pub fn scopeDataAsSlice(self: *Wisp, word: W) ![]W {
+        const data: *ScopeStruct = try self.getDataPointer(.scope, word);
+        if (data.header.widetag() != .instance) {
+            return Error.NotAnInstance;
+        } else {
+            return data.scopeSlice();
         }
     }
 
@@ -485,13 +511,17 @@ pub const Wisp = struct {
 
         return result;
     }
+
+    pub fn getCons(self: *Wisp, ptr: W) !*Cons {
+        return self.heap.derefCons(ptr);
+    }
 };
 
 pub fn makeInstance(wisp: *Wisp, comptime t: BasicType, slots: anytype) !W {
     var pointer = try wisp.heap.allocateWords(2 + slots.len, Lowtag.structptr);
     var data = try wisp.heap.deref(pointer);
 
-    data[0] = makeHeader(1 + slots.len, Widetag.instance);
+    data[0] = makeHeader(1 + @intCast(u24, slots.len), Widetag.instance);
     data[1] = wisp.typeSymbol(t);
 
     for (slots) |slot, i| {
