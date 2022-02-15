@@ -13,6 +13,7 @@ const Machine = wisp.Machine;
 pub const Error = error{
     UnknownTerm,
     VariableNotFound,
+    TooManySteps,
 };
 
 const TermType = enum {
@@ -257,4 +258,19 @@ test "(quote (foo bar))" {
         "(quote (foo bar))",
         "(foo bar)",
     );
+}
+
+pub fn evalTopLevel(ctx: *Wisp, term: W, max_steps: u32) !W {
+    var i: u32 = 0;
+
+    var machine = initialMachine(term);
+
+    while (i < max_steps) : (i += 1) {
+        machine = try step(ctx, machine);
+        if (machine.value) {
+            return machine.term;
+        }
+    }
+
+    return Error.TooManySteps;
 }

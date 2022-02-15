@@ -12,7 +12,7 @@ pub fn build(b: *std.build.Builder) void {
     const mode = b.standardReleaseOptions();
 
     const exe = b.addExecutable("wisp", "src/wisp.zig");
-    exe.addPackagePath("ziglyph", "libs/ziglyph/src/ziglyph.zig");
+    exe.addPackagePath("ziglyph", "vendor/ziglyph/src/ziglyph.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.install();
