@@ -16,7 +16,7 @@ EMCCFLAGS += -s EXPORTED_FUNCTIONS=_malloc,_free,_main
 EMCCFLAGS += -lidbfs.js
 EMCCFLAGS += -s MODULARIZE=1 -s 'EXPORT_NAME="loadWisp"'
 
-zig-out/bin/wisp: build.zig src/wisp.zig
+zig-out/bin/wisp: build.zig src/wisp.zig src/read.zig src/print.zig
 	zig build test
 
 wasm/wisp.js: $(SOURCES)
