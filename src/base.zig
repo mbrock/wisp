@@ -26,7 +26,11 @@ pub const W = packed struct {
     raw: u32,
 
     pub fn isNil(self: W) bool {
-        return self.raw == 3;
+        return self.eq(NIL);
+    }
+
+    pub fn eq(self: W, other: W) bool {
+        return self.raw == other.raw;
     }
 
     pub fn lowtag(self: W) Lowtag {
@@ -268,6 +272,10 @@ pub const Heap = struct {
         const alignedSize = alignToDoubleWord(size);
 
         if (heap.used + size >= heap.size / 2) {
+            std.log.err(
+                "heap full: allocating {d} bytes; {d} used of {d}",
+                .{ alignedSize, heap.used, heap.size / 2 },
+            );
             return error.HeapFull;
         } else {
             const i = heap.used;
@@ -435,7 +443,8 @@ pub const Wisp = struct {
     basePackage: W,
 
     pub fn symbol(self: Wisp, tag: SymbolCacheTag) W {
-        return self.symbolCache[@enumToInt(tag)];
+        const x = self.symbolCache[@enumToInt(tag)];
+        return x;
     }
 
     pub fn getSymbolData(self: Wisp, ptr: W) !*SymbolStruct {
@@ -514,6 +523,10 @@ pub const Wisp = struct {
 
     pub fn getCons(self: *Wisp, ptr: W) !*Cons {
         return self.heap.derefCons(ptr);
+    }
+
+    pub fn internString(self: *Wisp, string: []const u8, package: W) !W {
+        return internSymbol(self, try makeString(&self.heap, string), package);
     }
 };
 
@@ -616,23 +629,46 @@ pub fn start(heap: Heap) !Wisp {
         .basePackage = NIL,
     };
 
-    var packageSymbol = try makeSymbol(&wisp, try makeString(&wisp.heap, "PACKAGE"), NIL);
-    var packageSymbolData = try wisp.getDataPointer(BasicType.symbol, packageSymbol);
+    var packageSymbol = try makeSymbol(
+        &wisp,
+        try makeString(&wisp.heap, "PACKAGE"),
+        NIL,
+    );
 
-    symbolCache[@enumToInt(SymbolCacheTag.PACKAGE)] = packageSymbol;
+    var packageSymbolData = try wisp.getDataPointer(
+        BasicType.symbol,
+        packageSymbol,
+    );
 
-    var wispPackage = try makePackage(&wisp, try makeString(&wisp.heap, "WISP"));
-    var wispPackageData = try wisp.getDataPointer(BasicType.package, wispPackage);
+    wisp.symbolCache[@enumToInt(SymbolCacheTag.PACKAGE)] = packageSymbol;
 
+    var wispPackage = try makePackage(
+        &wisp,
+        try makeString(&wisp.heap, "WISP"),
+    );
+
+    var wispPackageData: *PackageStruct = try wisp.getDataPointer(
+        BasicType.package,
+        wispPackage,
+    );
+
+    wispPackageData.typeDescriptor = packageSymbol;
     wispPackageData.symbols = try wisp.list([_]W{ packageSymbol, NIL });
     packageSymbolData.package = wispPackage;
     wisp.basePackage = wispPackage;
+
+    inline for (@typeInfo(SymbolCacheTag).Enum.fields) |field| {
+        wisp.symbolCache[field.value] = try wisp.internString(
+            field.name,
+            wisp.basePackage,
+        );
+    }
 
     return wisp;
 }
 
 test "start" {
-    var heap = try emptyHeap(std.testing.allocator, 1024);
+    var heap = try emptyHeap(std.testing.allocator, 4096);
     defer heap.free();
 
     _ = try start(heap);
@@ -666,6 +702,6 @@ pub fn makeString(heap: *Heap, text: []const u8) !W {
 }
 
 pub fn testWisp() !Wisp {
-    var heap = try emptyHeap(std.testing.allocator, 1024);
+    var heap = try emptyHeap(std.testing.allocator, 4096);
     return try start(heap);
 }

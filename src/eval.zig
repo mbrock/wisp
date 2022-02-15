@@ -3,6 +3,7 @@ const assert = std.debug.assert;
 
 const wisp = @import("./base.zig");
 const read = @import("./read.zig").read;
+const print = @import("./print.zig").print;
 
 const W = wisp.W;
 const NIL = wisp.NIL;
@@ -75,6 +76,16 @@ pub fn step(ctx: *Wisp, machine: Machine) !Machine {
             return stepVariable(ctx, machine);
         } else {
             return Error.UnknownTerm;
+        }
+    } else if (term.isListPointer()) {
+        const cons = try ctx.getCons(term);
+        if (cons.car.eq(ctx.symbol(.QUOTE))) {
+            var next = machine;
+            next.value = true;
+            next.term = (try ctx.getCons(cons.cdr)).car;
+            return next;
+        } else {
+            return error.NotImplemented;
         }
     } else {
         return Error.UnknownTerm;
@@ -154,6 +165,8 @@ fn expectSelfEvaluating(code: []const u8) !void {
 }
 
 test "self-evaluating" {
+    try expectSelfEvaluating("NIL");
+    try expectSelfEvaluating("()");
     try expectSelfEvaluating("123");
     try expectSelfEvaluating("\"foo\"");
 }
@@ -210,5 +223,38 @@ test "nonexisting variable" {
     try std.testing.expectError(
         Error.VariableNotFound,
         step(&ctx, m1),
+    );
+}
+
+fn expectEval(code: []const u8, expected: []const u8) !void {
+    var ctx = try wisp.testWisp();
+    defer ctx.heap.free();
+
+    const m1 = try initialMachineForCode(&ctx, code);
+    const m2 = try step(&ctx, m1);
+
+    try std.testing.expectEqual(true, m2.value);
+
+    const t = try read(&ctx, expected);
+
+    var s1 = std.ArrayList(u8).init(std.testing.allocator);
+    var s2 = std.ArrayList(u8).init(std.testing.allocator);
+
+    defer s1.deinit();
+    defer s2.deinit();
+
+    try print(&ctx, s1.writer(), t);
+    try print(&ctx, s2.writer(), m2.term);
+
+    try std.testing.expectEqualStrings(
+        s1.items,
+        s2.items,
+    );
+}
+
+test "(quote (foo bar))" {
+    try expectEval(
+        "(quote (foo bar))",
+        "(foo bar)",
     );
 }
