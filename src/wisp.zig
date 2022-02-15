@@ -429,9 +429,7 @@ const Wisp = struct {
             return Error.NotASymbol;
         }
 
-        const data = try self.heap.deref(ptr);
-
-        return BasicType.symbol.castDataPointer(data);
+        return self.getDataPointer(.symbol, ptr);
     }
 
     pub fn getDataPointer(
@@ -452,18 +450,20 @@ const Wisp = struct {
     }
 
     pub fn stringsEqual(self: Wisp, x: W, y: W) !bool {
-        const xData = try self.getDataPointer(.string, x);
-        const yData = try self.getDataPointer(.string, y);
+        return std.mem.eql(
+            u8,
+            try self.stringBufferAsSlice(x),
+            try self.stringBufferAsSlice(y),
+        );
+    }
 
-        if (xData.header.widetag() != .string) {
+    pub fn stringBufferAsSlice(self: Wisp, word: W) ![]u8 {
+        const data = try self.getDataPointer(.string, word);
+        if (data.header.widetag() != .string) {
             return Error.NotAString;
+        } else {
+            return data.slice();
         }
-
-        if (yData.header.widetag() != .string) {
-            return Error.NotAString;
-        }
-
-        return std.mem.eql(u8, xData.slice(), yData.slice());
     }
 
     pub fn cons(self: *Wisp, car: W, cdr: W) !W {
@@ -669,10 +669,17 @@ fn print(wisp: *Wisp, writer: anytype, word: W) anyerror!void {
         }
 
         try writer.print(")", .{});
-    } else if (word.isOtherPointer()) {
-        try writer.print("[otherptr {}]", .{word.raw});
-    } else {
-        try writer.print("[unknown {}]", .{word.raw});
+    } else if (wisp.getSymbolData(word)) |symbol| {
+        try writer.print(
+            "{s}",
+            .{try wisp.stringBufferAsSlice(symbol.name)},
+        );
+    } else |_| {
+        if (word.isOtherPointer()) {
+            try writer.print("[otherptr {}]", .{word.raw});
+        } else {
+            try writer.print("[unknown {}]", .{word.raw});
+        }
     }
 }
 
