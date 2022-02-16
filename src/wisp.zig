@@ -1,9 +1,14 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const base = @import("./base.zig");
 const read = @import("./read.zig").read;
 const print = @import("./print.zig").print;
 const eval = @import("./eval.zig");
+
+const W = base.W;
+const Wisp = base.Wisp;
+const Result = base.Result;
 
 test {
     std.testing.refAllDecls(@This());
@@ -42,6 +47,98 @@ test "read code roundtrips" {
 }
 
 pub fn main() anyerror!void {
+    if (builtin.os.tag == .freestanding) {
+        return;
+    } else {
+        return repl();
+    }
+}
+
+fn allocateWisp(heapSize: i32) !*Wisp {
+    var heap = try base.emptyHeap(
+        std.heap.page_allocator,
+        @intCast(u29, heapSize),
+    );
+
+    var wisp = try base.start(heap);
+
+    var place = try wisp.heap.allocator.create(Wisp);
+    place.* = wisp;
+
+    return place;
+}
+
+pub export fn wispStart(heapSize: i32) ?*Wisp {
+    return allocateWisp(heapSize) catch null;
+}
+
+pub fn alloc(comptime T: type, ctx: *Wisp, x: anyerror!T) ?*T {
+    if (x) |it| {
+        if (ctx.heap.allocator.create(T)) |place| {
+            place.* = it;
+            return place;
+        } else |_| {
+            return null;
+        }
+    } else |_| {
+        return null;
+    }
+}
+
+pub export fn wispRead(ctx: *Wisp, string: [*:0]const u8) u32 {
+    if (read(ctx, std.mem.span(string))) |w| {
+        return w.raw;
+    } else |_| {
+        return errorValue.raw;
+    }
+}
+
+pub export fn wispAllocString(ctx: *Wisp, size: u32) ?[*:0]u8 {
+    if (ctx.heap.allocator.alloc(u8, size)) |slice| {
+        return @ptrCast(?[*:0]u8, slice);
+    } else |_| {
+        return null;
+    }
+}
+
+pub export fn wispFreeString(ctx: *Wisp, ptr: [*:0]u8) void {
+    ctx.heap.allocator.free(std.mem.span(ptr));
+}
+
+pub export fn wispFreeValue(ctx: *Wisp, ptr: *W) void {
+    ctx.heap.allocator.destroy(ptr);
+}
+
+pub export fn wispToString(ctx: *Wisp, term: u32) ?[*:0]u8 {
+    var buffer = std.ArrayList(u8).init(ctx.heap.allocator);
+    if (print(ctx, buffer.writer(), W.from(term))) |_| {
+        return buffer.toOwnedSliceSentinel(0) catch null;
+    } else |_| {
+        return null;
+    }
+}
+
+pub export fn strlen(s: [*:0]u8) u32 {
+    return @intCast(u32, std.mem.len(s));
+}
+
+const errorValue = W{ .raw = 7 };
+
+pub export fn wispEvalTopLevel(
+    ctx: *Wisp,
+    term: u32,
+    max_steps: u32,
+) u32 {
+    const w = eval.evalTopLevel(
+        ctx,
+        W.from(term),
+        max_steps,
+    ) catch errorValue;
+
+    return w.raw;
+}
+
+pub fn repl() anyerror!void {
     const stdin = std.io.getStdIn().reader();
     const stdout = std.io.getStdOut().writer();
 

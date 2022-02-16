@@ -2,6 +2,32 @@ const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 const assert = std.debug.assert;
 
+pub fn Result(comptime t: type) type {
+    return extern struct {
+        ok: u32,
+        result: extern union {
+            none: void,
+            some: t,
+        },
+
+        pub fn none() @This() {
+            return @This(){ .ok = 0, .result = .{ .none = {} } };
+        }
+
+        pub fn some(x: t) @This() {
+            return @This(){ .ok = 1, .result = .{ .some = x } };
+        }
+
+        pub fn with(x: anytype) @This() {
+            if (x) |it| {
+                return @This().some(it);
+            } else |_| {
+                return @This().none();
+            }
+        }
+    };
+}
+
 pub const Lowtag = enum(u3) {
     const mask: u32 = @as(u32, 7);
 
@@ -24,6 +50,10 @@ pub const Widetag = enum(u8) {
 
 pub const W = packed struct {
     raw: u32,
+
+    pub fn from(raw: u32) W {
+        return W{ .raw = raw };
+    }
 
     pub fn isNil(self: W) bool {
         return self.eq(NIL);
@@ -532,6 +562,7 @@ pub const Wisp = struct {
     }
 
     pub fn internString(self: *Wisp, string: []const u8, package: W) !W {
+        std.log.warn("interning {s}", .{string});
         return internSymbol(self, try makeString(&self.heap, string), package);
     }
 
@@ -588,6 +619,8 @@ pub fn makeSymbol(wisp: *Wisp, name: W, package: W) !W {
         .plist = NIL,
         .unused = NIL,
     };
+
+    std.log.warn("made symbol {any}", .{symbolData});
 
     return symbol;
 }

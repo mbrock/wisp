@@ -69,14 +69,8 @@ const Reader = struct {
 
         defer self.wisp.heap.allocator.free(uppercase);
 
-        const string = try wisp.makeString(
-            &self.wisp.heap,
+        const symbol = try self.wisp.internString(
             uppercase,
-        );
-
-        const symbol = try wisp.internSymbol(
-            self.wisp,
-            string,
             self.wisp.basePackage,
         );
 

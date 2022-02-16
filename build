@@ -4,6 +4,7 @@ rm -rf dist/*
 
 esbuild index.tsx --outdir=dist --bundle --sourcemap \
   --entry-names=[dir]/[name]-[hash]
+
 cd dist
 
 cp ../index.html .
@@ -15,16 +16,11 @@ mvhash() {
   mv "$1" "$name"
 }
 
-cp ../wasm/* .
+cp ../zig-out/lib/wisp.wasm .
 mvhash wisp.wasm
 
 result=$(ls wisp*.wasm)
-sed -i -e "s|wisp.wasm|$result|" wisp.js
-
-mvhash wisp.js
+sed -i -e "s|wisp.wasm|$result|" index.html
 
 result=$(ls index*.js)
 sed -i -e "s|index.js|$result|" index.html
-
-result=$(ls wisp*.js)
-sed -i -e "s|wisp.js|$result|" index.html

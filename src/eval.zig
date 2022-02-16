@@ -101,6 +101,7 @@ fn stepIntoSymbolCall(
     cdr: W,
 ) !Machine {
     const symbolData = try ctx.getSymbolData(car);
+    std.log.warn("symbol {any}", .{symbolData});
     return stepIntoCall(ctx, machine, symbolData.function, cdr);
 }
 

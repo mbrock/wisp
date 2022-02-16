@@ -33,18 +33,15 @@ const NIL = {
   "function": null
 }
 
-interface EmscriptenModule {
-  ccall: (arg0: string,
-          arg1: string,
-          arg2: string[],
-          arg3: any[]) => number
-
-  HEAPU8: {
-    buffer: ArrayBufferLike
-  }
+interface WispGlobal {
+  wasmSource: Response
 }
 
-let WispModule: EmscriptenModule
+declare global {
+  interface Window {
+    wisp: WispGlobal
+  }
+}
 
 interface WispGlue {
   promise: (p: Promise<any>) => number
@@ -52,26 +49,92 @@ interface WispGlue {
   nextPromiseID: number
 }
 
-declare global {
-  interface Window {
-    WispModule: EmscriptenModule
-    loadWisp: any
-    wisp: WispGlue
+interface WispWasmAPI {
+  memory: WebAssembly.Memory,
+  strlen(s: number): number
+  wispAllocString(ctx: number, size: number): number
+  wispFreeString(ctx: number, ptr: number): void
+  wispFreeValue(ctx: number, ptr: number): void
+  wispStart(heapSize: number): number
+  wispRead(ctx: number, s: number): number
+  wispEvalTopLevel(ctx: number, term: number, maxSteps: number): number
+  wispToString(ctx: number, term: number): number
+}
+
+class WispAPI {
+  api: WispWasmAPI
+  ctx: number
+
+  constructor(api: WispWasmAPI, heapSize: number) {
+    this.api = api
+    this.ctx = api.wispStart(heapSize)
+
+    if (this.ctx === 0)
+      throw new Error("failed to start Wisp")
+  }
+
+  freeValue(x: number) {
+    this.api.wispFreeValue(this.ctx, x)
+  }
+
+  makeString(s: string): number {
+    let buffer = this.api.wispAllocString(this.ctx, s.length + 1)
+    let encoder = new TextEncoder
+    let array = encoder.encode(s)
+    let view = new DataView(this.api.memory.buffer, buffer, s.length + 1)
+
+    view.setUint8(s.length, 0)
+    for (let i = 0; i < s.length; i++)
+      view.setUint8(i, array[i])
+
+    return buffer
+  }
+
+  read(text: string) {
+    let s = this.makeString(text)
+    let x = this.api.wispRead(this.ctx, s)
+
+    this.api.wispFreeString(this.ctx, s)
+
+    if (x === 0)
+      throw new Error("read error")
+
+    return x
+  }
+
+  eval(term: number): number {
+    let x = this.api.wispEvalTopLevel(this.ctx, term, 100)
+    if (x === 7)
+      throw new Error("eval error")
+    else
+      return x
+  }
+
+  getString(ptr: number): string {
+    let length = this.api.strlen(ptr)
+    let slice = this.api.memory.buffer.slice(ptr, ptr + length)
+    let decoder = new TextDecoder
+    return decoder.decode(slice)
+  }
+
+  print(term: number): string {
+    let ptr = this.api.wispToString(this.ctx, term)
+    let s = this.getString(ptr)
+    this.api.wispFreeString(this.ctx, ptr)
+    return s
   }
 }
 
-let wisp: WispGlue = {
+let wispAsync: WispGlue = {
   nextPromiseID: 1,
   promises: {},
 
   promise(p) {
-    let id = wisp.nextPromiseID
-    wisp.promises[id] = p
-    return wisp.nextPromiseID++
+    let id = this.nextPromiseID
+    this.promises[id] = p
+    return this.nextPromiseID++
   }
 }
-
-window.wisp = wisp
 
 NIL["function"] = NIL
 
@@ -123,34 +186,20 @@ function Wisp() {
 
   useEffect(function () {
     async function load() {
-      let Module = await window.loadWisp({
-        printErr: (x: any) => {
-          console.info(x)
-          print(x, "stderr")
-        },
-        print(x: any) {
-          console.log(x)
-          print(x, "stdout")
-        },
-        preRun(Module: { ENV: { WISP_HEAP: string } }) {
-          Module.ENV.WISP_HEAP = "/wisp/heap"
-        }
-      })
+      let wasm = await WebAssembly.instantiateStreaming(
+        window.wisp.wasmSource,
+        {}
+      )
 
-      console.log("loaded Wisp")
-      Module.FS.mkdir("/wisp")
-      Module.FS.mount(Module.IDBFS, {}, "/wisp")
-      Module.FS.syncfs(true, (err: any) => {
-        if (err) {
-          throw err
-        } else {
-          console.log("syncfs loaded")
-          Module.ccall("wisp_main", null, null, [])
-          setBooted(true)
-        }
-      })
+      console.log(wasm)
 
-      window.WispModule = WispModule = Module
+      let api = wasm.instance.exports as unknown as WispWasmAPI
+      let wisp = new WispAPI(api, 16 * 1024 * 1024)
+      console.log("wisp", wisp)
+
+      console.log(wisp.print(wisp.eval(wisp.read("(quote (foo . bar))"))))
+
+      setBooted(false)
     }
 
     load()
@@ -585,11 +634,11 @@ function REPL() {
         [], []
       )
 
-      let promise = wisp.promises[promiseId]
+      let promise = wispAsync.promises[promiseId]
 
       let jsString = await promise
 
-      delete wisp.promises[promiseId]
+      delete wispAsync.promises[promiseId]
 
       let lengthBytes =
         WispModule.lengthBytesUTF8(jsString) + 1
