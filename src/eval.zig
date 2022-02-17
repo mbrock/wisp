@@ -68,10 +68,10 @@ pub fn step(ctx: *Wisp, machine: Machine) !Machine {
 
     const term = machine.term;
 
-    if (try irreducible(ctx, term)) {
+    if (machine.value or try irreducible(ctx, term)) {
         var next = machine;
         next.value = true;
-        return next;
+        return followPlan(ctx, next);
     } else if (term.isOtherPointer()) {
         const data = try ctx.heap.deref(term);
         if (data[0].raw == wisp.symbolHeader.raw) {
@@ -94,6 +94,16 @@ pub fn step(ctx: *Wisp, machine: Machine) !Machine {
     }
 }
 
+pub fn followPlan(ctx: *Wisp, machine: Machine) !Machine {
+    if (machine.plan.isNil()) {
+        return machine;
+    }
+
+    _ = ctx;
+
+    return Error.NotImplemented;
+}
+
 fn stepIntoSymbolCall(
     ctx: *Wisp,
     machine: Machine,
@@ -101,7 +111,6 @@ fn stepIntoSymbolCall(
     cdr: W,
 ) !Machine {
     const symbolData = try ctx.getSymbolData(car);
-    std.log.warn("symbol {any}", .{symbolData});
     return stepIntoCall(ctx, machine, symbolData.function, cdr);
 }
 
@@ -190,7 +199,9 @@ fn doCall(
 }
 
 fn evaluatesArguments(ctx: *Wisp, function: W) !bool {
-    if (function.widetag() == .builtin) {
+    const data = try ctx.heap.deref(function);
+    const header = data[0];
+    if (header.widetag() == .builtin) {
         if (ctx.builtins[function.immediate()]) |builtin| {
             return builtin.evalArgs;
         } else {
@@ -340,12 +351,9 @@ fn expectEval(code: []const u8, expected: []const u8) !void {
     var ctx = try wisp.testWisp();
     defer ctx.heap.free();
 
-    const m1 = try initialMachineForCode(&ctx, code);
-    const m2 = try step(&ctx, m1);
-
-    try std.testing.expectEqual(true, m2.value);
-
-    const t = try read(&ctx, expected);
+    const term = try read(&ctx, code);
+    const x = try read(&ctx, expected);
+    const y = try evalTopLevel(&ctx, term, 10);
 
     var s1 = std.ArrayList(u8).init(std.testing.allocator);
     var s2 = std.ArrayList(u8).init(std.testing.allocator);
@@ -353,8 +361,8 @@ fn expectEval(code: []const u8, expected: []const u8) !void {
     defer s1.deinit();
     defer s2.deinit();
 
-    try print(&ctx, s1.writer(), t);
-    try print(&ctx, s2.writer(), m2.term);
+    try print(&ctx, s1.writer(), x);
+    try print(&ctx, s2.writer(), y);
 
     try std.testing.expectEqualStrings(
         s1.items,
@@ -376,7 +384,7 @@ pub fn evalTopLevel(ctx: *Wisp, term: W, max_steps: u32) !W {
 
     while (i < max_steps) : (i += 1) {
         machine = try step(ctx, machine);
-        if (machine.value) {
+        if (machine.value and machine.plan.isNil()) {
             return machine.term;
         }
     }
@@ -384,6 +392,6 @@ pub fn evalTopLevel(ctx: *Wisp, term: W, max_steps: u32) !W {
     return Error.TooManySteps;
 }
 
-// test "(+ 1 2)" {
-//     try expectEval("(+ 1 2)", "3");
-// }
+test "(+ 1 2)" {
+    try expectEval("(+ 1 2)", "3");
+}

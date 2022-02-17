@@ -153,7 +153,7 @@ pub const Builtin = struct {
     evalArgs: bool,
     evalResult: bool,
     params: W,
-    function: *anyopaque,
+    function: *const anyopaque,
 };
 
 pub const SymbolCacheTag = enum {
@@ -178,23 +178,23 @@ pub const SymbolCacheTag = enum {
 };
 
 pub const BuiltinTag = enum(u24) {
-    QUOTE,
-    EVAL,
-    LAMBDA,
-    MACRO,
-    CONS,
-    CAR,
-    CDR,
-    @"MAKE-INSTANCE",
-    @"SET-SYMBOL-FUNCTION",
-    @"SAVE-HEAP",
+    // QUOTE,
+    // EVAL,
+    // LAMBDA,
+    // MACRO,
+    // CONS,
+    // CAR,
+    // CDR,
+    // @"MAKE-INSTANCE",
+    // @"SET-SYMBOL-FUNCTION",
+    // @"SAVE-HEAP",
     @"+",
-    @"-",
-    @"*",
-    GC,
-    PRINT,
-    @"GET/CC",
-    FETCH,
+    // @"-",
+    // @"*",
+    // GC,
+    // PRINT,
+    // @"GET/CC",
+    // FETCH,
 };
 
 pub const symbolCacheSize = @typeInfo(SymbolCacheTag).Enum.fields.len;
@@ -206,18 +206,18 @@ pub fn FunctionTypeN(
 ) type {
     if (varargs) {
         return switch (n) {
-            0 => fn ([]W) W,
-            1 => fn (W, []W) W,
-            2 => fn (W, W, []W) W,
-            3 => fn (W, W, W, []W) W,
+            0 => fn ([]W) anyerror!W,
+            1 => fn (W, []W) anyerror!W,
+            2 => fn (W, W, []W) anyerror!W,
+            3 => fn (W, W, W, []W) anyerror!W,
             else => @compileError("fix me"),
         };
     } else {
         return switch (n) {
-            0 => fn () W,
-            1 => fn (W) W,
-            2 => fn (W, W) W,
-            3 => fn (W, W, W) W,
+            0 => fn () anyerror!W,
+            1 => fn (W) anyerror!W,
+            2 => fn (W, W) anyerror!W,
+            3 => fn (W, W, W) anyerror!W,
             else => @compileError("fix me"),
         };
     }
@@ -381,6 +381,7 @@ pub const Error = error{
     NotAString,
     ReadError,
     EOF,
+    TypeError,
 };
 
 const StringStruct = packed struct {
@@ -415,7 +416,7 @@ pub const ScopeStruct = packed struct {
 };
 
 pub const SymbolStruct = packed struct {
-    const slotCount = 5;
+    const slotCount = 6;
     header: W,
     value: W,
     unused: W,
@@ -653,6 +654,24 @@ pub fn internSymbol(wisp: *Wisp, name: W, package: W) !W {
     return symbol;
 }
 
+const Builtins = struct {
+    pub fn @"+"(ctx: *Wisp, args: []W) !W {
+        _ = ctx;
+
+        var result = fixnum(0);
+
+        for (args) |arg| {
+            if (arg.isFixnum()) {
+                result.raw += arg.raw;
+            } else {
+                return Error.TypeError;
+            }
+        }
+
+        return result;
+    }
+};
+
 pub fn start(heap: Heap) !Wisp {
     var nil = @ptrCast(*SymbolStruct, try heap.deref(NIL));
     var theHeap = heap;
@@ -712,6 +731,25 @@ pub fn start(heap: Heap) !Wisp {
         );
     }
 
+    inline for (@typeInfo(BuiltinTag).Enum.fields) |field| {
+        const name = field.name;
+        if (@hasDecl(Builtins, name)) {
+            const f = @field(Builtins, name);
+            // const t = @TypeOf(f).Fn;
+            wisp.builtins[field.value] = Builtin{
+                .tag = field.value,
+                .argumentCount = 0,
+                .varargs = true,
+                .evalArgs = true,
+                .evalResult = false,
+                .params = NIL,
+                .function = f,
+            };
+        } else {
+            @compileError(name);
+        }
+    }
+
     return wisp;
 }
 
@@ -720,6 +758,40 @@ test "start" {
     defer heap.free();
 
     _ = try start(heap);
+}
+
+test "start initializes builtins" {
+    var heap = try emptyHeap(std.testing.allocator, 4096);
+    defer heap.free();
+
+    const ctx = try start(heap);
+
+    for (ctx.builtins) |x, i| {
+        if (x) |builtin| {
+            try std.testing.expectEqual(
+                @intToEnum(BuiltinTag, i),
+                @intToEnum(BuiltinTag, builtin.tag),
+            );
+        } else {
+            try std.testing.expect(false);
+        }
+    }
+}
+
+test "+" {
+    var heap = try emptyHeap(std.testing.allocator, 4096);
+    defer heap.free();
+
+    var ctx = try start(heap);
+    var args = [_]W{
+        fixnum(1),
+        fixnum(2),
+        fixnum(3),
+    };
+
+    const x = try Builtins.@"+"(&ctx, &args);
+
+    try expectEqual(fixnum(6).raw, x.raw);
 }
 
 pub fn stringBuffer(data: [*]W) [*]u8 {
