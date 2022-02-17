@@ -20,6 +20,12 @@ pub fn printAlloc(
     return list.toOwnedSlice();
 }
 
+pub fn dump(prefix: []const u8, ctx: *wisp.Wisp, word: W) !void {
+    var s = try printAlloc(ctx.heap.allocator, ctx, word);
+    std.log.warn("{s} {s}", .{ prefix, s });
+    ctx.heap.allocator.free(s);
+}
+
 pub fn print(ctx: *wisp.Wisp, writer: anytype, word: W) anyerror!void {
     if (word.isFixnum()) {
         try writer.print("{d}", .{word.fixnum()});
