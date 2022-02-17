@@ -384,6 +384,6 @@ pub fn evalTopLevel(ctx: *Wisp, term: W, max_steps: u32) !W {
     return Error.TooManySteps;
 }
 
-test "(+ 1 2)" {
-    try expectEval("(+ 1 2)", "3");
-}
+// test "(+ 1 2)" {
+//     try expectEval("(+ 1 2)", "3");
+// }

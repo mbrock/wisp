@@ -10,6 +10,16 @@ test "print one" {
     try std.testing.expectEqualStrings("1", list.items);
 }
 
+pub fn printAlloc(
+    allocator: std.mem.Allocator,
+    ctx: *wisp.Wisp,
+    word: W,
+) ![]const u8 {
+    var list = std.ArrayList(u8).init(allocator);
+    try print(ctx, list.writer(), word);
+    return list.toOwnedSlice();
+}
+
 pub fn print(ctx: *wisp.Wisp, writer: anytype, word: W) anyerror!void {
     if (word.isFixnum()) {
         try writer.print("{d}", .{word.fixnum()});
@@ -43,6 +53,8 @@ pub fn print(ctx: *wisp.Wisp, writer: anytype, word: W) anyerror!void {
                 "{s}",
                 .{try ctx.stringBufferAsSlice(symbol.name)},
             );
+        } else if (data[0].lowtag() == .otherptr) {
+            try writer.print("«fwd {d}»", .{data[0].raw});
         } else if (data[0].widetag() == .string) {
             try writer.print(
                 "\"{s}\"",

@@ -5,10 +5,10 @@ const base = @import("./base.zig");
 const read = @import("./read.zig").read;
 const print = @import("./print.zig").print;
 const eval = @import("./eval.zig");
+const gc = @import("./gc.zig");
 
 const W = base.W;
 const Wisp = base.Wisp;
-const Result = base.Result;
 
 test {
     std.testing.refAllDecls(@This());

@@ -2,32 +2,6 @@ const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 const assert = std.debug.assert;
 
-pub fn Result(comptime t: type) type {
-    return extern struct {
-        ok: u32,
-        result: extern union {
-            none: void,
-            some: t,
-        },
-
-        pub fn none() @This() {
-            return @This(){ .ok = 0, .result = .{ .none = {} } };
-        }
-
-        pub fn some(x: t) @This() {
-            return @This(){ .ok = 1, .result = .{ .some = x } };
-        }
-
-        pub fn with(x: anytype) @This() {
-            if (x) |it| {
-                return @This().some(it);
-            } else |_| {
-                return @This().none();
-            }
-        }
-    };
-}
-
 pub const Lowtag = enum(u3) {
     const mask: u32 = @as(u32, 7);
 
@@ -87,12 +61,26 @@ pub const W = packed struct {
         return self.raw & 3 == 0;
     }
 
+    pub fn isImmediate(self: W) bool {
+        return switch (self.lowtag()) {
+            .immediate0, .immediate1 => true,
+            else => false,
+        };
+    }
+
     pub fn isListPointer(self: W) bool {
         return self.lowtag() == .listptr;
     }
 
     pub fn isOtherPointer(self: W) bool {
         return self.lowtag() == .otherptr;
+    }
+
+    pub fn isPointer(self: W) bool {
+        return switch (self.lowtag()) {
+            .funptr, .listptr, .structptr, .otherptr => true,
+            else => false,
+        };
     }
 };
 
@@ -263,6 +251,7 @@ pub fn FunctionType(comptime f: anytype) type {
 pub const Heap = struct {
     size: u29,
     used: u29,
+    scan: u29,
     data: []u8,
     area: struct {
         old: u29,
@@ -270,6 +259,16 @@ pub const Heap = struct {
     },
 
     allocator: std.mem.Allocator,
+
+    pub fn areaSize(self: Heap) u29 {
+        return self.size / 2 - staticSpaceSize;
+    }
+
+    pub fn oldAreaWithoutStaticSpace(self: Heap) []u8 {
+        const i = self.area.old + staticSpaceSize;
+        const j = i + self.areaSize();
+        return self.data[i..j];
+    }
 
     pub fn free(self: Heap) void {
         self.allocator.free(self.data);
@@ -346,6 +345,7 @@ pub fn emptyHeap(allocator: std.mem.Allocator, size: u29) !Heap {
         .allocator = allocator,
         .size = size,
         .used = 0,
+        .scan = 0,
         .data = try allocator.alloc(u8, size),
         .area = .{
             .old = size / 2,
@@ -469,7 +469,7 @@ pub const BasicType = enum {
     }
 };
 
-pub const staticSpaceSize: u32 = 40;
+pub const staticSpaceSize: u29 = 40;
 
 pub const Wisp = struct {
     heap: Heap,
@@ -562,7 +562,6 @@ pub const Wisp = struct {
     }
 
     pub fn internString(self: *Wisp, string: []const u8, package: W) !W {
-        std.log.warn("interning {s}", .{string});
         return internSymbol(self, try makeString(&self.heap, string), package);
     }
 
@@ -619,8 +618,6 @@ pub fn makeSymbol(wisp: *Wisp, name: W, package: W) !W {
         .plist = NIL,
         .unused = NIL,
     };
-
-    std.log.warn("made symbol {any}", .{symbolData});
 
     return symbol;
 }

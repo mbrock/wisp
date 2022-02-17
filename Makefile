@@ -7,7 +7,8 @@ SOURCES = \
   wisp-read.c wisp-dump.c
 
 ZIGSOURCES = \
-  src/wisp.zig src/base.zig src/read.zig src/print.zig src/eval.zig
+  src/wisp.zig src/base.zig src/read.zig src/print.zig src/eval.zig \
+  src/gc.zig
 
 CFLAGS += -g
 
