@@ -61,6 +61,24 @@ test "intern symbol after gc" {
     try std.testing.expectEqualStrings("FOOBAR", s);
 }
 
+test "gc refreshes symbol cache" {
+    var heap = try wisp.emptyHeap(std.testing.allocator, 4096);
+    defer heap.free();
+
+    var ctx = try wisp.start(heap);
+
+    try tidy(&ctx);
+
+    for (ctx.symbolCache) |x, i| {
+        const symbol = try ctx.getSymbolData(x);
+        const name = try ctx.stringBufferAsSlice(symbol.name);
+        try std.testing.expectEqualStrings(
+            @tagName(@intToEnum(wisp.SymbolCacheTag, i)),
+            name,
+        );
+    }
+}
+
 pub fn flip(ctx: *Wisp) void {
     const heap: wisp.Heap = ctx.heap;
 
