@@ -4,6 +4,7 @@ const assert = std.debug.assert;
 const wisp = @import("./base.zig");
 const read = @import("./read.zig").read;
 const print = @import("./print.zig").print;
+const dump = @import("./print.zig").dump;
 
 const W = wisp.W;
 const NIL = wisp.NIL;
@@ -63,15 +64,14 @@ pub fn irreducible(ctx: *Wisp, term: W) !bool {
     };
 }
 
-pub fn step(ctx: *Wisp, machine: Machine) !Machine {
+pub fn step(ctx: *Wisp, machine: *Machine) !bool {
     _ = ctx;
 
     const term = machine.term;
 
     if (machine.value or try irreducible(ctx, term)) {
-        var next = machine;
-        next.value = true;
-        return followPlan(ctx, next);
+        machine.value = true;
+        return followPlan(ctx, machine);
     } else if (term.isOtherPointer()) {
         const data = try ctx.heap.deref(term);
         if (data[0].raw == wisp.symbolHeader.raw) {
@@ -82,10 +82,9 @@ pub fn step(ctx: *Wisp, machine: Machine) !Machine {
     } else if (term.isListPointer()) {
         const cons = try ctx.getCons(term);
         if (cons.car.eq(ctx.symbol(.QUOTE))) {
-            var next = machine;
-            next.value = true;
-            next.term = (try ctx.getCons(cons.cdr)).car;
-            return next;
+            machine.value = true;
+            machine.term = (try ctx.getCons(cons.cdr)).car;
+            return true;
         } else {
             return stepIntoSymbolCall(ctx, machine, cons.car, cons.cdr);
         }
@@ -94,22 +93,43 @@ pub fn step(ctx: *Wisp, machine: Machine) !Machine {
     }
 }
 
-pub fn followPlan(ctx: *Wisp, machine: Machine) !Machine {
+pub fn followPlan(ctx: *Wisp, machine: *Machine) !bool {
     if (machine.plan.isNil()) {
-        return machine;
+        return false;
     }
 
-    _ = ctx;
+    const value = machine.term;
+    const planData = try ctx.heap.deref(machine.plan);
+
+    try dump("got value", ctx, value);
+    try dump("doing plan", ctx, machine.plan);
+
+    assert(planData[0].widetag() == .instance);
+
+    if (try ctx.castInstance(.evalArgsPlan, planData)) |plan| {
+        const data = plan.data;
+        if (data.terms.isNil()) {
+            return doCall(ctx, machine, .backward, .{
+                .next = data.next,
+                .scopes = data.scopes,
+                .terms = NIL,
+                .values = try ctx.cons(value, data.values),
+                .function = data.function,
+            });
+        } else {
+            try dump("evaluating terms", ctx, data.terms);
+        }
+    }
 
     return Error.NotImplemented;
 }
 
 fn stepIntoSymbolCall(
     ctx: *Wisp,
-    machine: Machine,
+    machine: *Machine,
     car: W,
     cdr: W,
-) !Machine {
+) !bool {
     const symbolData = try ctx.getSymbolData(car);
     return stepIntoCall(ctx, machine, symbolData.function, cdr);
 }
@@ -118,41 +138,41 @@ const Direction = enum { backward, foreward };
 
 fn stepIntoCall(
     ctx: *Wisp,
-    machine: Machine,
+    machine: *Machine,
     function: W,
     arglist: W,
-) !Machine {
+) !bool {
     if (arglist.eq(NIL)) {
         return Error.NotImplemented;
     } else if (try evaluatesArguments(ctx, function)) {
         return stepIntoArgumentList(ctx, machine, function, arglist);
     } else {
-        return doCall(ctx, machine, .foreward, wisp.Plan{
-            .next = machine.plan,
-            .scopes = machine.scopes,
-            .data = wisp.PlanData{
-                .APPLY = .{
-                    .terms = NIL,
-                    .values = arglist,
-                    .function = function,
-                },
+        return doCall(
+            ctx,
+            machine,
+            .foreward,
+            wisp.ClassFields(.@"EVAL-ARGS-PLAN"){
+                .next = machine.plan,
+                .scopes = machine.scopes,
+                .terms = NIL,
+                .values = arglist,
+                .function = function,
             },
-        });
+        );
     }
 }
 
 fn stepIntoArgumentList(
     ctx: *Wisp,
-    machine: Machine,
+    machine: *Machine,
     function: W,
     arglist: W,
-) !Machine {
+) !bool {
     const termList = try ctx.getCons(arglist);
 
-    var next = machine;
-    next.term = termList.car;
-    next.value = false;
-    next.plan = try makeApplyPlan(
+    machine.term = termList.car;
+    machine.value = false;
+    machine.plan = try makeApplyPlan(
         ctx,
         function,
         NIL,
@@ -161,7 +181,13 @@ fn stepIntoArgumentList(
         machine.plan,
     );
 
-    return next;
+    return true;
+}
+
+fn makeEvalArgsPlan(ctx: *Wisp, data: wisp.PlanData.EVALARGS) !W {
+    _ = ctx;
+    _ = data;
+    return Error.NotImplemented;
 }
 
 fn makeApplyPlan(
@@ -173,16 +199,16 @@ fn makeApplyPlan(
     next: W,
 ) !W {
     var slots: [5]W = .{ function, values, terms, scopes, next };
-    return ctx.makeInstance(ctx.symbol(.APPLY), slots);
+    return ctx.makeInstance(ctx.symbol(.@"EVAL-ARGS-PLAN"), slots);
 }
 
 fn doCall(
     ctx: *Wisp,
-    machine: Machine,
+    machine: *Machine,
     direction: Direction,
-    plan: wisp.Plan,
-) !Machine {
-    const function = plan.data.APPLY.function;
+    plan: wisp.ClassFields(.@"EVAL-ARGS-PLAN"),
+) !bool {
+    const function = plan.function;
 
     if (function.widetag() == .builtin) {
         if (ctx.builtins[function.immediate()]) |builtin| {
@@ -232,7 +258,7 @@ fn searchScope(ctx: *Wisp, scope: W, variable: W) !?W {
     return null;
 }
 
-fn stepVariable(ctx: *Wisp, machine: Machine) !Machine {
+fn stepVariable(ctx: *Wisp, machine: *Machine) !bool {
     var scopes = machine.scopes;
     var variable = machine.term;
 
@@ -241,10 +267,9 @@ fn stepVariable(ctx: *Wisp, machine: Machine) !Machine {
         const scope = entry.car;
 
         if (try searchScope(ctx, scope, variable)) |value| {
-            var next = machine;
-            next.value = true;
-            next.term = value;
-            return next;
+            machine.value = true;
+            machine.term = value;
+            return true;
         } else {
             scopes = entry.cdr;
         }
@@ -272,7 +297,9 @@ fn expectSelfEvaluating(code: []const u8) !void {
     defer ctx.heap.free();
 
     const m1 = try initialMachineForCode(&ctx, code);
-    const m2 = try step(&ctx, m1);
+    var m2 = m1;
+
+    try std.testing.expectEqual(false, try step(&ctx, &m2));
 
     try std.testing.expectEqual(
         Machine{
@@ -321,7 +348,8 @@ test "existing variable" {
         NIL,
     );
 
-    const m2 = try step(&ctx, m1);
+    var m2 = m1;
+    try std.testing.expectEqual(true, try step(&ctx, &m2));
 
     try std.testing.expectEqual(
         Machine{
@@ -343,7 +371,7 @@ test "nonexisting variable" {
 
     try std.testing.expectError(
         Error.VariableNotFound,
-        step(&ctx, m1),
+        step(&ctx, &m1),
     );
 }
 
@@ -383,8 +411,7 @@ pub fn evalTopLevel(ctx: *Wisp, term: W, max_steps: u32) !W {
     var machine = initialMachine(term);
 
     while (i < max_steps) : (i += 1) {
-        machine = try step(ctx, machine);
-        if (machine.value and machine.plan.isNil()) {
+        if (false == try step(ctx, &machine)) {
             return machine.term;
         }
     }

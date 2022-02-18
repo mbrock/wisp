@@ -117,34 +117,49 @@ pub var machine = Machine{
     .plan = NIL,
 };
 
-pub const PlanData = union(enum) {
-    APPLY: struct {
-        terms: W,
-        values: W,
-        function: W,
-    },
+pub fn ClassFields(comptime tag: SymbolCacheTag) type {
+    return if (KnownClassFields(tag)) |x| x else @compileError("oh no");
+}
 
-    FUNCALL: struct {
-        terms: W,
-    },
+pub fn KnownClassFields(comptime tag: SymbolCacheTag) ?type {
+    return switch (tag) {
+        .@"EVAL-ARGS-PLAN" => packed struct {
+            next: W,
+            scopes: W,
+            terms: W,
+            values: W,
+            function: W,
+        },
 
-    PROGN: struct {
-        terms: W,
-    },
+        .@"PACKAGE" => packed struct {
+            name: W,
+            symbols: W,
+        },
 
-    IF: struct {
-        true_case: W,
-        false_case: W,
-    },
+        .@"SCOPE" => packed struct {},
 
-    AWAIT: struct {},
-};
+        .@"CLOSURE" => packed struct {
+            params: W,
+            body: W,
+            scopes: W,
+            macro: W,
+        },
 
-pub const Plan = struct {
-    next: W,
-    scopes: W,
-    data: PlanData,
-};
+        else => null,
+    };
+}
+
+pub fn Plan(comptime tag: SymbolCacheTag) type {
+    if (KnownClassFields(tag)) |T| {
+        return packed struct {
+            header: W,
+            symbol: W,
+            data: T,
+        };
+    } else {
+        @compileError("oh no");
+    }
+}
 
 pub const Builtin = struct {
     tag: u24,
@@ -175,6 +190,12 @@ pub const SymbolCacheTag = enum {
     AWAIT,
     SYMBOL,
     STRING,
+
+    @"EVAL-ARGS-PLAN",
+    @"FUNCALL-PLAN",
+    @"PROGN-PLAN",
+    @"IF-PLAN",
+    @"AWAIT-PLAN",
 };
 
 pub const BuiltinTag = enum(u24) {
@@ -442,23 +463,33 @@ pub const BasicType = enum {
     scope,
     closure,
 
-    fn widetag(self: BasicType) Widetag {
+    evalArgsPlan,
+    funcallPlan,
+    prognPlan,
+    ifPlan,
+    awaitPlan,
+
+    pub fn widetag(self: BasicType) Widetag {
         return switch (self) {
             .string => .string,
             .symbol => .symbol,
-            .package => .instance,
-            .scope => .instance,
-            .closure => .instance,
+            else => .instance,
         };
     }
 
-    fn Struct(comptime self: BasicType) type {
+    pub fn Struct(comptime self: BasicType) type {
         return switch (self) {
             .string => StringStruct,
             .symbol => SymbolStruct,
             .package => PackageStruct,
             .scope => ScopeStruct,
             .closure => ClosureStruct,
+
+            .evalArgsPlan => Plan(.@"EVAL-ARGS-PLAN"),
+            .funcallPlan => Plan(.@"FUNCALL-PLAN"),
+            .prognPlan => Plan(.@"PROGN-PLAN"),
+            .ifPlan => Plan(.@"IF-PLAN"),
+            .awaitPlan => Plan(.@"AWAIT-PLAN"),
         };
     }
 
@@ -507,7 +538,24 @@ pub const Wisp = struct {
             .string => self.symbol(.STRING),
             .scope => self.symbol(.SCOPE),
             .closure => self.symbol(.CLOSURE),
+            .evalArgsPlan => self.symbol(.@"EVAL-ARGS-PLAN"),
+            .funcallPlan => self.symbol(.@"FUNCALL-PLAN"),
+            .prognPlan => self.symbol(.@"PROGN-PLAN"),
+            .ifPlan => self.symbol(.@"IF-PLAN"),
+            .awaitPlan => self.symbol(.@"AWAIT-PLAN"),
         };
+    }
+
+    pub fn castInstance(self: Wisp, comptime t: BasicType, data: [*]W) !?*t.Struct() {
+        assert(data[0].widetag() == .instance);
+
+        const expectedTypeSymbol = self.typeSymbol(t);
+
+        if (data[1].eq(expectedTypeSymbol)) {
+            return t.castDataPointer(data);
+        } else {
+            return null;
+        }
     }
 
     pub fn stringsEqual(self: Wisp, x: W, y: W) !bool {
