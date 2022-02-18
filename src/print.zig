@@ -70,7 +70,16 @@ pub fn print(ctx: *wisp.Wisp, writer: anytype, word: W) anyerror!void {
             try writer.print("[otherptr {}]", .{word.raw});
         }
     } else if (word.lowtag() == .structptr) {
-        try writer.print("«instance»", .{});
+        const data = try ctx.heap.deref(word);
+        try writer.print("«instance ", .{});
+        const n = data[0].immediate();
+        for (data[1..n]) |x, i| {
+            try print(ctx, writer, x);
+            if (i < n - 2) {
+                try writer.print(" ", .{});
+            }
+        }
+        try writer.print("»", .{});
     } else {
         try writer.print("[unknown {}]", .{word.raw});
     }
@@ -142,7 +151,7 @@ test "print structs" {
 
     try expectPrintResult(
         &ctx,
-        "«instance»",
+        "«instance PACKAGE \"WISP\"»",
         ctx.basePackage,
     );
 }
