@@ -1,0 +1,86 @@
+* Data-Oriented Design for Wisp
+
+Influenced by Zig and Andrew Kelley, I've started questioning the way
+Wisp stores data.
+
+The current design is basically a single heap with a bunch of
+different-sized structures that point to each other with a tagged
+pointer scheme.
+
+Symbols take up seven words, uniformly.  But a lot of these fields
+will be NIL.  Every symbol has a function field, but most symbols
+don't have functions.  Almost no symbol will have both a function and
+a value.
+
+It's also the case that in a Lisp program, symbols have the property
+that they typically don't need to participate in garbage collection.
+They are far from ephemeral computational data; they're part of the
+syntactic structure of the program.
+
+A symbol is always reachable from the package it belongs to.  We can
+prohibit orphan symbols.
+
+So what would it mean to make Wisp data-oriented?
+
+Let's enumerate the types of objects we have:
+
+  1. numbers,
+  2. symbols,
+  3. strings,
+  4. conses,
+  5. packages,
+  6. scopes,
+  7. closures,
+  8. continuations,
+  9. builtins,
+  10. other structs.
+
+I think there are three possible benefits to a data-driven approach:
+
+  1. Waste less space and use CPU cache more efficiently.
+  2. Use appropriate garbage collection for different types.
+  3. Make the system design easier to understand.
+
+When implementing Wisp for the first time, I saw it as a benefit that
+the heap was just a byte array because it was so easy to save and load
+heap images.  But this might be a distraction.  There's no real need
+to just have a single array.  We can just as easily save and load a
+set of arrays.  Maybe it's also nice to have a more structured file
+format for heap images.
+
+OK, let's take the continuations.  Because we want the ability to
+capture continuations, we have heap-allocated continuation values that
+get allocated all the time during evaluation.  These are similar to
+stack frames, except they're linked lists that participate in garbage
+collection.  So even if the Wisp program isn't doing any consing, the
+evaluator will always be consing continuations: even a tail-recursive
+loop of fixnum arithmetic will quickly fill up the heap.  This seems
+quite unnecessary.
+
+In particular, it seems silly that when we fill up the heap with
+continuations, we need to do a garbage collection of the entire heap,
+moving all live objects, when what we really need to do is just clear
+away the old continuations.  As long as those continuations have not
+been reified by the program, this should be trivial.
+
+This suggests that when we reify a continuation, we should move it
+into a different area.  This also gives us a chance to change its
+representation, so that a reified continuation can be
+stored differently.
+
+In order to be able to treat continuations as Wisp values to be
+printed, serialized, etc., we have been representing them as structure
+instances.  The different continuation types are distinguished through
+the type field, pointing to symbols like PROGN-PLAN, etc.  But this
+could be synthesized on demand.
+
+** Random thoughts
+
+I'm moving away from the old tagging system I borrowed from CMUCL.
+
+| Pattern                            | Class     |
+|------------------------------------+-----------|
+| ~XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX00~ | Fixnum    |
+| ~00000000000000000000000000000001~ | NIL       |
+| ~XXXXXXXXXXXXXXXXXXXXXXXXXXXXX011~ | Cons      |
+| ~CCCCCCCCCCCCCCCCCCCCC11111111111~ | Codepoint |

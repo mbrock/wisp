@@ -32,4 +32,12 @@ pub fn build(b: *std.build.Builder) void {
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&exe_tests.step);
+
+    const nt_tests = b.addTest("src/nt.zig");
+    nt_tests.addPackagePath("ziglyph", "vendor/ziglyph/src/ziglyph.zig");
+    nt_tests.setTarget(target);
+    nt_tests.setBuildMode(mode);
+
+    const nt_test_step = b.step("nt", "Run NT unit tests");
+    nt_test_step.dependOn(&nt_tests.step);
 }
