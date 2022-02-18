@@ -22,19 +22,6 @@ prohibit orphan symbols.
 
 So what would it mean to make Wisp data-oriented?
 
-Let's enumerate the types of objects we have:
-
-  1. numbers,
-  2. symbols,
-  3. strings,
-  4. conses,
-  5. packages,
-  6. scopes,
-  7. closures,
-  8. continuations,
-  9. builtins,
-  10. other structs.
-
 I think there are three possible benefits to a data-driven approach:
 
   1. Waste less space and use CPU cache more efficiently.
@@ -78,9 +65,28 @@ could be synthesized on demand.
 
 I'm moving away from the old tagging system I borrowed from CMUCL.
 
-| Pattern                            | Class     |
-|------------------------------------+-----------|
-| ~XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX00~ | Fixnum    |
-| ~00000000000000000000000000000001~ | NIL       |
-| ~XXXXXXXXXXXXXXXXXXXXXXXXXXXXX011~ | Cons      |
-| ~CCCCCCCCCCCCCCCCCCCCC11111111111~ | Codepoint |
+Let's enumerate the types of objects we have:
+
+  1. numbers,
+  2. symbols,
+  3. strings,
+  4. conses,
+  5. packages,
+  6. scopes,
+  7. closures,
+  8. continuations,
+  9. builtins,
+  10. other structs.
+
+
+| Pattern                            | Class   |
+|------------------------------------+---------|
+| ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00~ | Fixnum  |
+| ~00000000000000000000000000000001~ | NIL     |
+| ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx001~ | Symbol  |
+| ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx010~ | Cons    |
+| ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx011~ | Closure |
+| ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx101~ | Primop  |
+| ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx110~ | String  |
+| ~xxxxxxxxxxxxxxxxxxxxx00000000111~ | Glyph   |
+| ~~                                 |         |
