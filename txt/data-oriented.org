@@ -89,4 +89,15 @@ Let's enumerate the types of objects we have:
 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx101~ | Primop  |
 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx110~ | String  |
 | ~xxxxxxxxxxxxxxxxxxxxx00000000111~ | Glyph   |
-| ~~                                 |         |
+
+** Garbage collection
+
+I'm going to try putting all my data in a bunch of column arrays.
+
+Tagged pointers will be indexes into different arrays rather than into
+a single heap.
+
+The old Wisp indicates moved objects by replacing their headers with
+forwarding pointers.
+
+We could use even/odd pointer indexes for the old/new areas.
