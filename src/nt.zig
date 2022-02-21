@@ -76,6 +76,42 @@ pub const Closure = struct {
     scopes: u29,
 };
 
+pub fn dumpMultiArrayList(out: anytype, name: []const u8, x: anytype) !void {
+    try out.print("* {s}\n", .{name});
+    var i: usize = 0;
+    while (i < x.len) : (i += 1) {
+        try out.print("  - {any}\n", .{x.get(i)});
+    }
+}
+
+pub fn dumpArrayList(out: anytype, name: []const u8, x: anytype) !void {
+    try out.print("* {s}\n", .{name});
+    var i: usize = 0;
+    while (i < x.items.len) : (i += 1) {
+        try out.print("  - {s}\n", .{x.items[i]});
+    }
+}
+
+pub fn dumpHashMap(out: anytype, name: []const u8, x: anytype) !void {
+    try out.print("* {s}\n", .{name});
+    var it = x.iterator();
+    while (it.next()) |kv| {
+        try out.print("  {any} = {any}\n", .{
+            kv.key_ptr.*,
+            kv.value_ptr.*,
+        });
+    }
+}
+
+pub fn dumpData(self: *Data, out: anytype) !void {
+    try dumpMultiArrayList(out, "symbols", self.symbols);
+    try dumpMultiArrayList(out, "packages", self.packages);
+    try dumpMultiArrayList(out, "conses", self.conses);
+    try dumpMultiArrayList(out, "closures", self.closures);
+    try dumpArrayList(out, "strings", self.strings);
+    try dumpHashMap(out, "symbolValues", self.symbolValues);
+}
+
 pub const Data = struct {
     gpa: std.mem.Allocator,
 
@@ -84,9 +120,12 @@ pub const Data = struct {
     conses: std.MultiArrayList(Cons) = .{},
     closures: std.MultiArrayList(Closure) = .{},
     strings: std.ArrayListUnmanaged([]const u8) = .{},
+    symbolValues: std.AutoHashMapUnmanaged(u32, u32) = .{},
 
     pub fn init(gpa: std.mem.Allocator) !Data {
-        var data = Data{ .gpa = gpa };
+        var data = Data{
+            .gpa = gpa,
+        };
 
         try data.packages.append(gpa, Package{
             .name = try data.allocString("WISP"),
@@ -109,7 +148,12 @@ pub const Data = struct {
             self.gpa.free(x);
         }
 
+        for (self.packages.items(.symbolMap)) |*x| {
+            x.deinit();
+        }
+
         self.strings.deinit(self.gpa);
+        self.symbolValues.deinit(self.gpa);
         self.symbols.deinit(self.gpa);
         self.packages.deinit(self.gpa);
         self.conses.deinit(self.gpa);
@@ -133,15 +177,26 @@ pub const Data = struct {
         name: []const u8,
         package: u29,
     ) !u32 {
-        const stringIndex = try self.allocString(name);
-        const symbolIndex = @intCast(u29, self.symbols.len);
+        var packageSymbolMap = &self.packages.items(.symbolMap)[package];
 
-        try self.symbols.append(self.gpa, .{
-            .name = stringIndex,
-            .package = package,
-        });
+        if (packageSymbolMap.get(name)) |symbolIndex| {
+            return symbolPointer(symbolIndex);
+        } else {
+            const stringIndex = try self.allocString(name);
+            const symbolIndex = @intCast(u29, self.symbols.len);
 
-        return symbolPointer(symbolIndex);
+            try self.symbols.append(self.gpa, .{
+                .name = stringIndex,
+                .package = package,
+            });
+
+            try packageSymbolMap.put(
+                self.strings.items[stringIndex],
+                symbolIndex,
+            );
+
+            return symbolPointer(symbolIndex);
+        }
     }
 
     pub fn cons(self: *Data, ptr: u32) !Cons {
@@ -245,6 +300,7 @@ test "garbage collection of conses" {
     var gc = try GC.init(&data1);
     defer gc.new.deinit();
     defer gc.deinit();
+    defer gc.finalize();
 
     const y2 = try gc.copy(y);
 
@@ -255,11 +311,45 @@ test "garbage collection of conses" {
 }
 
 test "read and gc" {
-    var data = try Data.init(std.testing.allocator);
+    var data1 = try Data.init(std.testing.allocator);
 
-    defer data.deinit();
+    defer data1.deinit();
 
-    _ = try read(&data, "(foo (bar (baz 1 2 3)))");
+    const x1 = try read(&data1, "(foo (bar (baz 1 2 3)))");
+
+    const foo = try data1.internString("X", 0);
+    try data1.symbolValues.put(
+        data1.gpa,
+        foo,
+        x1,
+    );
+
+    // try dumpData(&data1, std.io.getStdErr().writer());
+
+    var gc = try GC.init(&data1);
+    defer gc.new.deinit();
+    defer gc.deinit();
+    defer gc.finalize();
+
+    try gc.copyRoots();
+    try gc.scavenge();
+
+    var data = gc.new;
+
+    // try dumpData(&data, std.io.getStdErr().writer());
+
+    const bar = try data.internString("X", 0);
+    const x2 = data.symbolValues.get(bar).?;
+
+    var list = std.ArrayList(u8).init(std.testing.allocator);
+    defer list.deinit();
+    const writer = list.writer();
+
+    try print(&data, &writer, x2);
+    try std.testing.expectEqualStrings(
+        "(FOO (BAR (BAZ 1 2 3)))",
+        list.items,
+    );
 }
 
 const GC = struct {
@@ -269,25 +359,42 @@ const GC = struct {
     consProgress: std.DynamicBitSet,
 
     pub fn init(old: *Data) !GC {
-        return GC{
+        var new = GC{
             .old = old,
             .new = Data{
                 .gpa = old.gpa,
-                .symbols = old.symbols.toOwnedSlice().toMultiArrayList(),
-                .packages = old.packages.toOwnedSlice().toMultiArrayList(),
+                .symbols = old.symbols,
+                .symbolValues = old.symbolValues,
+                .packages = old.packages,
+                .strings = old.strings,
+                .closures = old.closures,
                 .conses = .{},
-                .closures = .{},
-                .strings = .{},
             },
             .consProgress = try std.DynamicBitSet.initEmpty(
                 old.gpa,
                 old.conses.len,
             ),
         };
+
+        return new;
+    }
+
+    pub fn finalize(self: *GC) void {
+        const gpa = self.old.gpa;
+
+        self.old.conses.deinit(gpa);
+        self.old.* = .{ .gpa = gpa };
     }
 
     pub fn deinit(self: *GC) void {
         self.consProgress.deinit();
+    }
+
+    pub fn copyRoots(self: *GC) !void {
+        var it = self.old.symbolValues.iterator();
+        while (it.next()) |kv| {
+            kv.value_ptr.* = try self.copy(kv.value_ptr.*);
+        }
     }
 
     pub fn copy(self: *GC, x: u32) !u32 {
@@ -299,6 +406,16 @@ const GC = struct {
 
     pub fn scavenge(self: *GC) !void {
         _ = self;
+
+        var scan: usize = 0;
+        while (scan < self.new.conses.len) : (scan += 1) {
+            const slice = self.new.conses.slice();
+            const car = &slice.items(.car)[scan];
+            const cdr = &slice.items(.cdr)[scan];
+
+            car.* = try self.copy(car.*);
+            cdr.* = try self.copy(cdr.*);
+        }
     }
 
     fn copyCons(self: *GC, oldPtr: u32) !u32 {
