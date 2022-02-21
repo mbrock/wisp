@@ -1,14 +1,18 @@
 const std = @import("std");
 const ziglyph = @import("ziglyph");
 
-const wisp = @import("./base.zig");
-const W = wisp.W;
+const wisp = @import("./nt.zig");
+
+const Error = error{
+    ReadError,
+    EOF,
+};
 
 const Reader = struct {
     utf8: std.unicode.Utf8Iterator,
-    wisp: *wisp.Wisp,
+    data: *wisp.Data,
 
-    fn read(self: *Reader) anyerror!W {
+    fn read(self: *Reader) anyerror!u32 {
         try self.skipSpace();
 
         const next = try self.peek();
@@ -22,10 +26,10 @@ const Reader = struct {
             } else if (c == '"') {
                 return self.readString();
             } else {
-                return wisp.Error.ReadError;
+                return Error.ReadError;
             }
         } else {
-            return wisp.Error.ReadError;
+            return Error.ReadError;
         }
     }
 
@@ -60,24 +64,19 @@ const Reader = struct {
         return text;
     }
 
-    fn readSymbol(self: *Reader) !W {
+    fn readSymbol(self: *Reader) !u32 {
         const text = try self.readWhile(isSymbolCharacter);
         const uppercase = try ziglyph.toUpperStr(
-            self.wisp.heap.allocator,
+            self.data.gpa,
             text,
         );
 
-        defer self.wisp.heap.allocator.free(uppercase);
+        defer self.data.gpa.free(uppercase);
 
-        const symbol = try self.wisp.internString(
-            uppercase,
-            self.wisp.basePackage,
-        );
-
-        return symbol;
+        return try self.data.internString(uppercase, 0);
     }
 
-    fn readNumber(self: *Reader) !W {
+    fn readNumber(self: *Reader) !u32 {
         const numberText = try self.readWhile(ziglyph.isAsciiDigit);
 
         var result: u30 = 0;
@@ -91,23 +90,21 @@ const Reader = struct {
             magnitude /= 10;
         }
 
-        return wisp.fixnum(result);
+        return wisp.encodeFixnum(result);
     }
 
-    fn readString(self: *Reader) !W {
+    fn readString(self: *Reader) !u32 {
         try self.skipOnly('"');
-
         const text = try self.readWhile(isNotEndOfString);
-
-        return wisp.makeString(&self.wisp.heap, text);
+        return self.data.addString(text);
     }
 
-    fn readList(self: *Reader) !W {
+    fn readList(self: *Reader) !u32 {
         try self.skipOnly('(');
         return self.readListTail();
     }
 
-    fn readListTail(self: *Reader) anyerror!W {
+    fn readListTail(self: *Reader) anyerror!u32 {
         try self.skipSpace();
         const next = try self.peek();
         if (next) |c| {
@@ -132,17 +129,20 @@ const Reader = struct {
                     const car = try self.read();
                     const cdr = try self.readListTail();
 
-                    return self.wisp.cons(car, cdr);
+                    return self.data.addCons(.{
+                        .car = car,
+                        .cdr = cdr,
+                    });
                 },
             }
         } else {
-            return wisp.Error.EOF;
+            return Error.EOF;
         }
     }
 
     fn skipOnly(self: *Reader, c: u21) !void {
         if ((try self.peek()) != c) {
-            return wisp.Error.ReadError;
+            return Error.ReadError;
         }
 
         _ = try self.skip();
@@ -191,24 +191,25 @@ fn isSymbolCharacter(c: u21) bool {
     }
 }
 
-pub fn read(ctx: *wisp.Wisp, stream: []const u8) !W {
+pub fn read(data: *wisp.Data, stream: []const u8) !u32 {
     var reader = Reader{
         .utf8 = (try std.unicode.Utf8View.init(stream)).iterator(),
-        .wisp = ctx,
+        .data = data,
     };
 
     return reader.read();
 }
 
 test "read symbol uppercasing" {
-    var ctx = try wisp.testWisp();
-    defer ctx.heap.free();
+    var data = try wisp.Data.init(std.testing.allocator);
+    defer data.deinit();
 
-    const symbol = try read(&ctx, "foobar");
-    const data = try ctx.getSymbolData(symbol);
+    const symbol = try read(&data, "foobar");
+    const symbolData = try data.symbol(symbol);
+    const symbolName = data.strings.items[symbolData.name];
 
     try std.testing.expectEqualStrings(
         "FOOBAR",
-        try ctx.stringBufferAsSlice(data.name),
+        symbolName,
     );
 }

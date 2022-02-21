@@ -1,7 +1,6 @@
 const std = @import("std");
 
-const wisp = @import("./base.zig");
-const W = wisp.W;
+const wisp = @import("./nt.zig");
 
 test "print one" {
     var list = std.ArrayList(u8).init(std.testing.allocator);
@@ -12,80 +11,88 @@ test "print one" {
 
 pub fn printAlloc(
     allocator: std.mem.Allocator,
-    ctx: *wisp.Wisp,
-    word: W,
+    data: *wisp.Data,
+    word: u32,
 ) ![]const u8 {
     var list = std.ArrayList(u8).init(allocator);
-    try print(ctx, list.writer(), word);
+    try print(data, list.writer(), word);
     return list.toOwnedSlice();
 }
 
-pub fn dump(prefix: []const u8, ctx: *wisp.Wisp, word: W) !void {
-    var s = try printAlloc(ctx.heap.allocator, ctx, word);
+pub fn dump(prefix: []const u8, ctx: *wisp.Data, word: u32) !void {
+    var s = try printAlloc(ctx.gpa, ctx, word);
     std.log.warn("{s} {s}", .{ prefix, s });
-    ctx.heap.allocator.free(s);
+    ctx.gpa.free(s);
 }
 
-pub fn print(ctx: *wisp.Wisp, writer: anytype, word: W) anyerror!void {
-    if (word.isFixnum()) {
-        try writer.print("{d}", .{word.fixnum()});
-    } else if (word.isNil()) {
-        try writer.print("NIL", .{});
-    } else if (word.isListPointer()) {
-        try writer.print("(", .{});
+pub fn print(
+    ctx: *wisp.Data,
+    out: anytype,
+    x: u32,
+) anyerror!void {
+    switch (wisp.type1(x)) {
+        .nil => {
+            try out.print("NIL", .{});
+        },
 
-        var cur = word;
-        while (!cur.isNil()) {
-            var cons = try ctx.heap.derefCons(cur);
-            try print(ctx, writer, cons.car);
-            if (cons.cdr.isNil()) {
-                break;
-            } else if (cons.cdr.isListPointer()) {
-                try writer.print(" ", .{});
-                cur = cons.cdr;
-            } else {
-                try writer.print(" . ", .{});
-                try print(ctx, writer, cons.cdr);
-                break;
-            }
-        }
+        .fixnum => {
+            try out.print("{d}", .{wisp.decodeFixnum(x)});
+        },
 
-        try writer.print(")", .{});
-    } else if (word.isOtherPointer()) {
-        const data = try ctx.heap.deref(word);
-        if (data[0].raw == wisp.symbolHeader.raw) {
-            const symbol = try ctx.getSymbolData(word);
-            try writer.print(
-                "{s}",
-                .{try ctx.stringBufferAsSlice(symbol.name)},
-            );
-        } else if (data[0].lowtag() == .otherptr) {
-            try writer.print("«fwd {d}»", .{data[0].raw});
-        } else if (data[0].widetag() == .string) {
-            try writer.print(
-                "\"{s}\"",
-                .{try ctx.stringBufferAsSlice(word)},
-            );
-        } else {
-            try writer.print("[otherptr {}]", .{word.raw});
-        }
-    } else if (word.lowtag() == .structptr) {
-        const data = try ctx.heap.deref(word);
-        try writer.print("«instance ", .{});
-        const n = data[0].immediate();
-        for (data[1..n]) |x, i| {
-            try print(ctx, writer, x);
-            if (i < n - 2) {
-                try writer.print(" ", .{});
+        .symbol => {
+            const nameIdx = ctx.symbols.items(.name)[x / 0b1000];
+            const name = ctx.strings.items[nameIdx];
+            try out.print("{s}", .{name});
+        },
+
+        .string => {
+            const s = ctx.strings.items[x / 0b1000];
+            try out.print("\"{s}\"", .{s});
+        },
+
+        .cons => {
+            try out.print("(", .{});
+            var cur = x;
+
+            loop: while (cur != wisp.NIL) {
+                var cons = try ctx.cons(cur);
+                try print(ctx, out, cons.car);
+                switch (wisp.type1(cons.cdr)) {
+                    .cons => {
+                        try out.print(" ", .{});
+                        cur = cons.cdr;
+                    },
+
+                    .nil => {
+                        break :loop;
+                    },
+
+                    else => {
+                        try out.print(" . ", .{});
+                        try print(ctx, out, cons.cdr);
+                        break :loop;
+                    },
+                }
             }
-        }
-        try writer.print("»", .{});
-    } else {
-        try writer.print("[unknown {}]", .{word.raw});
+
+            try out.print(")", .{});
+        },
+
+        .closure => {
+            try out.print("<closure>", .{});
+        },
+
+        .primop => {
+            try out.print("<primop>", .{});
+        },
+
+        .glyph => {
+            try out.print("<glyph>", .{});
+        },
     }
 }
 
-fn expectPrintResult(ctx: *wisp.Wisp, expected: []const u8, x: W) !void {
+fn expectPrintResult(ctx: *wisp.Data, expected: []const u8, x: u32) !void {
     var list = std.ArrayList(u8).init(std.testing.allocator);
     defer list.deinit();
     const writer = list.writer();
@@ -95,24 +102,24 @@ fn expectPrintResult(ctx: *wisp.Wisp, expected: []const u8, x: W) !void {
 }
 
 test "print fixnum" {
-    var ctx = try wisp.testWisp();
-    defer ctx.heap.free();
+    var ctx = try wisp.Data.init(std.testing.allocator);
+    defer ctx.deinit();
 
-    try expectPrintResult(&ctx, "1", wisp.fixnum(1));
+    try expectPrintResult(&ctx, "1", wisp.encodeFixnum(1));
 }
 
 test "print lists" {
-    var ctx = try wisp.testWisp();
-    defer ctx.heap.free();
+    var ctx = try wisp.Data.init(std.testing.allocator);
+    defer ctx.deinit();
 
     try expectPrintResult(
         &ctx,
         "(1 2 3)",
         try ctx.list(
-            [_]W{
-                wisp.fixnum(1),
-                wisp.fixnum(2),
-                wisp.fixnum(3),
+            [_]u32{
+                wisp.encodeFixnum(1),
+                wisp.encodeFixnum(2),
+                wisp.encodeFixnum(3),
             },
         ),
     );
@@ -120,49 +127,42 @@ test "print lists" {
     try expectPrintResult(
         &ctx,
         "(1 . 2)",
-        try ctx.cons(wisp.fixnum(1), wisp.fixnum(2)),
-    );
-
-    try expectPrintResult(
-        &ctx,
-        "(1 . 2)",
-        try ctx.cons(wisp.fixnum(1), wisp.fixnum(2)),
+        try ctx.addCons(.{
+            .car = wisp.encodeFixnum(1),
+            .cdr = wisp.encodeFixnum(2),
+        }),
     );
 }
 
 test "print symbols" {
-    var ctx = try wisp.testWisp();
-    defer ctx.heap.free();
+    var ctx = try wisp.Data.init(std.testing.allocator);
+    defer ctx.deinit();
 
     try expectPrintResult(
         &ctx,
         "FOO",
-        try wisp.internSymbol(
-            &ctx,
-            try wisp.makeString(&ctx.heap, "FOO"),
-            ctx.basePackage,
-        ),
+        try ctx.internString("FOO", 0),
     );
 }
 
-test "print structs" {
-    var ctx = try wisp.testWisp();
-    defer ctx.heap.free();
+// test "print structs" {
+//     var ctx = try wisp.Data.init(std.testing.allocator);
+//     defer ctx.deinit();
 
-    try expectPrintResult(
-        &ctx,
-        "«instance PACKAGE \"WISP\"»",
-        ctx.basePackage,
-    );
-}
+//     try expectPrintResult(
+//         &ctx,
+//         "«instance PACKAGE \"WISP\"»",
+//         0,
+//     );
+// }
 
 test "print strings" {
-    var ctx = try wisp.testWisp();
-    defer ctx.heap.free();
+    var ctx = try wisp.Data.init(std.testing.allocator);
+    defer ctx.deinit();
 
     try expectPrintResult(
         &ctx,
         "\"hello\"",
-        try wisp.makeString(&ctx.heap, "hello"),
+        try ctx.addString("hello"),
     );
 }

@@ -2,6 +2,13 @@ const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 const assert = std.debug.assert;
 
+const read = @import("./read.zig").read;
+const print = @import("./print.zig").print;
+
+test {
+    std.testing.refAllDecls(@This());
+}
+
 pub const Tag1 = enum {
     fixnum,
     nil,
@@ -25,6 +32,8 @@ pub fn consIndex(x: u32) u29 {
     assert(type1(x) == .cons);
     return @intCast(u29, x / 0b1000);
 }
+
+pub const NIL: u32 = symbolPointer(0);
 
 pub fn type1(x: u32) Tag1 {
     if (x == 1) {
@@ -114,6 +123,11 @@ pub const Data = struct {
         return i;
     }
 
+    pub fn addString(self: *Data, text: []const u8) !u32 {
+        const idx = try self.allocString(text);
+        return stringPointer(idx);
+    }
+
     pub fn internString(
         self: *Data,
         name: []const u8,
@@ -132,8 +146,12 @@ pub const Data = struct {
 
     pub fn cons(self: *Data, ptr: u32) !Cons {
         assert(type1(ptr) == .cons);
-        const i = ptr / 0b1000;
-        return self.conses.get(i);
+        return self.conses.get(ptr / 0b1000);
+    }
+
+    pub fn symbol(self: *Data, ptr: u32) !Symbol {
+        assert(type1(ptr) == .symbol);
+        return self.symbols.get(ptr / 0b1000);
     }
 
     pub fn car(self: *Data, ptr: u32) !u32 {
@@ -146,6 +164,19 @@ pub const Data = struct {
         assert(type1(ptr) == .cons);
         const i = ptr / 0b1000;
         return self.conses.items(.cdr)[i];
+    }
+
+    pub fn list(self: *Data, xs: anytype) !u32 {
+        var result = NIL;
+        var i: usize = 0;
+        while (i < xs.len) : (i += 1) {
+            result = try self.addCons(.{
+                .car = xs[xs.len - i - 1],
+                .cdr = result,
+            });
+        }
+
+        return result;
     }
 };
 
@@ -223,6 +254,14 @@ test "garbage collection of conses" {
     try expectEqual(yData, try gc.new.cons(y2));
 }
 
+test "read and gc" {
+    var data = try Data.init(std.testing.allocator);
+
+    defer data.deinit();
+
+    _ = try read(&data, "(foo (bar (baz 1 2 3)))");
+}
+
 const GC = struct {
     old: *Data,
     new: Data,
@@ -274,3 +313,35 @@ const GC = struct {
         }
     }
 };
+
+fn expectParsingRoundtrip(text: []const u8) !void {
+    var ctx = try Data.init(std.testing.allocator);
+    defer ctx.deinit();
+
+    var list = std.ArrayList(u8).init(std.testing.allocator);
+    defer list.deinit();
+    const writer = list.writer();
+
+    const x = try read(&ctx, text);
+
+    try print(&ctx, &writer, x);
+    try std.testing.expectEqualStrings(text, list.items);
+}
+
+test "read roundtrips" {
+    try expectParsingRoundtrip("NIL");
+    try expectParsingRoundtrip("123");
+    try expectParsingRoundtrip("FOO");
+    try expectParsingRoundtrip("FÖÖ");
+    try expectParsingRoundtrip("\"Hello, world!\"");
+}
+
+test "read list roundtrips" {
+    try expectParsingRoundtrip("(FOO)");
+    try expectParsingRoundtrip("(FOO (1 2 3) BAR)");
+    try expectParsingRoundtrip("(1 . 2)");
+}
+
+test "read code roundtrips" {
+    try expectParsingRoundtrip("(DEFUN FOO (X Y) (+ X Y))");
+}
