@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const wisp = @import("./nt.zig");
+const wisp = @import("./wisp.zig");
 
 test "print one" {
     var list = std.ArrayList(u8).init(std.testing.allocator);

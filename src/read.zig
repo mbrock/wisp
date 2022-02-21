@@ -1,7 +1,7 @@
 const std = @import("std");
 const ziglyph = @import("ziglyph");
 
-const wisp = @import("./nt.zig");
+const wisp = @import("./wisp.zig");
 
 const Error = error{
     ReadError,
