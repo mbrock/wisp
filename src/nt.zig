@@ -33,6 +33,11 @@ pub fn consIndex(x: u32) u29 {
     return @intCast(u29, x / 0b1000);
 }
 
+pub fn stringIndex(x: u32) u29 {
+    assert(type1(x) == .string);
+    return @intCast(u29, x / 0b1000);
+}
+
 pub const NIL: u32 = symbolPointer(0);
 
 pub fn type1(x: u32) Tag1 {
@@ -182,20 +187,20 @@ pub const Data = struct {
         if (packageSymbolMap.get(name)) |symbolIndex| {
             return symbolPointer(symbolIndex);
         } else {
-            const stringIndex = try self.allocString(name);
-            const symbolIndex = @intCast(u29, self.symbols.len);
+            const stringIdx = try self.allocString(name);
+            const symbolIdx = @intCast(u29, self.symbols.len);
 
             try self.symbols.append(self.gpa, .{
-                .name = stringIndex,
+                .name = stringIdx,
                 .package = package,
             });
 
             try packageSymbolMap.put(
-                self.strings.items[stringIndex],
-                symbolIndex,
+                self.strings.items[stringIdx],
+                symbolIdx,
             );
 
-            return symbolPointer(symbolIndex);
+            return symbolPointer(symbolIdx);
         }
     }
 
@@ -324,8 +329,6 @@ test "read and gc" {
         x1,
     );
 
-    // try dumpData(&data1, std.io.getStdErr().writer());
-
     var gc = try GC.init(&data1);
     defer gc.new.deinit();
     defer gc.deinit();
@@ -335,8 +338,6 @@ test "read and gc" {
     try gc.scavenge();
 
     var data = gc.new;
-
-    // try dumpData(&data, std.io.getStdErr().writer());
 
     const bar = try data.internString("X", 0);
     const x2 = data.symbolValues.get(bar).?;
@@ -352,11 +353,43 @@ test "read and gc" {
     );
 }
 
+test "gc ephemeral strings" {
+    var data1 = try Data.init(std.testing.allocator);
+
+    defer data1.deinit();
+
+    const x = try read(&data1,
+        \\ ("foo" "bar" "baz")
+    );
+
+    const foo = try data1.car(x);
+    try data1.symbolValues.put(
+        data1.gpa,
+        try data1.internString("X", 0),
+        foo,
+    );
+
+    const stringCount1 = data1.strings.items.len;
+
+    var gc = try GC.init(&data1);
+    defer gc.new.deinit();
+    defer gc.deinit();
+    defer gc.finalize();
+
+    try gc.copyRoots();
+    try gc.scavenge();
+
+    const stringCount2 = gc.new.strings.items.len;
+
+    try expectEqual(stringCount1 - 2, stringCount2);
+}
+
 const GC = struct {
     old: *Data,
     new: Data,
 
     consProgress: std.DynamicBitSet,
+    stringProgress: std.DynamicBitSet,
 
     pub fn init(old: *Data) !GC {
         var new = GC{
@@ -366,13 +399,17 @@ const GC = struct {
                 .symbols = old.symbols,
                 .symbolValues = old.symbolValues,
                 .packages = old.packages,
-                .strings = old.strings,
                 .closures = old.closures,
+                .strings = .{},
                 .conses = .{},
             },
             .consProgress = try std.DynamicBitSet.initEmpty(
                 old.gpa,
                 old.conses.len,
+            ),
+            .stringProgress = try std.DynamicBitSet.initEmpty(
+                old.gpa,
+                old.strings.items.len,
             ),
         };
 
@@ -382,15 +419,41 @@ const GC = struct {
     pub fn finalize(self: *GC) void {
         const gpa = self.old.gpa;
 
+        for (self.old.strings.items) |x| {
+            self.old.gpa.free(x);
+        }
+
         self.old.conses.deinit(gpa);
+        self.old.strings.deinit(gpa);
         self.old.* = .{ .gpa = gpa };
     }
 
     pub fn deinit(self: *GC) void {
         self.consProgress.deinit();
+        self.stringProgress.deinit();
     }
 
     pub fn copyRoots(self: *GC) !void {
+        try self.copyPackageNames();
+        try self.copySymbolNames();
+        try self.copySymbolValues();
+    }
+
+    pub fn copySymbolNames(self: *GC) !void {
+        for (self.old.symbols.items(.name)) |*x| {
+            const newPtr = try self.copyString(stringPointer(x.*));
+            x.* = stringIndex(newPtr);
+        }
+    }
+
+    pub fn copyPackageNames(self: *GC) !void {
+        for (self.old.packages.items(.name)) |*x| {
+            const newPtr = try self.copyString(stringPointer(x.*));
+            x.* = stringIndex(newPtr);
+        }
+    }
+
+    pub fn copySymbolValues(self: *GC) !void {
         var it = self.old.symbolValues.iterator();
         while (it.next()) |kv| {
             kv.value_ptr.* = try self.copy(kv.value_ptr.*);
@@ -400,6 +463,7 @@ const GC = struct {
     pub fn copy(self: *GC, x: u32) !u32 {
         return switch (type1(x)) {
             .cons => try self.copyCons(x),
+            .string => try self.copyString(x),
             else => x,
         };
     }
@@ -427,6 +491,18 @@ const GC = struct {
         } else {
             self.consProgress.set(oldIdx);
             return try self.new.addCons(oldCons);
+        }
+    }
+
+    fn copyString(self: *GC, oldPtr: u32) !u32 {
+        const oldIdx = stringIndex(oldPtr);
+        const oldString: []const u8 = self.old.strings.items[oldIdx];
+
+        if (self.stringProgress.isSet(oldIdx)) {
+            return @intCast(u32, @ptrToInt(oldString.ptr));
+        } else {
+            self.stringProgress.set(oldIdx);
+            return self.new.addString(oldString);
         }
     }
 };
