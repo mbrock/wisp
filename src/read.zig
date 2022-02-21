@@ -96,6 +96,7 @@ const Reader = struct {
     fn readString(self: *Reader) !u32 {
         try self.skipOnly('"');
         const text = try self.readWhile(isNotEndOfString);
+        try self.skipOnly('"');
         return self.data.addString(text);
     }
 
