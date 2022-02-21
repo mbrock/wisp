@@ -13,22 +13,38 @@ const Reader = @This();
 utf8: std.unicode.Utf8Iterator,
 data: *wisp.Data,
 
-fn read(self: *Reader) anyerror!u32 {
+fn readValue(self: *Reader) anyerror!u32 {
     try self.skipSpace();
 
     const next = try self.peek();
     if (next) |c| {
-        if (c == '(') {
-            return self.readList();
-        } else if (isSymbolCharacter(c)) {
-            return self.readSymbol();
-        } else if (ziglyph.isAsciiDigit(c)) {
-            return self.readNumber();
-        } else if (c == '"') {
-            return self.readString();
-        } else {
-            return Error.ReadError;
-        }
+        return switch (try classifyInitial(c)) {
+            .leftParen => self.readList(),
+            .doubleQuote => self.readString(),
+            .symbolChar => self.readSymbol(),
+            .digitChar => self.readNumber(),
+        };
+    } else {
+        return Error.ReadError;
+    }
+}
+
+const InitialCharType = enum {
+    leftParen,
+    symbolChar,
+    digitChar,
+    doubleQuote,
+};
+
+fn classifyInitial(c: u21) !InitialCharType {
+    if (c == '(') {
+        return .leftParen;
+    } else if (isSymbolCharacter(c)) {
+        return .symbolChar;
+    } else if (ziglyph.isAsciiDigit(c)) {
+        return .digitChar;
+    } else if (c == '"') {
+        return .doubleQuote;
     } else {
         return Error.ReadError;
     }
@@ -119,7 +135,7 @@ fn readListTail(self: *Reader) anyerror!u32 {
             '.' => {
                 try self.skipOnly('.');
 
-                const cdr = try self.read();
+                const cdr = try self.readValue();
 
                 try self.skipSpace();
                 try self.skipOnly(')');
@@ -128,7 +144,7 @@ fn readListTail(self: *Reader) anyerror!u32 {
             },
 
             else => {
-                const car = try self.read();
+                const car = try self.readValue();
                 const cdr = try self.readListTail();
 
                 return self.data.addCons(.{
@@ -198,7 +214,7 @@ pub fn read(data: *wisp.Data, stream: []const u8) !u32 {
         .data = data,
     };
 
-    return reader.read();
+    return reader.readValue();
 }
 
 test "read symbol uppercasing" {
