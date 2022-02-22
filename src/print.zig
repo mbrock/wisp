@@ -40,13 +40,13 @@ pub fn print(
         },
 
         .symbol => {
-            const nameIdx = ctx.symbols.items(.name)[x / 0b1000];
-            const name = ctx.strings.items[nameIdx];
+            const nameIdx = ctx.symbols.items(.name)[wisp.pointerToIndex(x)];
+            const name = ctx.stringSlice(nameIdx);
             try out.print("{s}", .{name});
         },
 
         .string => {
-            const s = ctx.strings.items[x / 0b1000];
+            const s = ctx.stringSlice(wisp.pointerToIndex(x));
             try out.print("\"{s}\"", .{s});
         },
 

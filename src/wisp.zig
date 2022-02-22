@@ -17,6 +17,11 @@ pub const Tag1 = enum {
     glyph,
 };
 
+pub const String = struct {
+    offset0: u32,
+    offset1: u32,
+};
+
 pub const Symbol = struct {
     name: u29,
     package: u29,
@@ -24,7 +29,7 @@ pub const Symbol = struct {
 
 pub const Package = struct {
     name: u29,
-    symbolMap: std.StringHashMap(u29),
+    symbols: u32 = NIL,
 };
 
 pub const Cons = struct {
@@ -45,7 +50,10 @@ pub const Data = struct {
     packages: std.MultiArrayList(Package) = .{},
     conses: std.MultiArrayList(Cons) = .{},
     closures: std.MultiArrayList(Closure) = .{},
-    strings: std.ArrayListUnmanaged([]const u8) = .{},
+
+    strings: std.ArrayListUnmanaged(String) = .{},
+
+    stringBytes: std.ArrayListUnmanaged(u8) = .{},
     symbolValues: std.AutoHashMapUnmanaged(u32, u32) = .{},
 
     pub fn init(gpa: std.mem.Allocator) !Data {
@@ -55,7 +63,6 @@ pub const Data = struct {
 
         try data.packages.append(gpa, Package{
             .name = try data.allocString("WISP"),
-            .symbolMap = std.StringHashMap(u29).init(gpa),
         });
 
         _ = try data.internString("NIL", 0);
@@ -63,21 +70,18 @@ pub const Data = struct {
         return data;
     }
 
-    pub fn addCons(self: *Data, x: Cons) !u32 {
-        const i = self.conses.len;
+    pub fn allocCons(self: *Data, x: Cons) !u29 {
+        const i = @intCast(u29, self.conses.len);
         try self.conses.append(self.gpa, x);
-        return (@intCast(u29, i) << 3) + 0b010;
+        return i;
+    }
+
+    pub fn addCons(self: *Data, x: Cons) !u32 {
+        return makePointer(.cons, try self.allocCons(x));
     }
 
     pub fn deinit(self: *Data) void {
-        for (self.strings.items) |x| {
-            self.gpa.free(x);
-        }
-
-        for (self.packages.items(.symbolMap)) |*x| {
-            x.deinit();
-        }
-
+        self.stringBytes.deinit(self.gpa);
         self.strings.deinit(self.gpa);
         self.symbolValues.deinit(self.gpa);
         self.symbols.deinit(self.gpa);
@@ -88,14 +92,27 @@ pub const Data = struct {
 
     pub fn allocString(self: *Data, text: []const u8) !u29 {
         const i = @intCast(u29, self.strings.items.len);
-        const string = try self.gpa.dupe(u8, text);
-        try self.strings.append(self.gpa, string);
+
+        const offset = @intCast(u32, self.stringBytes.items.len);
+        const length = @intCast(u32, text.len);
+
+        try self.stringBytes.appendSlice(self.gpa, text);
+        try self.strings.append(self.gpa, String{
+            .offset0 = offset,
+            .offset1 = offset + length,
+        });
+
         return i;
     }
 
     pub fn addString(self: *Data, text: []const u8) !u32 {
         const idx = try self.allocString(text);
-        return stringPointer(idx);
+        return makePointer(.string, idx);
+    }
+
+    pub fn stringSlice(self: *Data, idx: u29) []const u8 {
+        const string: String = self.strings.items[idx];
+        return self.stringBytes.items[string.offset0..string.offset1];
     }
 
     pub fn internString(
@@ -103,26 +120,38 @@ pub const Data = struct {
         name: []const u8,
         package: u29,
     ) !u32 {
-        var packageSymbolMap = &self.packages.items(.symbolMap)[package];
+        var symbols = &self.packages.items(.symbols)[package];
+        const symbolNames = self.symbols.items(.name);
 
-        if (packageSymbolMap.get(name)) |symbolIndex| {
-            return symbolPointer(symbolIndex);
-        } else {
-            const stringIdx = try self.allocString(name);
-            const symbolIdx = @intCast(u29, self.symbols.len);
+        var cur = symbols.*;
+        while (cur != NIL) {
+            const it = try self.car(cur);
+            const itsName = symbolNames[pointerToIndex(it)];
+            const s = self.stringSlice(itsName);
 
-            try self.symbols.append(self.gpa, .{
-                .name = stringIdx,
-                .package = package,
-            });
-
-            try packageSymbolMap.put(
-                self.strings.items[stringIdx],
-                symbolIdx,
-            );
-
-            return symbolPointer(symbolIdx);
+            if (std.mem.eql(u8, s, name)) {
+                return it;
+            } else {
+                cur = try self.cdr(cur);
+            }
         }
+
+        const stringIdx = try self.allocString(name);
+        const symbolIdx = @intCast(u29, self.symbols.len);
+
+        try self.symbols.append(self.gpa, .{
+            .name = stringIdx,
+            .package = package,
+        });
+
+        const ptr = makePointer(.symbol, symbolIdx);
+
+        symbols.* = try self.addCons(.{
+            .car = ptr,
+            .cdr = symbols.*,
+        });
+
+        return ptr;
     }
 
     pub fn cons(self: *Data, ptr: u32) !Cons {
@@ -161,25 +190,21 @@ pub const Data = struct {
     }
 };
 
-pub fn stringPointer(idx: u29) u32 {
-    return (idx << 3) + 0b110;
+pub fn makePointer(tag: Tag1, idx: u29) u32 {
+    return (idx << 3) + @as(u32, switch (tag) {
+        .symbol => 0b001,
+        .cons => 0b010,
+        .string => 0b110,
+        else => unreachable,
+    });
 }
 
-pub fn symbolPointer(idx: u29) u32 {
-    return (idx << 3) + 0b001;
-}
-
-pub fn consIndex(x: u32) u29 {
-    assert(type1(x) == .cons);
+pub fn pointerToIndex(x: u32) u29 {
     return @intCast(u29, x / 0b1000);
 }
 
-pub fn stringIndex(x: u32) u29 {
-    assert(type1(x) == .string);
-    return @intCast(u29, x / 0b1000);
-}
-
-pub const NIL: u32 = symbolPointer(0);
+pub const NIL: u32 = makePointer(.symbol, 0);
+pub const ZAP: u32 = 0xffffffff;
 
 pub fn type1(x: u32) Tag1 {
     if (x == 1) {
@@ -257,6 +282,11 @@ pub fn dumpData(self: *Data, out: anytype) !void {
     try dumpMultiArrayList(out, "closures", self.closures);
     try dumpArrayList(out, "strings", self.strings);
     try dumpHashMap(out, "symbolValues", self.symbolValues);
+
+    try out.print(
+        "* stringBytes\n  {s}\n",
+        .{self.stringBytes.items},
+    );
 }
 
 test {

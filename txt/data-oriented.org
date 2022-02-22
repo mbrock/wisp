@@ -89,6 +89,7 @@ Let's enumerate the types of objects we have:
 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx101~ | Primop  |
 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx110~ | String  |
 | ~xxxxxxxxxxxxxxxxxxxxx00000000111~ | Glyph   |
+| ~11111111111111111111111111111111~ | Marker  |
 
 ** Garbage collection
 

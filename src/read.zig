@@ -114,7 +114,7 @@ fn readString(self: *Reader) !u32 {
     try self.skipOnly('"');
     const text = try self.readWhile(isNotEndOfString);
     try self.skipOnly('"');
-    return self.data.addString(text);
+    return try self.data.addString(text);
 }
 
 fn readList(self: *Reader) !u32 {
@@ -223,7 +223,7 @@ test "read symbol uppercasing" {
 
     const symbol = try read(&data, "foobar");
     const symbolData = try data.symbol(symbol);
-    const symbolName = data.strings.items[symbolData.name];
+    const symbolName = data.stringSlice(symbolData.name);
 
     try std.testing.expectEqualStrings(
         "FOOBAR",
