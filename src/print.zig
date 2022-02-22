@@ -9,9 +9,19 @@ test "print one" {
     try std.testing.expectEqualStrings("1", list.items);
 }
 
+pub fn expect(
+    expected: []const u8,
+    data: wisp.Data,
+    x: u32,
+) !void {
+    var actual = try printAlloc(std.testing.allocator, &data, x);
+    defer std.testing.allocator.free(actual);
+    try std.testing.expectEqualStrings(expected, actual);
+}
+
 pub fn printAlloc(
     allocator: std.mem.Allocator,
-    data: *wisp.Data,
+    data: *const wisp.Data,
     word: u32,
 ) ![]const u8 {
     var list = std.ArrayList(u8).init(allocator);
@@ -26,7 +36,7 @@ pub fn dump(prefix: []const u8, ctx: *wisp.Data, word: u32) !void {
 }
 
 pub fn print(
-    ctx: *wisp.Data,
+    ctx: *const wisp.Data,
     out: anytype,
     x: u32,
 ) anyerror!void {

@@ -1,15 +1,23 @@
 const std = @import("std");
 const assert = std.debug.assert;
 const expectEqual = std.testing.expectEqual;
+const testGpa = std.testing.allocator;
 
 const wisp = @import("./wisp.zig");
 const read = @import("./read.zig").read;
-const print = @import("./print.zig").print;
-const dump = @import("./print.zig").dump;
+const printer = @import("./print.zig");
 
 const Data = wisp.Data;
 
 const GC = @This();
+
+pub fn tidy(data: *Data) !void {
+    var gc = try GC.init(data);
+    defer gc.deinit();
+    try gc.copyRoots();
+    try gc.scavenge();
+    data.* = gc.finalize();
+}
 
 fn SliceOf(comptime t: type) type {
     return std.MultiArrayList(t).Slice;
@@ -19,7 +27,6 @@ const DataSlices = struct {
     symbols: SliceOf(wisp.Symbol),
     packages: SliceOf(wisp.Package),
     conses: SliceOf(wisp.Cons),
-    closures: SliceOf(wisp.Closure),
 };
 
 old: *Data,
@@ -33,14 +40,12 @@ pub fn init(old: *Data) !GC {
             .symbols = old.symbols.slice(),
             .packages = old.packages.slice(),
             .conses = old.conses.slice(),
-            .closures = old.closures.slice(),
         },
         .new = Data{
             .gpa = old.gpa,
             .packages = old.packages,
             .symbols = old.symbols,
             .symbolValues = old.symbolValues,
-            .closures = old.closures,
         },
     };
 
@@ -190,7 +195,7 @@ fn copyString(self: *GC, oldIdx: u29) !u29 {
 }
 
 test "garbage collection of conses" {
-    var data = try Data.init(std.testing.allocator);
+    var data = try Data.init(testGpa);
 
     defer data.deinit();
 
@@ -220,48 +225,23 @@ test "garbage collection of conses" {
 }
 
 test "read and gc" {
-    var data1 = try Data.init(std.testing.allocator);
+    var data = try Data.init(testGpa);
+    defer data.deinit();
 
-    defer data1.deinit();
+    const t1 = try read(&data, "(foo (bar (baz 1 2 3)))");
+    const v1 = try data.internString("X", 0);
 
-    const x1 = try read(&data1, "(foo (bar (baz 1 2 3)))");
+    try data.symbolValues.put(data.gpa, v1, t1);
+    try tidy(&data);
 
-    const foo = try data1.internString("X", 0);
-    try data1.symbolValues.put(
-        data1.gpa,
-        foo,
-        x1,
-    );
+    const v2 = try data.internString("X", 0);
+    const t2 = data.symbolValues.get(v2).?;
 
-    var gc = try GC.init(&data1);
-    defer gc.deinit();
-
-    try gc.copyRoots();
-    try gc.scavenge();
-
-    var data = gc.finalize();
-
-    try wisp.dumpData(&data, std.io.getStdErr().writer());
-
-    const bar = try data.internString("X", 0);
-
-    try expectEqual(foo, bar);
-
-    const x2 = data.symbolValues.get(bar).?;
-
-    var list = std.ArrayList(u8).init(std.testing.allocator);
-    defer list.deinit();
-    const writer = list.writer();
-
-    try print(&data, &writer, x2);
-    try std.testing.expectEqualStrings(
-        "(FOO (BAR (BAZ 1 2 3)))",
-        list.items,
-    );
+    try printer.expect("(FOO (BAR (BAZ 1 2 3)))", data, t2);
 }
 
 test "gc ephemeral strings" {
-    var data = try Data.init(std.testing.allocator);
+    var data = try Data.init(testGpa);
 
     defer data.deinit();
 

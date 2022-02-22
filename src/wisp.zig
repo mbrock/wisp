@@ -37,19 +37,12 @@ pub const Cons = struct {
     cdr: u32,
 };
 
-pub const Closure = struct {
-    body: u32,
-    params: u29,
-    scopes: u29,
-};
-
 pub const Data = struct {
     gpa: std.mem.Allocator,
 
     symbols: std.MultiArrayList(Symbol) = .{},
     packages: std.MultiArrayList(Package) = .{},
     conses: std.MultiArrayList(Cons) = .{},
-    closures: std.MultiArrayList(Closure) = .{},
 
     strings: std.ArrayListUnmanaged(String) = .{},
 
@@ -87,7 +80,6 @@ pub const Data = struct {
         self.symbols.deinit(self.gpa);
         self.packages.deinit(self.gpa);
         self.conses.deinit(self.gpa);
-        self.closures.deinit(self.gpa);
     }
 
     pub fn allocString(self: *Data, text: []const u8) !u29 {
@@ -110,7 +102,7 @@ pub const Data = struct {
         return makePointer(.string, idx);
     }
 
-    pub fn stringSlice(self: *Data, idx: u29) []const u8 {
+    pub fn stringSlice(self: *const Data, idx: u29) []const u8 {
         const string: String = self.strings.items[idx];
         return self.stringBytes.items[string.offset0..string.offset1];
     }
@@ -154,7 +146,7 @@ pub const Data = struct {
         return ptr;
     }
 
-    pub fn cons(self: *Data, ptr: u32) !Cons {
+    pub fn cons(self: *const Data, ptr: u32) !Cons {
         assert(type1(ptr) == .cons);
         return self.conses.get(ptr / 0b1000);
     }
@@ -279,7 +271,6 @@ pub fn dumpData(self: *Data, out: anytype) !void {
     try dumpMultiArrayList(out, "symbols", self.symbols);
     try dumpMultiArrayList(out, "packages", self.packages);
     try dumpMultiArrayList(out, "conses", self.conses);
-    try dumpMultiArrayList(out, "closures", self.closures);
     try dumpArrayList(out, "strings", self.strings);
     try dumpHashMap(out, "symbolValues", self.symbolValues);
 
