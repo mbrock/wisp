@@ -11,10 +11,11 @@ pub const Tag1 = enum {
     nil,
     symbol,
     cons,
-    closure,
+    other,
     primop,
     string,
     glyph,
+    package,
 };
 
 pub const String = struct {
@@ -25,6 +26,7 @@ pub const String = struct {
 pub const Symbol = struct {
     name: u32,
     package: u32,
+    value: u32 = NIL,
 };
 
 pub const Package = struct {
@@ -41,6 +43,8 @@ pub const Semispace = enum(u32) {
     space0 = 0,
     space1 = @as(u32, 1) << 31,
 
+    const semispaceMask = @as(u32, 1) << 31;
+
     pub fn other(self: Semispace) Semispace {
         return switch (self) {
             .space0 => .space1,
@@ -52,17 +56,30 @@ pub const Semispace = enum(u32) {
         const suffix = @as(u32, switch (tag) {
             .symbol => 0b001,
             .cons => 0b010,
+            .package => 0b1111,
             .string => 0b110,
             else => unreachable,
         });
 
-        return @enumToInt(semispace) | (idx << 3) | suffix;
+        const suffixBits: u3 = switch (tag) {
+            .package => 4,
+            else => 3,
+        };
+
+        return @enumToInt(semispace) | (idx << suffixBits) | suffix;
     }
 
     pub fn pointerIndex(self: Semispace, x: u32) u29 {
-        const semispaceMask = @as(u32, 1) << 31;
-        assert(x & semispaceMask == @enumToInt(self));
-        return @intCast(u29, (x & ~semispaceMask) / 0b1000);
+        assert(Semispace.of(x) == self);
+        const bits: u3 = switch (type1(x)) {
+            .package => 4,
+            else => 3,
+        };
+        return @intCast(u29, (x & ~semispaceMask) / (@as(u5, 1) << bits));
+    }
+
+    pub fn of(x: u32) Semispace {
+        return @intToEnum(Semispace, x & semispaceMask);
     }
 };
 
@@ -78,16 +95,15 @@ pub const Data = struct {
     symbols: std.MultiArrayList(Symbol) = .{},
     packages: std.MultiArrayList(Package) = .{},
     conses: std.MultiArrayList(Cons) = .{},
-
-    strings: std.ArrayListUnmanaged(String) = .{},
+    strings: std.MultiArrayList(String) = .{},
 
     stringBytes: std.ArrayListUnmanaged(u8) = .{},
-    symbolValues: std.AutoHashMapUnmanaged(u32, u32) = .{},
 
     pub const Slices = struct {
         symbols: SliceOf(Symbol),
         packages: SliceOf(Package),
         conses: SliceOf(Cons),
+        strings: SliceOf(String),
     };
 
     pub fn slices(self: Data) Slices {
@@ -95,6 +111,7 @@ pub const Data = struct {
             .symbols = self.symbols.slice(),
             .packages = self.packages.slice(),
             .conses = self.conses.slice(),
+            .strings = self.strings.slice(),
         };
     }
 
@@ -104,7 +121,7 @@ pub const Data = struct {
         };
 
         try data.packages.append(gpa, Package{
-            .name = try data.allocString("WISP"),
+            .name = try data.addString("WISP"),
         });
 
         _ = try data.internString("NIL", 0);
@@ -133,7 +150,6 @@ pub const Data = struct {
     pub fn deinit(self: *Data) void {
         self.stringBytes.deinit(self.gpa);
         self.strings.deinit(self.gpa);
-        self.symbolValues.deinit(self.gpa);
         self.symbols.deinit(self.gpa);
         self.packages.deinit(self.gpa);
         self.conses.deinit(self.gpa);
@@ -141,15 +157,15 @@ pub const Data = struct {
     }
 
     pub fn allocString(self: *Data, text: []const u8) !u29 {
-        const i = @intCast(u29, self.strings.items.len);
+        const i = @intCast(u29, self.strings.len);
 
-        const offset = @intCast(u32, self.stringBytes.items.len);
-        const length = @intCast(u32, text.len);
+        const offset = @intCast(u30, self.stringBytes.items.len);
+        const length = @intCast(u30, text.len);
 
         try self.stringBytes.appendSlice(self.gpa, text);
         try self.strings.append(self.gpa, String{
-            .offset0 = offset,
-            .offset1 = offset + length,
+            .offset0 = encodeFixnum(offset),
+            .offset1 = encodeFixnum(offset + length),
         });
 
         return i;
@@ -162,8 +178,10 @@ pub const Data = struct {
 
     pub fn stringSlice(self: *const Data, ptr: u32) []const u8 {
         const idx = self.pointerToIndex(ptr);
-        const string: String = self.strings.items[idx];
-        return self.stringBytes.items[string.offset0..string.offset1];
+        const string: String = self.strings.get(idx);
+        const offset0 = decodeFixnum(string.offset0);
+        const offset1 = decodeFixnum(string.offset1);
+        return self.stringBytes.items[offset0..offset1];
     }
 
     pub fn internString(
@@ -204,6 +222,11 @@ pub const Data = struct {
         });
 
         return ptr;
+    }
+
+    pub fn symbolValue(self: *Data, ptr: u32) !*u32 {
+        const i = self.pointerToIndex(ptr);
+        return &self.symbols.items(.value)[i];
     }
 
     pub fn cons(self: *const Data, ptr: u32) !Cons {
@@ -252,12 +275,13 @@ pub fn type1(x: u32) Tag1 {
         0b000 => .fixnum,
         0b001 => .symbol,
         0b010 => .cons,
-        0b011 => .closure,
+        0b011 => .other,
         0b100 => .fixnum,
         0b101 => .primop,
         0b110 => .string,
         0b111 => switch (x & ~@as(u11, 0)) {
-            0b111 => .glyph,
+            0b111 => Tag1.glyph,
+            0b1111 => Tag1.package,
             else => unreachable,
         },
     };
@@ -280,6 +304,7 @@ fn expectParsingRoundtrip(text: []const u8) !void {
     const writer = list.writer();
 
     const x = try read(&ctx, text);
+    // try dumpDataStderr(&ctx);
 
     try print(&ctx, &writer, x);
     try std.testing.expectEqualStrings(text, list.items);
@@ -312,12 +337,15 @@ pub fn dumpHashMap(out: anytype, name: []const u8, x: anytype) !void {
     }
 }
 
+pub fn dumpDataStderr(self: *Data) !void {
+    try dumpData(self, std.io.getStdErr().writer());
+}
+
 pub fn dumpData(self: *Data, out: anytype) !void {
     try dumpMultiArrayList(out, "symbols", self.symbols);
     try dumpMultiArrayList(out, "packages", self.packages);
     try dumpMultiArrayList(out, "conses", self.conses);
-    try dumpArrayList(out, "strings", self.strings);
-    try dumpHashMap(out, "symbolValues", self.symbolValues);
+    try dumpMultiArrayList(out, "strings", self.strings);
 
     try out.print(
         "* stringBytes\n  {s}\n",

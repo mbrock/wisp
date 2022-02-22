@@ -11,7 +11,11 @@ const Data = wisp.Data;
 
 const GC = @This();
 
+const Thing = std.meta.FieldEnum(Data.Slices);
+const thingCount = @typeInfo(Thing).Enum.fields.len;
+
 pub fn tidy(data: *Data) !void {
+    try wisp.dumpDataStderr(data);
     var gc = try GC.init(data);
     defer gc.deinit();
     try gc.copyRoots();
@@ -24,12 +28,13 @@ new: Data,
 oldSlices: Data.Slices,
 newSlices: Data.Slices,
 
-scanPackages: usize = 0,
+scans: [thingCount]usize = .{0} ** thingCount,
 
 pub fn init(old: *Data) !GC {
     var new = Data{
         .semispace = old.semispace.other(),
         .gpa = old.gpa,
+        .stringBytes = old.stringBytes,
     };
 
     return GC{
@@ -41,6 +46,7 @@ pub fn init(old: *Data) !GC {
 }
 
 pub fn finalize(self: *GC) Data {
+    self.old.stringBytes = .{};
     self.old.deinit();
     return self.new;
 }
@@ -53,153 +59,128 @@ pub fn copyRoots(self: *GC) !void {
     self.new.packages = try self.old.packages.clone(self.new.gpa);
 }
 
-pub fn copySymbolNames(self: *GC) !void {
-    for (self.oldSlices.symbols.items(.name)) |*x| {
-        x.* = try self.copyString(x.*);
-    }
-}
-
-pub fn copySymbolValues(self: *GC) !void {
-    var it = self.old.symbolValues.iterator();
-    while (it.next()) |kv| {
-        kv.value_ptr.* = try self.copy(kv.value_ptr.*);
-    }
-}
-
-pub fn copyPackageNames(self: *GC) !void {
-    for (self.oldSlices.packages.items(.name)) |*x| {
-        x.* = try self.copyString(x.*);
-    }
-}
-
-pub fn copyPackageSymbols(self: *GC) !void {
-    for (self.oldSlices.packages.items(.symbols)) |*x| {
-        x.* = try self.copy(x.*);
-    }
-}
-
-pub fn copy(self: *GC, x: u32) !u32 {
-    std.log.warn("copy {b}", .{x});
-
-    return switch (wisp.type1(x)) {
-        .cons => try self.copyPointer(.cons, x),
-        .string => try self.copyPointer(.string, x),
-        else => x,
-    };
-}
-
-pub fn copyPointer(
-    self: *GC,
-    tag: wisp.Tag1,
-    ptr: u32,
-) !u32 {
-    const idx0 = self.old.pointerToIndex(ptr);
-    const idx1 = switch (tag) {
-        .cons => try self.copyCons(idx0),
-        .string => try self.copyString(idx0),
-        else => unreachable,
-    };
-
-    return self.new.makePointer(tag, idx1);
-}
-
 pub fn scavenge(self: *GC) !void {
     self.newSlices = self.new.slices();
     var done = false;
     while (!done) {
+        std.log.warn("SCAVENGE", .{});
+        try wisp.dumpDataStderr(&self.new);
         done = true;
-        done = (try self.scavengePackages()) and done;
+        done = (try self.scavengeThing(.packages)) and done;
+        done = (try self.scavengeThing(.symbols)) and done;
+        done = (try self.scavengeThing(.conses)) and done;
+        done = (try self.scavengeThing(.strings)) and done;
     }
+    std.log.warn("YO YO", .{});
+    try wisp.dumpDataStderr(&self.new);
 }
 
-fn scavengePackages(self: *GC) !bool {
+fn scavengeThing(self: *GC, comptime thing: Thing) !bool {
+    const scan: *usize = &self.scans[@enumToInt(thing)];
+    const newContainer = thingContainer(&self.new, thing);
+
     var done = true;
 
-    while (self.scanPackages < self.new.packages.len) {
-        inline for (std.meta.fields(wisp.Package)) |_, i| {
-            const field = @intToEnum(
-                @TypeOf(self.new.packages).Field,
-                i,
-            );
-            var slice = self.new.packages.items(field);
-            slice[self.scanPackages] = try self.copy(slice[self.scanPackages]);
-        }
+    var i = scan.*;
 
-        self.scanPackages += 1;
+    while (i < newContainer.len) : (i += 1) {
         done = false;
+
+        inline for (std.meta.fields(thingType(thing))) |field_info, j| {
+            const field = @intToEnum(
+                std.meta.FieldEnum(thingType(thing)),
+                j,
+            );
+            var slice = newContainer.items(field);
+            const new = try self.copy(slice[i]);
+            std.log.warn("scavenge {s} {d} {s} {any} => {any}", .{
+                @tagName(thing),
+                i,
+                field_info.name,
+                slice[i],
+                new,
+            });
+            slice[i] = new;
+        }
     }
+
+    scan.* = i;
+
+    std.log.warn("done? {any}", .{done});
 
     return done;
 }
 
-pub fn scavenge2(self: *GC) !void {
-    _ = self;
+fn copy(self: *GC, x: u32) !u32 {
+    const tag = wisp.type1(x);
+    return switch (tag) {
+        .nil, .fixnum => x,
+        .symbol => self.copyOldThing(.symbol, x),
+        .string => self.copyOldThing(.string, x),
+        .cons => self.copyOldThing(.cons, x),
 
-    var scan: usize = 0;
-    while (scan < self.new.conses.len) : (scan += 1) {
-        std.log.warn("scavenging {d} {d}", .{
-            scan,
-            self.new.conses.len,
-        });
-
-        const slice = self.new.conses.slice();
-        const car = &slice.items(.car)[scan];
-        const cdr = &slice.items(.cdr)[scan];
-
-        car.* = try self.copy(car.*);
-        cdr.* = try self.copy(cdr.*);
-
-        std.log.warn("now {d}", .{self.new.conses.len});
-    }
+        else => {
+            std.log.warn("unexpected {any}", .{tag});
+            unreachable;
+        },
+    };
 }
 
-fn copyCons(self: *GC, oldIdx: u29) !u29 {
-    std.log.warn("copy cons {d}", .{oldIdx});
-
-    const oldCar = &self.oldSlices.conses.items(.car)[oldIdx];
-    const oldCdr = &self.oldSlices.conses.items(.cdr)[oldIdx];
-
-    if (oldCdr.* == wisp.ZAP) {
-        return @intCast(u29, oldCar.*);
-    } else {
-        const cons = wisp.Cons{
-            .car = oldCar.*,
-            .cdr = oldCdr.*,
-        };
-
-        std.log.warn("cons {any}", .{cons});
-
-        const newIdx = try self.new.allocCons(cons);
-
-        std.log.warn("{any} {any}", .{
-            self.new.conses.items(.car),
-            self.new.conses.items(.cdr),
-        });
-
-        oldCar.* = @intCast(u32, newIdx);
-        oldCdr.* = wisp.ZAP;
-
-        return newIdx;
-    }
+fn thingType(comptime thing: Thing) type {
+    return switch (thing) {
+        .conses => wisp.Cons,
+        .symbols => wisp.Symbol,
+        .packages => wisp.Package,
+        .strings => wisp.String,
+    };
 }
 
-fn copyString(self: *GC, oldIdx: u29) !u29 {
-    const oldString = &self.old.strings.items[oldIdx];
+fn thingContainer(
+    data: *Data,
+    comptime thing: Thing,
+) *std.MultiArrayList(thingType(thing)) {
+    return &@field(data, @tagName(thing));
+}
 
-    if (oldString.offset1 == wisp.ZAP) {
-        return @intCast(u29, oldString.offset0);
-    } else {
-        const newIdx = try self.new.allocString(
-            self.old.stringSlice(oldIdx),
-        );
-
-        oldString.* = .{
-            .offset0 = newIdx,
-            .offset1 = wisp.ZAP,
-        };
-
-        return newIdx;
+fn copyOldThing(self: *GC, comptime tag: wisp.Tag1, ptr: u32) !u32 {
+    if (wisp.Semispace.of(ptr) == self.new.semispace) {
+        return ptr;
     }
+
+    const thing: Thing = switch (tag) {
+        .cons => .conses,
+        .symbol => .symbols,
+        .package => .packages,
+        .string => .strings,
+        else => unreachable,
+    };
+
+    const oldContainer = thingContainer(self.old, thing);
+
+    const Field = std.meta.FieldEnum(thingType(thing));
+    const field0 = @intToEnum(Field, 0);
+    const field1 = @intToEnum(Field, 1);
+
+    const i = self.old.pointerToIndex(ptr);
+    const oldSlice = oldContainer.slice();
+
+    if (oldSlice.items(field1)[i] == wisp.ZAP) {
+        return oldSlice.items(field0)[i];
+    }
+
+    const newContainer = thingContainer(&self.new, thing);
+    const oldValue = oldContainer.get(i);
+    try newContainer.append(self.new.gpa, oldValue);
+
+    const newPointer = self.new.makePointer(
+        tag,
+        @intCast(u29, newContainer.len) - 1,
+    );
+
+    oldSlice.items(field0)[i] = newPointer;
+    oldSlice.items(field1)[i] = wisp.ZAP;
+
+    return newPointer;
 }
 
 test "garbage collection of conses" {
@@ -236,16 +217,18 @@ test "read and gc" {
     var data = try Data.init(testGpa);
     defer data.deinit();
 
-    const t1 = try read(&data, "(foo (bar (baz 1 2 3)))");
-    const v1 = try data.internString("X", 0);
+    const t1 = try read(&data, "(foo (bar (baz)))");
+    const v1 = try data.internString("X", data.makePointer(.package, 0));
 
-    try data.symbolValues.put(data.gpa, v1, t1);
+    (try data.symbolValue(v1)).* = t1;
     try tidy(&data);
 
-    const v2 = try data.internString("X", 0);
-    const t2 = data.symbolValues.get(v2).?;
+    try wisp.dumpDataStderr(&data);
 
-    try printer.expect("(FOO (BAR (BAZ 1 2 3)))", data, t2);
+    const v2 = try data.internString("X", data.makePointer(.package, 0));
+    const t2 = (try data.symbolValue(v2)).*;
+
+    try printer.expect("(FOO (BAR (BAZ)))", data, t2);
 }
 
 test "gc ephemeral strings" {
@@ -258,13 +241,11 @@ test "gc ephemeral strings" {
     );
 
     const foo = try data.car(x);
-    try data.symbolValues.put(
-        data.gpa,
+    (try data.symbolValue(
         try data.internString("X", 0),
-        foo,
-    );
+    )).* = foo;
 
-    const stringCount1 = data.strings.items.len;
+    const stringCount1 = data.strings.len;
 
     var gc = try GC.init(&data);
     defer gc.new.deinit();
@@ -275,7 +256,7 @@ test "gc ephemeral strings" {
 
     data = gc.finalize();
 
-    const stringCount2 = gc.new.strings.items.len;
+    const stringCount2 = gc.new.strings.len;
 
     try expectEqual(stringCount1 - 2, stringCount2);
 }

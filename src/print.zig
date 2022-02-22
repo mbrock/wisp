@@ -56,7 +56,7 @@ pub fn print(
         },
 
         .string => {
-            const s = ctx.stringSlice(ctx.pointerToIndex(x));
+            const s = ctx.stringSlice(x);
             try out.print("\"{s}\"", .{s});
         },
 
@@ -65,6 +65,7 @@ pub fn print(
             var cur = x;
 
             loop: while (cur != wisp.NIL) {
+                std.log.warn("cur {any}", .{cur});
                 var cons = try ctx.cons(cur);
                 try print(ctx, out, cons.car);
                 switch (wisp.type1(cons.cdr)) {
@@ -88,8 +89,12 @@ pub fn print(
             try out.print(")", .{});
         },
 
-        .closure => {
-            try out.print("<closure>", .{});
+        .other => {
+            try out.print("<other>", .{});
+        },
+
+        .package => {
+            try out.print("<package>", .{});
         },
 
         .primop => {
