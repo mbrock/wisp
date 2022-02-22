@@ -19,48 +19,29 @@ pub fn tidy(data: *Data) !void {
     data.* = gc.finalize();
 }
 
-fn SliceOf(comptime t: type) type {
-    return std.MultiArrayList(t).Slice;
-}
-
-const DataSlices = struct {
-    symbols: SliceOf(wisp.Symbol),
-    packages: SliceOf(wisp.Package),
-    conses: SliceOf(wisp.Cons),
-};
-
 old: *Data,
 new: Data,
-oldSlices: DataSlices,
+oldSlices: Data.Slices,
+newSlices: Data.Slices,
+
+scanPackages: usize = 0,
 
 pub fn init(old: *Data) !GC {
-    var new = GC{
-        .old = old,
-        .oldSlices = DataSlices{
-            .symbols = old.symbols.slice(),
-            .packages = old.packages.slice(),
-            .conses = old.conses.slice(),
-        },
-        .new = Data{
-            .semispace = old.semispace.other(),
-            .gpa = old.gpa,
-            .packages = old.packages,
-            .symbols = old.symbols,
-            .symbolValues = old.symbolValues,
-        },
+    var new = Data{
+        .semispace = old.semispace.other(),
+        .gpa = old.gpa,
     };
 
-    return new;
+    return GC{
+        .old = old,
+        .oldSlices = old.slices(),
+        .new = new,
+        .newSlices = new.slices(),
+    };
 }
 
 pub fn finalize(self: *GC) Data {
-    const gpa = self.old.gpa;
-
-    self.old.stringBytes.deinit(gpa);
-    self.old.conses.deinit(gpa);
-    self.old.strings.deinit(gpa);
-    self.old.* = .{ .gpa = gpa };
-
+    self.old.deinit();
     return self.new;
 }
 
@@ -69,10 +50,7 @@ pub fn deinit(self: *GC) void {
 }
 
 pub fn copyRoots(self: *GC) !void {
-    try self.copySymbolNames();
-    try self.copySymbolValues();
-    try self.copyPackageNames();
-    try self.copyPackageSymbols();
+    self.new.packages = try self.old.packages.clone(self.new.gpa);
 }
 
 pub fn copySymbolNames(self: *GC) !void {
@@ -126,6 +104,35 @@ pub fn copyPointer(
 }
 
 pub fn scavenge(self: *GC) !void {
+    self.newSlices = self.new.slices();
+    var done = false;
+    while (!done) {
+        done = true;
+        done = (try self.scavengePackages()) and done;
+    }
+}
+
+fn scavengePackages(self: *GC) !bool {
+    var done = true;
+
+    while (self.scanPackages < self.new.packages.len) {
+        inline for (std.meta.fields(wisp.Package)) |_, i| {
+            const field = @intToEnum(
+                @TypeOf(self.new.packages).Field,
+                i,
+            );
+            var slice = self.new.packages.items(field);
+            slice[self.scanPackages] = try self.copy(slice[self.scanPackages]);
+        }
+
+        self.scanPackages += 1;
+        done = false;
+    }
+
+    return done;
+}
+
+pub fn scavenge2(self: *GC) !void {
     _ = self;
 
     var scan: usize = 0;

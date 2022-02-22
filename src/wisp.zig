@@ -23,12 +23,12 @@ pub const String = struct {
 };
 
 pub const Symbol = struct {
-    name: u29,
-    package: u29,
+    name: u32,
+    package: u32,
 };
 
 pub const Package = struct {
-    name: u29,
+    name: u32,
     symbols: u32 = NIL,
 };
 
@@ -66,6 +66,10 @@ pub const Semispace = enum(u32) {
     }
 };
 
+fn SliceOf(comptime t: type) type {
+    return std.MultiArrayList(t).Slice;
+}
+
 pub const Data = struct {
     gpa: std.mem.Allocator,
 
@@ -79,6 +83,20 @@ pub const Data = struct {
 
     stringBytes: std.ArrayListUnmanaged(u8) = .{},
     symbolValues: std.AutoHashMapUnmanaged(u32, u32) = .{},
+
+    pub const Slices = struct {
+        symbols: SliceOf(Symbol),
+        packages: SliceOf(Package),
+        conses: SliceOf(Cons),
+    };
+
+    pub fn slices(self: Data) Slices {
+        return Slices{
+            .symbols = self.symbols.slice(),
+            .packages = self.packages.slice(),
+            .conses = self.conses.slice(),
+        };
+    }
 
     pub fn init(gpa: std.mem.Allocator) !Data {
         var data = Data{
@@ -119,6 +137,7 @@ pub const Data = struct {
         self.symbols.deinit(self.gpa);
         self.packages.deinit(self.gpa);
         self.conses.deinit(self.gpa);
+        self.* = .{ .gpa = self.gpa };
     }
 
     pub fn allocString(self: *Data, text: []const u8) !u29 {
@@ -141,7 +160,8 @@ pub const Data = struct {
         return self.makePointer(.string, idx);
     }
 
-    pub fn stringSlice(self: *const Data, idx: u29) []const u8 {
+    pub fn stringSlice(self: *const Data, ptr: u32) []const u8 {
+        const idx = self.pointerToIndex(ptr);
         const string: String = self.strings.items[idx];
         return self.stringBytes.items[string.offset0..string.offset1];
     }
@@ -149,9 +169,10 @@ pub const Data = struct {
     pub fn internString(
         self: *Data,
         name: []const u8,
-        package: u29,
+        package: u32,
     ) !u32 {
-        var symbols = &self.packages.items(.symbols)[package];
+        const packageIdx = self.pointerToIndex(package);
+        var symbols = &self.packages.items(.symbols)[packageIdx];
         const symbolNames = self.symbols.items(.name);
 
         var cur = symbols.*;
@@ -171,8 +192,8 @@ pub const Data = struct {
         const symbolIdx = @intCast(u29, self.symbols.len);
 
         try self.symbols.append(self.gpa, .{
-            .name = stringIdx,
-            .package = package,
+            .name = self.makePointer(.string, stringIdx),
+            .package = packageIdx,
         });
 
         const ptr = self.makePointer(.symbol, symbolIdx);
