@@ -50,13 +50,13 @@ pub fn print(
         },
 
         .symbol => {
-            const nameIdx = ctx.symbols.items(.name)[wisp.pointerToIndex(x)];
+            const nameIdx = ctx.symbols.items(.name)[ctx.pointerToIndex(x)];
             const name = ctx.stringSlice(nameIdx);
             try out.print("{s}", .{name});
         },
 
         .string => {
-            const s = ctx.stringSlice(wisp.pointerToIndex(x));
+            const s = ctx.stringSlice(ctx.pointerToIndex(x));
             try out.print("\"{s}\"", .{s});
         },
 

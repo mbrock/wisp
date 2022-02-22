@@ -83,11 +83,11 @@ Let's enumerate the types of objects we have:
 |------------------------------------+---------|
 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00~ | Fixnum  |
 | ~00000000000000000000000000000001~ | NIL     |
-| ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx001~ | Symbol  |
-| ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx010~ | Cons    |
-| ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx011~ | Closure |
+| ~Hxxxxxxxxxxxxxxxxxxxxxxxxxxxx001~ | Symbol  |
+| ~Hxxxxxxxxxxxxxxxxxxxxxxxxxxxx010~ | Cons    |
+| ~Hxxxxxxxxxxxxxxxxxxxxxxxxxxxx011~ | Closure |
 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx101~ | Primop  |
-| ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx110~ | String  |
+| ~Hxxxxxxxxxxxxxxxxxxxxxxxxxxxx110~ | String  |
 | ~xxxxxxxxxxxxxxxxxxxxx00000000111~ | Glyph   |
 | ~11111111111111111111111111111111~ | Marker  |
 

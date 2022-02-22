@@ -37,8 +37,39 @@ pub const Cons = struct {
     cdr: u32,
 };
 
+pub const Semispace = enum(u32) {
+    space0 = 0,
+    space1 = @as(u32, 1) << 31,
+
+    pub fn other(self: Semispace) Semispace {
+        return switch (self) {
+            .space0 => .space1,
+            .space1 => .space0,
+        };
+    }
+
+    pub fn makePointer(semispace: Semispace, tag: Tag1, idx: u29) u32 {
+        const suffix = @as(u32, switch (tag) {
+            .symbol => 0b001,
+            .cons => 0b010,
+            .string => 0b110,
+            else => unreachable,
+        });
+
+        return @enumToInt(semispace) | (idx << 3) | suffix;
+    }
+
+    pub fn pointerIndex(self: Semispace, x: u32) u29 {
+        const semispaceMask = @as(u32, 1) << 31;
+        assert(x & semispaceMask == @enumToInt(self));
+        return @intCast(u29, (x & ~semispaceMask) / 0b1000);
+    }
+};
+
 pub const Data = struct {
     gpa: std.mem.Allocator,
+
+    semispace: Semispace = .space0,
 
     symbols: std.MultiArrayList(Symbol) = .{},
     packages: std.MultiArrayList(Package) = .{},
@@ -63,6 +94,14 @@ pub const Data = struct {
         return data;
     }
 
+    pub fn makePointer(self: Data, tag: Tag1, idx: u29) u32 {
+        return self.semispace.makePointer(tag, idx);
+    }
+
+    pub fn pointerToIndex(self: Data, x: u32) u29 {
+        return self.semispace.pointerIndex(x);
+    }
+
     pub fn allocCons(self: *Data, x: Cons) !u29 {
         const i = @intCast(u29, self.conses.len);
         try self.conses.append(self.gpa, x);
@@ -70,7 +109,7 @@ pub const Data = struct {
     }
 
     pub fn addCons(self: *Data, x: Cons) !u32 {
-        return makePointer(.cons, try self.allocCons(x));
+        return self.makePointer(.cons, try self.allocCons(x));
     }
 
     pub fn deinit(self: *Data) void {
@@ -99,7 +138,7 @@ pub const Data = struct {
 
     pub fn addString(self: *Data, text: []const u8) !u32 {
         const idx = try self.allocString(text);
-        return makePointer(.string, idx);
+        return self.makePointer(.string, idx);
     }
 
     pub fn stringSlice(self: *const Data, idx: u29) []const u8 {
@@ -118,7 +157,7 @@ pub const Data = struct {
         var cur = symbols.*;
         while (cur != NIL) {
             const it = try self.car(cur);
-            const itsName = symbolNames[pointerToIndex(it)];
+            const itsName = symbolNames[self.pointerToIndex(it)];
             const s = self.stringSlice(itsName);
 
             if (std.mem.eql(u8, s, name)) {
@@ -136,7 +175,7 @@ pub const Data = struct {
             .package = package,
         });
 
-        const ptr = makePointer(.symbol, symbolIdx);
+        const ptr = self.makePointer(.symbol, symbolIdx);
 
         symbols.* = try self.addCons(.{
             .car = ptr,
@@ -148,24 +187,22 @@ pub const Data = struct {
 
     pub fn cons(self: *const Data, ptr: u32) !Cons {
         assert(type1(ptr) == .cons);
-        return self.conses.get(ptr / 0b1000);
+        return self.conses.get(self.pointerToIndex(ptr));
     }
 
     pub fn symbol(self: *Data, ptr: u32) !Symbol {
         assert(type1(ptr) == .symbol);
-        return self.symbols.get(ptr / 0b1000);
+        return self.symbols.get(self.pointerToIndex(ptr));
     }
 
     pub fn car(self: *Data, ptr: u32) !u32 {
         assert(type1(ptr) == .cons);
-        const i = ptr / 0b1000;
-        return self.conses.items(.car)[i];
+        return self.conses.items(.car)[self.pointerToIndex(ptr)];
     }
 
     pub fn cdr(self: *Data, ptr: u32) !u32 {
         assert(type1(ptr) == .cons);
-        const i = ptr / 0b1000;
-        return self.conses.items(.cdr)[i];
+        return self.conses.items(.cdr)[self.pointerToIndex(ptr)];
     }
 
     pub fn list(self: *Data, xs: anytype) !u32 {
@@ -182,20 +219,7 @@ pub const Data = struct {
     }
 };
 
-pub fn makePointer(tag: Tag1, idx: u29) u32 {
-    return (idx << 3) + @as(u32, switch (tag) {
-        .symbol => 0b001,
-        .cons => 0b010,
-        .string => 0b110,
-        else => unreachable,
-    });
-}
-
-pub fn pointerToIndex(x: u32) u29 {
-    return @intCast(u29, x / 0b1000);
-}
-
-pub const NIL: u32 = makePointer(.symbol, 0);
+pub const NIL: u32 = Semispace.space0.makePointer(.symbol, 0);
 pub const ZAP: u32 = 0xffffffff;
 
 pub fn type1(x: u32) Tag1 {

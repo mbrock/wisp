@@ -42,6 +42,7 @@ pub fn init(old: *Data) !GC {
             .conses = old.conses.slice(),
         },
         .new = Data{
+            .semispace = old.semispace.other(),
             .gpa = old.gpa,
             .packages = old.packages,
             .symbols = old.symbols,
@@ -100,6 +101,8 @@ pub fn copyPackageSymbols(self: *GC) !void {
 }
 
 pub fn copy(self: *GC, x: u32) !u32 {
+    std.log.warn("copy {b}", .{x});
+
     return switch (wisp.type1(x)) {
         .cons => try self.copyPointer(.cons, x),
         .string => try self.copyPointer(.string, x),
@@ -112,16 +115,14 @@ pub fn copyPointer(
     tag: wisp.Tag1,
     ptr: u32,
 ) !u32 {
-    assert(ptr != wisp.ZAP);
-
-    const idx0 = wisp.pointerToIndex(ptr);
+    const idx0 = self.old.pointerToIndex(ptr);
     const idx1 = switch (tag) {
         .cons => try self.copyCons(idx0),
         .string => try self.copyString(idx0),
         else => unreachable,
     };
 
-    return wisp.makePointer(tag, idx1);
+    return self.new.makePointer(tag, idx1);
 }
 
 pub fn scavenge(self: *GC) !void {
