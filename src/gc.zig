@@ -1,4 +1,5 @@
 const std = @import("std");
+const EnumArray = std.enums.EnumArray;
 const assert = std.debug.assert;
 const expectEqual = std.testing.expectEqual;
 const testGpa = std.testing.allocator;
@@ -11,8 +12,8 @@ const Data = wisp.Data;
 
 const GC = @This();
 
-const Thing = std.meta.FieldEnum(Data.Slices);
-const thingCount = @typeInfo(Thing).Enum.fields.len;
+const Kind = std.meta.FieldEnum(Data.Slices);
+const allKinds = std.enums.values(Kind);
 
 pub fn tidy(data: *Data) !void {
     var gc = try GC.init(data);
@@ -25,7 +26,7 @@ pub fn tidy(data: *Data) !void {
 old: *Data,
 new: Data,
 
-scans: [thingCount]usize = .{0} ** thingCount,
+scans: EnumArray(Kind, usize) = EnumArray(Kind, usize).initFill(0),
 
 pub fn init(old: *Data) !GC {
     var new = Data{
@@ -54,29 +55,34 @@ pub fn copyRoots(self: *GC) !void {
     self.new.packages = try self.old.packages.clone(self.new.gpa);
 }
 
+/// Go through all the values in the new data and look at every
+/// pointer field.  When we see a pointer to an old value, we copy
+/// that value into the new data and update the pointer.  Loop until
+/// there are no more new values.
 pub fn scavenge(self: *GC) !void {
-    var done = false;
-    while (!done) {
-        done = true;
-        done = (try self.scavengeThing(.symbols)) and done;
-        done = (try self.scavengeThing(.packages)) and done;
-        done = (try self.scavengeThing(.conses)) and done;
-        done = (try self.scavengeThing(.strings)) and done;
+    var keepGoing = true;
+    while (keepGoing) {
+        keepGoing = false;
+        inline for (allKinds) |x| {
+            if (try self.scavengeKind(x)) {
+                keepGoing = true;
+            }
+        }
     }
 }
 
-fn scavengeThing(self: *GC, comptime thing: Thing) !bool {
-    const t = thingType(thing);
-    const scan: *usize = &self.scans[@enumToInt(thing)];
-    const newContainer = thingContainer(&self.new, thing);
+/// Go through all the new values of a specific kind added since the
+/// last scavenge round, updating every field of every value.
+fn scavengeKind(self: *GC, comptime kind: Kind) !bool {
+    const t = kindType(kind);
+    const newContainer = kindContainer(&self.new, kind);
+    var i = self.scans.get(kind);
 
-    var done = true;
+    if (i == newContainer.len) {
+        return false;
+    }
 
-    var i = scan.*;
-
-    while (i < newContainer.len) : (i += 1) {
-        done = false;
-
+    while (i < newContainer.len) {
         inline for (std.meta.fields(t)) |_, j| {
             const field = @intToEnum(std.meta.FieldEnum(t), j);
             const new = try self.copy(newContainer.items(field)[i]);
@@ -85,20 +91,22 @@ fn scavengeThing(self: *GC, comptime thing: Thing) !bool {
             // can't cache the field pointer.
             newContainer.items(field)[i] = new;
         }
+
+        i += 1;
     }
 
-    scan.* = i;
+    self.scans.set(kind, i);
 
-    return done;
+    return true;
 }
 
 fn copy(self: *GC, x: u32) !u32 {
     const tag = wisp.type1(x);
     return switch (tag) {
         .nil, .fixnum => x,
-        .symbol => self.copyOldThing(.symbol, x),
-        .string => self.copyOldThing(.string, x),
-        .cons => self.copyOldThing(.cons, x),
+        .symbol => self.copyValueOfKind(.symbol, x),
+        .string => self.copyValueOfKind(.string, x),
+        .cons => self.copyValueOfKind(.cons, x),
 
         else => {
             std.log.warn("unexpected {any}", .{tag});
@@ -107,8 +115,8 @@ fn copy(self: *GC, x: u32) !u32 {
     };
 }
 
-fn thingType(comptime thing: Thing) type {
-    return switch (thing) {
+fn kindType(comptime kind: Kind) type {
+    return switch (kind) {
         .conses => wisp.Cons,
         .symbols => wisp.Symbol,
         .packages => wisp.Package,
@@ -116,19 +124,19 @@ fn thingType(comptime thing: Thing) type {
     };
 }
 
-fn thingContainer(
+fn kindContainer(
     data: *Data,
-    comptime thing: Thing,
-) *std.MultiArrayList(thingType(thing)) {
-    return &@field(data.*, @tagName(thing));
+    comptime kind: Kind,
+) *std.MultiArrayList(kindType(kind)) {
+    return &@field(data.*, @tagName(kind));
 }
 
-fn copyOldThing(self: *GC, comptime tag: wisp.Tag1, ptr: u32) !u32 {
+fn copyValueOfKind(self: *GC, comptime tag: wisp.Tag1, ptr: u32) !u32 {
     if (wisp.Semispace.of(ptr) == self.new.semispace) {
         return ptr;
     }
 
-    const thing: Thing = switch (tag) {
+    const kind: Kind = switch (tag) {
         .cons => .conses,
         .symbol => .symbols,
         .package => .packages,
@@ -136,9 +144,9 @@ fn copyOldThing(self: *GC, comptime tag: wisp.Tag1, ptr: u32) !u32 {
         else => unreachable,
     };
 
-    const oldContainer = thingContainer(self.old, thing);
+    const oldContainer = kindContainer(self.old, kind);
 
-    const Field = std.meta.FieldEnum(thingType(thing));
+    const Field = std.meta.FieldEnum(kindType(kind));
     const field0 = @intToEnum(Field, 0);
     const field1 = @intToEnum(Field, 1);
 
@@ -149,7 +157,7 @@ fn copyOldThing(self: *GC, comptime tag: wisp.Tag1, ptr: u32) !u32 {
         return oldSlice.items(field0)[i];
     }
 
-    const newContainer = thingContainer(&self.new, thing);
+    const newContainer = kindContainer(&self.new, kind);
     const oldValue = oldContainer.get(i);
     try newContainer.append(self.new.gpa, oldValue);
 
