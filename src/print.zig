@@ -65,7 +65,6 @@ pub fn print(
             var cur = x;
 
             loop: while (cur != wisp.NIL) {
-                std.log.warn("cur {any}", .{cur});
                 var cons = try ctx.cons(cur);
                 try print(ctx, out, cons.car);
                 switch (wisp.type1(cons.cdr)) {

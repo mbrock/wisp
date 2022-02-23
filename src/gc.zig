@@ -15,7 +15,6 @@ const Thing = std.meta.FieldEnum(Data.Slices);
 const thingCount = @typeInfo(Thing).Enum.fields.len;
 
 pub fn tidy(data: *Data) !void {
-    try wisp.dumpDataStderr(data);
     var gc = try GC.init(data);
     defer gc.deinit();
     try gc.copyRoots();
@@ -25,8 +24,6 @@ pub fn tidy(data: *Data) !void {
 
 old: *Data,
 new: Data,
-oldSlices: Data.Slices,
-newSlices: Data.Slices,
 
 scans: [thingCount]usize = .{0} ** thingCount,
 
@@ -39,9 +36,7 @@ pub fn init(old: *Data) !GC {
 
     return GC{
         .old = old,
-        .oldSlices = old.slices(),
         .new = new,
-        .newSlices = new.slices(),
     };
 }
 
@@ -60,22 +55,17 @@ pub fn copyRoots(self: *GC) !void {
 }
 
 pub fn scavenge(self: *GC) !void {
-    self.newSlices = self.new.slices();
     var done = false;
     while (!done) {
-        std.log.warn("SCAVENGE", .{});
-        try wisp.dumpDataStderr(&self.new);
         done = true;
-        done = (try self.scavengeThing(.packages)) and done;
         done = (try self.scavengeThing(.symbols)) and done;
+        done = (try self.scavengeThing(.packages)) and done;
         done = (try self.scavengeThing(.conses)) and done;
-        done = (try self.scavengeThing(.strings)) and done;
     }
-    std.log.warn("YO YO", .{});
-    try wisp.dumpDataStderr(&self.new);
 }
 
 fn scavengeThing(self: *GC, comptime thing: Thing) !bool {
+    const t = thingType(thing);
     const scan: *usize = &self.scans[@enumToInt(thing)];
     const newContainer = thingContainer(&self.new, thing);
 
@@ -86,27 +76,17 @@ fn scavengeThing(self: *GC, comptime thing: Thing) !bool {
     while (i < newContainer.len) : (i += 1) {
         done = false;
 
-        inline for (std.meta.fields(thingType(thing))) |field_info, j| {
-            const field = @intToEnum(
-                std.meta.FieldEnum(thingType(thing)),
-                j,
-            );
-            var slice = newContainer.items(field);
-            const new = try self.copy(slice[i]);
-            std.log.warn("scavenge {s} {d} {s} {any} => {any}", .{
-                @tagName(thing),
-                i,
-                field_info.name,
-                slice[i],
-                new,
-            });
-            slice[i] = new;
+        inline for (std.meta.fields(t)) |_, j| {
+            const field = @intToEnum(std.meta.FieldEnum(t), j);
+            const new = try self.copy(newContainer.items(field)[i]);
+
+            // The copying may have reallocated the container, so we
+            // can't cache the field pointer.
+            newContainer.items(field)[i] = new;
         }
     }
 
     scan.* = i;
-
-    std.log.warn("done? {any}", .{done});
 
     return done;
 }
@@ -139,7 +119,7 @@ fn thingContainer(
     data: *Data,
     comptime thing: Thing,
 ) *std.MultiArrayList(thingType(thing)) {
-    return &@field(data, @tagName(thing));
+    return &@field(data.*, @tagName(thing));
 }
 
 fn copyOldThing(self: *GC, comptime tag: wisp.Tag1, ptr: u32) !u32 {
@@ -223,8 +203,6 @@ test "read and gc" {
     (try data.symbolValue(v1)).* = t1;
     try tidy(&data);
 
-    try wisp.dumpDataStderr(&data);
-
     const v2 = try data.internString("X", data.makePointer(.package, 0));
     const t2 = (try data.symbolValue(v2)).*;
 
@@ -247,16 +225,9 @@ test "gc ephemeral strings" {
 
     const stringCount1 = data.strings.len;
 
-    var gc = try GC.init(&data);
-    defer gc.new.deinit();
-    defer gc.deinit();
+    try tidy(&data);
 
-    try gc.copyRoots();
-    try gc.scavenge();
-
-    data = gc.finalize();
-
-    const stringCount2 = gc.new.strings.len;
+    const stringCount2 = data.strings.len;
 
     try expectEqual(stringCount1 - 2, stringCount2);
 }

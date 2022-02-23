@@ -82,7 +82,6 @@ Let's enumerate the types of objects we have:
 | Pattern                            | Class   |
 |------------------------------------+---------|
 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00~ | Fixnum  |
-| ~00000000000000000000000000000001~ | NIL     |
 | ~Hxxxxxxxxxxxxxxxxxxxxxxxxxxxx001~ | Symbol  |
 | ~Hxxxxxxxxxxxxxxxxxxxxxxxxxxxx010~ | Cons    |
 | ~Hxxxxxxxxxxxxxxxxxxxxxxxxxxxx011~ | Other   |
@@ -90,6 +89,7 @@ Let's enumerate the types of objects we have:
 | ~Hxxxxxxxxxxxxxxxxxxxxxxxxxxxx110~ | String  |
 | ~xxxxxxxxxxxxxxxxxxxxx00000000111~ | Glyph   |
 | ~xxxxxxxxxxxxxxxxxxxxx00000001111~ | Package |
+| ~00000000000000000000000000011111~ | NIL     |
 | ~11111111111111111111111111111111~ | Marker  |
 
 ** Garbage collection

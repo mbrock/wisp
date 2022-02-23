@@ -124,8 +124,6 @@ pub const Data = struct {
             .name = try data.addString("WISP"),
         });
 
-        _ = try data.internString("NIL", 0);
-
         return data;
     }
 
@@ -164,8 +162,8 @@ pub const Data = struct {
 
         try self.stringBytes.appendSlice(self.gpa, text);
         try self.strings.append(self.gpa, String{
-            .offset0 = encodeFixnum(offset),
-            .offset1 = encodeFixnum(offset + length),
+            .offset0 = offset,
+            .offset1 = offset + length,
         });
 
         return i;
@@ -179,8 +177,8 @@ pub const Data = struct {
     pub fn stringSlice(self: *const Data, ptr: u32) []const u8 {
         const idx = self.pointerToIndex(ptr);
         const string: String = self.strings.get(idx);
-        const offset0 = decodeFixnum(string.offset0);
-        const offset1 = decodeFixnum(string.offset1);
+        const offset0 = string.offset0;
+        const offset1 = string.offset1;
         return self.stringBytes.items[offset0..offset1];
     }
 
@@ -263,11 +261,11 @@ pub const Data = struct {
     }
 };
 
-pub const NIL: u32 = Semispace.space0.makePointer(.symbol, 0);
-pub const ZAP: u32 = 0xffffffff;
+pub const NIL: u32 = 0b00000000000000000000000000011111;
+pub const ZAP: u32 = 0b11111111111111111111111111111111;
 
 pub fn type1(x: u32) Tag1 {
-    if (x == 1) {
+    if (x == NIL) {
         return .nil;
     }
 
