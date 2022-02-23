@@ -90,7 +90,7 @@ fn readSymbol(self: *Reader) !u32 {
 
     defer self.data.gpa.free(uppercase);
 
-    return try self.data.internString(uppercase, 0);
+    return try self.data.internStringInBasePackage(uppercase);
 }
 
 fn readNumber(self: *Reader) !u32 {
@@ -147,7 +147,7 @@ fn readListTail(self: *Reader) anyerror!u32 {
                 const car = try self.readValue();
                 const cdr = try self.readListTail();
 
-                return self.data.addCons(.{
+                return self.data.append(.cons, .{
                     .car = car,
                     .cdr = cdr,
                 });
@@ -222,7 +222,7 @@ test "read symbol uppercasing" {
     defer data.deinit();
 
     const symbol = try read(&data, "foobar");
-    const symbolData = try data.symbol(symbol);
+    const symbolData = try data.deref(.symbol, symbol);
     const symbolName = data.stringSlice(symbolData.name);
 
     try std.testing.expectEqualStrings(

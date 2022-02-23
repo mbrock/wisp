@@ -6,17 +6,147 @@ const read = @import("./read.zig").read;
 const print = @import("./print.zig").print;
 const GC = @import("./gc.zig");
 
-pub const Tag1 = enum {
-    fixnum,
-    nil,
-    symbol,
-    cons,
-    other,
-    primop,
-    string,
-    glyph,
-    package,
+pub const NIL: u32 = 0b00000000000000000000000000001111;
+pub const ZAP: u32 = 0b11111111111111111111111111111111;
+
+pub const Tag0 = enum {
+    immediate,
+    pointer,
 };
+
+pub const ImmediateTag = enum {
+    nil,
+    fixnum,
+    primop,
+    glyph,
+    marker,
+};
+
+pub const Immediate = union(ImmediateTag) {
+    nil: void,
+    marker: void,
+    fixnum: u30,
+    primop: u29,
+    glyph: u21,
+
+    pub fn raw(x: Immediate) u32 {
+        return switch (x) {
+            .nil => NIL,
+            .marker => ZAP,
+            .fixnum => encodeFixnum(x.fixnum),
+            .primop => unreachable,
+            .glyph => unreachable,
+        };
+    }
+};
+
+pub const Pointer = union(Kind) {
+    cons: u29,
+    symbol: u29,
+    string: u29,
+    package: u21,
+
+    pub fn raw(x: Pointer) u32 {
+        return switch (x) {
+            .cons => (@intCast(u32, x.cons) << 3) | 0b010,
+            .symbol => (@intCast(u32, x.symbol) << 3) | 0b001,
+            .string => (@intCast(u32, x.string) << 3) | 0b110,
+            .package => (@intCast(u32, x.package) << 11) | 0b10111,
+        };
+    }
+
+    pub fn semispace(x: Pointer) Semispace {
+        return Semispace.of(x.raw());
+    }
+
+    pub fn offset(
+        self: Pointer,
+        comptime kind: Kind,
+        space: Semispace,
+    ) kind.offsetType() {
+        assert(self.semispace() == space);
+        const x = @field(self, @tagName(kind));
+        const t = kind.offsetType();
+        const semispaceBit = (@as(t, 1) << (@typeInfo(t).Int.bits - 1));
+        return x & ~semispaceBit;
+    }
+};
+
+pub const Word = union(Tag0) {
+    immediate: Immediate,
+    pointer: Pointer,
+
+    pub fn from(x: u32) Word {
+        if (x == NIL) {
+            return Word{ .immediate = .{ .nil = .{} } };
+        }
+
+        return switch (@intCast(u3, x & 0b111)) {
+            0b000 => Word{ .immediate = .{ .fixnum = decodeFixnum(x) } },
+            0b001 => Word{ .pointer = .{ .symbol = @intCast(u29, x >> 3) } },
+            0b010 => Word{ .pointer = .{ .cons = @intCast(u29, x >> 3) } },
+            0b011 => unreachable,
+            0b100 => Word{ .immediate = .{ .fixnum = decodeFixnum(x) } },
+            0b101 => Word{ .immediate = .{ .primop = @intCast(u29, x >> 3) } },
+            0b110 => Word{ .pointer = .{ .string = @intCast(u29, x >> 3) } },
+            0b111 => switch (x & ~@as(u11, 0)) {
+                0b00111 => Word{ .immediate = .{ .glyph = @intCast(u21, x >> 11) } },
+                0b10111 => Word{ .pointer = .{ .package = @intCast(u21, x >> 11) } },
+                else => {
+                    std.log.warn("weird {b}", .{x});
+                    unreachable;
+                },
+            },
+        };
+    }
+
+    pub fn raw(x: Word) u32 {
+        return switch (x) {
+            .immediate => x.immediate.raw(),
+            .pointer => x.pointer.raw(),
+        };
+    }
+};
+
+pub const Kind = enum {
+    cons,
+    symbol,
+    package,
+    string,
+
+    pub fn valueType(kind: Kind) type {
+        return switch (kind) {
+            .cons => Cons,
+            .symbol => Symbol,
+            .package => Package,
+            .string => String,
+        };
+    }
+
+    pub fn offsetType(kind: Kind) type {
+        return switch (kind) {
+            .cons, .symbol, .string => u29,
+            .package => u21,
+        };
+    }
+
+    pub fn containerType(kind: Kind) type {
+        return std.MultiArrayList(kind.valueType());
+    }
+
+    pub fn emptyContainer(
+        comptime kind: Kind,
+    ) std.MultiArrayList(kind.valueType()) {
+        return switch (kind) {
+            .cons => std.MultiArrayList(Cons){},
+            .symbol => std.MultiArrayList(Symbol){},
+            .package => std.MultiArrayList(Package){},
+            .string => std.MultiArrayList(String){},
+        };
+    }
+};
+
+pub const allKinds = std.enums.values(Kind);
 
 pub const String = struct {
     offset: u32,
@@ -39,65 +169,38 @@ pub const Cons = struct {
     cdr: u32,
 };
 
-pub const Semispace = enum(u32) {
-    space0 = 0,
-    space1 = @as(u32, 1) << 31,
-
-    const semispaceMask = @as(u32, 1) << 31;
-
-    pub fn other(self: Semispace) Semispace {
-        return switch (self) {
-            .space0 => .space1,
-            .space1 => .space0,
-        };
-    }
-
-    pub fn makePointer(semispace: Semispace, tag: Tag1, idx: u29) u32 {
-        const suffix = @as(u32, switch (tag) {
-            .symbol => 0b001,
-            .cons => 0b010,
-            .package => 0b1111,
-            .string => 0b110,
-            else => unreachable,
-        });
-
-        const suffixBits: u3 = switch (tag) {
-            .package => 4,
-            else => 3,
-        };
-
-        return @enumToInt(semispace) | (idx << suffixBits) | suffix;
-    }
-
-    pub fn pointerIndex(self: Semispace, x: u32) u29 {
-        assert(Semispace.of(x) == self);
-        const bits: u3 = switch (type1(x)) {
-            .package => 4,
-            else => 3,
-        };
-        return @intCast(u29, (x & ~semispaceMask) / (@as(u5, 1) << bits));
-    }
-
-    pub fn of(x: u32) Semispace {
-        return @intToEnum(Semispace, x & semispaceMask);
-    }
-};
-
 fn SliceOf(comptime t: type) type {
     return std.MultiArrayList(t).Slice;
 }
 
+pub fn EnumFieldMultiArrays(comptime E: type) type {
+    const StructField = std.builtin.TypeInfo.StructField;
+    var fields: []const StructField = &[_]StructField{};
+    inline for (std.meta.fields(E)) |field| {
+        const e = @intToEnum(E, field.value);
+        const fieldType = std.MultiArrayList(e.valueType());
+        fields = fields ++ &[_]StructField{.{
+            .name = field.name,
+            .field_type = fieldType,
+            .default_value = @as(fieldType, e.emptyContainer()),
+            .is_comptime = false,
+            .alignment = @alignOf(fieldType),
+        }};
+    }
+
+    return @Type(.{ .Struct = .{
+        .layout = .Auto,
+        .fields = fields,
+        .decls = &[_]std.builtin.TypeInfo.Declaration{},
+        .is_tuple = false,
+    } });
+}
+
 pub const Data = struct {
     gpa: std.mem.Allocator,
-
     semispace: Semispace = .space0,
-
-    symbols: std.MultiArrayList(Symbol) = .{},
-    packages: std.MultiArrayList(Package) = .{},
-    conses: std.MultiArrayList(Cons) = .{},
-    strings: std.MultiArrayList(String) = .{},
-
     stringBytes: std.ArrayListUnmanaged(u8) = .{},
+    stuff: EnumFieldMultiArrays(Kind) = .{},
 
     pub const Slices = struct {
         symbols: SliceOf(Symbol),
@@ -105,6 +208,13 @@ pub const Data = struct {
         conses: SliceOf(Cons),
         strings: SliceOf(String),
     };
+
+    pub fn kindContainer(
+        data: *Data,
+        comptime kind: Kind,
+    ) *std.MultiArrayList(kind.valueType()) {
+        return &@field(data.stuff, @tagName(kind));
+    }
 
     pub fn slices(self: Data) Slices {
         return Slices{
@@ -120,66 +230,69 @@ pub const Data = struct {
             .gpa = gpa,
         };
 
-        try data.packages.append(gpa, Package{
+        try data.stuff.package.append(gpa, Package{
             .name = try data.addString("WISP"),
         });
 
         return data;
     }
 
-    pub fn makePointer(self: Data, tag: Tag1, idx: u29) u32 {
-        return self.semispace.makePointer(tag, idx);
+    pub fn makePointer(self: Data, x: Pointer) u32 {
+        return self.semispace.makePointer(x);
     }
 
-    pub fn pointerToIndex(self: Data, x: u32) u29 {
-        return self.semispace.pointerIndex(x);
-    }
-
-    pub fn allocCons(self: *Data, x: Cons) !u29 {
-        const i = @intCast(u29, self.conses.len);
-        try self.conses.append(self.gpa, x);
+    pub fn alloc(self: *Data, comptime t: Kind, x: t.valueType()) !t.offsetType() {
+        var container = self.kindContainer(t);
+        const i = @intCast(t.offsetType(), container.len);
+        try container.append(self.gpa, x);
         return i;
     }
 
-    pub fn addCons(self: *Data, x: Cons) !u32 {
-        return self.makePointer(.cons, try self.allocCons(x));
+    pub fn append(self: *Data, comptime t: Kind, x: t.valueType()) !u32 {
+        const pointer = @unionInit(Pointer, @tagName(t), try self.alloc(t, x));
+        return self.makePointer(pointer);
     }
 
     pub fn deinit(self: *Data) void {
+        inline for (std.meta.fields(Kind)) |field| {
+            @field(self.stuff, field.name).deinit(self.gpa);
+        }
+
         self.stringBytes.deinit(self.gpa);
-        self.strings.deinit(self.gpa);
-        self.symbols.deinit(self.gpa);
-        self.packages.deinit(self.gpa);
-        self.conses.deinit(self.gpa);
         self.* = .{ .gpa = self.gpa };
     }
 
     pub fn allocString(self: *Data, text: []const u8) !u29 {
-        const i = @intCast(u29, self.strings.len);
-
         const offset = @intCast(u30, self.stringBytes.items.len);
         const length = @intCast(u30, text.len);
 
         try self.stringBytes.appendSlice(self.gpa, text);
-        try self.strings.append(self.gpa, String{
+        return self.alloc(.string, .{
             .offset = encodeFixnum(offset),
             .length = encodeFixnum(length),
         });
-
-        return i;
     }
 
     pub fn addString(self: *Data, text: []const u8) !u32 {
         const idx = try self.allocString(text);
-        return self.makePointer(.string, idx);
+        return self.makePointer(.{ .string = idx });
     }
 
     pub fn stringSlice(self: *const Data, ptr: u32) []const u8 {
-        const idx = self.pointerToIndex(ptr);
-        const string: String = self.strings.get(idx);
+        const idx = Word.from(ptr).pointer.offset(.string, self.semispace);
+        const string: String = self.stuff.string.get(idx);
         const offset0 = decodeFixnum(string.offset);
         const offset1 = offset0 + decodeFixnum(string.length);
         return self.stringBytes.items[offset0..offset1];
+    }
+
+    pub fn internStringInBasePackage(self: *Data, name: []const u8) !u32 {
+        return self.internString(name, self.basePackage());
+    }
+
+    pub fn basePackage(self: *Data) u32 {
+        const x = self.makePointer(.{ .package = 0 });
+        return x;
     }
 
     pub fn internString(
@@ -187,14 +300,15 @@ pub const Data = struct {
         name: []const u8,
         package: u32,
     ) !u32 {
-        const packageIdx = self.pointerToIndex(package);
-        var symbols = &self.packages.items(.symbols)[packageIdx];
-        const symbolNames = self.symbols.items(.name);
+        const packageIdx = Word.from(package).pointer.offset(.package, self.semispace);
+        var symbols = &self.stuff.package.items(.symbols)[packageIdx];
+        const symbolNames = self.stuff.symbol.items(.name);
 
         var cur = symbols.*;
         while (cur != NIL) {
             const it = try self.car(cur);
-            const itsName = symbolNames[self.pointerToIndex(it)];
+            const symbolIdx = Word.from(it).pointer.offset(.symbol, self.semispace);
+            const itsName = symbolNames[symbolIdx];
             const s = self.stringSlice(itsName);
 
             if (std.mem.eql(u8, s, name)) {
@@ -205,16 +319,16 @@ pub const Data = struct {
         }
 
         const stringIdx = try self.allocString(name);
-        const symbolIdx = @intCast(u29, self.symbols.len);
+        const symbolIdx = @intCast(u29, self.stuff.symbol.len);
 
-        try self.symbols.append(self.gpa, .{
-            .name = self.makePointer(.string, stringIdx),
+        try self.stuff.symbol.append(self.gpa, .{
+            .name = self.makePointer(.{ .string = stringIdx }),
             .package = packageIdx,
         });
 
-        const ptr = self.makePointer(.symbol, symbolIdx);
+        const ptr = self.makePointer(.{ .symbol = symbolIdx });
 
-        symbols.* = try self.addCons(.{
+        symbols.* = try self.append(.cons, .{
             .car = ptr,
             .cdr = symbols.*,
         });
@@ -223,35 +337,41 @@ pub const Data = struct {
     }
 
     pub fn symbolValue(self: *Data, ptr: u32) !*u32 {
-        const i = self.pointerToIndex(ptr);
-        return &self.symbols.items(.value)[i];
+        const i = self.getOffset(.symbol, ptr);
+        return &self.stuff.symbol.items(.value)[i];
     }
 
-    pub fn cons(self: *const Data, ptr: u32) !Cons {
-        assert(type1(ptr) == .cons);
-        return self.conses.get(self.pointerToIndex(ptr));
+    fn pointerWord(self: *const Data, ptr: u32) Word {
+        const word = Word.from(ptr);
+        assert(word.pointer.semispace() == self.semispace);
+        return word;
     }
 
-    pub fn symbol(self: *Data, ptr: u32) !Symbol {
-        assert(type1(ptr) == .symbol);
-        return self.symbols.get(self.pointerToIndex(ptr));
+    pub fn deref(
+        self: *Data,
+        comptime kind: Kind,
+        x: u32,
+    ) !kind.valueType() {
+        return self.kindContainer(kind).get(self.getOffset(kind, x));
+    }
+
+    pub fn getOffset(self: *Data, comptime kind: Kind, x: u32) kind.offsetType() {
+        return Word.from(x).pointer.offset(kind, self.semispace);
     }
 
     pub fn car(self: *Data, ptr: u32) !u32 {
-        assert(type1(ptr) == .cons);
-        return self.conses.items(.car)[self.pointerToIndex(ptr)];
+        return (try self.deref(.cons, ptr)).car;
     }
 
     pub fn cdr(self: *Data, ptr: u32) !u32 {
-        assert(type1(ptr) == .cons);
-        return self.conses.items(.cdr)[self.pointerToIndex(ptr)];
+        return (try self.deref(.cons, ptr)).cdr;
     }
 
     pub fn list(self: *Data, xs: anytype) !u32 {
         var result = NIL;
         var i: usize = 0;
         while (i < xs.len) : (i += 1) {
-            result = try self.addCons(.{
+            result = try self.append(.cons, .{
                 .car = xs[xs.len - i - 1],
                 .cdr = result,
             });
@@ -261,29 +381,34 @@ pub const Data = struct {
     }
 };
 
-pub const NIL: u32 = 0b00000000000000000000000000011111;
-pub const ZAP: u32 = 0b11111111111111111111111111111111;
+pub const Semispace = enum(u1) {
+    space0 = 0,
+    space1 = 1,
 
-pub fn type1(x: u32) Tag1 {
-    if (x == NIL) {
-        return .nil;
+    pub const mask = @as(u32, 1) << 31;
+
+    pub fn other(self: Semispace) Semispace {
+        return switch (self) {
+            .space0 => .space1,
+            .space1 => .space0,
+        };
     }
 
-    return switch (@intCast(u3, x & 0b111)) {
-        0b000 => .fixnum,
-        0b001 => .symbol,
-        0b010 => .cons,
-        0b011 => .other,
-        0b100 => .fixnum,
-        0b101 => .primop,
-        0b110 => .string,
-        0b111 => switch (x & ~@as(u11, 0)) {
-            0b111 => Tag1.glyph,
-            0b1111 => Tag1.package,
-            else => unreachable,
-        },
-    };
-}
+    pub fn word(self: Semispace) u32 {
+        return switch (self) {
+            .space0 => 0,
+            .space1 => @as(u32, 1) << 31,
+        };
+    }
+
+    pub fn makePointer(semispace: Semispace, x: Pointer) u32 {
+        return semispace.word() | x.raw();
+    }
+
+    pub fn of(x: u32) Semispace {
+        return if (x & mask == 0) .space0 else .space1;
+    }
+};
 
 pub fn encodeFixnum(x: u30) u32 {
     return x << 2;
@@ -340,10 +465,10 @@ pub fn dumpDataStderr(self: *Data) !void {
 }
 
 pub fn dumpData(self: *Data, out: anytype) !void {
-    try dumpMultiArrayList(out, "symbols", self.symbols);
-    try dumpMultiArrayList(out, "packages", self.packages);
-    try dumpMultiArrayList(out, "conses", self.conses);
-    try dumpMultiArrayList(out, "strings", self.strings);
+    try dumpMultiArrayList(out, "symbols", self.stuff.symbol);
+    try dumpMultiArrayList(out, "packages", self.stuff.package);
+    try dumpMultiArrayList(out, "conses", self.stuff.cons);
+    try dumpMultiArrayList(out, "strings", self.stuff.string);
 
     try out.print(
         "* stringBytes\n  {s}\n",
@@ -364,28 +489,36 @@ test "intern string" {
     var data = try Data.init(std.testing.allocator);
     defer data.deinit();
 
-    const x = try data.internString("FOO", 0);
+    const x = Word.from(
+        try data.internStringInBasePackage("FOO"),
+    );
 
-    try expectEqual(Tag1.symbol, type1(x));
+    try expectEqual(@as(u29, 0), x.pointer.symbol);
 }
 
 test "cons" {
     var data = try Data.init(std.testing.allocator);
     defer data.deinit();
 
-    const x = try data.addCons(.{
+    const x = try data.append(.cons, .{
         .car = encodeFixnum(1),
         .cdr = encodeFixnum(2),
     });
 
-    try expectEqual(Tag1.cons, type1(x));
     try expectEqual(encodeFixnum(1), try data.car(x));
     try expectEqual(encodeFixnum(2), try data.cdr(x));
 }
 
 test "fixnum lowtag" {
-    try expectEqual(Tag1.fixnum, type1(encodeFixnum(0)));
-    try expectEqual(Tag1.fixnum, type1(encodeFixnum(1)));
+    try expectEqual(
+        Word{ .immediate = .{ .fixnum = 0 } },
+        Word.from(encodeFixnum(0)),
+    );
+
+    try expectEqual(
+        Word{ .immediate = .{ .fixnum = 1 } },
+        Word.from(encodeFixnum(1)),
+    );
 }
 
 test "fixnum roundtrip" {

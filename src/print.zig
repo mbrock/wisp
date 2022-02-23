@@ -11,17 +11,17 @@ test "print one" {
 
 pub fn expect(
     expected: []const u8,
-    data: wisp.Data,
+    data: *wisp.Data,
     x: u32,
 ) !void {
-    var actual = try printAlloc(std.testing.allocator, &data, x);
+    var actual = try printAlloc(std.testing.allocator, data, x);
     defer std.testing.allocator.free(actual);
     try std.testing.expectEqualStrings(expected, actual);
 }
 
 pub fn printAlloc(
     allocator: std.mem.Allocator,
-    data: *const wisp.Data,
+    data: *wisp.Data,
     word: u32,
 ) ![]const u8 {
     var list = std.ArrayList(u8).init(allocator);
@@ -36,72 +36,91 @@ pub fn dump(prefix: []const u8, ctx: *wisp.Data, word: u32) !void {
 }
 
 pub fn print(
-    ctx: *const wisp.Data,
+    ctx: *wisp.Data,
     out: anytype,
-    x: u32,
+    value: u32,
 ) anyerror!void {
-    switch (wisp.type1(x)) {
-        .nil => {
-            try out.print("NIL", .{});
-        },
+    switch (wisp.Word.from(value)) {
+        .immediate => |immediate| {
+            switch (immediate) {
+                .nil => {
+                    try out.print("NIL", .{});
+                },
 
-        .fixnum => {
-            try out.print("{d}", .{wisp.decodeFixnum(x)});
-        },
+                .fixnum => |x| {
+                    try out.print("{d}", .{x});
+                },
 
-        .symbol => {
-            const nameIdx = ctx.symbols.items(.name)[ctx.pointerToIndex(x)];
-            const name = ctx.stringSlice(nameIdx);
-            try out.print("{s}", .{name});
-        },
+                .primop => {
+                    try out.print("<primop>", .{});
+                },
 
-        .string => {
-            const s = ctx.stringSlice(x);
-            try out.print("\"{s}\"", .{s});
-        },
+                .glyph => {
+                    try out.print("<glyph>", .{});
+                },
 
-        .cons => {
-            try out.print("(", .{});
-            var cur = x;
-
-            loop: while (cur != wisp.NIL) {
-                var cons = try ctx.cons(cur);
-                try print(ctx, out, cons.car);
-                switch (wisp.type1(cons.cdr)) {
-                    .cons => {
-                        try out.print(" ", .{});
-                        cur = cons.cdr;
-                    },
-
-                    .nil => {
-                        break :loop;
-                    },
-
-                    else => {
-                        try out.print(" . ", .{});
-                        try print(ctx, out, cons.cdr);
-                        break :loop;
-                    },
-                }
+                else => unreachable,
             }
-
-            try out.print(")", .{});
         },
 
-        .other => {
-            try out.print("<other>", .{});
-        },
+        .pointer => |pointer| {
+            switch (pointer) {
+                .symbol => {
+                    const offset = pointer.offset(.symbol, ctx.semispace);
+                    const nameIdx = ctx.stuff.symbol.items(.name)[offset];
+                    const name = ctx.stringSlice(nameIdx);
+                    try out.print("{s}", .{name});
+                },
 
-        .package => {
-            try out.print("<package>", .{});
-        },
+                .string => {
+                    const s = ctx.stringSlice(value);
+                    try out.print("\"{s}\"", .{s});
+                },
 
-        .primop => {
-            try out.print("<primop>", .{});
-        },
+                .cons => {
+                    try out.print("(", .{});
+                    var cur = value;
 
-        .glyph => {
-            try out.print("<glyph>", .{});
+                    loop: while (cur != wisp.NIL) {
+                        var cons = try ctx.deref(.cons, cur);
+                        try print(ctx, out, cons.car);
+                        switch (wisp.Word.from(cons.cdr)) {
+                            .pointer => |pointer2| {
+                                switch (pointer2) {
+                                    .cons => {
+                                        try out.print(" ", .{});
+                                        cur = cons.cdr;
+                                    },
+                                    else => {
+                                        try out.print(" . ", .{});
+                                        try print(ctx, out, cons.cdr);
+                                        break :loop;
+                                    },
+                                }
+                            },
+
+                            .immediate => |immediate| {
+                                switch (immediate) {
+                                    .nil => {
+                                        break :loop;
+                                    },
+                                    else => {
+                                        try out.print(" . ", .{});
+                                        try print(ctx, out, cons.cdr);
+                                        break :loop;
+                                    },
+                                }
+                            },
+                        }
+                    }
+
+                    try out.print(")", .{});
+                },
+
+                .package => {
+                    try out.print("<package>", .{});
+                },
+            }
         },
     }
 }
@@ -141,7 +160,7 @@ test "print lists" {
     try expectPrintResult(
         &ctx,
         "(1 . 2)",
-        try ctx.addCons(.{
+        try ctx.append(.cons, .{
             .car = wisp.encodeFixnum(1),
             .cdr = wisp.encodeFixnum(2),
         }),
@@ -155,7 +174,7 @@ test "print symbols" {
     try expectPrintResult(
         &ctx,
         "FOO",
-        try ctx.internString("FOO", 0),
+        try ctx.internStringInBasePackage("FOO"),
     );
 }
 
