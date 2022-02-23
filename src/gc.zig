@@ -61,6 +61,7 @@ pub fn scavenge(self: *GC) !void {
         done = (try self.scavengeThing(.symbols)) and done;
         done = (try self.scavengeThing(.packages)) and done;
         done = (try self.scavengeThing(.conses)) and done;
+        done = (try self.scavengeThing(.strings)) and done;
     }
 }
 

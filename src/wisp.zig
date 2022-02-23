@@ -19,8 +19,8 @@ pub const Tag1 = enum {
 };
 
 pub const String = struct {
-    offset0: u32,
-    offset1: u32,
+    offset: u32,
+    length: u32,
 };
 
 pub const Symbol = struct {
@@ -162,8 +162,8 @@ pub const Data = struct {
 
         try self.stringBytes.appendSlice(self.gpa, text);
         try self.strings.append(self.gpa, String{
-            .offset0 = offset,
-            .offset1 = offset + length,
+            .offset = encodeFixnum(offset),
+            .length = encodeFixnum(length),
         });
 
         return i;
@@ -177,8 +177,8 @@ pub const Data = struct {
     pub fn stringSlice(self: *const Data, ptr: u32) []const u8 {
         const idx = self.pointerToIndex(ptr);
         const string: String = self.strings.get(idx);
-        const offset0 = string.offset0;
-        const offset1 = string.offset1;
+        const offset0 = decodeFixnum(string.offset);
+        const offset1 = offset0 + decodeFixnum(string.length);
         return self.stringBytes.items[offset0..offset1];
     }
 
