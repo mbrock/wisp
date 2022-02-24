@@ -126,6 +126,7 @@ pub const Pointer = union(Kind) {
 };
 
 pub const Word = union(Tag0) {
+    pub const zap = Word.from(ZAP);
     pub const nil = Word.from(NIL);
 
     immediate: Immediate,
@@ -134,6 +135,10 @@ pub const Word = union(Tag0) {
     pub fn from(x: u32) Word {
         if (x == NIL) {
             return Word{ .immediate = .{ .nil = .{} } };
+        }
+
+        if (x == ZAP) {
+            return Word{ .immediate = .{ .zap = .{} } };
         }
 
         return switch (@intCast(u3, x & 0b111)) {
@@ -251,7 +256,7 @@ pub const String = struct {
 pub const Symbol = struct {
     name: u32,
     package: u32,
-    value: u32 = NIL,
+    value: u32 = ZAP,
 };
 
 pub const Package = struct {

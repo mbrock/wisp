@@ -43,11 +43,21 @@ pub fn step(this: *Eval) !void {
                 .pointer => |x| {
                     switch (x) {
                         .string => this.doneWithTerm(t),
+                        .symbol => return this.findVariable(t),
                         else => return Error.Nope,
                     }
                 },
             }
         },
+    }
+}
+
+fn findVariable(this: *Eval, word: Word) !void {
+    const value = (try this.heap.symbolValue(word.raw())).*;
+    if (value == wisp.ZAP) {
+        return Error.Nope;
+    } else {
+        this.doneWithTerm(Word.from(value));
     }
 }
 
@@ -77,4 +87,19 @@ test "eval string" {
 
     try ctx.step();
     try expectEqual(Term{ .done = term }, ctx.term);
+}
+
+test "eval variable" {
+    var heap = try newTestHeap();
+    defer heap.deinit();
+
+    const x = try heap.internStringInBasePackage("X");
+    const foo = try heap.addString("foo");
+
+    var ctx = newTestEval(&heap, Word.from(x));
+
+    (try heap.symbolValue(x)).* = foo;
+
+    try ctx.step();
+    try expectEqual(Term{ .done = Word.from(foo) }, ctx.term);
 }
