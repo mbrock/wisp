@@ -86,6 +86,7 @@ pub const Pointer = union(Kind) {
     symbol: u29,
     string: u29,
     package: u21,
+    argsPlan: u21,
 
     pub fn make(comptime this: Kind, x: u32) Word {
         return Word{
@@ -103,6 +104,7 @@ pub const Pointer = union(Kind) {
             .symbol => |x| Kind.castOffsetToWord(.symbol, x),
             .string => |x| Kind.castOffsetToWord(.string, x),
             .package => |x| Kind.castOffsetToWord(.package, x),
+            .argsPlan => |x| Kind.castOffsetToWord(.argsPlan, x),
         };
     }
 
@@ -164,6 +166,7 @@ pub const Kind = enum {
     symbol,
     package,
     string,
+    argsPlan,
 
     pub fn valueType(kind: Kind) type {
         return switch (kind) {
@@ -171,13 +174,20 @@ pub const Kind = enum {
             .symbol => Symbol,
             .package => Package,
             .string => String,
+            .argsPlan => ArgsPlan,
         };
     }
 
     pub fn tagBits(comptime this: Kind) comptime_int {
         return switch (this) {
-            .cons, .symbol, .string => 3,
-            .package => 11,
+            .cons,
+            .symbol,
+            .string,
+            => 3,
+
+            .package,
+            .argsPlan,
+            => 11,
         };
     }
 
@@ -187,6 +197,7 @@ pub const Kind = enum {
             .symbol => 0b001,
             .string => 0b110,
             .package => 0b00000010111,
+            .argsPlan => 0b00000011111,
         };
     }
 
@@ -209,6 +220,7 @@ pub const Kind = enum {
             .symbol => std.MultiArrayList(Symbol){},
             .package => std.MultiArrayList(Package){},
             .string => std.MultiArrayList(String){},
+            .argsPlan => std.MultiArrayList(ArgsPlan){},
         };
     }
 };
@@ -248,6 +260,14 @@ pub const Package = struct {
 pub const Cons = struct {
     car: u32,
     cdr: u32,
+};
+
+pub const ArgsPlan = struct {
+    next: u32,
+    scopes: u32,
+    callee: u32,
+    values: u32,
+    terms: u32,
 };
 
 fn SliceOf(comptime t: type) type {

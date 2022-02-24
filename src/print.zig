@@ -121,6 +121,10 @@ pub fn print(
                 .package => {
                     try out.print("<package>", .{});
                 },
+
+                .argsPlan => {
+                    try out.print("<argsplan>", .{});
+                },
             }
         },
     }
