@@ -19,12 +19,12 @@ pub const ImmediateTag = enum {
     fixnum,
     primop,
     glyph,
-    marker,
+    zap,
 };
 
 pub const Immediate = union(ImmediateTag) {
     nil: void,
-    marker: void,
+    zap: void,
     fixnum: u30,
     primop: u29,
     glyph: u21,
@@ -32,7 +32,7 @@ pub const Immediate = union(ImmediateTag) {
     pub fn raw(x: Immediate) u32 {
         return switch (x) {
             .nil => NIL,
-            .marker => ZAP,
+            .zap => ZAP,
             .fixnum => encodeFixnum(x.fixnum),
             .primop => unreachable,
             .glyph => unreachable,
@@ -196,11 +196,11 @@ pub fn EnumFieldMultiArrays(comptime E: type) type {
     } });
 }
 
-pub const Data = struct {
+pub const Heap = struct {
     gpa: std.mem.Allocator,
     semispace: Semispace = .space0,
     stringBytes: std.ArrayListUnmanaged(u8) = .{},
-    stuff: EnumFieldMultiArrays(Kind) = .{},
+    data: EnumFieldMultiArrays(Kind) = .{},
 
     pub const Slices = struct {
         symbols: SliceOf(Symbol),
@@ -210,13 +210,13 @@ pub const Data = struct {
     };
 
     pub fn kindContainer(
-        data: *Data,
+        self: *Heap,
         comptime kind: Kind,
     ) *std.MultiArrayList(kind.valueType()) {
-        return &@field(data.stuff, @tagName(kind));
+        return &@field(self.data, @tagName(kind));
     }
 
-    pub fn slices(self: Data) Slices {
+    pub fn slices(self: Heap) Slices {
         return Slices{
             .symbols = self.symbols.slice(),
             .packages = self.packages.slice(),
@@ -225,44 +225,44 @@ pub const Data = struct {
         };
     }
 
-    pub fn init(gpa: std.mem.Allocator) !Data {
-        var data = Data{
+    pub fn init(gpa: std.mem.Allocator) !Heap {
+        var self = Heap{
             .gpa = gpa,
         };
 
-        try data.stuff.package.append(gpa, Package{
-            .name = try data.addString("WISP"),
+        try self.data.package.append(gpa, Package{
+            .name = try self.addString("WISP"),
         });
 
-        return data;
+        return self;
     }
 
-    pub fn makePointer(self: Data, x: Pointer) u32 {
+    pub fn makePointer(self: Heap, x: Pointer) u32 {
         return self.semispace.makePointer(x);
     }
 
-    pub fn alloc(self: *Data, comptime t: Kind, x: t.valueType()) !t.offsetType() {
+    pub fn alloc(self: *Heap, comptime t: Kind, x: t.valueType()) !t.offsetType() {
         var container = self.kindContainer(t);
         const i = @intCast(t.offsetType(), container.len);
         try container.append(self.gpa, x);
         return i;
     }
 
-    pub fn append(self: *Data, comptime t: Kind, x: t.valueType()) !u32 {
+    pub fn append(self: *Heap, comptime t: Kind, x: t.valueType()) !u32 {
         const pointer = @unionInit(Pointer, @tagName(t), try self.alloc(t, x));
         return self.makePointer(pointer);
     }
 
-    pub fn deinit(self: *Data) void {
+    pub fn deinit(self: *Heap) void {
         inline for (std.meta.fields(Kind)) |field| {
-            @field(self.stuff, field.name).deinit(self.gpa);
+            @field(self.data, field.name).deinit(self.gpa);
         }
 
         self.stringBytes.deinit(self.gpa);
         self.* = .{ .gpa = self.gpa };
     }
 
-    pub fn allocString(self: *Data, text: []const u8) !u29 {
+    pub fn allocString(self: *Heap, text: []const u8) !u29 {
         const offset = @intCast(u30, self.stringBytes.items.len);
         const length = @intCast(u30, text.len);
 
@@ -273,36 +273,36 @@ pub const Data = struct {
         });
     }
 
-    pub fn addString(self: *Data, text: []const u8) !u32 {
+    pub fn addString(self: *Heap, text: []const u8) !u32 {
         const idx = try self.allocString(text);
         return self.makePointer(.{ .string = idx });
     }
 
-    pub fn stringSlice(self: *const Data, ptr: u32) []const u8 {
+    pub fn stringSlice(self: *const Heap, ptr: u32) []const u8 {
         const idx = Word.from(ptr).pointer.offset(.string, self.semispace);
-        const string: String = self.stuff.string.get(idx);
+        const string: String = self.data.string.get(idx);
         const offset0 = decodeFixnum(string.offset);
         const offset1 = offset0 + decodeFixnum(string.length);
         return self.stringBytes.items[offset0..offset1];
     }
 
-    pub fn internStringInBasePackage(self: *Data, name: []const u8) !u32 {
+    pub fn internStringInBasePackage(self: *Heap, name: []const u8) !u32 {
         return self.internString(name, self.basePackage());
     }
 
-    pub fn basePackage(self: *Data) u32 {
+    pub fn basePackage(self: *Heap) u32 {
         const x = self.makePointer(.{ .package = 0 });
         return x;
     }
 
     pub fn internString(
-        self: *Data,
+        self: *Heap,
         name: []const u8,
         package: u32,
     ) !u32 {
         const packageIdx = Word.from(package).pointer.offset(.package, self.semispace);
-        var symbols = &self.stuff.package.items(.symbols)[packageIdx];
-        const symbolNames = self.stuff.symbol.items(.name);
+        var symbols = &self.data.package.items(.symbols)[packageIdx];
+        const symbolNames = self.data.symbol.items(.name);
 
         var cur = symbols.*;
         while (cur != NIL) {
@@ -319,9 +319,9 @@ pub const Data = struct {
         }
 
         const stringIdx = try self.allocString(name);
-        const symbolIdx = @intCast(u29, self.stuff.symbol.len);
+        const symbolIdx = @intCast(u29, self.data.symbol.len);
 
-        try self.stuff.symbol.append(self.gpa, .{
+        try self.data.symbol.append(self.gpa, .{
             .name = self.makePointer(.{ .string = stringIdx }),
             .package = packageIdx,
         });
@@ -336,38 +336,38 @@ pub const Data = struct {
         return ptr;
     }
 
-    pub fn symbolValue(self: *Data, ptr: u32) !*u32 {
+    pub fn symbolValue(self: *Heap, ptr: u32) !*u32 {
         const i = self.getOffset(.symbol, ptr);
-        return &self.stuff.symbol.items(.value)[i];
+        return &self.data.symbol.items(.value)[i];
     }
 
-    fn pointerWord(self: *const Data, ptr: u32) Word {
+    fn pointerWord(self: *const Heap, ptr: u32) Word {
         const word = Word.from(ptr);
         assert(word.pointer.semispace() == self.semispace);
         return word;
     }
 
     pub fn deref(
-        self: *Data,
+        self: *Heap,
         comptime kind: Kind,
         x: u32,
     ) !kind.valueType() {
         return self.kindContainer(kind).get(self.getOffset(kind, x));
     }
 
-    pub fn getOffset(self: *Data, comptime kind: Kind, x: u32) kind.offsetType() {
+    pub fn getOffset(self: *Heap, comptime kind: Kind, x: u32) kind.offsetType() {
         return Word.from(x).pointer.offset(kind, self.semispace);
     }
 
-    pub fn car(self: *Data, ptr: u32) !u32 {
+    pub fn car(self: *Heap, ptr: u32) !u32 {
         return (try self.deref(.cons, ptr)).car;
     }
 
-    pub fn cdr(self: *Data, ptr: u32) !u32 {
+    pub fn cdr(self: *Heap, ptr: u32) !u32 {
         return (try self.deref(.cons, ptr)).cdr;
     }
 
-    pub fn list(self: *Data, xs: anytype) !u32 {
+    pub fn list(self: *Heap, xs: anytype) !u32 {
         var result = NIL;
         var i: usize = 0;
         while (i < xs.len) : (i += 1) {
@@ -419,17 +419,17 @@ pub fn decodeFixnum(x: u32) u30 {
 }
 
 fn expectParsingRoundtrip(text: []const u8) !void {
-    var ctx = try Data.init(std.testing.allocator);
-    defer ctx.deinit();
+    var heap = try Heap.init(std.testing.allocator);
+    defer heap.deinit();
 
     var list = std.ArrayList(u8).init(std.testing.allocator);
     defer list.deinit();
     const writer = list.writer();
 
-    const x = try read(&ctx, text);
-    // try dumpDataStderr(&ctx);
+    const x = try read(&heap, text);
+    // try dumpDataStderr(&heap);
 
-    try print(&ctx, &writer, x);
+    try print(&heap, &writer, x);
     try std.testing.expectEqualStrings(text, list.items);
 }
 
@@ -460,15 +460,15 @@ pub fn dumpHashMap(out: anytype, name: []const u8, x: anytype) !void {
     }
 }
 
-pub fn dumpDataStderr(self: *Data) !void {
+pub fn dumpDataStderr(self: *Heap) !void {
     try dumpData(self, std.io.getStdErr().writer());
 }
 
-pub fn dumpData(self: *Data, out: anytype) !void {
-    try dumpMultiArrayList(out, "symbols", self.stuff.symbol);
-    try dumpMultiArrayList(out, "packages", self.stuff.package);
-    try dumpMultiArrayList(out, "conses", self.stuff.cons);
-    try dumpMultiArrayList(out, "strings", self.stuff.string);
+pub fn dumpData(self: *Heap, out: anytype) !void {
+    try dumpMultiArrayList(out, "symbols", self.data.symbol);
+    try dumpMultiArrayList(out, "packages", self.data.package);
+    try dumpMultiArrayList(out, "conses", self.data.cons);
+    try dumpMultiArrayList(out, "strings", self.data.string);
 
     try out.print(
         "* stringBytes\n  {s}\n",
@@ -481,32 +481,32 @@ test {
 }
 
 test "initialize wisp" {
-    var data = try Data.init(std.testing.allocator);
-    defer data.deinit();
+    var heap = try Heap.init(std.testing.allocator);
+    defer heap.deinit();
 }
 
 test "intern string" {
-    var data = try Data.init(std.testing.allocator);
-    defer data.deinit();
+    var heap = try Heap.init(std.testing.allocator);
+    defer heap.deinit();
 
     const x = Word.from(
-        try data.internStringInBasePackage("FOO"),
+        try heap.internStringInBasePackage("FOO"),
     );
 
     try expectEqual(@as(u29, 0), x.pointer.symbol);
 }
 
 test "cons" {
-    var data = try Data.init(std.testing.allocator);
-    defer data.deinit();
+    var heap = try Heap.init(std.testing.allocator);
+    defer heap.deinit();
 
-    const x = try data.append(.cons, .{
+    const x = try heap.append(.cons, .{
         .car = encodeFixnum(1),
         .cdr = encodeFixnum(2),
     });
 
-    try expectEqual(encodeFixnum(1), try data.car(x));
-    try expectEqual(encodeFixnum(2), try data.cdr(x));
+    try expectEqual(encodeFixnum(1), try heap.car(x));
+    try expectEqual(encodeFixnum(2), try heap.cdr(x));
 }
 
 test "fixnum lowtag" {

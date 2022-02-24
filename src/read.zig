@@ -2,6 +2,7 @@ const std = @import("std");
 const ziglyph = @import("ziglyph");
 
 const wisp = @import("./wisp.zig");
+const Heap = wisp.Heap;
 
 const Error = error{
     ReadError,
@@ -11,7 +12,7 @@ const Error = error{
 const Reader = @This();
 
 utf8: std.unicode.Utf8Iterator,
-data: *wisp.Data,
+heap: *Heap,
 
 fn readValue(self: *Reader) anyerror!u32 {
     try self.skipSpace();
@@ -84,13 +85,13 @@ fn readWhile(
 fn readSymbol(self: *Reader) !u32 {
     const text = try self.readWhile(isSymbolCharacter);
     const uppercase = try ziglyph.toUpperStr(
-        self.data.gpa,
+        self.heap.gpa,
         text,
     );
 
-    defer self.data.gpa.free(uppercase);
+    defer self.heap.gpa.free(uppercase);
 
-    return try self.data.internStringInBasePackage(uppercase);
+    return try self.heap.internStringInBasePackage(uppercase);
 }
 
 fn readNumber(self: *Reader) !u32 {
@@ -114,7 +115,7 @@ fn readString(self: *Reader) !u32 {
     try self.skipOnly('"');
     const text = try self.readWhile(isNotEndOfString);
     try self.skipOnly('"');
-    return try self.data.addString(text);
+    return try self.heap.addString(text);
 }
 
 fn readList(self: *Reader) !u32 {
@@ -147,7 +148,7 @@ fn readListTail(self: *Reader) anyerror!u32 {
                 const car = try self.readValue();
                 const cdr = try self.readListTail();
 
-                return self.data.append(.cons, .{
+                return self.heap.append(.cons, .{
                     .car = car,
                     .cdr = cdr,
                 });
@@ -208,22 +209,22 @@ fn isSymbolCharacter(c: u21) bool {
     }
 }
 
-pub fn read(data: *wisp.Data, stream: []const u8) !u32 {
+pub fn read(heap: *Heap, stream: []const u8) !u32 {
     var reader = Reader{
         .utf8 = (try std.unicode.Utf8View.init(stream)).iterator(),
-        .data = data,
+        .heap = heap,
     };
 
     return reader.readValue();
 }
 
 test "read symbol uppercasing" {
-    var data = try wisp.Data.init(std.testing.allocator);
-    defer data.deinit();
+    var heap = try Heap.init(std.testing.allocator);
+    defer heap.deinit();
 
-    const symbol = try read(&data, "foobar");
-    const symbolData = try data.deref(.symbol, symbol);
-    const symbolName = data.stringSlice(symbolData.name);
+    const symbol = try read(&heap, "foobar");
+    const symbolData = try heap.deref(.symbol, symbol);
+    const symbolName = heap.stringSlice(symbolData.name);
 
     try std.testing.expectEqualStrings(
         "FOOBAR",

@@ -8,26 +8,26 @@ const wisp = @import("./wisp.zig");
 const read = @import("./read.zig").read;
 const printer = @import("./print.zig");
 
-const Data = wisp.Data;
+const Heap = wisp.Heap;
 
 const GC = @This();
 
 const Progress = EnumArray(wisp.Kind, usize);
 
-old: *Data,
-new: Data,
+old: *Heap,
+new: Heap,
 progress: Progress = Progress.initFill(0),
 
-pub fn tidy(data: *Data) !void {
-    var gc = try GC.init(data);
+pub fn tidy(heap: *Heap) !void {
+    var gc = try GC.init(heap);
     defer gc.deinit();
     try gc.copyRoots();
     try gc.scavenge();
-    data.* = gc.finalize();
+    heap.* = gc.finalize();
 }
 
-pub fn init(old: *Data) !GC {
-    var new = Data{
+pub fn init(old: *Heap) !GC {
+    var new = Heap{
         .semispace = old.semispace.other(),
         .gpa = old.gpa,
         .stringBytes = old.stringBytes,
@@ -43,14 +43,14 @@ pub fn deinit(self: *GC) void {
     _ = self;
 }
 
-fn finalize(self: *GC) Data {
+fn finalize(self: *GC) Heap {
     self.old.stringBytes = .{};
     self.old.deinit();
     return self.new;
 }
 
 fn copyRoots(self: *GC) !void {
-    self.new.stuff.package = try self.old.stuff.package.clone(self.new.gpa);
+    self.new.data.package = try self.old.data.package.clone(self.new.gpa);
 }
 
 fn copy(self: *GC, x: u32) !u32 {
@@ -72,6 +72,7 @@ fn copyValue(self: *GC, comptime kind: wisp.Kind, ptr: u32) !u32 {
     if (wisp.Semispace.of(ptr) == self.new.semispace) {
         return ptr;
     }
+
     const oldContainer = self.old.kindContainer(kind);
 
     const Field = std.meta.FieldEnum(kind.valueType());
@@ -152,72 +153,72 @@ fn scavengeFields(
 }
 
 test "garbage collection of conses" {
-    var data = try Data.init(testGpa);
+    var heap = try Heap.init(testGpa);
 
-    defer data.deinit();
+    defer heap.deinit();
 
-    _ = try data.append(.cons, .{
+    _ = try heap.append(.cons, .{
         .car = wisp.encodeFixnum(1),
         .cdr = wisp.encodeFixnum(2),
     });
 
-    const yData = wisp.Cons{
+    const cons = wisp.Cons{
         .car = wisp.encodeFixnum(3),
         .cdr = wisp.encodeFixnum(4),
     };
 
-    const y = try data.append(.cons, yData);
+    const cons1 = try heap.append(.cons, cons);
 
-    var gc = try GC.init(&data);
+    var gc = try GC.init(&heap);
     defer gc.deinit();
 
-    const y2 = try gc.copy(y);
+    const cons2 = try gc.copy(cons1);
 
     try gc.scavenge();
 
-    data = gc.finalize();
+    heap = gc.finalize();
 
-    try expectEqual(data.stuff.cons.len, 1);
-    try expectEqual(yData, try data.deref(.cons, y2));
+    try expectEqual(heap.data.cons.len, 1);
+    try expectEqual(cons, try heap.deref(.cons, cons2));
 }
 
 test "read and gc" {
-    var data = try Data.init(testGpa);
-    defer data.deinit();
+    var heap = try Heap.init(testGpa);
+    defer heap.deinit();
 
-    const t1 = try read(&data, "(foo (bar (baz)))");
-    const v1 = try data.internStringInBasePackage("X");
+    const t1 = try read(&heap, "(foo (bar (baz)))");
+    const v1 = try heap.internStringInBasePackage("X");
 
-    (try data.symbolValue(v1)).* = t1;
-    try tidy(&data);
+    (try heap.symbolValue(v1)).* = t1;
+    try tidy(&heap);
 
-    try expectEqual(wisp.Semispace.space1, data.semispace);
+    try expectEqual(wisp.Semispace.space1, heap.semispace);
 
-    const v2 = try data.internStringInBasePackage("X");
-    const t2 = (try data.symbolValue(v2)).*;
+    const v2 = try heap.internStringInBasePackage("X");
+    const t2 = (try heap.symbolValue(v2)).*;
 
-    try printer.expect("(FOO (BAR (BAZ)))", &data, t2);
+    try printer.expect("(FOO (BAR (BAZ)))", &heap, t2);
 }
 
 test "gc ephemeral strings" {
-    var data = try Data.init(testGpa);
+    var heap = try Heap.init(testGpa);
 
-    defer data.deinit();
+    defer heap.deinit();
 
-    const x = try read(&data,
+    const x = try read(&heap,
         \\ ("foo" "bar" "baz")
     );
 
-    const foo = try data.car(x);
-    (try data.symbolValue(
-        try data.internStringInBasePackage("X"),
+    const foo = try heap.car(x);
+    (try heap.symbolValue(
+        try heap.internStringInBasePackage("X"),
     )).* = foo;
 
-    const stringCount1 = data.stuff.string.len;
+    const stringCount1 = heap.data.string.len;
 
-    try tidy(&data);
+    try tidy(&heap);
 
-    const stringCount2 = data.stuff.string.len;
+    const stringCount2 = heap.data.string.len;
 
     try expectEqual(stringCount1 - 2, stringCount2);
 }

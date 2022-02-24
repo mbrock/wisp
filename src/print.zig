@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const wisp = @import("./wisp.zig");
+const Heap = wisp.Heap;
 
 test "print one" {
     var list = std.ArrayList(u8).init(std.testing.allocator);
@@ -11,32 +12,32 @@ test "print one" {
 
 pub fn expect(
     expected: []const u8,
-    data: *wisp.Data,
+    heap: *Heap,
     x: u32,
 ) !void {
-    var actual = try printAlloc(std.testing.allocator, data, x);
+    var actual = try printAlloc(std.testing.allocator, heap, x);
     defer std.testing.allocator.free(actual);
     try std.testing.expectEqualStrings(expected, actual);
 }
 
 pub fn printAlloc(
     allocator: std.mem.Allocator,
-    data: *wisp.Data,
+    heap: *Heap,
     word: u32,
 ) ![]const u8 {
     var list = std.ArrayList(u8).init(allocator);
-    try print(data, list.writer(), word);
+    try print(heap, list.writer(), word);
     return list.toOwnedSlice();
 }
 
-pub fn dump(prefix: []const u8, ctx: *wisp.Data, word: u32) !void {
-    var s = try printAlloc(ctx.gpa, ctx, word);
+pub fn dump(prefix: []const u8, heap: *Heap, word: u32) !void {
+    var s = try printAlloc(heap.gpa, heap, word);
     std.log.warn("{s} {s}", .{ prefix, s });
-    ctx.gpa.free(s);
+    heap.gpa.free(s);
 }
 
 pub fn print(
-    ctx: *wisp.Data,
+    heap: *Heap,
     out: anytype,
     value: u32,
 ) anyerror!void {
@@ -66,14 +67,14 @@ pub fn print(
         .pointer => |pointer| {
             switch (pointer) {
                 .symbol => {
-                    const offset = pointer.offset(.symbol, ctx.semispace);
-                    const nameIdx = ctx.stuff.symbol.items(.name)[offset];
-                    const name = ctx.stringSlice(nameIdx);
+                    const offset = pointer.offset(.symbol, heap.semispace);
+                    const nameIdx = heap.data.symbol.items(.name)[offset];
+                    const name = heap.stringSlice(nameIdx);
                     try out.print("{s}", .{name});
                 },
 
                 .string => {
-                    const s = ctx.stringSlice(value);
+                    const s = heap.stringSlice(value);
                     try out.print("\"{s}\"", .{s});
                 },
 
@@ -82,8 +83,8 @@ pub fn print(
                     var cur = value;
 
                     loop: while (cur != wisp.NIL) {
-                        var cons = try ctx.deref(.cons, cur);
-                        try print(ctx, out, cons.car);
+                        var cons = try heap.deref(.cons, cur);
+                        try print(heap, out, cons.car);
                         switch (wisp.Word.from(cons.cdr)) {
                             .pointer => |pointer2| {
                                 switch (pointer2) {
@@ -93,7 +94,7 @@ pub fn print(
                                     },
                                     else => {
                                         try out.print(" . ", .{});
-                                        try print(ctx, out, cons.cdr);
+                                        try print(heap, out, cons.cdr);
                                         break :loop;
                                     },
                                 }
@@ -106,7 +107,7 @@ pub fn print(
                                     },
                                     else => {
                                         try out.print(" . ", .{});
-                                        try print(ctx, out, cons.cdr);
+                                        try print(heap, out, cons.cdr);
                                         break :loop;
                                     },
                                 }
@@ -125,30 +126,30 @@ pub fn print(
     }
 }
 
-fn expectPrintResult(ctx: *wisp.Data, expected: []const u8, x: u32) !void {
+fn expectPrintResult(heap: *Heap, expected: []const u8, x: u32) !void {
     var list = std.ArrayList(u8).init(std.testing.allocator);
     defer list.deinit();
     const writer = list.writer();
 
-    try print(ctx, &writer, x);
+    try print(heap, &writer, x);
     try std.testing.expectEqualStrings(expected, list.items);
 }
 
 test "print fixnum" {
-    var ctx = try wisp.Data.init(std.testing.allocator);
-    defer ctx.deinit();
+    var heap = try Heap.init(std.testing.allocator);
+    defer heap.deinit();
 
-    try expectPrintResult(&ctx, "1", wisp.encodeFixnum(1));
+    try expectPrintResult(&heap, "1", wisp.encodeFixnum(1));
 }
 
 test "print lists" {
-    var ctx = try wisp.Data.init(std.testing.allocator);
-    defer ctx.deinit();
+    var heap = try Heap.init(std.testing.allocator);
+    defer heap.deinit();
 
     try expectPrintResult(
-        &ctx,
+        &heap,
         "(1 2 3)",
-        try ctx.list(
+        try heap.list(
             [_]u32{
                 wisp.encodeFixnum(1),
                 wisp.encodeFixnum(2),
@@ -158,9 +159,9 @@ test "print lists" {
     );
 
     try expectPrintResult(
-        &ctx,
+        &heap,
         "(1 . 2)",
-        try ctx.append(.cons, .{
+        try heap.append(.cons, .{
             .car = wisp.encodeFixnum(1),
             .cdr = wisp.encodeFixnum(2),
         }),
@@ -168,34 +169,34 @@ test "print lists" {
 }
 
 test "print symbols" {
-    var ctx = try wisp.Data.init(std.testing.allocator);
-    defer ctx.deinit();
+    var heap = try Heap.init(std.testing.allocator);
+    defer heap.deinit();
 
     try expectPrintResult(
-        &ctx,
+        &heap,
         "FOO",
-        try ctx.internStringInBasePackage("FOO"),
+        try heap.internStringInBasePackage("FOO"),
     );
 }
 
 // test "print structs" {
-//     var ctx = try wisp.Data.init(std.testing.allocator);
-//     defer ctx.deinit();
+//     var heap = try Heap.init(std.testing.allocator);
+//     defer heap.deinit();
 
 //     try expectPrintResult(
-//         &ctx,
+//         &heap,
 //         "«instance PACKAGE \"WISP\"»",
 //         0,
 //     );
 // }
 
 test "print strings" {
-    var ctx = try wisp.Data.init(std.testing.allocator);
-    defer ctx.deinit();
+    var heap = try Heap.init(std.testing.allocator);
+    defer heap.deinit();
 
     try expectPrintResult(
-        &ctx,
+        &heap,
         "\"hello\"",
-        try ctx.addString("hello"),
+        try heap.addString("hello"),
     );
 }

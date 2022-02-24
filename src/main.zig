@@ -22,8 +22,8 @@ pub fn repl() anyerror!void {
     const stdout = std.io.getStdOut().writer();
     const allocator = std.heap.page_allocator;
 
-    var ctx = try wisp.Data.init(allocator);
-    defer ctx.deinit();
+    var heap = try wisp.Heap.init(allocator);
+    defer heap.deinit();
 
     while (true) {
         try stdout.writeAll("wisp> ");
@@ -38,8 +38,8 @@ pub fn repl() anyerror!void {
         );
 
         if (lineOrEof) |line| {
-            const term = try read(&ctx, line);
-            try print(&ctx, stdout, term);
+            const term = try read(&heap, line);
+            try print(&heap, stdout, term);
             try stdout.writeByte('\n');
         } else {
             try stdout.writeByte('\n');
