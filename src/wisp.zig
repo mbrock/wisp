@@ -126,6 +126,8 @@ pub const Pointer = union(Kind) {
 };
 
 pub const Word = union(Tag0) {
+    pub const nil = Word.from(NIL);
+
     immediate: Immediate,
     pointer: Pointer,
 

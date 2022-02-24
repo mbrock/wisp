@@ -4,6 +4,7 @@ const builtin = @import("builtin");
 const wisp = @import("./wisp.zig");
 const read = @import("./read.zig").read;
 const print = @import("./print.zig").print;
+const eval = @import("./eval.zig");
 
 test {
     std.testing.refAllDecls(@This());
