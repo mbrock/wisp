@@ -90,7 +90,7 @@ fn copyValue(self: *GC, comptime kind: wisp.Kind, ptr: u32) !u32 {
     const oldValue = oldContainer.get(i);
     try newContainer.append(self.new.gpa, oldValue);
 
-    const newOffset = @intCast(kind.offsetType(), newContainer.len) - 1;
+    const newOffset = @intCast(wisp.payloadType(kind), newContainer.len) - 1;
 
     const newPointer = self.new.makePointer(
         @unionInit(wisp.Pointer, @tagName(kind), newOffset),
