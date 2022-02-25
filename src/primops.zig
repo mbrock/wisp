@@ -12,31 +12,35 @@ const Heap = wisp.Heap;
 const Word = wisp.Word;
 const DeclEnum = util.DeclEnum;
 
-pub const PrimopFnTag = enum {
+pub const FnTag = enum {
     f0x,
 
-    pub fn from(comptime T: type) PrimopFnTag {
+    pub fn from(comptime T: type) FnTag {
         return switch (T) {
             fn (heap: *Heap, xs: []u32) anyerror!u32 => .f0x,
             else => unreachable,
         };
     }
-};
 
-pub const PrimopInfo = struct {
-    name: []const u8,
-    tag: PrimopFnTag,
-
-    pub fn functionType(self: PrimopInfo) type {
-        return switch (self.tag) {
+    pub fn functionType(comptime self: FnTag) type {
+        return switch (self) {
             .f0x => fn (heap: *Heap, xs: []u32) anyerror!u32,
         };
     }
 
+    pub fn cast(comptime this: FnTag, x: anytype) this.functionType() {
+        return @ptrCast(this.functionType(), x);
+    }
+};
+
+pub const PrimopInfo = struct {
+    name: []const u8,
+    tag: FnTag,
+
     fn from(comptime T: type, name: []const u8) PrimopInfo {
         return PrimopInfo{
             .name = name,
-            .tag = PrimopFnTag.from(T),
+            .tag = FnTag.from(T),
         };
     }
 };
@@ -50,18 +54,18 @@ pub const Primops = struct {
     pub fn @"+"(heap: *Heap, xs: []u32) anyerror!u32 {
         _ = heap;
 
-        var result: u32 = 0;
+        var result: u30 = 0;
         for (xs) |x| {
-            result += x;
+            result += wisp.decodeFixnum(x);
         }
 
-        return result;
+        return wisp.encodeFixnum(result);
     }
 };
 
 pub const PrimopInt = wisp.payloadType(wisp.Immediate.primop);
 pub const PrimopTag = DeclEnum(Primops, PrimopInt);
-pub const primopArray: EnumArray(PrimopTag, Primop) = makePrimopArray();
+pub const array: EnumArray(PrimopTag, Primop) = makePrimopArray();
 
 fn makePrimopArray() EnumArray(PrimopTag, Primop) {
     var ops = EnumArray(PrimopTag, Primop).initUndefined();
@@ -81,6 +85,6 @@ fn makePrimopArray() EnumArray(PrimopTag, Primop) {
 test "primops" {
     try expectEqual(
         @ptrCast(*const anyopaque, Primops.@"+"),
-        primopArray.get(.@"+").func,
+        array.get(.@"+").func,
     );
 }

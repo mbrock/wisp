@@ -5,6 +5,7 @@ const assert = std.debug.assert;
 const read = @import("./read.zig").read;
 const print = @import("./print.zig").print;
 const GC = @import("./gc.zig");
+const Primops = @import("./primops.zig");
 
 pub const NIL: u32 = 0b00000000000000000000000000001111;
 pub const ZAP: u32 = 0b11111111111111111111111111111111;
@@ -75,7 +76,7 @@ pub const Immediate = union(ImmediateTag) {
             .nil => NIL,
             .zap => ZAP,
             .fixnum => encodeFixnum(x.fixnum),
-            .primop => unreachable,
+            .primop => |i| (i << 3) | 0b101,
             .glyph => unreachable,
         };
     }
@@ -152,6 +153,7 @@ pub const Word = union(Tag0) {
             0b111 => switch (x & ~@as(u11, 0)) {
                 0b00111 => Immediate.make(.glyph, x),
                 0b10111 => Pointer.make(.package, x),
+                0b11111 => Pointer.make(.argsPlan, x),
                 else => {
                     std.log.warn("weird {b}", .{x});
                     unreachable;
@@ -165,6 +167,10 @@ pub const Word = union(Tag0) {
             .immediate => x.immediate.raw(),
             .pointer => x.pointer.raw(),
         };
+    }
+
+    pub fn eql(x: Word, y: Word) bool {
+        return x.raw() == y.raw();
     }
 };
 
@@ -257,6 +263,7 @@ pub const Symbol = struct {
     name: u32,
     package: u32,
     value: u32 = ZAP,
+    function: u32 = NIL,
 };
 
 pub const Package = struct {
@@ -343,6 +350,14 @@ pub const Heap = struct {
         });
 
         return this;
+    }
+
+    pub fn loadPrimops(this: *Heap) !void {
+        inline for (Primops.array.values) |primop, i| {
+            const symbol = try this.internStringInBasePackage(primop.info.name);
+            const function = try this.symbolFunction(symbol);
+            function.* = Immediate.make(.primop, i).raw();
+        }
     }
 
     pub fn makePointer(this: Heap, x: Pointer) u32 {
@@ -449,6 +464,11 @@ pub const Heap = struct {
         return &this.data.symbol.items(.value)[i];
     }
 
+    pub fn symbolFunction(this: *Heap, ptr: u32) !*u32 {
+        const i = this.getOffset(.symbol, ptr);
+        return &this.data.symbol.items(.function)[i];
+    }
+
     fn pointerWord(this: *const Heap, ptr: u32) Word {
         const word = Word.from(ptr);
         assert(word.pointer.semispace() == this.semispace);
@@ -463,6 +483,23 @@ pub const Heap = struct {
         return this.kindContainer(kind).get(this.getOffset(kind, x));
     }
 
+    pub fn get(
+        this: *Heap,
+        comptime kind: Kind,
+        i: payloadType(kind),
+    ) !kind.valueType() {
+        return this.kindContainer(kind).get(i);
+    }
+
+    pub fn getField(
+        this: *Heap,
+        comptime kind: Kind,
+        comptime field: kind.containerType().Field,
+        i: payloadType(kind),
+    ) !std.meta.fieldInfo(kind.valueType(), field).field_type {
+        return this.kindContainer(kind).items(field)[i];
+    }
+
     pub fn getOffset(this: *Heap, comptime kind: Kind, x: u32) payloadType(kind) {
         return Word.from(x).pointer.offset(kind, this.semispace);
     }
@@ -473,6 +510,16 @@ pub const Heap = struct {
 
     pub fn cdr(this: *Heap, ptr: u32) !u32 {
         return (try this.deref(.cons, ptr)).cdr;
+    }
+
+    pub fn pointerDeref(
+        this: *Heap,
+        comptime kind: Kind,
+        p: Pointer,
+    ) !kind.valueType() {
+        return this.kindContainer(kind).get(
+            p.offset(kind, this.semispace),
+        );
     }
 
     pub fn list(this: *Heap, xs: anytype) !u32 {
@@ -523,7 +570,7 @@ pub fn encodeFixnum(x: u30) u32 {
 }
 
 pub fn decodeFixnum(x: u32) u30 {
-    return @intCast(u30, x / 4);
+    return @intCast(u30, x >> 2);
 }
 
 fn expectParsingRoundtrip(text: []const u8) !void {
