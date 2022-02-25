@@ -12,65 +12,52 @@ const Heap = wisp.Heap;
 const Word = wisp.Word;
 const DeclEnum = util.DeclEnum;
 
-pub const E = enum { e, n };
-pub const EW = struct { w: u32 };
-pub const NW = struct { w: u32 };
+pub const PrimopFnTag = enum {
+    f0x,
 
-pub const PrimopKind = struct {
+    pub fn from(comptime T: type) PrimopFnTag {
+        return switch (T) {
+            fn (heap: *Heap, xs: []u32) anyerror!u32 => .f0x,
+            else => unreachable,
+        };
+    }
+};
+
+pub const PrimopInfo = struct {
     name: []const u8,
-    vararg: bool,
-    args: u5,
-    eval: std.StaticBitSet(32),
+    tag: PrimopFnTag,
+
+    pub fn functionType(self: PrimopInfo) type {
+        return switch (self.tag) {
+            .f0x => fn (heap: *Heap, xs: []u32) anyerror!u32,
+        };
+    }
+
+    fn from(comptime T: type, name: []const u8) PrimopInfo {
+        return PrimopInfo{
+            .name = name,
+            .tag = PrimopFnTag.from(T),
+        };
+    }
 };
 
 pub const Primop = struct {
+    info: PrimopInfo,
     func: *const anyopaque,
-    kind: PrimopKind,
 };
 
 pub const Primops = struct {
-    pub fn @"+"(heap: *Heap, xs: []const EW) NW {
+    pub fn @"+"(heap: *Heap, xs: []u32) anyerror!u32 {
         _ = heap;
 
         var result: u32 = 0;
         for (xs) |x| {
-            result += x.w;
+            result += x;
         }
 
-        return .{ .w = result };
+        return result;
     }
 };
-
-fn primopKindOf(comptime f: type, name: []const u8) PrimopKind {
-    const info = @typeInfo(f).Fn;
-    const args = info.args[1..info.args.len];
-
-    var eval = std.StaticBitSet(32).initEmpty();
-    inline for (args) |arg, i| {
-        const t = arg.arg_type;
-        if (t == EW or t == []const EW) {
-            eval.set(i + 1);
-        }
-    }
-
-    if (info.return_type == EW) {
-        eval.set(0);
-    }
-
-    const lastArgType = args[args.len - 1].arg_type orelse void;
-
-    return PrimopKind{
-        .name = name,
-        .args = args.len,
-        .eval = eval,
-        .vararg = switch (lastArgType) {
-            []const EW,
-            []const NW,
-            => true,
-            else => false,
-        },
-    };
-}
 
 pub const PrimopInt = wisp.payloadType(wisp.Immediate.primop);
 pub const PrimopTag = DeclEnum(Primops, PrimopInt);
@@ -81,10 +68,10 @@ fn makePrimopArray() EnumArray(PrimopTag, Primop) {
 
     inline for (@typeInfo(PrimopTag).Enum.fields) |x| {
         const func = @field(Primops, x.name);
-        const kind = primopKindOf(@TypeOf(func), x.name);
+        const info = PrimopInfo.from(@TypeOf(func), x.name);
         ops.set(@intToEnum(PrimopTag, x.value), .{
             .func = func,
-            .kind = kind,
+            .info = info,
         });
     }
 
