@@ -1,10 +1,12 @@
 const std = @import("std");
-const expectEqual = std.testing.expectEqual;
+
 const assert = std.debug.assert;
+const expectEqual = std.testing.expectEqual;
+const expectEqualStrings = std.testing.expectEqualStrings;
 
 const wisp = @import("./wisp.zig");
 const read = @import("./read.zig").read;
-const dump = @import("./print.zig").dump;
+const Print = @import("./print.zig");
 const Primops = @import("./primops.zig");
 
 const Eval = @This();
@@ -271,26 +273,42 @@ test "step evaluates variable" {
     try expectEqual(Term{ .done = foo }, ctx.term);
 }
 
-test "(+ 1 2 3) => 6" {
+fn expectEval(want: []const u8, src: []const u8) !void {
     var heap = try newTestHeap();
     defer heap.deinit();
 
-    const term = try read(&heap, "(+ 1 2 3)");
+    const term = try read(&heap, src);
     var ctx = init(&heap, term);
-    const value = try ctx.evaluate(10);
+    const value = try ctx.evaluate(100);
 
-    try expectEqual(@as(u32, 6 * 4), wisp.encodeFixnum(1 + 2 + 3));
+    const valueString = try Print.printAlloc(
+        std.testing.allocator,
+        &heap,
+        value,
+    );
 
-    try expectEqual(wisp.encodeFixnum(1 + 2 + 3), value);
+    defer std.testing.allocator.free(valueString);
+
+    const wantValue = try read(&heap, want);
+    const wantString = try Print.printAlloc(
+        std.testing.allocator,
+        &heap,
+        wantValue,
+    );
+
+    defer std.testing.allocator.free(wantString);
+
+    try expectEqualStrings(wantString, valueString);
+}
+
+test "(+ 1 2 3) => 6" {
+    try expectEval("6", "(+ 1 2 3)");
+}
+
+test "(+ (+ 1 2) (+ 3 4))" {
+    try expectEval("10", "(+ (+ 1 2) (+ 3 4))");
 }
 
 test "(FOO + 1) => 2" {
-    var heap = try newTestHeap();
-    defer heap.deinit();
-
-    const term = try read(&heap, "(FOO + 1)");
-    var ctx = init(&heap, term);
-    const value = try ctx.evaluate(10);
-
-    try expectEqual(wisp.encodeFixnum(2), value);
+    try expectEval("2", "(FOO + 1)");
 }
