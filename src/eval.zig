@@ -196,7 +196,7 @@ fn newTestHeap() !Heap {
     return heap;
 }
 
-fn newTestEval(heap: *Heap, term: u32) Eval {
+pub fn init(heap: *Heap, term: u32) Eval {
     return Eval{
         .heap = heap,
         .plan = wisp.NIL,
@@ -210,7 +210,7 @@ test "step evaluates string" {
     defer heap.deinit();
 
     const term = try heap.addString("foo");
-    var ctx = newTestEval(&heap, term);
+    var ctx = init(&heap, term);
 
     try ctx.step();
     try expectEqual(Term{ .done = term }, ctx.term);
@@ -223,7 +223,7 @@ test "step evaluates variable" {
     const x = try heap.internStringInBasePackage("X");
     const foo = try heap.addString("foo");
 
-    var ctx = newTestEval(&heap, x);
+    var ctx = init(&heap, x);
 
     (try heap.symbolValue(x)).* = foo;
 
@@ -236,7 +236,7 @@ test "(+ 1 2 3) => 6" {
     defer heap.deinit();
 
     const term = try read(&heap, "(+ 1 2 3)");
-    var ctx = newTestEval(&heap, term);
+    var ctx = init(&heap, term);
     const value = try ctx.evaluate(10);
 
     try expectEqual(@as(u32, 6 * 4), wisp.encodeFixnum(1 + 2 + 3));

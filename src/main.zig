@@ -27,6 +27,8 @@ pub fn repl() anyerror!void {
     var heap = try wisp.Heap.init(allocator);
     defer heap.deinit();
 
+    try heap.loadPrimops();
+
     while (true) {
         try stdout.writeAll("wisp> ");
 
@@ -41,7 +43,9 @@ pub fn repl() anyerror!void {
 
         if (lineOrEof) |line| {
             const term = try read(&heap, line);
-            try print(&heap, stdout, term);
+            var ctx = eval.init(&heap, term);
+            const result = try ctx.evaluate(1000);
+            try print(&heap, stdout, result);
             try stdout.writeByte('\n');
         } else {
             try stdout.writeByte('\n');
