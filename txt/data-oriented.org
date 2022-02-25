@@ -85,12 +85,12 @@ Let's enumerate the types of objects we have:
 | ~Hxxxxxxxxxxxxxxxxxxxxxxxxxxxx001~ | Symbol    |
 | ~Hxxxxxxxxxxxxxxxxxxxxxxxxxxxx010~ | Cons      |
 | ~Hxxxxxxxxxxxxxxxxxxxxxxxxxxxx011~ | Other     |
-| ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx101~ | Primop    |
 | ~Hxxxxxxxxxxxxxxxxxxxxxxxxxxxx110~ | String    |
 | ~xxxxxxxxxxxxxxxxxxxxx00000000111~ | Glyph     |
 | ~00000000000000000000000000001111~ | NIL       |
 | ~xxxxxxxxxxxxxxxxxxxxx00000010111~ | Package   |
-| ~xxxxxxxxxxxxxxxxxxxxx00000011111~ | Args Plan |
+| ~xxxxxxxxxxxxxxxxxxxxx00000011111~ | Primop    |
+| ~xxxxxxxxxxxxxxxxxxxxx00000100111~ | Args Plan |
 | ~11111111111111111111111111111111~ | Marker    |
 
 ** Garbage collection

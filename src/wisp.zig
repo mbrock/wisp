@@ -48,7 +48,7 @@ pub const ImmediateTag = enum {
             .nil => 0,
             .zap => 0,
             .fixnum => 2,
-            .primop => 3,
+            .primop => 11,
             .glyph => 11,
         };
     }
@@ -58,7 +58,7 @@ pub const Immediate = union(ImmediateTag) {
     nil: void,
     zap: void,
     fixnum: u30,
-    primop: u29,
+    primop: u21,
     glyph: u21,
 
     pub fn make(comptime tag: ImmediateTag, x: u32) Word {
@@ -76,7 +76,7 @@ pub const Immediate = union(ImmediateTag) {
             .nil => NIL,
             .zap => ZAP,
             .fixnum => encodeFixnum(x.fixnum),
-            .primop => |i| (i << 3) | 0b101,
+            .primop => |i| (i << 11) | 0b11111,
             .glyph => unreachable,
         };
     }
@@ -148,12 +148,13 @@ pub const Word = union(Tag0) {
             0b010 => Pointer.make(.cons, x),
             0b011 => unreachable,
             0b100 => Immediate.make(.fixnum, x),
-            0b101 => Immediate.make(.primop, x),
+            0b101 => unreachable,
             0b110 => Pointer.make(.string, x),
             0b111 => switch (x & ~@as(u11, 0)) {
-                0b00111 => Immediate.make(.glyph, x),
-                0b10111 => Pointer.make(.package, x),
-                0b11111 => Pointer.make(.argsPlan, x),
+                0b000111 => Immediate.make(.glyph, x),
+                0b010111 => Pointer.make(.package, x),
+                0b011111 => Immediate.make(.primop, x),
+                0b100111 => Pointer.make(.argsPlan, x),
                 else => {
                     std.log.warn("weird {b}", .{x});
                     unreachable;
@@ -209,8 +210,8 @@ pub const Kind = enum {
             .cons => 0b010,
             .symbol => 0b001,
             .string => 0b110,
-            .package => 0b00000010111,
-            .argsPlan => 0b00000011111,
+            .package => 0b10111,
+            .argsPlan => 0b100111,
         };
     }
 
