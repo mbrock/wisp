@@ -52,8 +52,12 @@ pub fn print(
                     try out.print("{d}", .{x});
                 },
 
-                .primop => {
-                    try out.print("<primop>", .{});
+                .primfun => {
+                    try out.print("<primfun>", .{});
+                },
+
+                .primmac => {
+                    try out.print("<primmac>", .{});
                 },
 
                 .glyph => {

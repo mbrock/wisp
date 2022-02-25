@@ -39,17 +39,23 @@ pub fn payloadType(comptime this: anytype) type {
 pub const ImmediateTag = enum {
     nil,
     fixnum,
-    primop,
+    primfun,
+    primmac,
     glyph,
     zap,
 
     pub fn tagBits(comptime this: ImmediateTag) comptime_int {
         return switch (this) {
-            .nil => 0,
-            .zap => 0,
+            .nil,
+            .zap,
+            => 0,
+
             .fixnum => 2,
-            .primop => 11,
-            .glyph => 11,
+
+            .primfun,
+            .primmac,
+            .glyph,
+            => 11,
         };
     }
 };
@@ -58,7 +64,8 @@ pub const Immediate = union(ImmediateTag) {
     nil: void,
     zap: void,
     fixnum: u30,
-    primop: u21,
+    primfun: u21,
+    primmac: u21,
     glyph: u21,
 
     pub fn make(comptime tag: ImmediateTag, x: u32) Word {
@@ -76,7 +83,8 @@ pub const Immediate = union(ImmediateTag) {
             .nil => NIL,
             .zap => ZAP,
             .fixnum => encodeFixnum(x.fixnum),
-            .primop => |i| (i << 11) | 0b11111,
+            .primfun => |i| (i << 11) | 0b011111,
+            .primmac => |i| (i << 11) | 0b101111,
             .glyph => unreachable,
         };
     }
@@ -153,7 +161,8 @@ pub const Word = union(Tag0) {
             0b111 => switch (x & ~@as(u11, 0)) {
                 0b000111 => Immediate.make(.glyph, x),
                 0b010111 => Pointer.make(.package, x),
-                0b011111 => Immediate.make(.primop, x),
+                0b011111 => Immediate.make(.primfun, x),
+                0b101111 => Immediate.make(.primmac, x),
                 0b100111 => Pointer.make(.argsPlan, x),
                 else => {
                     std.log.warn("weird {b}", .{x});
@@ -354,10 +363,17 @@ pub const Heap = struct {
     }
 
     pub fn loadPrimops(this: *Heap) !void {
-        inline for (Primops.array.values) |primop, i| {
+        inline for (Primops.primfuns.values) |primop, i| {
             const symbol = try this.internStringInBasePackage(primop.info.name);
             const function = try this.symbolFunction(symbol);
-            function.* = Immediate.make(.primop, i).raw();
+            function.* = Immediate.make(.primfun, i).raw();
+        }
+
+        inline for (Primops.primmacs.values) |primop, i| {
+            const symbol = try this.internStringInBasePackage(primop.info.name);
+            const function = try this.symbolFunction(symbol);
+            assert(function.* == NIL);
+            function.* = Immediate.make(.primmac, i).raw();
         }
     }
 

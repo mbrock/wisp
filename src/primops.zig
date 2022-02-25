@@ -14,17 +14,20 @@ const DeclEnum = util.DeclEnum;
 
 pub const FnTag = enum {
     f0x,
+    f2,
 
     pub fn from(comptime T: type) FnTag {
         return switch (T) {
-            fn (heap: *Heap, xs: []u32) anyerror!u32 => .f0x,
-            else => unreachable,
+            fn (*Heap, []u32) anyerror!u32 => .f0x,
+            fn (*Heap, u32, u32) anyerror!u32 => .f2,
+            else => @compileLog("unhandled primop type", T),
         };
     }
 
     pub fn functionType(comptime self: FnTag) type {
         return switch (self) {
-            .f0x => fn (heap: *Heap, xs: []u32) anyerror!u32,
+            .f0x => fn (*Heap, []u32) anyerror!u32,
+            .f2 => fn (*Heap, u32, u32) anyerror!u32,
         };
     }
 
@@ -50,7 +53,7 @@ pub const Primop = struct {
     func: *const anyopaque,
 };
 
-pub const Primops = struct {
+pub const Primfuns = struct {
     pub fn @"+"(heap: *Heap, xs: []u32) anyerror!u32 {
         _ = heap;
 
@@ -63,17 +66,38 @@ pub const Primops = struct {
     }
 };
 
-pub const PrimopInt = wisp.payloadType(wisp.Immediate.primop);
-pub const PrimopTag = DeclEnum(Primops, PrimopInt);
-pub const array: EnumArray(PrimopTag, Primop) = makePrimopArray();
+pub const Primmacs = struct {
+    pub fn @"FOO"(heap: *Heap, x: u32, y: u32) anyerror!u32 {
+        _ = heap;
+        return try heap.append(.cons, .{
+            .car = x,
+            .cdr = try heap.append(.cons, .{
+                .car = y,
+                .cdr = try heap.append(.cons, .{
+                    .car = wisp.encodeFixnum(1),
+                    .cdr = wisp.NIL,
+                }),
+            }),
+        });
+    }
+};
 
-fn makePrimopArray() EnumArray(PrimopTag, Primop) {
-    var ops = EnumArray(PrimopTag, Primop).initUndefined();
+pub const PrimfunInt = wisp.payloadType(wisp.Immediate.primfun);
+pub const PrimfunTag = DeclEnum(Primfuns, PrimfunInt);
 
-    inline for (@typeInfo(PrimopTag).Enum.fields) |x| {
-        const func = @field(Primops, x.name);
+pub const PrimmacInt = wisp.payloadType(wisp.Immediate.primmac);
+pub const PrimmacTag = DeclEnum(Primmacs, PrimmacInt);
+
+pub const primfuns = makePrimopArray(PrimfunTag, Primfuns);
+pub const primmacs = makePrimopArray(PrimmacTag, Primmacs);
+
+fn makePrimopArray(comptime T: type, comptime S: type) EnumArray(T, Primop) {
+    var ops = EnumArray(T, Primop).initUndefined();
+
+    inline for (@typeInfo(T).Enum.fields) |x| {
+        const func = @field(S, x.name);
         const info = PrimopInfo.from(@TypeOf(func), x.name);
-        ops.set(@intToEnum(PrimopTag, x.value), .{
+        ops.set(@intToEnum(T, x.value), .{
             .func = func,
             .info = info,
         });
@@ -84,7 +108,7 @@ fn makePrimopArray() EnumArray(PrimopTag, Primop) {
 
 test "primops" {
     try expectEqual(
-        @ptrCast(*const anyopaque, Primops.@"+"),
-        array.get(.@"+").func,
+        @ptrCast(*const anyopaque, Primfuns.@"+"),
+        primfuns.get(.@"+").func,
     );
 }

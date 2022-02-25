@@ -4,6 +4,7 @@ const assert = std.debug.assert;
 
 const wisp = @import("./wisp.zig");
 const read = @import("./read.zig").read;
+const dump = @import("./print.zig").dump;
 const Primops = @import("./primops.zig");
 
 const Eval = @This();
@@ -69,20 +70,47 @@ fn findVariable(this: *Eval, word: u32) !void {
 fn stepCons(this: *Eval, p: u32) !void {
     const cons = try this.heap.deref(.cons, p);
     const cdr = try this.heap.deref(.cons, cons.cdr);
-    const callee = try this.heap.symbolFunction(cons.car);
+    const callee = (try this.heap.symbolFunction(cons.car)).*;
 
-    this.* = .{
-        .heap = this.heap,
-        .scopes = this.scopes,
-        .term = .{ .work = cdr.car },
-        .plan = try this.heap.append(.argsPlan, wisp.ArgsPlan{
-            .next = this.plan,
-            .scopes = this.scopes,
-            .callee = callee.*,
-            .values = wisp.NIL,
-            .terms = cdr.cdr,
-        }),
-    };
+    switch (Word.from(callee)) {
+        .immediate => |imm| {
+            switch (imm) {
+                .primfun => {
+                    this.* = .{
+                        .heap = this.heap,
+                        .scopes = this.scopes,
+                        .term = .{ .work = cdr.car },
+                        .plan = try this.heap.append(.argsPlan, wisp.ArgsPlan{
+                            .next = this.plan,
+                            .scopes = this.scopes,
+                            .callee = callee,
+                            .values = wisp.NIL,
+                            .terms = cdr.cdr,
+                        }),
+                    };
+                },
+
+                .primmac => |i| {
+                    const result = try callPrimop(
+                        this,
+                        Primops.primmacs.values[i],
+                        false,
+                        cons.cdr,
+                    );
+
+                    this.* = .{
+                        .heap = this.heap,
+                        .scopes = this.scopes,
+                        .term = .{ .work = result },
+                        .plan = this.plan,
+                    };
+                },
+
+                else => return Error.Nope,
+            }
+        },
+        else => return Error.Nope,
+    }
 }
 
 pub fn proceed(this: *Eval, x: u32) !void {
@@ -115,8 +143,19 @@ fn doArgsPlan(this: *Eval, argsPlan: wisp.ArgsPlan) !void {
         switch (Word.from(argsPlan.callee)) {
             .immediate => |imm| {
                 switch (imm) {
-                    .primop => |i| {
-                        try this.callPrimop(i, argsPlan, values);
+                    .primfun => |i| {
+                        const result = try this.callPrimop(
+                            Primops.primfuns.values[i],
+                            true,
+                            values,
+                        );
+
+                        this.* = .{
+                            .heap = this.heap,
+                            .plan = argsPlan.next,
+                            .scopes = argsPlan.scopes,
+                            .term = .{ .done = result },
+                        };
                     },
                     else => return Error.Nope,
                 }
@@ -140,7 +179,7 @@ fn doArgsPlan(this: *Eval, argsPlan: wisp.ArgsPlan) !void {
     }
 }
 
-pub fn scanList(heap: *Heap, buffer: []u32, list: u32) ![]u32 {
+pub fn scanList(heap: *Heap, buffer: []u32, reverse: bool, list: u32) ![]u32 {
     var i: usize = 0;
     var cur = list;
     while (cur != wisp.NIL) {
@@ -151,25 +190,26 @@ pub fn scanList(heap: *Heap, buffer: []u32, list: u32) ![]u32 {
     }
 
     var slice = buffer[0..i];
-    std.mem.reverse(u32, slice);
+    if (reverse) {
+        std.mem.reverse(u32, slice);
+    }
     return slice;
 }
 
-fn callPrimop(this: *Eval, i: u29, argsPlan: wisp.ArgsPlan, values: u32) !void {
-    const primop = Primops.array.values[i];
-
+fn callPrimop(this: *Eval, primop: Primops.Primop, reverse: bool, values: u32) !u32 {
     switch (primop.info.tag) {
         .f0x => {
             var xs: [31]u32 = undefined;
-            const slice = try scanList(this.heap, &xs, values);
+            const slice = try scanList(this.heap, &xs, reverse, values);
             const f = Primops.FnTag.f0x.cast(primop.func);
-            const result = try f(this.heap, slice);
-            this.* = .{
-                .heap = this.heap,
-                .plan = argsPlan.next,
-                .scopes = argsPlan.scopes,
-                .term = .{ .done = result },
-            };
+            return try f(this.heap, slice);
+        },
+
+        .f2 => {
+            var xs: [2]u32 = undefined;
+            const slice = try scanList(this.heap, &xs, reverse, values);
+            const f = Primops.FnTag.f2.cast(primop.func);
+            return try f(this.heap, slice[0], slice[1]);
         },
     }
 }
@@ -242,4 +282,15 @@ test "(+ 1 2 3) => 6" {
     try expectEqual(@as(u32, 6 * 4), wisp.encodeFixnum(1 + 2 + 3));
 
     try expectEqual(wisp.encodeFixnum(1 + 2 + 3), value);
+}
+
+test "(FOO + 1) => 2" {
+    var heap = try newTestHeap();
+    defer heap.deinit();
+
+    const term = try read(&heap, "(FOO + 1)");
+    var ctx = init(&heap, term);
+    const value = try ctx.evaluate(10);
+
+    try expectEqual(wisp.encodeFixnum(2), value);
 }
