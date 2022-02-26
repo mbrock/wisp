@@ -23,6 +23,10 @@ const Term = union(Status) {
     work: u32,
 };
 
+test "foo" {
+    try expectEqual(4, @sizeOf(Word));
+}
+
 heap: *Heap,
 term: Term,
 scopes: u32,

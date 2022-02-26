@@ -79,20 +79,22 @@ Let's enumerate the types of objects we have:
   10. other structs.
 
 
-| Pattern                            | Class     |
-|------------------------------------+-----------|
-| ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00~ | Fixnum    |
-| ~Hxxxxxxxxxxxxxxxxxxxxxxxxxxxx001~ | Symbol    |
-| ~Hxxxxxxxxxxxxxxxxxxxxxxxxxxxx010~ | Cons      |
-| ~Hxxxxxxxxxxxxxxxxxxxxxxxxxxxx011~ | Other     |
-| ~Hxxxxxxxxxxxxxxxxxxxxxxxxxxxx110~ | String    |
-| ~xxxxxxxxxxxxxxxxxxxxx00000000111~ | Glyph     |
-| ~00000000000000000000000000001111~ | NIL       |
-| ~xxxxxxxxxxxxxxxxxxxxx00000010111~ | Package   |
-| ~xxxxxxxxxxxxxxxxxxxxx00000100111~ | Args Plan |
-| ~xxxxxxxxxxxxxxxxxxxxx00000011111~ | Primop    |
-| ~xxxxxxxxxxxxxxxxxxxxx00000101111~ | Primmac   |
-| ~11111111111111111111111111111111~ | Marker    |
+|-------+--------+------------------------------------|
+| Class |  Octal | Binary                             |
+|-------+--------+------------------------------------|
+| int   |      0 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00~ |
+| duo   |      1 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx001~ |
+| sym   |      2 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx 10~ |
+| fun   |      3 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx011~ |
+| vec   |      5 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx101~ |
+| str   |      6 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx110~ |
+| chr   |      7 | ~xxxxxxxxxxxxxxxxxxxxx00000000111~ |
+| pkg   |     17 | ~xxxxxxxxxxxxxxxxxxxxx00000001111~ |
+| sys   |     27 | ~xxxxxxxxxxxxxxxxxxx0000000010111~ |
+| nil   |  #4027 | ~00000000000000000000100000010111~ |
+| zap   | #10027 | ~00000000000000000001000000010111~ |
+| ct0   |     37 | ~xxxxxxxxxxxxxxxxxxxxx00000110111~ |
+|-------+--------+------------------------------------|
 
 ** Garbage collection
 

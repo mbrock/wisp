@@ -1,169 +1,154 @@
-const std = @import("std");
-const expectEqual = std.testing.expectEqual;
-const assert = std.debug.assert;
+///
+/// |----------+-------+-----+------------------------------------|
+/// | Class    | Octal | Hex | Binary                             |
+/// |----------+-------+-----+------------------------------------|
+/// | fixnum   |     0 |   0 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00~ |
+/// | nil      |     1 |   1 | ~00000000000000000000000000000001~ |
+/// | cons     |     2 |   2 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx010~ |
+/// | symbol   |     3 |   3 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx011~ |
+/// | glyph    |     5 |   5 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx101~ |
+/// | string   |     6 |   6 | ~xxxxxxxxxxxxxxxxxxxxx00000000110~ |
+/// | zap      |     7 |   7 | ~xxxxxxxxxxxxxxxxxxxxx00000000111~ |
+/// | package  |    17 |   f | ~xxxxxxxxxxxxxxxxxxxxx00000001111~ |
+/// | primfun  |    27 |  17 | ~xxxxxxxxxxxxxxxxxxxxx00000010111~ |
+/// | primmac  |    37 |  1f | ~xxxxxxxxxxxxxxxxxxxxx00000011111~ |
+/// | callplan |    47 |  27 | ~xxxxxxxxxxxxxxxxxxxxx00000101111~ |
+/// |----------+-------+-----+------------------------------------|
+///
+pub const T0 = enum(u11) {
+    fixnum = 0,
+    nil = 1,
+    cons = 2,
+    symbol = 3,
+    glyph = 5,
+    string = 6,
+    zap = 7,
+    package = 0o17,
+    primfun = 0o27,
+    primmac = 0o37,
+    argsplan = 0o47,
 
-const read = @import("./read.zig").read;
-const print = @import("./print.zig").print;
-const GC = @import("./gc.zig");
-const Primops = @import("./primops.zig");
+    pub fn tag(comptime t: T0) t.tagType() {
+        return switch (t) {
+            .argsplan => 0b100111,
+            .cons => 0b010,
+            .fixnum => 0,
+            .glyph => 0b111,
+            .nil => NIL,
+            .package => 0b10111,
+            .primmac => 0b10111,
+            .primfun => 0b11111,
+            .string => 0b110,
+            .symbol => 0b001,
+            .zap => ZAP,
+        };
+    }
 
-pub const NIL: u32 = 0b00000000000000000000000000001111;
-pub const ZAP: u32 = 0b11111111111111111111111111111111;
+    pub fn valueType(t: T0) type {
+        return switch (t) {
+            .argsplan => ArgsPlan,
+            .cons => Cons,
+            .fixnum => u30,
+            .glyph => u21,
+            .nil => u0,
+            .package => Package,
+            .string => String,
+            .symbol => Symbol,
+            .zap => u0,
+        };
+    }
 
-pub const Tag0 = enum {
-    immediate,
-    pointer,
-};
-
-pub fn uintType(comptime bits: comptime_int) type {
-    return @Type(.{
-        .Int = .{
-            .bits = bits,
-            .signedness = .unsigned,
-        },
-    });
-}
-
-pub fn payloadBits(comptime this: anytype) comptime_int {
-    return 32 - this.tagBits();
-}
-
-pub fn tagType(comptime this: anytype) type {
-    return uintType(this.tagBits());
-}
-
-pub fn payloadType(comptime this: anytype) type {
-    return uintType(payloadBits(this));
-}
-
-pub const ImmediateTag = enum {
-    nil,
-    fixnum,
-    primfun,
-    primmac,
-    glyph,
-    zap,
-
-    pub fn tagBits(comptime this: ImmediateTag) comptime_int {
-        return switch (this) {
-            .nil,
-            .zap,
-            => 0,
-
+    pub fn tagBits(comptime t: T0) comptime_int {
+        return switch (t) {
             .fixnum => 2,
 
+            .cons,
+            .string,
+            .symbol,
+            => 3,
+
+            .argsPlan,
+            .glyph,
+            .package,
             .primfun,
             .primmac,
-            .glyph,
             => 11,
+
+            .nil,
+            .zap,
+            => 32,
+        };
+    }
+
+    pub fn payloadBits(comptime t: T0) comptime_int {
+        return 32 - t.tagBits();
+    }
+
+    pub fn payloadType(comptime t: T0) comptime_int {
+        return Uint(t.payloadBits());
+    }
+
+    pub fn tagType(comptime t: T0) comptime_int {
+        return Uint(t.tagBits());
+    }
+
+    pub fn containerType(comptime t: T0) type {
+        return switch (t) {
+            .argsplan,
+            .cons,
+            .package,
+            .string,
+            .symbol,
+            => std.MultiArrayList(t.valueType()),
+
+            .fixnum,
+            .glyph,
+            .nil,
+            .primfun,
+            .primmac,
+            .zap,
+            => void,
+        };
+    }
+
+    pub fn tagify(comptime t: T0, x: t.payloadType()) Word {
+        return .{
+            .raw = (@intCast(u32, x) << t.tagBits()) | t.tag(),
         };
     }
 };
 
-pub const Immediate = union(ImmediateTag) {
-    nil: void,
-    zap: void,
-    fixnum: u30,
-    primfun: u21,
-    primmac: u21,
-    glyph: u21,
+pub const Word = struct {
+    raw: u32,
 
-    pub fn make(comptime tag: ImmediateTag, x: u32) Word {
-        return Word{
-            .immediate = @unionInit(
-                @This(),
-                @tagName(tag),
-                @intCast(payloadType(tag), x >> tag.tagBits()),
-            ),
-        };
-    }
-
-    pub fn raw(x: Immediate) u32 {
-        return switch (x) {
-            .nil => NIL,
-            .zap => ZAP,
-            .fixnum => encodeFixnum(x.fixnum),
-            .primfun => |i| (i << 11) | 0b011111,
-            .primmac => |i| (i << 11) | 0b101111,
-            .glyph => unreachable,
-        };
-    }
-};
-
-pub const Pointer = union(Kind) {
-    cons: u29,
-    symbol: u29,
-    string: u29,
-    package: u21,
-    argsPlan: u21,
-
-    pub fn make(comptime this: Kind, x: u32) Word {
-        return Word{
-            .pointer = @unionInit(
-                @This(),
-                @tagName(this),
-                @intCast(payloadType(this), x >> this.tagBits()),
-            ),
-        };
-    }
-
-    pub fn raw(ptr: Pointer) u32 {
-        return switch (ptr) {
-            .cons => |x| Kind.castOffsetToWord(.cons, x),
-            .symbol => |x| Kind.castOffsetToWord(.symbol, x),
-            .string => |x| Kind.castOffsetToWord(.string, x),
-            .package => |x| Kind.castOffsetToWord(.package, x),
-            .argsPlan => |x| Kind.castOffsetToWord(.argsPlan, x),
-        };
-    }
-
-    pub fn semispace(x: Pointer) Semispace {
-        return Semispace.of(x.raw());
-    }
-
-    pub fn offset(
-        this: Pointer,
-        comptime kind: Kind,
-        space: Semispace,
-    ) payloadType(kind) {
-        assert(this.semispace() == space);
-        const x = @field(this, @tagName(kind));
-        const t = payloadType(kind);
-        const semispaceBit = (@as(t, 1) << (@typeInfo(t).Int.bits - 1));
-        return x & ~semispaceBit;
-    }
-};
-
-pub const Word = union(Tag0) {
     pub const zap = Word.from(ZAP);
     pub const nil = Word.from(NIL);
 
-    immediate: Immediate,
-    pointer: Pointer,
+    pub fn tag(word: Word) T0 {
+        const x = word.raw;
 
-    pub fn from(x: u32) Word {
         if (x == NIL) {
-            return Word{ .immediate = .{ .nil = .{} } };
+            return .nil;
         }
 
         if (x == ZAP) {
-            return Word{ .immediate = .{ .zap = .{} } };
+            return .zap;
         }
 
         return switch (@intCast(u3, x & 0b111)) {
-            0b000 => Immediate.make(.fixnum, x),
-            0b001 => Pointer.make(.symbol, x),
-            0b010 => Pointer.make(.cons, x),
+            0b000 => .fixnum,
+            0b001 => .symbol,
+            0b010 => .cons,
             0b011 => unreachable,
-            0b100 => Immediate.make(.fixnum, x),
+            0b100 => .fixnum,
             0b101 => unreachable,
-            0b110 => Pointer.make(.string, x),
+            0b110 => .string,
             0b111 => switch (x & ~@as(u11, 0)) {
-                0b000111 => Immediate.make(.glyph, x),
-                0b010111 => Pointer.make(.package, x),
-                0b011111 => Immediate.make(.primfun, x),
-                0b101111 => Immediate.make(.primmac, x),
-                0b100111 => Pointer.make(.argsPlan, x),
+                0b000111 => .glyph,
+                0b010111 => .package,
+                0b011111 => .primfun,
+                0b101111 => .primmac,
+                0b100111 => .argsPlan,
                 else => {
                     std.log.warn("weird {b}", .{x});
                     unreachable;
@@ -172,97 +157,23 @@ pub const Word = union(Tag0) {
         };
     }
 
-    pub fn raw(x: Word) u32 {
-        return switch (x) {
-            .immediate => x.immediate.raw(),
-            .pointer => x.pointer.raw(),
-        };
-    }
-
     pub fn eql(x: Word, y: Word) bool {
-        return x.raw() == y.raw();
-    }
-};
-
-pub const Kind = enum {
-    cons,
-    symbol,
-    package,
-    string,
-    argsPlan,
-
-    pub fn valueType(kind: Kind) type {
-        return switch (kind) {
-            .cons => Cons,
-            .symbol => Symbol,
-            .package => Package,
-            .string => String,
-            .argsPlan => ArgsPlan,
-        };
+        return x.raw == y.raw;
     }
 
-    pub fn tagBits(comptime this: Kind) comptime_int {
-        return switch (this) {
-            .cons,
-            .symbol,
-            .string,
-            => 3,
-
-            .package,
-            .argsPlan,
-            => 11,
-        };
-    }
-
-    pub fn tag(comptime this: Kind) tagType(this) {
-        return switch (this) {
-            .cons => 0b010,
-            .symbol => 0b001,
-            .string => 0b110,
-            .package => 0b10111,
-            .argsPlan => 0b100111,
-        };
-    }
-
-    pub fn castOffsetToWord(
-        comptime this: Kind,
-        offset: payloadType(this),
-    ) u32 {
-        return (@intCast(u32, offset) << this.tagBits()) | this.tag();
-    }
-
-    pub fn containerType(kind: Kind) type {
-        return std.MultiArrayList(kind.valueType());
-    }
-
-    pub fn emptyContainer(
-        comptime kind: Kind,
-    ) std.MultiArrayList(kind.valueType()) {
-        return switch (kind) {
-            .cons => std.MultiArrayList(Cons){},
-            .symbol => std.MultiArrayList(Symbol){},
-            .package => std.MultiArrayList(Package){},
-            .string => std.MultiArrayList(String){},
-            .argsPlan => std.MultiArrayList(ArgsPlan){},
-        };
+    pub fn semispace(x: Word) Semispace {
+        return Semispace.of(x.raw);
     }
 };
 
 test "tag bit stuff" {
-    try expectEqual(u29, payloadType(Kind.cons));
-    try expectEqual(u3, tagType(Kind.cons));
+    try expectEqual(u29, T0.cons.payloadType());
+    try expectEqual(u3, T0.cons.tagType());
 
-    try expectEqual(
-        @as(u32, 0b10000000000000000000000000000010),
-        Kind.castOffsetToWord(.cons, 0b10000000000000000000000000000),
-    );
-
-    const x = Pointer.make(.cons, 0b10000000000000000000000000000010);
-    try expectEqual(@as(u32, 0b10000000000000000000000000000010), x.raw());
-    try expectEqual(x.pointer.semispace(), Semispace.space1);
+    const x = T0.cons.tagify(0b100000000000000000000000000000);
+    try expectEqual(@as(u32, 0b10000000000000000000000000000010), x.raw);
+    try expectEqual(x.semispace(), Semispace.space1);
 }
-
-pub const allKinds = std.enums.values(Kind);
 
 pub const String = struct {
     offset: u32,
@@ -298,12 +209,12 @@ fn SliceOf(comptime t: type) type {
     return std.MultiArrayList(t).Slice;
 }
 
-pub fn EnumFieldMultiArrays(comptime E: type) type {
+pub fn EnumFieldContainers(comptime E: type) type {
     const StructField = std.builtin.TypeInfo.StructField;
     var fields: []const StructField = &[_]StructField{};
     inline for (std.meta.fields(E)) |field| {
         const e = @intToEnum(E, field.value);
-        const fieldType = std.MultiArrayList(e.valueType());
+        const fieldType = e.containerType();
         fields = fields ++ &[_]StructField{.{
             .name = field.name,
             .field_type = fieldType,
@@ -325,29 +236,13 @@ pub const Heap = struct {
     gpa: std.mem.Allocator,
     semispace: Semispace = .space0,
     stringBytes: std.ArrayListUnmanaged(u8) = .{},
-    data: EnumFieldMultiArrays(Kind) = .{},
-
-    pub const Slices = struct {
-        symbols: SliceOf(Symbol),
-        packages: SliceOf(Package),
-        conses: SliceOf(Cons),
-        strings: SliceOf(String),
-    };
+    data: EnumFieldContainers(T0) = .{},
 
     pub fn kindContainer(
         this: *Heap,
-        comptime kind: Kind,
-    ) *std.MultiArrayList(kind.valueType()) {
-        return &@field(this.data, @tagName(kind));
-    }
-
-    pub fn slices(this: Heap) Slices {
-        return Slices{
-            .symbols = this.symbols.slice(),
-            .packages = this.packages.slice(),
-            .conses = this.conses.slice(),
-            .strings = this.strings.slice(),
-        };
+        comptime t: T0,
+    ) *t.containerType() {
+        return &@field(this.data, @tagName(t));
     }
 
     pub fn init(gpa: std.mem.Allocator) !Heap {
@@ -366,35 +261,36 @@ pub const Heap = struct {
         inline for (Primops.primfuns.values) |primop, i| {
             const symbol = try this.internStringInBasePackage(primop.info.name);
             const function = try this.symbolFunction(symbol);
-            function.* = Immediate.make(.primfun, i).raw();
+            function.* = T0.primfun.tagify(i);
         }
 
         inline for (Primops.primmacs.values) |primop, i| {
             const symbol = try this.internStringInBasePackage(primop.info.name);
             const function = try this.symbolFunction(symbol);
             assert(function.* == NIL);
-            function.* = Immediate.make(.primmac, i).raw();
+            function.* = T0.primmac.tagify(i);
         }
     }
 
-    pub fn makePointer(this: Heap, x: Pointer) u32 {
-        return this.semispace.makePointer(x);
-    }
-
-    pub fn alloc(this: *Heap, comptime t: Kind, x: t.valueType()) !payloadType(t) {
+    pub fn alloc(this: *Heap, comptime t: T0, x: t.valueType()) !t.payloadType() {
         var container = this.kindContainer(t);
-        const i = @intCast(payloadType(t), container.len);
+        const i = @intCast(t.payloadType(), container.len);
         try container.append(this.gpa, x);
         return i;
     }
 
-    pub fn append(this: *Heap, comptime t: Kind, x: t.valueType()) !u32 {
-        const pointer = @unionInit(Pointer, @tagName(t), try this.alloc(t, x));
-        return this.makePointer(pointer);
+    pub fn append(this: *Heap, comptime t: T0, x: t.valueType()) !u32 {
+        const i = try this.alloc(t, x);
+        const p = t.tagify(i);
+        if (this.semispace == .space1) {
+            return p | Semispace.mask;
+        } else {
+            return p;
+        }
     }
 
     pub fn deinit(this: *Heap) void {
-        inline for (std.meta.fields(Kind)) |field| {
+        inline for (std.meta.fields(T0)) |field| {
             @field(this.data, field.name).deinit(this.gpa);
         }
 
@@ -494,7 +390,7 @@ pub const Heap = struct {
 
     pub fn deref(
         this: *Heap,
-        comptime kind: Kind,
+        comptime kind: T0,
         x: u32,
     ) !kind.valueType() {
         return this.kindContainer(kind).get(this.getOffset(kind, x));
@@ -502,22 +398,22 @@ pub const Heap = struct {
 
     pub fn get(
         this: *Heap,
-        comptime kind: Kind,
-        i: payloadType(kind),
+        comptime kind: T0,
+        i: kind.payloadType(),
     ) !kind.valueType() {
         return this.kindContainer(kind).get(i);
     }
 
     pub fn getField(
         this: *Heap,
-        comptime kind: Kind,
+        comptime kind: T0,
         comptime field: kind.containerType().Field,
-        i: payloadType(kind),
+        i: kind.payloadType(),
     ) !std.meta.fieldInfo(kind.valueType(), field).field_type {
         return this.kindContainer(kind).items(field)[i];
     }
 
-    pub fn getOffset(this: *Heap, comptime kind: Kind, x: u32) payloadType(kind) {
+    pub fn getOffset(this: *Heap, comptime kind: T0, x: u32) payloadType(kind) {
         return Word.from(x).pointer.offset(kind, this.semispace);
     }
 
