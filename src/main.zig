@@ -24,6 +24,7 @@ const read = @import("./read.zig").read;
 const print = @import("./print.zig").print;
 const eval = @import("./eval.zig");
 const ops = @import("./ops.zig");
+const tidy = @import("./tidy.zig");
 
 test {
     std.testing.refAllDecls(@This());
@@ -65,6 +66,7 @@ pub fn repl() anyerror!void {
             const val = try ctx.evaluate(1000);
             try print(&vat, stdout, val);
             try stdout.writeByte('\n');
+            try tidy.tidy(&vat);
         } else {
             try stdout.writeByte('\n');
             return;

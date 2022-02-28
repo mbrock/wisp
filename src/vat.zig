@@ -23,7 +23,6 @@ const same = std.testing.expectEqual;
 const wisp = @import("./wisp.zig");
 const ref = wisp.ref;
 const nil = wisp.nil;
-const zap = wisp.zap;
 const Tag = wisp.Tag;
 const Era = wisp.Era;
 const Ptr = wisp.Ptr;
@@ -55,6 +54,8 @@ pub fn Tab(comptime tag: Tag) type {
         const This = @This();
 
         era: Era,
+        rat: Ptr.Idx = 0,
+
         list: std.MultiArrayList(Row(tag)) = .{},
 
         const prefix: u32 = @enumToInt(tag) << (32 - 5);
@@ -81,6 +82,13 @@ pub fn Tab(comptime tag: Tag) type {
 
         pub fn col(tab: This, comptime c: TagCol(tag)) []u32 {
             return tab.list.items(c);
+        }
+
+        pub fn flip(tab: This, orb: Orb) !This {
+            return This{
+                .era = tab.era.flip(),
+                .list = try tab.list.clone(orb),
+            };
         }
     };
 }
@@ -163,6 +171,15 @@ pub const Vat = struct {
         return vat.col(tag, c)[ref(p)];
     }
 
+    pub fn put(
+        vat: *Vat,
+        comptime tag: Tag,
+        ptr: u32,
+        val: Row(tag),
+    ) void {
+        vat.tab(tag).list.set(ref(ptr), val);
+    }
+
     pub fn set(
         vat: *Vat,
         comptime tag: Tag,
@@ -208,7 +225,7 @@ pub const Vat = struct {
         const symptr = try vat.new(.sym, .{
             .str = try vat.newstr(txt),
             .pkg = pkgptr,
-            .val = zap,
+            .val = wisp.nah,
             .fun = nil,
         });
 

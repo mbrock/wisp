@@ -74,7 +74,7 @@ pub fn step(this: *Eval) !void {
 
 fn findVariable(this: *Eval, sym: u32) !void {
     return switch (try this.vat.get(.sym, .val, sym)) {
-        wisp.zap => Error.Nope,
+        wisp.nah => Error.Nope,
         else => |x| this.doneWithJob(x),
     };
 }

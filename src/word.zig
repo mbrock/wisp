@@ -39,7 +39,19 @@ pub const Tag = enum(u5) {
     ct0 = 0x1b,
 };
 
-pub const Era = enum(u1) { e0, e1 };
+pub const pointerTags = .{ .duo, .sym, .fun, .vec, .str, .pkg, .ct0 };
+
+pub const Era = enum(u1) {
+    e0,
+    e1,
+
+    pub fn flip(era: Era) Era {
+        return switch (era) {
+            .e0 => .e1,
+            .e1 => .e0,
+        };
+    }
+};
 
 pub const Ptr = packed struct {
     pub const Idx = u26;
@@ -93,11 +105,13 @@ pub fn ref(x: u32) Ptr.Idx {
 }
 
 pub const nil = (Imm{ .tag = .sys, .idx = 0 }).word();
-pub const zap = (Imm{ .tag = .sys, .idx = 1 }).word();
+pub const nah = (Imm{ .tag = .sys, .idx = 1 }).word();
+pub const zap = (Imm{ .tag = .sys, .idx = 2 }).word();
 
-test "nil, zap" {
+test "nil, nah, zap" {
     try same(0b10001000000000000000000000000000, nil);
-    try same(0b10001000000000000000000000000001, zap);
+    try same(0b10001000000000000000000000000001, nah);
+    try same(0b10001000000000000000000000000010, zap);
 }
 
 pub fn tagOf(x: u32) Tag {

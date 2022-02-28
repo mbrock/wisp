@@ -49,9 +49,9 @@ pub fn printAlloc(
 }
 
 pub fn dump(prefix: []const u8, vat: *Vat, word: u32) !void {
-    var s = try printAlloc(vat.gpa, vat, word);
+    var s = try printAlloc(vat.orb, vat, word);
     std.log.warn("{s} {s}", .{ prefix, s });
-    vat.gpa.free(s);
+    vat.orb.free(s);
 }
 
 pub fn print(
