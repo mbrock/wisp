@@ -85,6 +85,7 @@ fn copy(gc: *GC, x: u32) !u32 {
         .str => gc.copyRow(.str, x),
         .pkg => gc.copyRow(.pkg, x),
         .ct0 => gc.copyRow(.ct0, x),
+        .ct1 => gc.copyRow(.ct1, x),
     };
 }
 

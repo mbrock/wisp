@@ -111,7 +111,7 @@ pub fn print(
         },
 
         .chr, .fop, .mop => {},
-        .fun, .vec, .ct0 => {},
+        .fun, .vec, .ct0, .ct1 => {},
     }
 }
 

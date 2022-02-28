@@ -36,7 +36,9 @@ pub const Tag = enum(u5) {
     vec = 0x18,
     str = 0x19,
     pkg = 0x1a,
+
     ct0 = 0x1b,
+    ct1 = 0x1c,
 };
 
 pub const pointerTags = .{ .duo, .sym, .fun, .vec, .str, .pkg, .ct0 };

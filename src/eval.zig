@@ -79,10 +79,36 @@ fn findVariable(this: *Eval, sym: u32) !void {
     };
 }
 
+fn step_IF(this: *Eval, cdr: u32) !void {
+    var xs: [3]u32 = undefined;
+    const args = try scanList(this.vat, &xs, false, cdr);
+    this.* = .{
+        .vat = this.vat,
+        .scopes = this.scopes,
+        .job = .{ .exp = args[0] },
+        .way = try this.vat.new(.ct1, .{
+            .hop = this.way,
+            .env = this.scopes,
+            .yay = args[1],
+            .nay = args[2],
+        }),
+    };
+}
+
 fn stepDuo(this: *Eval, p: u32) !void {
     const duo = try this.vat.row(.duo, p);
-    const cdr = try this.vat.row(.duo, duo.cdr);
+    const car = duo.car;
+
+    if (car == this.vat.specials.IF) {
+        return this.step_IF(duo.cdr);
+    }
+
     const fun = try this.vat.get(.sym, .fun, duo.car);
+    if (fun == wisp.nil) {
+        return Error.Nope;
+    }
+
+    const cdr = try this.vat.row(.duo, duo.cdr);
 
     switch (wisp.tagOf(fun)) {
         .fop => {
@@ -117,7 +143,7 @@ fn stepDuo(this: *Eval, p: u32) !void {
         },
 
         else => {
-            std.log.warn("callee {any}", .{wisp.tagOf(fun)});
+            std.log.warn("callee {any} {any}", .{ wisp.tagOf(fun), wisp.Ptr.from(fun) });
             return Error.Nope;
         },
     }
@@ -131,8 +157,19 @@ pub fn proceed(this: *Eval, x: u32) !void {
 
     switch (wisp.tagOf(this.way)) {
         .ct0 => try this.execCt0(try this.vat.row(.ct0, this.way)),
+        .ct1 => try this.execCt1(try this.vat.row(.ct1, this.way)),
         else => unreachable,
     }
+}
+
+fn execCt1(this: *Eval, ct1: wisp.Row(.ct1)) !void {
+    const exp = if (this.job.val == wisp.nil) ct1.nay else ct1.yay;
+    this.* = .{
+        .vat = this.vat,
+        .way = ct1.hop,
+        .scopes = ct1.env,
+        .job = .{ .exp = exp },
+    };
 }
 
 fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
@@ -322,4 +359,9 @@ test "(cdr (cons 1 2)) => 2" {
 
 test "nil => nil" {
     try expectEval("nil", "nil");
+}
+
+test "if" {
+    try expectEval("0", "(if nil 1 0)");
+    try expectEval("1", "(if t 1 0)");
 }

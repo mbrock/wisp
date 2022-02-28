@@ -37,6 +37,7 @@ pub fn Row(comptime t: Tag) type {
         .str => struct { idx: u32, len: u32 },
         .pkg => struct { nam: u32, sym: u32 },
         .ct0 => struct { hop: u32, env: u32, fun: u32, arg: u32, exp: u32 },
+        .ct1 => struct { hop: u32, env: u32, yay: u32, nay: u32 },
     };
 }
 
@@ -105,6 +106,7 @@ pub const Tabs = struct {
     str: Tab(.str),
     pkg: Tab(.pkg),
     ct0: Tab(.ct0),
+    ct1: Tab(.ct1),
 
     pub fn init(era: Era) Tabs {
         return .{
@@ -115,6 +117,7 @@ pub const Tabs = struct {
             .str = .{ .era = era },
             .pkg = .{ .era = era },
             .ct0 = .{ .era = era },
+            .ct1 = .{ .era = era },
         };
     }
 
@@ -130,6 +133,7 @@ pub const Tabs = struct {
 pub const Special = enum {
     NIL,
     T,
+    IF,
 };
 
 pub const Vat = struct {
