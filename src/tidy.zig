@@ -46,6 +46,7 @@ pub fn init(old: *wisp.Vat) !GC {
             .era = era,
             .orb = old.orb,
             .bin = old.bin,
+            .specials = old.specials,
             .tabs = wisp.Tabs.init(era),
             .base = 0xdeadbeef,
         },
@@ -62,8 +63,16 @@ fn finalize(gc: *GC) wisp.Vat {
     return gc.new;
 }
 
+fn copyPlace(gc: *GC, x: *u32) !void {
+    x.* = try gc.copy(x.*);
+}
+
 fn copyRoots(gc: *GC) !void {
     gc.new.base = try gc.copy(gc.old.base);
+
+    inline for (std.meta.fields(wisp.Special)) |s| {
+        try gc.copyPlace(&@field(gc.new.specials, s.name));
+    }
 }
 
 fn copy(gc: *GC, x: u32) !u32 {

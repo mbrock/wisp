@@ -127,6 +127,11 @@ pub const Tabs = struct {
     }
 };
 
+pub const Special = enum {
+    NIL,
+    T,
+};
+
 pub const Vat = struct {
     orb: Orb,
     era: Era = .e0,
@@ -134,6 +139,8 @@ pub const Vat = struct {
     tabs: Tabs,
 
     base: u32,
+
+    specials: std.enums.EnumFieldStruct(Special, u32, 0) = .{},
 
     pub fn init(orb: Orb, era: Era) !Vat {
         var vat = Vat{
@@ -150,7 +157,15 @@ pub const Vat = struct {
         try vat.initvar("NIL", wisp.nil);
         try vat.initvar("T", wisp.t);
 
+        inline for (std.meta.fields(Special)) |s| {
+            @field(vat.specials, s.name) = try vat.intern(s.name, vat.base);
+        }
+
         return vat;
+    }
+
+    pub fn special(vat: *Vat, s: Special) u32 {
+        return @field(vat.specials, @tagName(s));
     }
 
     fn initvar(vat: *Vat, txt: []const u8, val: u32) !void {
