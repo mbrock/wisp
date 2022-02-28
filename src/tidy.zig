@@ -27,11 +27,15 @@ const read = @import("./read.zig").read;
 const printer = @import("./print.zig");
 
 pub fn tidy(vat: *wisp.Vat) !void {
+    const n1 = vat.bytesize();
     var gc = try init(vat);
     defer gc.deinit();
     try gc.copyRoots();
     try gc.scavenge();
     vat.* = gc.finalize();
+    const n2 = vat.bytesize();
+
+    std.log.info("gc: before {d}, after {d}", .{ n1, n2 });
 }
 
 pub fn init(old: *wisp.Vat) !GC {
@@ -58,7 +62,7 @@ fn finalize(gc: *GC) wisp.Vat {
 }
 
 fn copyRoots(gc: *GC) !void {
-    gc.new.tabs.pkg = try gc.old.tabs.pkg.flip(gc.new.orb);
+    _ = try gc.copy(gc.old.base());
 }
 
 fn copy(gc: *GC, x: u32) !u32 {

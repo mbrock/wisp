@@ -90,6 +90,10 @@ pub fn Tab(comptime tag: Tag) type {
                 .list = try tab.list.clone(orb),
             };
         }
+
+        pub fn bytesize(tab: This) usize {
+            return tab.list.len * @sizeOf(Row(tag));
+        }
     };
 }
 
@@ -112,6 +116,14 @@ pub const Tabs = struct {
             .pkg = .{ .era = era },
             .ct0 = .{ .era = era },
         };
+    }
+
+    pub fn bytesize(tabs: Tabs) usize {
+        var n: usize = 0;
+        inline for (std.meta.fields(Tabs)) |field| {
+            n += @field(tabs, field.name).bytesize();
+        }
+        return n;
     }
 };
 
@@ -140,6 +152,10 @@ pub const Vat = struct {
         inline for (std.meta.fields(Tabs)) |field| {
             @field(vat.tabs, field.name).list.deinit(vat.orb);
         }
+    }
+
+    pub fn bytesize(vat: Vat) usize {
+        return vat.bin.items.len + vat.tabs.bytesize();
     }
 
     pub fn tab(vat: *Vat, comptime tag: Tag) *Tab(tag) {
