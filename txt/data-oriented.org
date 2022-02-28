@@ -96,6 +96,21 @@ Let's enumerate the types of objects we have:
 | ct0   |     37 | ~xxxxxxxxxxxxxxxxxxxxx00000110111~ |
 |-------+--------+------------------------------------|
 
+|-------+--------+------------------------------------|
+| Class |  Octal | Binary                             |
+|-------+--------+------------------------------------|
+| int   |      0 | ~0wwwwwwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| duo   |      1 | ~10001wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| sym   |      2 | ~10010wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| fun   |      3 | ~10011wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| vec   |      5 | ~10100wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| str   |      6 | ~10101wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| chr   |      7 | ~10110wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| pkg   |     17 | ~10111wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| sys   |     27 | ~11000wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| ct0   |     37 | ~11001wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+|-------+--------+------------------------------------|
+
 ** Garbage collection
 
 I'm going to try putting all my data in a bunch of column arrays.
