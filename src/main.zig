@@ -5,7 +5,7 @@ const wisp = @import("./wisp.zig");
 const read = @import("./read.zig").read;
 const print = @import("./print.zig").print;
 const eval = @import("./eval.zig");
-const primops = @import("./primops.zig");
+const ops = @import("./ops.zig");
 
 test {
     std.testing.refAllDecls(@This());
@@ -27,7 +27,7 @@ pub fn repl() anyerror!void {
     var vat = try wisp.Vat.init(allocator, .e0);
     defer vat.deinit();
 
-    try primops.load(&vat);
+    try ops.load(&vat);
 
     while (true) {
         try stdout.writeAll("wisp> ");
@@ -42,11 +42,10 @@ pub fn repl() anyerror!void {
         );
 
         if (lineOrEof) |line| {
-            _ = line;
-            const term = try read(&vat, line);
-            var ctx = eval.init(&vat, term);
-            const result = try ctx.evaluate(1000);
-            try print(&vat, stdout, result);
+            const exp = try read(&vat, line);
+            var ctx = eval.init(&vat, exp);
+            const val = try ctx.evaluate(1000);
+            try print(&vat, stdout, val);
             try stdout.writeByte('\n');
         } else {
             try stdout.writeByte('\n');

@@ -133,19 +133,15 @@ fn readListTail(self: *Reader) anyerror!u32 {
 
             '.' => {
                 try self.skipOnly('.');
-
                 const cdr = try self.readValue();
-
                 try self.skipSpace();
                 try self.skipOnly(')');
-
                 return cdr;
             },
 
             else => {
                 const car = try self.readValue();
                 const cdr = try self.readListTail();
-
                 return self.vat.new(.duo, .{
                     .car = car,
                     .cdr = cdr,
@@ -221,11 +217,11 @@ test "read symbol uppercasing" {
     defer vat.deinit();
 
     const symbol = try read(&vat, "foobar");
-    const symbolData = try vat.row(.sym, symbol);
-    const symbolName = try vat.strslice(symbolData.str);
+    const row = try vat.row(.sym, symbol);
+    const name = try vat.strslice(row.str);
 
     try std.testing.expectEqualStrings(
         "FOOBAR",
-        symbolName,
+        name,
     );
 }

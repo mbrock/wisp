@@ -154,6 +154,25 @@ pub const Vat = struct {
         return vat.tab(tag).col(c);
     }
 
+    pub fn get(
+        vat: *Vat,
+        comptime tag: Tag,
+        comptime c: TagCol(tag),
+        p: u32,
+    ) !u32 {
+        return vat.col(tag, c)[ref(p)];
+    }
+
+    pub fn set(
+        vat: *Vat,
+        comptime tag: Tag,
+        comptime c: TagCol(tag),
+        p: u32,
+        v: u32,
+    ) !void {
+        vat.col(tag, c)[ref(p)] = v;
+    }
+
     pub fn newstr(vat: *Vat, txt: []const u8) !u32 {
         try vat.bin.appendSlice(vat.orb, txt);
         return vat.new(.str, .{

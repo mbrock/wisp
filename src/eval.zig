@@ -12,42 +12,42 @@ const ref = wisp.ref;
 
 const read = @import("./read.zig").read;
 const Print = @import("./print.zig");
-const Primops = @import("./primops.zig");
+const Ops = @import("./ops.zig");
 
 const Eval = @This();
 
-const Status = enum { done, work };
+const Status = enum { val, exp };
 
-const Term = union(Status) {
-    done: u32,
-    work: u32,
+const Job = union(Status) {
+    val: u32,
+    exp: u32,
 };
 
 vat: *Vat,
-term: Term,
+job: Job,
 scopes: u32,
-plan: u32,
+way: u32,
 
 pub const Error = error{
     Nope,
     EvaluationLimitExceeded,
 };
 
-pub fn doneWithTerm(this: *Eval, x: u32) void {
-    this.term = .{ .done = x };
+pub fn doneWithJob(this: *Eval, x: u32) void {
+    this.job = .{ .val = x };
 }
 
 pub fn step(this: *Eval) !void {
-    switch (this.term) {
-        .done => |x| {
+    switch (this.job) {
+        .val => |x| {
             return this.proceed(x);
         },
 
-        .work => |t| {
+        .exp => |t| {
             switch (wisp.tagOf(t)) {
-                .int, .str => this.doneWithTerm(t),
+                .int, .str => this.doneWithJob(t),
                 .sym => return this.findVariable(t),
-                .duo => return this.stepCons(t),
+                .duo => return this.stepDuo(t),
                 else => return Error.Nope,
             }
         },
@@ -55,29 +55,27 @@ pub fn step(this: *Eval) !void {
 }
 
 fn findVariable(this: *Eval, sym: u32) !void {
-    const val = this.vat.col(.sym, .val)[ref(sym)];
-    if (val == wisp.zap) {
-        return Error.Nope;
-    } else {
-        this.doneWithTerm(val);
-    }
+    return switch (try this.vat.get(.sym, .val, sym)) {
+        wisp.zap => Error.Nope,
+        else => |x| this.doneWithJob(x),
+    };
 }
 
-fn stepCons(this: *Eval, p: u32) !void {
-    const cons = try this.vat.row(.duo, p);
-    const cdr = try this.vat.row(.duo, cons.cdr);
-    const callee = this.vat.col(.sym, .fun)[ref(cons.car)];
+fn stepDuo(this: *Eval, p: u32) !void {
+    const duo = try this.vat.row(.duo, p);
+    const cdr = try this.vat.row(.duo, duo.cdr);
+    const fun = try this.vat.get(.sym, .fun, duo.car);
 
-    switch (wisp.tagOf(callee)) {
+    switch (wisp.tagOf(fun)) {
         .fop => {
             this.* = .{
                 .vat = this.vat,
                 .scopes = this.scopes,
-                .term = .{ .work = cdr.car },
-                .plan = try this.vat.new(.ct0, .{
-                    .hop = this.plan,
+                .job = .{ .exp = cdr.car },
+                .way = try this.vat.new(.ct0, .{
+                    .hop = this.way,
                     .env = this.scopes,
-                    .fun = callee,
+                    .fun = fun,
                     .arg = wisp.nil,
                     .exp = cdr.cdr,
                 }),
@@ -87,41 +85,41 @@ fn stepCons(this: *Eval, p: u32) !void {
         .mop => {
             const result = try callOp(
                 this,
-                Primops.mops.values[wisp.Imm.from(callee).idx],
+                Ops.mops.values[wisp.Imm.from(fun).idx],
                 false,
-                cons.cdr,
+                duo.cdr,
             );
 
             this.* = .{
                 .vat = this.vat,
                 .scopes = this.scopes,
-                .term = .{ .work = result },
-                .plan = this.plan,
+                .job = .{ .exp = result },
+                .way = this.way,
             };
         },
 
         else => {
-            std.log.warn("callee {any}", .{wisp.tagOf(callee)});
+            std.log.warn("callee {any}", .{wisp.tagOf(fun)});
             return Error.Nope;
         },
     }
 }
 
 pub fn proceed(this: *Eval, x: u32) !void {
-    if (this.plan == wisp.nil) {
-        this.term = .{ .done = x };
+    if (this.way == wisp.nil) {
+        this.job = .{ .val = x };
         return;
     }
 
-    switch (wisp.tagOf(this.plan)) {
-        .ct0 => try this.doArgsPlan(try this.vat.row(.ct0, this.plan)),
+    switch (wisp.tagOf(this.way)) {
+        .ct0 => try this.execCt0(try this.vat.row(.ct0, this.way)),
         else => unreachable,
     }
 }
 
-fn doArgsPlan(this: *Eval, ct0: wisp.Row(.ct0)) !void {
+fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
     const values = try this.vat.new(.duo, .{
-        .car = this.term.done,
+        .car = this.job.val,
         .cdr = ct0.arg,
     });
 
@@ -130,16 +128,16 @@ fn doArgsPlan(this: *Eval, ct0: wisp.Row(.ct0)) !void {
         switch (wisp.tagOf(ct0.fun)) {
             .fop => {
                 const result = try this.callOp(
-                    Primops.fops.values[wisp.Imm.from(ct0.fun).idx],
+                    Ops.fops.values[wisp.Imm.from(ct0.fun).idx],
                     true,
                     values,
                 );
 
                 this.* = .{
                     .vat = this.vat,
-                    .plan = ct0.hop,
+                    .way = ct0.hop,
                     .scopes = ct0.env,
-                    .term = .{ .done = result },
+                    .job = .{ .val = result },
                 };
             },
             else => return Error.Nope,
@@ -148,9 +146,9 @@ fn doArgsPlan(this: *Eval, ct0: wisp.Row(.ct0)) !void {
         const cons = try this.vat.row(.duo, ct0.exp);
         this.* = .{
             .vat = this.vat,
-            .term = .{ .work = cons.car },
+            .job = .{ .exp = cons.car },
             .scopes = this.scopes,
-            .plan = try this.vat.new(.ct0, .{
+            .way = try this.vat.new(.ct0, .{
                 .hop = ct0.hop,
                 .env = ct0.env,
                 .fun = ct0.fun,
@@ -178,19 +176,19 @@ pub fn scanList(vat: *Vat, buffer: []u32, reverse: bool, list: u32) ![]u32 {
     return slice;
 }
 
-fn callOp(this: *Eval, primop: Primops.Op, reverse: bool, values: u32) !u32 {
+fn callOp(this: *Eval, primop: Ops.Op, reverse: bool, values: u32) !u32 {
     switch (primop.tag) {
         .f0x => {
             var xs: [31]u32 = undefined;
             const slice = try scanList(this.vat, &xs, reverse, values);
-            const f = Primops.FnTag.f0x.cast(primop.func);
+            const f = Ops.FnTag.f0x.cast(primop.func);
             return try f(this.vat, slice);
         },
 
         .f2 => {
             var xs: [2]u32 = undefined;
             const slice = try scanList(this.vat, &xs, reverse, values);
-            const f = Primops.FnTag.f2.cast(primop.func);
+            const f = Ops.FnTag.f2.cast(primop.func);
             return try f(this.vat, slice[0], slice[1]);
         },
     }
@@ -199,9 +197,9 @@ fn callOp(this: *Eval, primop: Primops.Op, reverse: bool, values: u32) !u32 {
 pub fn evaluate(this: *Eval, limit: u32) !u32 {
     var i: u32 = 0;
     while (i < limit) : (i += 1) {
-        if (this.plan == wisp.nil) {
-            switch (this.term) {
-                .done => |x| return x,
+        if (this.way == wisp.nil) {
+            switch (this.job) {
+                .val => |x| return x,
                 else => {},
             }
         }
@@ -214,16 +212,16 @@ pub fn evaluate(this: *Eval, limit: u32) !u32 {
 
 fn newTestVat() !Vat {
     var vat = try Vat.init(std.testing.allocator, .e0);
-    try Primops.load(&vat);
+    try Ops.load(&vat);
     return vat;
 }
 
-pub fn init(vat: *Vat, term: u32) Eval {
+pub fn init(vat: *Vat, job: u32) Eval {
     return Eval{
         .vat = vat,
-        .plan = wisp.nil,
+        .way = wisp.nil,
         .scopes = wisp.nil,
-        .term = Term{ .work = term },
+        .job = Job{ .exp = job },
     };
 }
 
@@ -231,11 +229,11 @@ test "step evaluates string" {
     var vat = try newTestVat();
     defer vat.deinit();
 
-    const term = try vat.newstr("foo");
-    var ctx = init(&vat, term);
+    const exp = try vat.newstr("foo");
+    var ctx = init(&vat, exp);
 
     try ctx.step();
-    try expectEqual(Term{ .done = term }, ctx.term);
+    try expectEqual(Job{ .val = exp }, ctx.job);
 }
 
 test "step evaluates variable" {
@@ -247,36 +245,32 @@ test "step evaluates variable" {
 
     var ctx = init(&vat, x);
 
-    vat.col(.sym, .val)[ref(x)] = foo;
+    try vat.set(.sym, .val, x, foo);
 
     try ctx.step();
-    try expectEqual(Term{ .done = foo }, ctx.term);
+    try expectEqual(Job{ .val = foo }, ctx.job);
 }
 
 fn expectEval(want: []const u8, src: []const u8) !void {
     var vat = try newTestVat();
     defer vat.deinit();
 
-    const term = try read(&vat, src);
-    var ctx = init(&vat, term);
-    const value = try ctx.evaluate(100);
+    const exp = try read(&vat, src);
+    var ctx = init(&vat, exp);
+    const val = try ctx.evaluate(100);
 
-    const valueString = try Print.printAlloc(
-        std.testing.allocator,
-        &vat,
-        value,
-    );
+    const valueString = try Print.printAlloc(vat.orb, &vat, val);
 
-    defer std.testing.allocator.free(valueString);
+    defer vat.orb.free(valueString);
 
     const wantValue = try read(&vat, want);
     const wantString = try Print.printAlloc(
-        std.testing.allocator,
+        vat.orb,
         &vat,
         wantValue,
     );
 
-    defer std.testing.allocator.free(wantString);
+    defer vat.orb.free(wantString);
 
     try expectEqualStrings(wantString, valueString);
 }
