@@ -42,11 +42,13 @@ pub const Tag = enum(u5) {
 pub const Era = enum(u1) { e0, e1 };
 
 pub const Ptr = packed struct {
+    pub const Idx = u26;
+
     era: Era,
-    idx: u26,
+    idx: Idx,
     tag: Tag,
 
-    pub fn make(tag: Tag, idx: u26, era: Era) Ptr {
+    pub fn make(tag: Tag, idx: Idx, era: Era) Ptr {
         return .{ .era = era, .idx = idx, .tag = tag };
     }
 
@@ -60,10 +62,12 @@ pub const Ptr = packed struct {
 };
 
 pub const Imm = packed struct {
-    idx: u27,
+    pub const Idx = u27;
+
+    idx: Idx,
     tag: Tag,
 
-    pub fn make(tag: Tag, idx: u26) Imm {
+    pub fn make(tag: Tag, idx: Idx) Imm {
         return .{ .idx = idx, .tag = tag };
     }
 
@@ -75,6 +79,18 @@ pub const Imm = packed struct {
         return @bitCast(u32, imm);
     }
 };
+
+pub fn Word(comptime tag: Tag) type {
+    return switch (tag) {
+        .int => unreachable,
+        .sys, .chr, .fop, .mop => Imm,
+        else => Ptr,
+    };
+}
+
+pub fn ref(x: u32) Ptr.Idx {
+    return Ptr.from(x).idx;
+}
 
 pub const nil = (Imm{ .tag = .sys, .idx = 0 }).word();
 pub const zap = (Imm{ .tag = .sys, .idx = 1 }).word();

@@ -8,6 +8,7 @@ const EnumArray = std.enums.EnumArray;
 const wisp = @import("./wisp.zig");
 const util = @import("./util.zig");
 
+const ref = wisp.ref;
 const Vat = wisp.Vat;
 const Ptr = wisp.Ptr;
 const DeclEnum = util.DeclEnum;
@@ -102,11 +103,11 @@ test "ops" {
 pub fn load(vat: *Vat) !void {
     inline for (fops.values) |fop, i| {
         var sym = try vat.intern(fop.name, vat.base());
-        vat.tabs.sym.field(.fun)[Ptr.from(sym).idx] = wisp.Imm.make(.fop, i).word();
+        vat.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.fop, i).word();
     }
 
     inline for (mops.values) |mop, i| {
         var sym = try vat.intern(mop.name, vat.base());
-        vat.tabs.sym.field(.fun)[Ptr.from(sym).idx] = wisp.Imm.make(.mop, i).word();
+        vat.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.mop, i).word();
     }
 }

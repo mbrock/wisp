@@ -21,13 +21,14 @@ const assert = std.debug.assert;
 const same = std.testing.expectEqual;
 
 const wisp = @import("./wisp.zig");
+const ref = wisp.ref;
 const nil = wisp.nil;
 const zap = wisp.zap;
 const Tag = wisp.Tag;
 const Era = wisp.Era;
 const Ptr = wisp.Ptr;
 
-pub fn Dat(comptime t: Tag) type {
+pub fn Row(comptime t: Tag) type {
     return switch (t) {
         .int, .sys, .chr, .fop, .mop => void,
         .duo => struct { car: u32, cdr: u32 },
@@ -45,18 +46,21 @@ pub const Bin = std.ArrayListUnmanaged(u8);
 
 pub const Err = error{Bad};
 
+pub fn TagCol(comptime tag: Tag) type {
+    return std.meta.FieldEnum(Row(tag));
+}
+
 pub fn Tab(comptime tag: Tag) type {
     return struct {
         const This = @This();
 
         era: Era,
-        list: std.MultiArrayList(Dat(tag)) = .{},
+        list: std.MultiArrayList(Row(tag)) = .{},
 
-        const Col = std.meta.FieldEnum(Dat(tag));
         const prefix: u32 = @enumToInt(tag) << (32 - 5);
 
-        pub fn new(tab: *This, orb: Orb, val: Dat(tag)) !u32 {
-            try tab.list.append(orb, val);
+        pub fn new(tab: *This, orb: Orb, row: Row(tag)) !u32 {
+            try tab.list.append(orb, row);
             return Ptr.make(
                 tag,
                 @intCast(u26, tab.list.len - 1),
@@ -68,15 +72,15 @@ pub fn Tab(comptime tag: Tag) type {
             return Ptr.make(tag, idx, tab.era);
         }
 
-        pub fn get(tab: This, ptr: u32) !Dat(tag) {
+        pub fn get(tab: This, ptr: u32) !Row(tag) {
             const p = Ptr.from(ptr);
             assert(p.tag == tag);
             assert(p.era == tab.era);
             return tab.list.get(p.idx);
         }
 
-        pub fn field(tab: This, comptime col: Col) []u32 {
-            return tab.list.items(col);
+        pub fn col(tab: This, comptime c: TagCol(tag)) []u32 {
+            return tab.list.items(c);
         }
     };
 }
@@ -134,12 +138,20 @@ pub const Vat = struct {
         return &@field(vat.tabs, @tagName(tag));
     }
 
-    pub fn new(vat: *Vat, comptime tag: Tag, val: Dat(tag)) !u32 {
-        return vat.tab(tag).new(vat.orb, val);
+    pub fn new(vat: *Vat, comptime tag: Tag, data: Row(tag)) !u32 {
+        return vat.tab(tag).new(vat.orb, data);
     }
 
-    pub fn get(vat: *Vat, comptime tag: Tag, ptr: u32) !Dat(tag) {
+    pub fn row(vat: *Vat, comptime tag: Tag, ptr: u32) !Row(tag) {
         return vat.tab(tag).get(ptr);
+    }
+
+    pub fn col(
+        vat: *Vat,
+        comptime tag: Tag,
+        comptime c: TagCol(tag),
+    ) []u32 {
+        return vat.tab(tag).col(c);
     }
 
     pub fn newstr(vat: *Vat, txt: []const u8) !u32 {
@@ -151,7 +163,7 @@ pub const Vat = struct {
     }
 
     pub fn strslice(vat: *Vat, ptr: u32) ![]const u8 {
-        const str = try vat.get(.str, ptr);
+        const str = try vat.row(.str, ptr);
         return vat.bin.items[str.idx .. str.idx + str.len];
     }
 
@@ -161,11 +173,11 @@ pub const Vat = struct {
 
     pub fn intern(vat: *Vat, txt: []const u8, pkgptr: u32) !u32 {
         const symstrs = vat.tabs.sym.list.items(.str);
-        const pkg = try vat.get(.pkg, pkgptr);
+        const pkg = try vat.row(.pkg, pkgptr);
         var duoptr = pkg.sym;
 
         while (duoptr != nil) {
-            const duo = try vat.get(.duo, duoptr);
+            const duo = try vat.row(.duo, duoptr);
             const strptr = symstrs[Ptr.from(duo.car).idx];
             if (std.mem.eql(u8, txt, try vat.strslice(strptr))) {
                 return duo.car;
@@ -181,7 +193,7 @@ pub const Vat = struct {
             .fun = nil,
         });
 
-        vat.tabs.pkg.field(.sym)[Ptr.from(pkgptr).idx] = try vat.new(.duo, .{
+        vat.col(.pkg, .sym)[ref(pkgptr)] = try vat.new(.duo, .{
             .car = symptr,
             .cdr = pkg.sym,
         });

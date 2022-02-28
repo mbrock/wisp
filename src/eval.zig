@@ -8,6 +8,7 @@ const wisp = @import("./wisp.zig");
 
 const Vat = wisp.Vat;
 const Ptr = wisp.Ptr;
+const ref = wisp.ref;
 
 const read = @import("./read.zig").read;
 const Print = @import("./print.zig");
@@ -53,19 +54,19 @@ pub fn step(this: *Eval) !void {
     }
 }
 
-fn findVariable(this: *Eval, word: u32) !void {
-    const value = this.vat.tabs.sym.field(.val)[Ptr.from(word).idx];
-    if (value == wisp.zap) {
+fn findVariable(this: *Eval, sym: u32) !void {
+    const val = this.vat.col(.sym, .val)[ref(sym)];
+    if (val == wisp.zap) {
         return Error.Nope;
     } else {
-        this.doneWithTerm(value);
+        this.doneWithTerm(val);
     }
 }
 
 fn stepCons(this: *Eval, p: u32) !void {
-    const cons = try this.vat.get(.duo, p);
-    const cdr = try this.vat.get(.duo, cons.cdr);
-    const callee = this.vat.tabs.sym.field(.fun)[Ptr.from(cons.car).idx];
+    const cons = try this.vat.row(.duo, p);
+    const cdr = try this.vat.row(.duo, cons.cdr);
+    const callee = this.vat.col(.sym, .fun)[ref(cons.car)];
 
     switch (wisp.tagOf(callee)) {
         .fop => {
@@ -113,12 +114,12 @@ pub fn proceed(this: *Eval, x: u32) !void {
     }
 
     switch (wisp.tagOf(this.plan)) {
-        .ct0 => try this.doArgsPlan(try this.vat.get(.ct0, this.plan)),
+        .ct0 => try this.doArgsPlan(try this.vat.row(.ct0, this.plan)),
         else => unreachable,
     }
 }
 
-fn doArgsPlan(this: *Eval, ct0: wisp.Dat(.ct0)) !void {
+fn doArgsPlan(this: *Eval, ct0: wisp.Row(.ct0)) !void {
     const values = try this.vat.new(.duo, .{
         .car = this.term.done,
         .cdr = ct0.arg,
@@ -144,7 +145,7 @@ fn doArgsPlan(this: *Eval, ct0: wisp.Dat(.ct0)) !void {
             else => return Error.Nope,
         }
     } else {
-        const cons = try this.vat.get(.duo, ct0.exp);
+        const cons = try this.vat.row(.duo, ct0.exp);
         this.* = .{
             .vat = this.vat,
             .term = .{ .work = cons.car },
@@ -164,7 +165,7 @@ pub fn scanList(vat: *Vat, buffer: []u32, reverse: bool, list: u32) ![]u32 {
     var i: usize = 0;
     var cur = list;
     while (cur != wisp.nil) {
-        const cons = try vat.get(.duo, cur);
+        const cons = try vat.row(.duo, cur);
         buffer[i] = cons.car;
         cur = cons.cdr;
         i += 1;
@@ -246,7 +247,7 @@ test "step evaluates variable" {
 
     var ctx = init(&vat, x);
 
-    vat.tabs.sym.field(.val)[Ptr.from(x).idx] = foo;
+    vat.col(.sym, .val)[ref(x)] = foo;
 
     try ctx.step();
     try expectEqual(Term{ .done = foo }, ctx.term);

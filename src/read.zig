@@ -221,7 +221,7 @@ test "read symbol uppercasing" {
     defer vat.deinit();
 
     const symbol = try read(&vat, "foobar");
-    const symbolData = try vat.get(.sym, symbol);
+    const symbolData = try vat.row(.sym, symbol);
     const symbolName = try vat.strslice(symbolData.str);
 
     try std.testing.expectEqualStrings(

@@ -45,7 +45,7 @@ pub fn print(
         .int => try out.print("{d}", .{x}),
 
         .sym => {
-            const sym = try vat.get(.sym, x);
+            const sym = try vat.row(.sym, x);
             const name = vat.strslice(sym.str);
             try out.print("{s}", .{name});
         },
@@ -60,7 +60,7 @@ pub fn print(
             var cur = x;
 
             loop: while (cur != wisp.nil) {
-                var cons = try vat.get(.duo, cur);
+                var cons = try vat.row(.duo, cur);
                 try print(vat, out, cons.car);
                 switch (wisp.tagOf(cons.cdr)) {
                     .duo => {
