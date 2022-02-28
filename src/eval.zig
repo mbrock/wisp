@@ -5,16 +5,15 @@ const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 
 const wisp = @import("./wisp.zig");
+
+const Vat = wisp.Vat;
+const Ptr = wisp.Ptr;
+
 const read = @import("./read.zig").read;
 const Print = @import("./print.zig");
 const Primops = @import("./primops.zig");
 
 const Eval = @This();
-
-const Word = wisp.Word;
-const Heap = wisp.Heap;
-const Immediate = wisp.Immediate;
-const Pointer = wisp.Pointer;
 
 const Status = enum { done, work };
 
@@ -23,11 +22,7 @@ const Term = union(Status) {
     work: u32,
 };
 
-test "foo" {
-    try expectEqual(4, @sizeOf(Word));
-}
-
-heap: *Heap,
+vat: *Vat,
 term: Term,
 scopes: u32,
 plan: u32,
@@ -48,25 +43,19 @@ pub fn step(this: *Eval) !void {
         },
 
         .work => |t| {
-            switch (Word.from(t)) {
-                .immediate => this.doneWithTerm(t),
-
-                .pointer => |x| {
-                    switch (x) {
-                        .string => this.doneWithTerm(t),
-                        .symbol => return this.findVariable(t),
-                        .cons => return this.stepCons(t),
-                        else => return Error.Nope,
-                    }
-                },
+            switch (wisp.tagOf(t)) {
+                .int, .str => this.doneWithTerm(t),
+                .sym => return this.findVariable(t),
+                .duo => return this.stepCons(t),
+                else => return Error.Nope,
             }
         },
     }
 }
 
 fn findVariable(this: *Eval, word: u32) !void {
-    const value = (try this.heap.symbolValue(word)).*;
-    if (value == wisp.ZAP) {
+    const value = this.vat.tabs.sym.field(.val)[Ptr.from(word).idx];
+    if (value == wisp.zap) {
         return Error.Nope;
     } else {
         this.doneWithTerm(value);
@@ -74,122 +63,108 @@ fn findVariable(this: *Eval, word: u32) !void {
 }
 
 fn stepCons(this: *Eval, p: u32) !void {
-    const cons = try this.heap.deref(.cons, p);
-    const cdr = try this.heap.deref(.cons, cons.cdr);
-    const callee = (try this.heap.symbolFunction(cons.car)).*;
+    const cons = try this.vat.get(.duo, p);
+    const cdr = try this.vat.get(.duo, cons.cdr);
+    const callee = this.vat.tabs.sym.field(.fun)[Ptr.from(cons.car).idx];
 
-    switch (Word.from(callee)) {
-        .immediate => |imm| {
-            switch (imm) {
-                .primfun => {
-                    this.* = .{
-                        .heap = this.heap,
-                        .scopes = this.scopes,
-                        .term = .{ .work = cdr.car },
-                        .plan = try this.heap.append(.argsPlan, wisp.ArgsPlan{
-                            .next = this.plan,
-                            .scopes = this.scopes,
-                            .callee = callee,
-                            .values = wisp.NIL,
-                            .terms = cdr.cdr,
-                        }),
-                    };
-                },
-
-                .primmac => |i| {
-                    const result = try callPrimop(
-                        this,
-                        Primops.primmacs.values[i],
-                        false,
-                        cons.cdr,
-                    );
-
-                    this.* = .{
-                        .heap = this.heap,
-                        .scopes = this.scopes,
-                        .term = .{ .work = result },
-                        .plan = this.plan,
-                    };
-                },
-
-                else => return Error.Nope,
-            }
+    switch (wisp.tagOf(callee)) {
+        .fop => {
+            this.* = .{
+                .vat = this.vat,
+                .scopes = this.scopes,
+                .term = .{ .work = cdr.car },
+                .plan = try this.vat.new(.ct0, .{
+                    .hop = this.plan,
+                    .env = this.scopes,
+                    .fun = callee,
+                    .arg = wisp.nil,
+                    .exp = cdr.cdr,
+                }),
+            };
         },
-        else => return Error.Nope,
+
+        .mop => {
+            const result = try callOp(
+                this,
+                Primops.mops.values[wisp.Imm.from(callee).idx],
+                false,
+                cons.cdr,
+            );
+
+            this.* = .{
+                .vat = this.vat,
+                .scopes = this.scopes,
+                .term = .{ .work = result },
+                .plan = this.plan,
+            };
+        },
+
+        else => {
+            std.log.warn("callee {any}", .{wisp.tagOf(callee)});
+            return Error.Nope;
+        },
     }
 }
 
 pub fn proceed(this: *Eval, x: u32) !void {
-    if (this.plan == wisp.NIL) {
+    if (this.plan == wisp.nil) {
         this.term = .{ .done = x };
         return;
     }
 
-    switch (Word.from(this.plan)) {
-        .pointer => |pointer| {
-            switch (pointer) {
-                .argsPlan => |i| {
-                    try this.doArgsPlan(try this.heap.get(.argsPlan, i));
-                },
-                else => unreachable,
-            }
-        },
+    switch (wisp.tagOf(this.plan)) {
+        .ct0 => try this.doArgsPlan(try this.vat.get(.ct0, this.plan)),
         else => unreachable,
     }
 }
 
-fn doArgsPlan(this: *Eval, argsPlan: wisp.ArgsPlan) !void {
-    const values = try this.heap.append(.cons, .{
+fn doArgsPlan(this: *Eval, ct0: wisp.Dat(.ct0)) !void {
+    const values = try this.vat.new(.duo, .{
         .car = this.term.done,
-        .cdr = argsPlan.values,
+        .cdr = ct0.arg,
     });
 
-    if (argsPlan.terms == wisp.NIL) {
+    if (ct0.exp == wisp.nil) {
         // Done with evaluating subterms.
-        switch (Word.from(argsPlan.callee)) {
-            .immediate => |imm| {
-                switch (imm) {
-                    .primfun => |i| {
-                        const result = try this.callPrimop(
-                            Primops.primfuns.values[i],
-                            true,
-                            values,
-                        );
+        switch (wisp.tagOf(ct0.fun)) {
+            .fop => {
+                const result = try this.callOp(
+                    Primops.fops.values[wisp.Imm.from(ct0.fun).idx],
+                    true,
+                    values,
+                );
 
-                        this.* = .{
-                            .heap = this.heap,
-                            .plan = argsPlan.next,
-                            .scopes = argsPlan.scopes,
-                            .term = .{ .done = result },
-                        };
-                    },
-                    else => return Error.Nope,
-                }
+                this.* = .{
+                    .vat = this.vat,
+                    .plan = ct0.hop,
+                    .scopes = ct0.env,
+                    .term = .{ .done = result },
+                };
             },
             else => return Error.Nope,
         }
     } else {
-        const cons = try this.heap.deref(.cons, argsPlan.terms);
+        const cons = try this.vat.get(.duo, ct0.exp);
         this.* = .{
-            .heap = this.heap,
+            .vat = this.vat,
             .term = .{ .work = cons.car },
             .scopes = this.scopes,
-            .plan = try this.heap.append(.argsPlan, wisp.ArgsPlan{
-                .next = argsPlan.next,
-                .scopes = argsPlan.scopes,
-                .callee = argsPlan.callee,
-                .terms = cons.cdr,
-                .values = values,
+            .plan = try this.vat.new(.ct0, .{
+                .hop = ct0.hop,
+                .env = ct0.env,
+                .fun = ct0.fun,
+                .exp = cons.cdr,
+                .arg = values,
             }),
         };
     }
 }
 
-pub fn scanList(heap: *Heap, buffer: []u32, reverse: bool, list: u32) ![]u32 {
+pub fn scanList(vat: *Vat, buffer: []u32, reverse: bool, list: u32) ![]u32 {
     var i: usize = 0;
     var cur = list;
-    while (cur != wisp.NIL) {
-        const cons = try heap.deref(.cons, cur);
+    while (cur != wisp.nil) {
+        const cons = try vat.get(.duo, cur);
         buffer[i] = cons.car;
         cur = cons.cdr;
         i += 1;
@@ -202,20 +177,20 @@ pub fn scanList(heap: *Heap, buffer: []u32, reverse: bool, list: u32) ![]u32 {
     return slice;
 }
 
-fn callPrimop(this: *Eval, primop: Primops.Primop, reverse: bool, values: u32) !u32 {
-    switch (primop.info.tag) {
+fn callOp(this: *Eval, primop: Primops.Op, reverse: bool, values: u32) !u32 {
+    switch (primop.tag) {
         .f0x => {
             var xs: [31]u32 = undefined;
-            const slice = try scanList(this.heap, &xs, reverse, values);
+            const slice = try scanList(this.vat, &xs, reverse, values);
             const f = Primops.FnTag.f0x.cast(primop.func);
-            return try f(this.heap, slice);
+            return try f(this.vat, slice);
         },
 
         .f2 => {
             var xs: [2]u32 = undefined;
-            const slice = try scanList(this.heap, &xs, reverse, values);
+            const slice = try scanList(this.vat, &xs, reverse, values);
             const f = Primops.FnTag.f2.cast(primop.func);
-            return try f(this.heap, slice[0], slice[1]);
+            return try f(this.vat, slice[0], slice[1]);
         },
     }
 }
@@ -223,7 +198,7 @@ fn callPrimop(this: *Eval, primop: Primops.Primop, reverse: bool, values: u32) !
 pub fn evaluate(this: *Eval, limit: u32) !u32 {
     var i: u32 = 0;
     while (i < limit) : (i += 1) {
-        if (this.plan == wisp.NIL) {
+        if (this.plan == wisp.nil) {
             switch (this.term) {
                 .done => |x| return x,
                 else => {},
@@ -236,67 +211,67 @@ pub fn evaluate(this: *Eval, limit: u32) !u32 {
     return Error.EvaluationLimitExceeded;
 }
 
-fn newTestHeap() !Heap {
-    var heap = try Heap.init(std.testing.allocator);
-    try heap.loadPrimops();
-    return heap;
+fn newTestVat() !Vat {
+    var vat = try Vat.init(std.testing.allocator, .e0);
+    try Primops.load(&vat);
+    return vat;
 }
 
-pub fn init(heap: *Heap, term: u32) Eval {
+pub fn init(vat: *Vat, term: u32) Eval {
     return Eval{
-        .heap = heap,
-        .plan = wisp.NIL,
-        .scopes = wisp.NIL,
+        .vat = vat,
+        .plan = wisp.nil,
+        .scopes = wisp.nil,
         .term = Term{ .work = term },
     };
 }
 
 test "step evaluates string" {
-    var heap = try newTestHeap();
-    defer heap.deinit();
+    var vat = try newTestVat();
+    defer vat.deinit();
 
-    const term = try heap.addString("foo");
-    var ctx = init(&heap, term);
+    const term = try vat.newstr("foo");
+    var ctx = init(&vat, term);
 
     try ctx.step();
     try expectEqual(Term{ .done = term }, ctx.term);
 }
 
 test "step evaluates variable" {
-    var heap = try newTestHeap();
-    defer heap.deinit();
+    var vat = try newTestVat();
+    defer vat.deinit();
 
-    const x = try heap.internStringInBasePackage("X");
-    const foo = try heap.addString("foo");
+    const x = try vat.intern("X", vat.base());
+    const foo = try vat.newstr("foo");
 
-    var ctx = init(&heap, x);
+    var ctx = init(&vat, x);
 
-    (try heap.symbolValue(x)).* = foo;
+    vat.tabs.sym.field(.val)[Ptr.from(x).idx] = foo;
 
     try ctx.step();
     try expectEqual(Term{ .done = foo }, ctx.term);
 }
 
 fn expectEval(want: []const u8, src: []const u8) !void {
-    var heap = try newTestHeap();
-    defer heap.deinit();
+    var vat = try newTestVat();
+    defer vat.deinit();
 
-    const term = try read(&heap, src);
-    var ctx = init(&heap, term);
+    const term = try read(&vat, src);
+    var ctx = init(&vat, term);
     const value = try ctx.evaluate(100);
 
     const valueString = try Print.printAlloc(
         std.testing.allocator,
-        &heap,
+        &vat,
         value,
     );
 
     defer std.testing.allocator.free(valueString);
 
-    const wantValue = try read(&heap, want);
+    const wantValue = try read(&vat, want);
     const wantString = try Print.printAlloc(
         std.testing.allocator,
-        &heap,
+        &vat,
         wantValue,
     );
 

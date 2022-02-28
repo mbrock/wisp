@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const wisp = @import("./wisp.zig");
-const Heap = wisp.Heap;
+const Vat = wisp.Vat;
 
 test "print one" {
     var list = std.ArrayList(u8).init(std.testing.allocator);
@@ -12,199 +12,145 @@ test "print one" {
 
 pub fn expect(
     expected: []const u8,
-    heap: *Heap,
+    vat: *Vat,
     x: u32,
 ) !void {
-    var actual = try printAlloc(std.testing.allocator, heap, x);
+    var actual = try printAlloc(std.testing.allocator, vat, x);
     defer std.testing.allocator.free(actual);
     try std.testing.expectEqualStrings(expected, actual);
 }
 
 pub fn printAlloc(
     allocator: std.mem.Allocator,
-    heap: *Heap,
+    vat: *Vat,
     word: u32,
 ) ![]const u8 {
     var list = std.ArrayList(u8).init(allocator);
-    try print(heap, list.writer(), word);
+    try print(vat, list.writer(), word);
     return list.toOwnedSlice();
 }
 
-pub fn dump(prefix: []const u8, heap: *Heap, word: u32) !void {
-    var s = try printAlloc(heap.gpa, heap, word);
+pub fn dump(prefix: []const u8, vat: *Vat, word: u32) !void {
+    var s = try printAlloc(vat.gpa, vat, word);
     std.log.warn("{s} {s}", .{ prefix, s });
-    heap.gpa.free(s);
+    vat.gpa.free(s);
 }
 
 pub fn print(
-    heap: *Heap,
+    vat: *Vat,
     out: anytype,
-    value: u32,
+    x: u32,
 ) anyerror!void {
-    switch (wisp.Word.from(value)) {
-        .immediate => |immediate| {
-            switch (immediate) {
-                .nil => {
-                    try out.print("NIL", .{});
-                },
+    switch (wisp.tagOf(x)) {
+        .int => try out.print("{d}", .{x}),
 
-                .fixnum => |x| {
-                    try out.print("{d}", .{x});
-                },
-
-                .primfun => {
-                    try out.print("<primfun>", .{});
-                },
-
-                .primmac => {
-                    try out.print("<primmac>", .{});
-                },
-
-                .glyph => {
-                    try out.print("<glyph>", .{});
-                },
-
-                else => unreachable,
-            }
+        .sym => {
+            const sym = try vat.get(.sym, x);
+            const name = vat.strslice(sym.str);
+            try out.print("{s}", .{name});
         },
 
-        .pointer => |pointer| {
-            switch (pointer) {
-                .symbol => {
-                    const offset = pointer.offset(.symbol, heap.semispace);
-                    const nameIdx = heap.data.symbol.items(.name)[offset];
-                    const name = heap.stringSlice(nameIdx);
-                    try out.print("{s}", .{name});
-                },
+        .str => {
+            const s = vat.strslice(x);
+            try out.print("\"{s}\"", .{s});
+        },
 
-                .string => {
-                    const s = heap.stringSlice(value);
-                    try out.print("\"{s}\"", .{s});
-                },
+        .duo => {
+            try out.print("(", .{});
+            var cur = x;
 
-                .cons => {
-                    try out.print("(", .{});
-                    var cur = value;
-
-                    loop: while (cur != wisp.NIL) {
-                        var cons = try heap.deref(.cons, cur);
-                        try print(heap, out, cons.car);
-                        switch (wisp.Word.from(cons.cdr)) {
-                            .pointer => |pointer2| {
-                                switch (pointer2) {
-                                    .cons => {
-                                        try out.print(" ", .{});
-                                        cur = cons.cdr;
-                                    },
-                                    else => {
-                                        try out.print(" . ", .{});
-                                        try print(heap, out, cons.cdr);
-                                        break :loop;
-                                    },
-                                }
-                            },
-
-                            .immediate => |immediate| {
-                                switch (immediate) {
-                                    .nil => {
-                                        break :loop;
-                                    },
-                                    else => {
-                                        try out.print(" . ", .{});
-                                        try print(heap, out, cons.cdr);
-                                        break :loop;
-                                    },
-                                }
-                            },
+            loop: while (cur != wisp.nil) {
+                var cons = try vat.get(.duo, cur);
+                try print(vat, out, cons.car);
+                switch (wisp.tagOf(cons.cdr)) {
+                    .duo => {
+                        try out.print(" ", .{});
+                        cur = cons.cdr;
+                    },
+                    else => {
+                        if (cons.cdr != wisp.nil) {
+                            try out.print(" . ", .{});
+                            try print(vat, out, cons.cdr);
                         }
-                    }
-
-                    try out.print(")", .{});
-                },
-
-                .package => {
-                    try out.print("<package>", .{});
-                },
-
-                .argsPlan => {
-                    try out.print("<argsplan>", .{});
-                },
+                        break :loop;
+                    },
+                }
             }
+
+            try out.print(")", .{});
         },
+
+        .pkg => {
+            try out.print("<package>", .{});
+        },
+
+        .chr, .sys, .fop, .mop => {},
+        .fun, .vec, .ct0 => {},
     }
 }
 
-fn expectPrintResult(heap: *Heap, expected: []const u8, x: u32) !void {
+fn expectPrintResult(vat: *Vat, expected: []const u8, x: u32) !void {
     var list = std.ArrayList(u8).init(std.testing.allocator);
     defer list.deinit();
     const writer = list.writer();
 
-    try print(heap, &writer, x);
+    try print(vat, &writer, x);
     try std.testing.expectEqualStrings(expected, list.items);
 }
 
 test "print fixnum" {
-    var heap = try Heap.init(std.testing.allocator);
-    defer heap.deinit();
+    var vat = try Vat.init(std.testing.allocator, .e0);
+    defer vat.deinit();
 
-    try expectPrintResult(&heap, "1", wisp.encodeFixnum(1));
+    try expectPrintResult(&vat, "1", 1);
 }
 
 test "print lists" {
-    var heap = try Heap.init(std.testing.allocator);
-    defer heap.deinit();
+    var vat = try Vat.init(std.testing.allocator, .e0);
+    defer vat.deinit();
 
     try expectPrintResult(
-        &heap,
+        &vat,
         "(1 2 3)",
-        try heap.list(
-            [_]u32{
-                wisp.encodeFixnum(1),
-                wisp.encodeFixnum(2),
-                wisp.encodeFixnum(3),
-            },
-        ),
+        try wisp.list(&vat, [_]u32{ 1, 2, 3 }),
     );
 
     try expectPrintResult(
-        &heap,
+        &vat,
         "(1 . 2)",
-        try heap.append(.cons, .{
-            .car = wisp.encodeFixnum(1),
-            .cdr = wisp.encodeFixnum(2),
-        }),
+        try vat.new(.duo, .{ .car = 1, .cdr = 2 }),
     );
 }
 
 test "print symbols" {
-    var heap = try Heap.init(std.testing.allocator);
-    defer heap.deinit();
+    var vat = try Vat.init(std.testing.allocator, .e0);
+    defer vat.deinit();
 
     try expectPrintResult(
-        &heap,
+        &vat,
         "FOO",
-        try heap.internStringInBasePackage("FOO"),
+        try vat.intern("FOO", vat.base()),
     );
 }
 
 // test "print structs" {
-//     var heap = try Heap.init(std.testing.allocator);
-//     defer heap.deinit();
+//     var vat = try Vat.init(std.testing.allocator);
+//     defer vat.deinit();
 
 //     try expectPrintResult(
-//         &heap,
+//         &vat,
 //         "«instance PACKAGE \"WISP\"»",
 //         0,
 //     );
 // }
 
 test "print strings" {
-    var heap = try Heap.init(std.testing.allocator);
-    defer heap.deinit();
+    var vat = try Vat.init(std.testing.allocator, .e1);
+    defer vat.deinit();
 
     try expectPrintResult(
-        &heap,
+        &vat,
         "\"hello\"",
-        try heap.addString("hello"),
+        try vat.newstr("hello"),
     );
 }

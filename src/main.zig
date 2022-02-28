@@ -24,10 +24,10 @@ pub fn repl() anyerror!void {
     const stdout = std.io.getStdOut().writer();
     const allocator = std.heap.page_allocator;
 
-    var heap = try wisp.Heap.init(allocator);
-    defer heap.deinit();
+    var vat = try wisp.Vat.init(allocator, .e0);
+    defer vat.deinit();
 
-    try heap.loadPrimops();
+    try primops.load(&vat);
 
     while (true) {
         try stdout.writeAll("wisp> ");
@@ -42,10 +42,11 @@ pub fn repl() anyerror!void {
         );
 
         if (lineOrEof) |line| {
-            const term = try read(&heap, line);
-            var ctx = eval.init(&heap, term);
+            _ = line;
+            const term = try read(&vat, line);
+            var ctx = eval.init(&vat, term);
             const result = try ctx.evaluate(1000);
-            try print(&heap, stdout, result);
+            try print(&vat, stdout, result);
             try stdout.writeByte('\n');
         } else {
             try stdout.writeByte('\n');

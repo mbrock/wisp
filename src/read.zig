@@ -2,7 +2,7 @@ const std = @import("std");
 const ziglyph = @import("ziglyph");
 
 const wisp = @import("./wisp.zig");
-const Heap = wisp.Heap;
+const Vat = wisp.Vat;
 
 const Error = error{
     ReadError,
@@ -12,7 +12,7 @@ const Error = error{
 const Reader = @This();
 
 utf8: std.unicode.Utf8Iterator,
-heap: *Heap,
+vat: *Vat,
 
 fn readValue(self: *Reader) anyerror!u32 {
     try self.skipSpace();
@@ -85,37 +85,35 @@ fn readWhile(
 fn readSymbol(self: *Reader) !u32 {
     const text = try self.readWhile(isSymbolCharacter);
     const uppercase = try ziglyph.toUpperStr(
-        self.heap.gpa,
+        self.vat.orb,
         text,
     );
 
-    defer self.heap.gpa.free(uppercase);
+    defer self.vat.orb.free(uppercase);
 
-    return try self.heap.internStringInBasePackage(uppercase);
+    return try self.vat.intern(uppercase, self.vat.base());
 }
 
 fn readNumber(self: *Reader) !u32 {
-    const numberText = try self.readWhile(ziglyph.isAsciiDigit);
+    const str = try self.readWhile(ziglyph.isAsciiDigit);
 
-    var result: u30 = 0;
-    var magnitude = std.math.pow(
-        u30,
-        10,
-        @intCast(u30, numberText.len - 1),
-    );
-    for (numberText) |c| {
+    var result: i31 = 0;
+    var magnitude = std.math.pow(i31, 10, @intCast(i31, str.len - 1));
+    for (str) |c| {
         result += magnitude * (c - '0');
-        magnitude /= 10;
+        if (magnitude > 1) {
+            magnitude = @divExact(magnitude, 10);
+        }
     }
 
-    return wisp.encodeFixnum(result);
+    return @intCast(u32, result);
 }
 
 fn readString(self: *Reader) !u32 {
     try self.skipOnly('"');
     const text = try self.readWhile(isNotEndOfString);
     try self.skipOnly('"');
-    return try self.heap.addString(text);
+    return try self.vat.newstr(text);
 }
 
 fn readList(self: *Reader) !u32 {
@@ -130,7 +128,7 @@ fn readListTail(self: *Reader) anyerror!u32 {
         switch (c) {
             ')' => {
                 try self.skipOnly(')');
-                return wisp.NIL;
+                return wisp.nil;
             },
 
             '.' => {
@@ -148,7 +146,7 @@ fn readListTail(self: *Reader) anyerror!u32 {
                 const car = try self.readValue();
                 const cdr = try self.readListTail();
 
-                return self.heap.append(.cons, .{
+                return self.vat.new(.duo, .{
                     .car = car,
                     .cdr = cdr,
                 });
@@ -209,22 +207,22 @@ fn isSymbolCharacter(c: u21) bool {
     }
 }
 
-pub fn read(heap: *Heap, stream: []const u8) !u32 {
+pub fn read(vat: *Vat, stream: []const u8) !u32 {
     var reader = Reader{
         .utf8 = (try std.unicode.Utf8View.init(stream)).iterator(),
-        .heap = heap,
+        .vat = vat,
     };
 
     return reader.readValue();
 }
 
 test "read symbol uppercasing" {
-    var heap = try Heap.init(std.testing.allocator);
-    defer heap.deinit();
+    var vat = try Vat.init(std.testing.allocator, .e0);
+    defer vat.deinit();
 
-    const symbol = try read(&heap, "foobar");
-    const symbolData = try heap.deref(.symbol, symbol);
-    const symbolName = heap.stringSlice(symbolData.name);
+    const symbol = try read(&vat, "foobar");
+    const symbolData = try vat.get(.sym, symbol);
+    const symbolName = try vat.strslice(symbolData.str);
 
     try std.testing.expectEqualStrings(
         "FOOBAR",
