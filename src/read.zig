@@ -101,7 +101,7 @@ fn readWhile(
 }
 
 fn readSymbol(self: *Reader) !u32 {
-    const text = try self.readWhile(isSymbolCharacter);
+    const text = try self.readWhile(isSymbolCharacterOrDigit);
     const uppercase = try ziglyph.toUpperStr(
         self.vat.orb,
         text,
@@ -219,6 +219,10 @@ fn isSymbolCharacter(c: u21) bool {
             else => false,
         };
     }
+}
+
+fn isSymbolCharacterOrDigit(c: u21) bool {
+    return isSymbolCharacter(c) or ziglyph.isAsciiDigit(c);
 }
 
 pub fn read(vat: *Vat, stream: []const u8) !u32 {
