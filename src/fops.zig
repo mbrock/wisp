@@ -19,6 +19,11 @@
 const wisp = @import("./wisp.zig");
 const Vat = wisp.Vat;
 
+pub fn @"PROGN"(vat: *Vat, xs: []u32) anyerror!u32 {
+    _ = vat;
+    return xs[xs.len - 1];
+}
+
 pub fn @"+"(vat: *Vat, xs: []u32) anyerror!u32 {
     _ = vat;
 

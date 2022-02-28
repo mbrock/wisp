@@ -365,3 +365,7 @@ test "if" {
     try expectEval("0", "(if nil 1 0)");
     try expectEval("1", "(if t 1 0)");
 }
+
+test "progn" {
+    try expectEval("3", "(progn 1 2 3)");
+}
