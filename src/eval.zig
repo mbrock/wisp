@@ -369,3 +369,7 @@ test "if" {
 test "progn" {
     try expectEval("3", "(progn 1 2 3)");
 }
+
+test "prog1" {
+    try expectEval("1", "(prog1 1 2 3)");
+}

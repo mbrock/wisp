@@ -24,6 +24,11 @@ pub fn @"PROGN"(vat: *Vat, xs: []u32) anyerror!u32 {
     return xs[xs.len - 1];
 }
 
+pub fn @"PROG1"(vat: *Vat, xs: []u32) anyerror!u32 {
+    _ = vat;
+    return xs[0];
+}
+
 pub fn @"+"(vat: *Vat, xs: []u32) anyerror!u32 {
     _ = vat;
 
