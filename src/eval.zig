@@ -1,3 +1,26 @@
+//
+// This file is part of Wisp.
+//
+// Wisp is free software: you can redistribute it and/or modify it
+// under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// Wisp is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+// or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General
+// Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public
+// License along with Wisp. If not, see
+// <https://www.gnu.org/licenses/>.
+//
+
+vat: *Vat,
+job: Job,
+scopes: u32,
+way: u32,
+
 const std = @import("std");
 
 const assert = std.debug.assert;
@@ -22,11 +45,6 @@ const Job = union(Status) {
     val: u32,
     exp: u32,
 };
-
-vat: *Vat,
-job: Job,
-scopes: u32,
-way: u32,
 
 pub const Error = error{
     Nope,
