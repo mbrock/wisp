@@ -98,18 +98,25 @@ fn step_IF(this: *Eval, cdr: u32) !void {
 fn stepDuo(this: *Eval, p: u32) !void {
     const duo = try this.vat.row(.duo, p);
     const car = duo.car;
-
-    if (car == this.vat.specials.IF) {
-        return this.step_IF(duo.cdr);
-    }
-
-    const fun = try this.vat.get(.sym, .fun, duo.car);
-    if (fun == wisp.nil) {
-        return Error.Nope;
-    }
-
     const cdr = try this.vat.row(.duo, duo.cdr);
+    const specials = this.vat.specials;
 
+    if (specials.IF == car) {
+        return try this.step_IF(duo.cdr);
+    } else if (specials.QUOTE == car) {
+        return this.doneWithJob(cdr.car);
+    } else switch (try this.vat.get(.sym, .fun, car)) {
+        wisp.nil => return Error.Nope,
+        else => |fun| try this.stepCall(fun, duo, cdr),
+    }
+}
+
+fn stepCall(
+    this: *Eval,
+    fun: u32,
+    duo: wisp.Row(.duo),
+    cdr: wisp.Row(.duo),
+) !void {
     switch (wisp.tagOf(fun)) {
         .fop => {
             this.* = .{
@@ -372,4 +379,8 @@ test "progn" {
 
 test "prog1" {
     try expectEval("1", "(prog1 1 2 3)");
+}
+
+test "quote" {
+    try expectEval("(1 2 3)", "(quote (1 2 3))");
 }

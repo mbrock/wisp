@@ -134,6 +134,7 @@ pub const Special = enum {
     NIL,
     T,
     IF,
+    QUOTE,
 };
 
 pub const Vat = struct {
