@@ -62,6 +62,14 @@ pub fn print(
     switch (wisp.tagOf(x)) {
         .int => try out.print("{d}", .{x}),
 
+        .sys => {
+            switch (x) {
+                wisp.nil => try out.print("NIL", .{}),
+                wisp.t => try out.print("T", .{}),
+                else => unreachable,
+            }
+        },
+
         .sym => {
             const sym = try vat.row(.sym, x);
             const name = vat.strslice(sym.str);
@@ -102,7 +110,7 @@ pub fn print(
             try out.print("<package>", .{});
         },
 
-        .chr, .sys, .fop, .mop => {},
+        .chr, .fop, .mop => {},
         .fun, .vec, .ct0 => {},
     }
 }
@@ -121,6 +129,14 @@ test "print fixnum" {
     defer vat.deinit();
 
     try expectPrintResult(&vat, "1", 1);
+}
+
+test "print constants" {
+    var vat = try Vat.init(std.testing.allocator, .e0);
+    defer vat.deinit();
+
+    try expectPrintResult(&vat, "NIL", wisp.nil);
+    try expectPrintResult(&vat, "T", wisp.t);
 }
 
 test "print lists" {
@@ -147,7 +163,7 @@ test "print symbols" {
     try expectPrintResult(
         &vat,
         "FOO",
-        try vat.intern("FOO", vat.base()),
+        try vat.intern("FOO", vat.base),
     );
 }
 

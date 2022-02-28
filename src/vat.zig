@@ -133,18 +133,29 @@ pub const Vat = struct {
     bin: Bin = .{},
     tabs: Tabs,
 
+    base: u32,
+
     pub fn init(orb: Orb, era: Era) !Vat {
         var vat = Vat{
             .orb = orb,
             .tabs = Tabs.init(era),
+            .base = 0xdeadbeef,
         };
 
-        _ = try vat.new(.pkg, .{
+        vat.base = try vat.new(.pkg, .{
             .nam = try vat.newstr("WISP"),
             .sym = nil,
         });
 
+        try vat.initvar("NIL", wisp.nil);
+        try vat.initvar("T", wisp.t);
+
         return vat;
+    }
+
+    fn initvar(vat: *Vat, txt: []const u8, val: u32) !void {
+        var sym = try vat.intern(txt, vat.base);
+        try vat.set(.sym, .val, sym, val);
     }
 
     pub fn deinit(vat: *Vat) void {
@@ -217,10 +228,6 @@ pub const Vat = struct {
     pub fn strslice(vat: *Vat, ptr: u32) ![]const u8 {
         const str = try vat.row(.str, ptr);
         return vat.bin.items[str.idx .. str.idx + str.len];
-    }
-
-    pub fn base(vat: Vat) u32 {
-        return vat.tabs.pkg.makeptr(0).word();
     }
 
     pub fn intern(vat: *Vat, txt: []const u8, pkgptr: u32) !u32 {

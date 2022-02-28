@@ -109,7 +109,7 @@ fn readSymbol(self: *Reader) !u32 {
 
     defer self.vat.orb.free(uppercase);
 
-    return try self.vat.intern(uppercase, self.vat.base());
+    return try self.vat.intern(uppercase, self.vat.base);
 }
 
 fn readNumber(self: *Reader) !u32 {

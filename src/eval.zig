@@ -265,7 +265,7 @@ test "step evaluates variable" {
     var vat = try newTestVat();
     defer vat.deinit();
 
-    const x = try vat.intern("X", vat.base());
+    const x = try vat.intern("X", vat.base);
     const foo = try vat.newstr("foo");
 
     var ctx = init(&vat, x);
@@ -318,4 +318,8 @@ test "(car (cons 1 2)) => 1" {
 
 test "(cdr (cons 1 2)) => 2" {
     try expectEval("2", "(cdr (cons 1 2))");
+}
+
+test "nil => nil" {
+    try expectEval("nil", "nil");
 }

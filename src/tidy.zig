@@ -47,6 +47,7 @@ pub fn init(old: *wisp.Vat) !GC {
             .orb = old.orb,
             .bin = old.bin,
             .tabs = wisp.Tabs.init(era),
+            .base = 0xdeadbeef,
         },
     };
 }
@@ -62,7 +63,7 @@ fn finalize(gc: *GC) wisp.Vat {
 }
 
 fn copyRoots(gc: *GC) !void {
-    _ = try gc.copy(gc.old.base());
+    gc.new.base = try gc.copy(gc.old.base);
 }
 
 fn copy(gc: *GC, x: u32) !u32 {
@@ -174,14 +175,14 @@ test "read and gc" {
     defer vat.deinit();
 
     const t1 = try read(&vat, "(foo (bar (baz)))");
-    const v1 = try vat.intern("X", vat.base());
+    const v1 = try vat.intern("X", vat.base);
 
     try vat.set(.sym, .val, v1, t1);
     try tidy(&vat);
 
     try std.testing.expectEqual(wisp.Era.e1, vat.era);
 
-    const v2 = try vat.intern("X", vat.base());
+    const v2 = try vat.intern("X", vat.base);
     const t2 = try vat.get(.sym, .val, v2);
 
     try printer.expect("(FOO (BAR (BAZ)))", &vat, t2);
@@ -196,7 +197,7 @@ test "gc ephemeral strings" {
     );
 
     const foo = try vat.get(.duo, .car, x);
-    try vat.set(.sym, .val, try vat.intern("X", vat.base()), foo);
+    try vat.set(.sym, .val, try vat.intern("X", vat.base), foo);
 
     const n1 = vat.tabs.str.list.len;
     try tidy(&vat);

@@ -105,13 +105,13 @@ pub fn ref(x: u32) Ptr.Idx {
 }
 
 pub const nil = (Imm{ .tag = .sys, .idx = 0 }).word();
-pub const nah = (Imm{ .tag = .sys, .idx = 1 }).word();
-pub const zap = (Imm{ .tag = .sys, .idx = 2 }).word();
+pub const t = (Imm{ .tag = .sys, .idx = 1 }).word();
+pub const nah = (Imm{ .tag = .sys, .idx = 2 }).word();
+pub const zap = (Imm{ .tag = .sys, .idx = 3 }).word();
 
 test "nil, nah, zap" {
     try same(0b10001000000000000000000000000000, nil);
-    try same(0b10001000000000000000000000000001, nah);
-    try same(0b10001000000000000000000000000010, zap);
+    try same(0b10001000000000000000000000000001, t);
 }
 
 pub fn tagOf(x: u32) Tag {

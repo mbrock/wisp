@@ -97,12 +97,12 @@ test "ops" {
 
 pub fn load(vat: *Vat) !void {
     inline for (fops.values) |fop, i| {
-        var sym = try vat.intern(fop.name, vat.base());
+        var sym = try vat.intern(fop.name, vat.base);
         vat.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.fop, i).word();
     }
 
     inline for (mops.values) |mop, i| {
-        var sym = try vat.intern(mop.name, vat.base());
+        var sym = try vat.intern(mop.name, vat.base);
         vat.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.mop, i).word();
     }
 }
