@@ -21,14 +21,27 @@ const assert = std.debug.assert;
 
 pub fn DeclEnum(comptime T: type, Tag: type) type {
     const fieldInfos = @typeInfo(T).Struct.decls;
-    var enumFields: [fieldInfos.len]std.builtin.TypeInfo.EnumField = undefined;
-    var decls = [_]std.builtin.TypeInfo.Declaration{};
-    inline for (fieldInfos) |field, i| {
-        enumFields[i] = .{
-            .name = field.name,
-            .value = i,
-        };
+
+    var pubs = 0;
+    inline for (fieldInfos) |field| {
+        if (field.is_pub) {
+            pubs += 1;
+        }
     }
+
+    var enumFields: [pubs]std.builtin.TypeInfo.EnumField = undefined;
+    var decls = [_]std.builtin.TypeInfo.Declaration{};
+    var i = 0;
+    inline for (fieldInfos) |field| {
+        if (field.is_pub) {
+            enumFields[i] = .{
+                .name = field.name,
+                .value = i,
+            };
+            i += 1;
+        }
+    }
+
     return @Type(.{
         .Enum = .{
             .layout = .Auto,

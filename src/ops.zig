@@ -16,6 +16,15 @@
 // <https://www.gnu.org/licenses/>.
 //
 
+pub const Fops = @import("./fops.zig");
+pub const Mops = @import("./mops.zig");
+
+pub const FopTag = DeclEnum(Fops, u27);
+pub const MopTag = DeclEnum(Mops, u27);
+
+pub const fops = makeOpArray(FopTag, Fops);
+pub const mops = makeOpArray(MopTag, Mops);
+
 const std = @import("std");
 const assert = std.debug.assert;
 const expectEqual = std.testing.expectEqual;
@@ -33,11 +42,13 @@ const DeclEnum = util.DeclEnum;
 
 pub const FnTag = enum {
     f0x,
+    f1,
     f2,
 
     pub fn from(comptime T: type) FnTag {
         return switch (T) {
             fn (*Vat, []u32) anyerror!u32 => .f0x,
+            fn (*Vat, u32) anyerror!u32 => .f1,
             fn (*Vat, u32, u32) anyerror!u32 => .f2,
             else => @compileLog("unhandled op type", T),
         };
@@ -47,6 +58,7 @@ pub const FnTag = enum {
         return switch (self) {
             .f0x => fn (*Vat, []u32) anyerror!u32,
             .f2 => fn (*Vat, u32, u32) anyerror!u32,
+            .f1 => fn (*Vat, u32) anyerror!u32,
         };
     }
 
@@ -60,41 +72,6 @@ pub const Op = struct {
     tag: FnTag,
     func: *const anyopaque,
 };
-
-pub const Fops = struct {
-    pub fn @"+"(vat: *Vat, xs: []u32) anyerror!u32 {
-        _ = vat;
-
-        var result: i31 = 0;
-        for (xs) |x| {
-            result += @intCast(i31, x);
-        }
-
-        return @intCast(u32, result);
-    }
-};
-
-pub const Mops = struct {
-    pub fn @"FOO"(vat: *Vat, x: u32, y: u32) anyerror!u32 {
-        _ = vat;
-        return try vat.new(.duo, .{
-            .car = x,
-            .cdr = try vat.new(.duo, .{
-                .car = y,
-                .cdr = try vat.new(.duo, .{
-                    .car = 1,
-                    .cdr = wisp.nil,
-                }),
-            }),
-        });
-    }
-};
-
-pub const FopTag = DeclEnum(Fops, u27);
-pub const MopTag = DeclEnum(Mops, u27);
-
-pub const fops = makeOpArray(FopTag, Fops);
-pub const mops = makeOpArray(MopTag, Mops);
 
 fn makeOpArray(comptime T: type, comptime S: type) EnumArray(T, Op) {
     var ops = EnumArray(T, Op).initUndefined();

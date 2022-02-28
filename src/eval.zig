@@ -203,6 +203,13 @@ fn callOp(this: *Eval, primop: Ops.Op, reverse: bool, values: u32) !u32 {
             return try f(this.vat, slice);
         },
 
+        .f1 => {
+            var xs: [1]u32 = undefined;
+            const slice = try scanList(this.vat, &xs, reverse, values);
+            const f = Ops.FnTag.f1.cast(primop.func);
+            return try f(this.vat, slice[0]);
+        },
+
         .f2 => {
             var xs: [2]u32 = undefined;
             const slice = try scanList(this.vat, &xs, reverse, values);
@@ -301,6 +308,14 @@ test "(+ (+ 1 2) (+ 3 4))" {
     try expectEval("10", "(+ (+ 1 2) (+ 3 4))");
 }
 
-test "(FOO + 1) => 2" {
-    try expectEval("2", "(FOO + 1)");
+test "(foo + 1) => 2" {
+    try expectEval("2", "(foo + 1)");
+}
+
+test "(car (cons 1 2)) => 1" {
+    try expectEval("1", "(car (cons 1 2))");
+}
+
+test "(cdr (cons 1 2)) => 2" {
+    try expectEval("2", "(cdr (cons 1 2))");
 }
