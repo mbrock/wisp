@@ -202,7 +202,10 @@ fn stepDuo(this: *Eval, p: u32) !void {
     else if (car == kwd.@"%MACRO-LAMBDA")
         try kwds.@"%MACRO-LAMBDA"(this, duo.cdr)
     else switch (try this.ctx.get(.sym, .fun, car)) {
-        nil => return Error.Nope,
+        nil => {
+            try dump.warn("no function", this.ctx, car);
+            return Error.Nope;
+        },
         else => |fun| try this.stepCall(fun, duo, cdr),
     }
 }
@@ -535,6 +538,7 @@ pub fn evaluate(this: *Eval, limit: u32, gc: bool) !u32 {
 fn newTestCtx() !Ctx {
     var ctx = try Ctx.init(std.testing.allocator, .e0);
     try xops.load(&ctx);
+    try ctx.cook();
     return ctx;
 }
 

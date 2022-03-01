@@ -47,6 +47,7 @@ pub fn repl() anyerror!void {
     defer ctx.deinit();
 
     try xops.load(&ctx);
+    try ctx.cook();
 
     while (true) {
         try stdout.writeAll("wisp> ");

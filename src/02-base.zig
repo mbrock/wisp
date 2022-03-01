@@ -20,7 +20,11 @@ const std = @import("std");
 const assert = std.debug.assert;
 const same = std.testing.expectEqual;
 
+const tidy = @import("./03-tidy.zig");
+const eval = @import("./04-eval.zig");
+const read = @import("./05-read.zig");
 const wisp = @import("./ff-wisp.zig");
+
 const ref = wisp.ref;
 const nil = wisp.nil;
 const Tag = wisp.Tag;
@@ -154,6 +158,13 @@ pub const Ctx = struct {
         }
 
         return ctx;
+    }
+
+    pub fn cook(ctx: *Ctx) !void {
+        const lib = try read.read(ctx, @embedFile("./a0-base.lisp"));
+        var exe = eval.init(ctx, lib);
+        _ = try exe.evaluate(1_000_000, false);
+        try tidy.tidyEval(&exe);
     }
 
     pub fn special(ctx: *Ctx, s: Kwd) u32 {

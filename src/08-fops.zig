@@ -16,7 +16,10 @@
 // <https://www.gnu.org/licenses/>.
 //
 
+const std = @import("std");
+
 const wisp = @import("./ff-wisp.zig");
+const dump = @import("./06-dump.zig");
 const Ctx = wisp.Ctx;
 
 pub fn @"PROG1"(ctx: *Ctx, xs: []u32) anyerror!u32 {
@@ -64,4 +67,11 @@ pub fn @"LIST"(ctx: *Ctx, xs: []u32) anyerror!u32 {
 pub fn @"EQ"(ctx: *Ctx, x: u32, y: u32) anyerror!u32 {
     _ = ctx;
     return if (x == y) wisp.t else wisp.nil;
+}
+
+pub fn @"PRINT"(ctx: *Ctx, x: u32) anyerror!u32 {
+    const out = std.io.getStdOut().writer();
+    try dump.dump(ctx, out, x);
+    try out.writeByte('\n');
+    return x;
 }
