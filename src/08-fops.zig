@@ -51,3 +51,12 @@ pub fn @"SET-FUNCTION"(ctx: *Ctx, sym: u32, fun: u32) anyerror!u32 {
     try ctx.set(.sym, .fun, sym, fun);
     return fun;
 }
+
+pub fn @"LIST"(ctx: *Ctx, xs: []u32) anyerror!u32 {
+    var cur = wisp.nil;
+    var i = xs.len;
+    while (i > 0) : (i -= 1) {
+        cur = try ctx.new(.duo, .{ .car = xs[i - 1], .cdr = cur });
+    }
+    return cur;
+}

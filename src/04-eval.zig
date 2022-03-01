@@ -667,3 +667,7 @@ test "calling a macro closure" {
         \\   (frob 1 + 2))
     );
 }
+
+test "(list 1 2 3)" {
+    try expectEval("(1 2 3)", "(list 1 2 3)");
+}
