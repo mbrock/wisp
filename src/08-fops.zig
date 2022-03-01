@@ -60,3 +60,8 @@ pub fn @"LIST"(ctx: *Ctx, xs: []u32) anyerror!u32 {
     }
     return cur;
 }
+
+pub fn @"EQ"(ctx: *Ctx, x: u32, y: u32) anyerror!u32 {
+    _ = ctx;
+    return if (x == y) wisp.t else wisp.nil;
+}

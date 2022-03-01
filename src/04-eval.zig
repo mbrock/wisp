@@ -671,3 +671,10 @@ test "calling a macro closure" {
 test "(list 1 2 3)" {
     try expectEval("(1 2 3)", "(list 1 2 3)");
 }
+
+test "EQ" {
+    try expectEval("T", "(eq 1 1)");
+    try expectEval("NIL", "(eq 1 2)");
+    try expectEval("T", "(eq 'foo 'foo)");
+    try expectEval("NIL", "(eq 'foo 'bar)");
+}
