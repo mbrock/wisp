@@ -33,6 +33,7 @@ pub fn Row(comptime t: Tag) type {
         .duo => struct { car: u32, cdr: u32 },
         .sym => struct { str: u32, pkg: u32, val: u32, fun: u32 },
         .fun => struct { env: u32, par: u32, exp: u32 },
+        .mac => struct { env: u32, par: u32, exp: u32 },
         .v32 => struct { idx: u32, len: u32 },
         .v08 => struct { idx: u32, len: u32 },
         .pkg => struct { nam: u32, sym: u32 },
@@ -99,6 +100,7 @@ pub const Vat = struct {
     duo: Tab(.duo) = .{},
     sym: Tab(.sym) = .{},
     fun: Tab(.fun) = .{},
+    mac: Tab(.mac) = .{},
     v32: Tab(.v32) = .{},
     v08: Tab(.v08) = .{},
     pkg: Tab(.pkg) = .{},
@@ -126,6 +128,7 @@ pub const Kwd = enum {
     PROGN,
     @"%LET",
     @"%LAMBDA",
+    @"%MACRO-LAMBDA",
 };
 
 pub const Ctx = struct {

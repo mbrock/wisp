@@ -33,20 +33,22 @@ pub const Tag = enum(u5) {
     duo = 0x15, // cons pair pointer
     sym = 0x16, // symbol pointer
     fun = 0x17, // closure pointer
-    v32 = 0x18, // word vector pointer
-    v08 = 0x19, // byte vector pointer
-    pkg = 0x1a, // package pointer
+    mac = 0x18, // macro pointer
+    v32 = 0x19, // word vector pointer
+    v08 = 0x1a, // byte vector pointer
+    pkg = 0x1b, // package pointer
 
-    ct0 = 0x1b, // funarg continuation
-    ct1 = 0x1c, // conditional continuation
-    ct2 = 0x1d, // progn continuation
-    ct3 = 0x1e, // let continuation
+    ct0 = 0x1c, // funarg continuation
+    ct1 = 0x1d, // conditional continuation
+    ct2 = 0x1e, // progn continuation
+    ct3 = 0x1f, // let continuation
 };
 
 pub const pointerTags = .{
     .duo,
     .sym,
     .fun,
+    .mac,
     .v08,
     .v32,
     .pkg,

@@ -99,6 +99,7 @@ fn copy(gc: *GC, x: u32) !u32 {
         .sym => gc.push(.sym, x),
         .duo => gc.push(.duo, x),
         .fun => gc.push(.fun, x),
+        .mac => gc.push(.mac, x),
         .v32 => gc.push(.v32, x),
         .v08 => gc.push(.v08, x),
         .pkg => gc.push(.pkg, x),

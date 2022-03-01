@@ -139,6 +139,19 @@ const kwds = struct {
         };
     }
 
+    pub fn @"%MACRO-LAMBDA"(this: *Eval, cdr: u32) !void {
+        var xs: [2]u32 = undefined;
+        const args = try scanList(this.ctx, &xs, false, cdr);
+
+        this.job = .{
+            .val = try this.ctx.new(.mac, .{
+                .env = this.env,
+                .par = args[0],
+                .exp = args[1],
+            }),
+        };
+    }
+
     pub fn IF(this: *Eval, cdr: u32) !void {
         var xs: [3]u32 = undefined;
         const args = try scanList(this.ctx, &xs, false, cdr);
@@ -186,6 +199,8 @@ fn stepDuo(this: *Eval, p: u32) !void {
         try kwds.@"%LET"(this, duo.cdr)
     else if (car == kwd.@"%LAMBDA")
         try kwds.@"%LAMBDA"(this, duo.cdr)
+    else if (car == kwd.@"%MACRO-LAMBDA")
+        try kwds.@"%MACRO-LAMBDA"(this, duo.cdr)
     else switch (try this.ctx.get(.sym, .fun, car)) {
         nil => return Error.Nope,
         else => |fun| try this.stepCall(fun, duo, cdr),
@@ -210,6 +225,41 @@ fn stepCall(
                     .fun = fun,
                     .arg = nil,
                     .exp = cdr.cdr,
+                }),
+            };
+        },
+
+        .mac => {
+            const mac = try this.ctx.row(.mac, fun);
+            var xs = std.ArrayList(u32).init(this.ctx.orb);
+            defer xs.deinit();
+
+            var curpar = mac.par;
+            var curval = try this.ctx.new(.duo, cdr);
+
+            while (curpar != nil) {
+                const parduo = try this.ctx.row(.duo, curpar);
+                const valduo = try this.ctx.row(.duo, curval);
+
+                try xs.append(parduo.car);
+                try xs.append(valduo.car);
+
+                curpar = parduo.cdr;
+                curval = valduo.cdr;
+            }
+
+            const env = try this.ctx.new(.duo, .{
+                .car = try this.ctx.newv32(xs.items),
+                .cdr = mac.env,
+            });
+
+            this.* = .{
+                .ctx = this.ctx,
+                .job = .{ .exp = mac.exp },
+                .env = env,
+                .way = try this.ctx.new(.duo, .{
+                    .car = this.env,
+                    .cdr = this.way,
                 }),
             };
         },
@@ -251,9 +301,20 @@ pub fn proceed(this: *Eval, x: u32) !void {
         .ct1 => try this.execCt1(try this.ctx.row(.ct1, this.way)),
         .ct2 => try this.execCt2(try this.ctx.row(.ct2, this.way)),
         .ct3 => try this.execCt3(try this.ctx.row(.ct3, this.way)),
+        .duo => try this.execDuo(try this.ctx.row(.duo, this.way)),
 
         else => unreachable,
     }
+}
+
+fn execDuo(this: *Eval, duo: wisp.Row(.duo)) !void {
+    const val = this.job.val;
+    this.* = .{
+        .ctx = this.ctx,
+        .job = .{ .exp = val },
+        .env = duo.car,
+        .way = duo.cdr,
+    };
 }
 
 fn execCt3(this: *Eval, ct3: wisp.Row(.ct3)) !void {
@@ -379,14 +440,16 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
                     curval = valduo.cdr;
                 }
 
+                const env = try this.ctx.new(.duo, .{
+                    .car = try this.ctx.newv32(xs.items),
+                    .cdr = fun.env,
+                });
+
                 this.* = .{
                     .ctx = this.ctx,
                     .way = ct0.hop,
                     .job = .{ .exp = fun.exp },
-                    .env = try this.ctx.new(.duo, .{
-                        .car = try this.ctx.newv32(xs.items),
-                        .cdr = fun.env,
-                    }),
+                    .env = env,
                 };
             },
 
@@ -592,5 +655,15 @@ test "calling a closure" {
         \\   (%let ((ten . 10))
         \\     (set-function 'foo (%lambda (x y) (+ ten x y))))
         \\   (foo 1 2))
+    );
+}
+
+test "calling a macro closure" {
+    try expectEval("3",
+        \\ (progn
+        \\   (set-function 'frob
+        \\      (%macro-lambda (x y z)
+        \\        (cons y (cons x (cons z nil)))))
+        \\   (frob 1 + 2))
     );
 }
