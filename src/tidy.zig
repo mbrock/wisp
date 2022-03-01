@@ -24,7 +24,7 @@ new: wisp.Ctx,
 const std = @import("std");
 const wisp = @import("./wisp.zig");
 const read = @import("./read.zig").read;
-const printer = @import("./print.zig");
+const dump = @import("./dump.zig");
 
 const Col = wisp.Col;
 const Ctx = wisp.Ctx;
@@ -182,7 +182,7 @@ test "read and gc" {
     const v2 = try ctx.intern("X", ctx.base);
     const t2 = try ctx.get(.sym, .val, v2);
 
-    try printer.expect("(FOO (BAR (BAZ)))", &ctx, t2);
+    try dump.expect("(FOO (BAR (BAZ)))", &ctx, t2);
 }
 
 test "gc ephemeral strings" {

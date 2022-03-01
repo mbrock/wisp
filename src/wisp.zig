@@ -17,4 +17,4 @@
 //
 
 pub usingnamespace @import("./word.zig");
-pub usingnamespace @import("./vat.zig");
+pub usingnamespace @import("./base.zig");

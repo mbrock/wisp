@@ -34,8 +34,8 @@ const Ptr = wisp.Ptr;
 const ref = wisp.ref;
 
 const read = @import("./read.zig").read;
-const Print = @import("./print.zig");
-const Ops = @import("./ops.zig");
+const dump = @import("./dump.zig");
+const xops = @import("./xops.zig");
 
 const Eval = @This();
 
@@ -136,7 +136,7 @@ fn stepCall(
         .mop => {
             const result = try callOp(
                 this,
-                Ops.mops.values[wisp.Imm.from(fun).idx],
+                xops.mops.values[wisp.Imm.from(fun).idx],
                 false,
                 duo.cdr,
             );
@@ -190,7 +190,7 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
         switch (wisp.tagOf(ct0.fun)) {
             .fop => {
                 const result = try this.callOp(
-                    Ops.fops.values[wisp.Imm.from(ct0.fun).idx],
+                    xops.fops.values[wisp.Imm.from(ct0.fun).idx],
                     true,
                     values,
                 );
@@ -238,26 +238,26 @@ pub fn scanList(ctx: *Ctx, buffer: []u32, reverse: bool, list: u32) ![]u32 {
     return slice;
 }
 
-fn callOp(this: *Eval, primop: Ops.Op, reverse: bool, values: u32) !u32 {
+fn callOp(this: *Eval, primop: xops.Op, reverse: bool, values: u32) !u32 {
     switch (primop.tag) {
         .f0x => {
             var xs: [31]u32 = undefined;
             const slice = try scanList(this.ctx, &xs, reverse, values);
-            const f = Ops.FnTag.f0x.cast(primop.func);
+            const f = xops.FnTag.f0x.cast(primop.func);
             return try f(this.ctx, slice);
         },
 
         .f1 => {
             var xs: [1]u32 = undefined;
             const slice = try scanList(this.ctx, &xs, reverse, values);
-            const f = Ops.FnTag.f1.cast(primop.func);
+            const f = xops.FnTag.f1.cast(primop.func);
             return try f(this.ctx, slice[0]);
         },
 
         .f2 => {
             var xs: [2]u32 = undefined;
             const slice = try scanList(this.ctx, &xs, reverse, values);
-            const f = Ops.FnTag.f2.cast(primop.func);
+            const f = xops.FnTag.f2.cast(primop.func);
             return try f(this.ctx, slice[0], slice[1]);
         },
     }
@@ -281,7 +281,7 @@ pub fn evaluate(this: *Eval, limit: u32) !u32 {
 
 fn newTestCtx() !Ctx {
     var ctx = try Ctx.init(std.testing.allocator, .e0);
-    try Ops.load(&ctx);
+    try xops.load(&ctx);
     return ctx;
 }
 
@@ -328,12 +328,12 @@ fn expectEval(want: []const u8, src: []const u8) !void {
     var exe = init(&ctx, exp);
     const val = try exe.evaluate(100);
 
-    const valueString = try Print.printAlloc(ctx.orb, &ctx, val);
+    const valueString = try dump.printAlloc(ctx.orb, &ctx, val);
 
     defer ctx.orb.free(valueString);
 
     const wantValue = try read(&ctx, want);
-    const wantString = try Print.printAlloc(
+    const wantString = try dump.printAlloc(
         ctx.orb,
         &ctx,
         wantValue,

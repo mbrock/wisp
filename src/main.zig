@@ -21,9 +21,9 @@ const builtin = @import("builtin");
 
 const wisp = @import("./wisp.zig");
 const read = @import("./read.zig").read;
-const print = @import("./print.zig").print;
+const dump = @import("./dump.zig").dump;
 const eval = @import("./eval.zig");
-const ops = @import("./ops.zig");
+const xops = @import("./xops.zig");
 const tidy = @import("./tidy.zig");
 
 test {
@@ -46,7 +46,7 @@ pub fn repl() anyerror!void {
     var ctx = try wisp.Ctx.init(allocator, .e0);
     defer ctx.deinit();
 
-    try ops.load(&ctx);
+    try xops.load(&ctx);
 
     while (true) {
         try stdout.writeAll("wisp> ");
@@ -64,7 +64,7 @@ pub fn repl() anyerror!void {
             const exp = try read(&ctx, line);
             var exe = eval.init(&ctx, exp);
             const val = try exe.evaluate(1000);
-            try print(&ctx, stdout, val);
+            try dump(&ctx, stdout, val);
             try stdout.writeByte('\n');
             try tidy.tidy(&ctx);
         } else {

@@ -44,17 +44,17 @@ pub fn printAlloc(
     word: u32,
 ) ![]const u8 {
     var list = std.ArrayList(u8).init(allocator);
-    try print(ctx, list.writer(), word);
+    try dump(ctx, list.writer(), word);
     return list.toOwnedSlice();
 }
 
-pub fn dump(prefix: []const u8, ctx: *Ctx, word: u32) !void {
+pub fn warn(prefix: []const u8, ctx: *Ctx, word: u32) !void {
     var s = try printAlloc(ctx.orb, ctx, word);
     std.log.warn("{s} {s}", .{ prefix, s });
     ctx.orb.free(s);
 }
 
-pub fn print(
+pub fn dump(
     ctx: *Ctx,
     out: anytype,
     x: u32,
@@ -87,7 +87,7 @@ pub fn print(
 
             loop: while (cur != wisp.nil) {
                 var cons = try ctx.row(.duo, cur);
-                try print(ctx, out, cons.car);
+                try dump(ctx, out, cons.car);
                 switch (wisp.tagOf(cons.cdr)) {
                     .duo => {
                         try out.print(" ", .{});
@@ -96,7 +96,7 @@ pub fn print(
                     else => {
                         if (cons.cdr != wisp.nil) {
                             try out.print(" . ", .{});
-                            try print(ctx, out, cons.cdr);
+                            try dump(ctx, out, cons.cdr);
                         }
                         break :loop;
                     },
@@ -120,7 +120,7 @@ fn expectPrintResult(ctx: *Ctx, expected: []const u8, x: u32) !void {
     defer list.deinit();
     const writer = list.writer();
 
-    try print(ctx, &writer, x);
+    try dump(ctx, &writer, x);
     try std.testing.expectEqualStrings(expected, list.items);
 }
 
