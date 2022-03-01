@@ -19,7 +19,7 @@
 const std = @import("std");
 
 const wisp = @import("./wisp.zig");
-const Vat = wisp.Vat;
+const Ctx = wisp.Ctx;
 
 test "print one" {
     var list = std.ArrayList(u8).init(std.testing.allocator);
@@ -30,32 +30,32 @@ test "print one" {
 
 pub fn expect(
     expected: []const u8,
-    vat: *Vat,
+    ctx: *Ctx,
     x: u32,
 ) !void {
-    var actual = try printAlloc(std.testing.allocator, vat, x);
+    var actual = try printAlloc(std.testing.allocator, ctx, x);
     defer std.testing.allocator.free(actual);
     try std.testing.expectEqualStrings(expected, actual);
 }
 
 pub fn printAlloc(
     allocator: std.mem.Allocator,
-    vat: *Vat,
+    ctx: *Ctx,
     word: u32,
 ) ![]const u8 {
     var list = std.ArrayList(u8).init(allocator);
-    try print(vat, list.writer(), word);
+    try print(ctx, list.writer(), word);
     return list.toOwnedSlice();
 }
 
-pub fn dump(prefix: []const u8, vat: *Vat, word: u32) !void {
-    var s = try printAlloc(vat.orb, vat, word);
+pub fn dump(prefix: []const u8, ctx: *Ctx, word: u32) !void {
+    var s = try printAlloc(ctx.orb, ctx, word);
     std.log.warn("{s} {s}", .{ prefix, s });
-    vat.orb.free(s);
+    ctx.orb.free(s);
 }
 
 pub fn print(
-    vat: *Vat,
+    ctx: *Ctx,
     out: anytype,
     x: u32,
 ) anyerror!void {
@@ -71,13 +71,13 @@ pub fn print(
         },
 
         .sym => {
-            const sym = try vat.row(.sym, x);
-            const name = vat.strslice(sym.str);
+            const sym = try ctx.row(.sym, x);
+            const name = ctx.strslice(sym.str);
             try out.print("{s}", .{name});
         },
 
         .str => {
-            const s = vat.strslice(x);
+            const s = ctx.strslice(x);
             try out.print("\"{s}\"", .{s});
         },
 
@@ -86,8 +86,8 @@ pub fn print(
             var cur = x;
 
             loop: while (cur != wisp.nil) {
-                var cons = try vat.row(.duo, cur);
-                try print(vat, out, cons.car);
+                var cons = try ctx.row(.duo, cur);
+                try print(ctx, out, cons.car);
                 switch (wisp.tagOf(cons.cdr)) {
                     .duo => {
                         try out.print(" ", .{});
@@ -96,7 +96,7 @@ pub fn print(
                     else => {
                         if (cons.cdr != wisp.nil) {
                             try out.print(" . ", .{});
-                            try print(vat, out, cons.cdr);
+                            try print(ctx, out, cons.cdr);
                         }
                         break :loop;
                     },
@@ -115,76 +115,76 @@ pub fn print(
     }
 }
 
-fn expectPrintResult(vat: *Vat, expected: []const u8, x: u32) !void {
+fn expectPrintResult(ctx: *Ctx, expected: []const u8, x: u32) !void {
     var list = std.ArrayList(u8).init(std.testing.allocator);
     defer list.deinit();
     const writer = list.writer();
 
-    try print(vat, &writer, x);
+    try print(ctx, &writer, x);
     try std.testing.expectEqualStrings(expected, list.items);
 }
 
 test "print fixnum" {
-    var vat = try Vat.init(std.testing.allocator, .e0);
-    defer vat.deinit();
+    var ctx = try Ctx.init(std.testing.allocator, .e0);
+    defer ctx.deinit();
 
-    try expectPrintResult(&vat, "1", 1);
+    try expectPrintResult(&ctx, "1", 1);
 }
 
 test "print constants" {
-    var vat = try Vat.init(std.testing.allocator, .e0);
-    defer vat.deinit();
+    var ctx = try Ctx.init(std.testing.allocator, .e0);
+    defer ctx.deinit();
 
-    try expectPrintResult(&vat, "NIL", wisp.nil);
-    try expectPrintResult(&vat, "T", wisp.t);
+    try expectPrintResult(&ctx, "NIL", wisp.nil);
+    try expectPrintResult(&ctx, "T", wisp.t);
 }
 
 test "print lists" {
-    var vat = try Vat.init(std.testing.allocator, .e0);
-    defer vat.deinit();
+    var ctx = try Ctx.init(std.testing.allocator, .e0);
+    defer ctx.deinit();
 
     try expectPrintResult(
-        &vat,
+        &ctx,
         "(1 2 3)",
-        try wisp.list(&vat, [_]u32{ 1, 2, 3 }),
+        try wisp.list(&ctx, [_]u32{ 1, 2, 3 }),
     );
 
     try expectPrintResult(
-        &vat,
+        &ctx,
         "(1 . 2)",
-        try vat.new(.duo, .{ .car = 1, .cdr = 2 }),
+        try ctx.new(.duo, .{ .car = 1, .cdr = 2 }),
     );
 }
 
 test "print symbols" {
-    var vat = try Vat.init(std.testing.allocator, .e0);
-    defer vat.deinit();
+    var ctx = try Ctx.init(std.testing.allocator, .e0);
+    defer ctx.deinit();
 
     try expectPrintResult(
-        &vat,
+        &ctx,
         "FOO",
-        try vat.intern("FOO", vat.base),
+        try ctx.intern("FOO", ctx.base),
     );
 }
 
 // test "print structs" {
-//     var vat = try Vat.init(std.testing.allocator);
-//     defer vat.deinit();
+//     var ctx = try Ctx.init(std.testing.allocator);
+//     defer ctx.deinit();
 
 //     try expectPrintResult(
-//         &vat,
+//         &ctx,
 //         "«instance PACKAGE \"WISP\"»",
 //         0,
 //     );
 // }
 
 test "print strings" {
-    var vat = try Vat.init(std.testing.allocator, .e1);
-    defer vat.deinit();
+    var ctx = try Ctx.init(std.testing.allocator, .e1);
+    defer ctx.deinit();
 
     try expectPrintResult(
-        &vat,
+        &ctx,
         "\"hello\"",
-        try vat.newstr("hello"),
+        try ctx.newstr("hello"),
     );
 }

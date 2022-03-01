@@ -17,15 +17,15 @@
 //
 
 const wisp = @import("./wisp.zig");
-const Vat = wisp.Vat;
+const Ctx = wisp.Ctx;
 
-pub fn @"FOO"(vat: *Vat, x: u32, y: u32) anyerror!u32 {
-    _ = vat;
-    return try vat.new(.duo, .{
+pub fn @"FOO"(ctx: *Ctx, x: u32, y: u32) anyerror!u32 {
+    _ = ctx;
+    return try ctx.new(.duo, .{
         .car = x,
-        .cdr = try vat.new(.duo, .{
+        .cdr = try ctx.new(.duo, .{
             .car = y,
-            .cdr = try vat.new(.duo, .{
+            .cdr = try ctx.new(.duo, .{
                 .car = 1,
                 .cdr = wisp.nil,
             }),

@@ -20,7 +20,7 @@ const std = @import("std");
 const ziglyph = @import("ziglyph");
 
 const wisp = @import("./wisp.zig");
-const Vat = wisp.Vat;
+const Ctx = wisp.Ctx;
 
 const Error = error{
     ReadError,
@@ -30,7 +30,7 @@ const Error = error{
 const Reader = @This();
 
 utf8: std.unicode.Utf8Iterator,
-vat: *Vat,
+ctx: *Ctx,
 
 fn readValue(self: *Reader) anyerror!u32 {
     try self.skipSpace();
@@ -103,13 +103,13 @@ fn readWhile(
 fn readSymbol(self: *Reader) !u32 {
     const text = try self.readWhile(isSymbolCharacterOrDigit);
     const uppercase = try ziglyph.toUpperStr(
-        self.vat.orb,
+        self.ctx.orb,
         text,
     );
 
-    defer self.vat.orb.free(uppercase);
+    defer self.ctx.orb.free(uppercase);
 
-    return try self.vat.intern(uppercase, self.vat.base);
+    return try self.ctx.intern(uppercase, self.ctx.base);
 }
 
 fn readNumber(self: *Reader) !u32 {
@@ -131,7 +131,7 @@ fn readString(self: *Reader) !u32 {
     try self.skipOnly('"');
     const text = try self.readWhile(isNotEndOfString);
     try self.skipOnly('"');
-    return try self.vat.newstr(text);
+    return try self.ctx.newstr(text);
 }
 
 fn readList(self: *Reader) !u32 {
@@ -160,7 +160,7 @@ fn readListTail(self: *Reader) anyerror!u32 {
             else => {
                 const car = try self.readValue();
                 const cdr = try self.readListTail();
-                return self.vat.new(.duo, .{
+                return self.ctx.new(.duo, .{
                     .car = car,
                     .cdr = cdr,
                 });
@@ -225,22 +225,22 @@ fn isSymbolCharacterOrDigit(c: u21) bool {
     return isSymbolCharacter(c) or ziglyph.isAsciiDigit(c);
 }
 
-pub fn read(vat: *Vat, stream: []const u8) !u32 {
+pub fn read(ctx: *Ctx, stream: []const u8) !u32 {
     var reader = Reader{
         .utf8 = (try std.unicode.Utf8View.init(stream)).iterator(),
-        .vat = vat,
+        .ctx = ctx,
     };
 
     return reader.readValue();
 }
 
 test "read symbol uppercasing" {
-    var vat = try Vat.init(std.testing.allocator, .e0);
-    defer vat.deinit();
+    var ctx = try Ctx.init(std.testing.allocator, .e0);
+    defer ctx.deinit();
 
-    const symbol = try read(&vat, "foobar");
-    const row = try vat.row(.sym, symbol);
-    const name = try vat.strslice(row.str);
+    const symbol = try read(&ctx, "foobar");
+    const row = try ctx.row(.sym, symbol);
+    const name = try ctx.strslice(row.str);
 
     try std.testing.expectEqualStrings(
         "FOOBAR",

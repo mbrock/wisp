@@ -17,20 +17,20 @@
 //
 
 const wisp = @import("./wisp.zig");
-const Vat = wisp.Vat;
+const Ctx = wisp.Ctx;
 
-pub fn @"PROGN"(vat: *Vat, xs: []u32) anyerror!u32 {
-    _ = vat;
+pub fn @"PROGN"(ctx: *Ctx, xs: []u32) anyerror!u32 {
+    _ = ctx;
     return xs[xs.len - 1];
 }
 
-pub fn @"PROG1"(vat: *Vat, xs: []u32) anyerror!u32 {
-    _ = vat;
+pub fn @"PROG1"(ctx: *Ctx, xs: []u32) anyerror!u32 {
+    _ = ctx;
     return xs[0];
 }
 
-pub fn @"+"(vat: *Vat, xs: []u32) anyerror!u32 {
-    _ = vat;
+pub fn @"+"(ctx: *Ctx, xs: []u32) anyerror!u32 {
+    _ = ctx;
 
     var result: i31 = 0;
     for (xs) |x| {
@@ -40,14 +40,14 @@ pub fn @"+"(vat: *Vat, xs: []u32) anyerror!u32 {
     return @intCast(u32, result);
 }
 
-pub fn @"CONS"(vat: *Vat, car: u32, cdr: u32) anyerror!u32 {
-    return vat.new(.duo, .{ .car = car, .cdr = cdr });
+pub fn @"CONS"(ctx: *Ctx, car: u32, cdr: u32) anyerror!u32 {
+    return ctx.new(.duo, .{ .car = car, .cdr = cdr });
 }
 
-pub fn @"CAR"(vat: *Vat, x: u32) anyerror!u32 {
-    return vat.get(.duo, .car, x);
+pub fn @"CAR"(ctx: *Ctx, x: u32) anyerror!u32 {
+    return ctx.get(.duo, .car, x);
 }
 
-pub fn @"CDR"(vat: *Vat, x: u32) anyerror!u32 {
-    return vat.get(.duo, .cdr, x);
+pub fn @"CDR"(ctx: *Ctx, x: u32) anyerror!u32 {
+    return ctx.get(.duo, .cdr, x);
 }

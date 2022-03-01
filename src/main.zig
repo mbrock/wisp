@@ -43,10 +43,10 @@ pub fn repl() anyerror!void {
     const stdout = std.io.getStdOut().writer();
     const allocator = std.heap.page_allocator;
 
-    var vat = try wisp.Vat.init(allocator, .e0);
-    defer vat.deinit();
+    var ctx = try wisp.Ctx.init(allocator, .e0);
+    defer ctx.deinit();
 
-    try ops.load(&vat);
+    try ops.load(&ctx);
 
     while (true) {
         try stdout.writeAll("wisp> ");
@@ -61,12 +61,12 @@ pub fn repl() anyerror!void {
         );
 
         if (lineOrEof) |line| {
-            const exp = try read(&vat, line);
-            var ctx = eval.init(&vat, exp);
-            const val = try ctx.evaluate(1000);
-            try print(&vat, stdout, val);
+            const exp = try read(&ctx, line);
+            var exe = eval.init(&ctx, exp);
+            const val = try exe.evaluate(1000);
+            try print(&ctx, stdout, val);
             try stdout.writeByte('\n');
-            try tidy.tidy(&vat);
+            try tidy.tidy(&ctx);
         } else {
             try stdout.writeByte('\n');
             return;

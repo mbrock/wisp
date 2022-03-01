@@ -97,7 +97,7 @@ pub fn Tab(comptime tag: Tag) type {
     };
 }
 
-pub const Tabs = struct {
+pub const Vat = struct {
     duo: Tab(.duo) = .{},
     sym: Tab(.sym) = .{},
     fun: Tab(.fun) = .{},
@@ -107,10 +107,10 @@ pub const Tabs = struct {
     ct0: Tab(.ct0) = .{},
     ct1: Tab(.ct1) = .{},
 
-    pub fn bytesize(tabs: Tabs) usize {
+    pub fn bytesize(vat: Vat) usize {
         var n: usize = 0;
-        inline for (std.meta.fields(Tabs)) |field| {
-            n += @field(tabs, field.name).bytesize();
+        inline for (std.meta.fields(Vat)) |field| {
+            n += @field(vat, field.name).bytesize();
         }
         return n;
     }
@@ -123,143 +123,143 @@ pub const Special = enum {
     QUOTE,
 };
 
-pub const Vat = struct {
+pub const Ctx = struct {
     orb: Orb,
     era: Era = .e0,
     v08: V08 = .{},
-    tabs: Tabs = .{},
+    vat: Vat = .{},
 
     base: u32,
 
     specials: std.enums.EnumFieldStruct(Special, u32, 0) = .{},
 
-    pub fn init(orb: Orb, era: Era) !Vat {
-        var vat = Vat{
+    pub fn init(orb: Orb, era: Era) !Ctx {
+        var ctx = Ctx{
             .orb = orb,
             .era = era,
-            .tabs = .{},
+            .vat = .{},
             .base = 0xdeadbeef,
         };
 
-        vat.base = try vat.new(.pkg, .{
-            .nam = try vat.newstr("WISP"),
+        ctx.base = try ctx.new(.pkg, .{
+            .nam = try ctx.newstr("WISP"),
             .sym = nil,
         });
 
-        try vat.initvar("NIL", wisp.nil);
-        try vat.initvar("T", wisp.t);
+        try ctx.initvar("NIL", wisp.nil);
+        try ctx.initvar("T", wisp.t);
 
         inline for (std.meta.fields(Special)) |s| {
-            @field(vat.specials, s.name) = try vat.intern(s.name, vat.base);
+            @field(ctx.specials, s.name) = try ctx.intern(s.name, ctx.base);
         }
 
-        return vat;
+        return ctx;
     }
 
-    pub fn special(vat: *Vat, s: Special) u32 {
-        return @field(vat.specials, @tagName(s));
+    pub fn special(ctx: *Ctx, s: Special) u32 {
+        return @field(ctx.specials, @tagName(s));
     }
 
-    fn initvar(vat: *Vat, txt: []const u8, val: u32) !void {
-        var sym = try vat.intern(txt, vat.base);
-        try vat.set(.sym, .val, sym, val);
+    fn initvar(ctx: *Ctx, txt: []const u8, val: u32) !void {
+        var sym = try ctx.intern(txt, ctx.base);
+        try ctx.set(.sym, .val, sym, val);
     }
 
-    pub fn deinit(vat: *Vat) void {
-        vat.v08.deinit(vat.orb);
-        inline for (std.meta.fields(Tabs)) |field| {
-            @field(vat.tabs, field.name).list.deinit(vat.orb);
+    pub fn deinit(ctx: *Ctx) void {
+        ctx.v08.deinit(ctx.orb);
+        inline for (std.meta.fields(Vat)) |field| {
+            @field(ctx.vat, field.name).list.deinit(ctx.orb);
         }
     }
 
-    pub fn bytesize(vat: Vat) usize {
-        return vat.v08.items.len + vat.tabs.bytesize();
+    pub fn bytesize(ctx: Ctx) usize {
+        return ctx.v08.items.len + ctx.vat.bytesize();
     }
 
-    pub fn tab(vat: *Vat, comptime tag: Tag) *Tab(tag) {
-        return &@field(vat.tabs, @tagName(tag));
+    pub fn tab(ctx: *Ctx, comptime tag: Tag) *Tab(tag) {
+        return &@field(ctx.vat, @tagName(tag));
     }
 
-    pub fn new(vat: *Vat, comptime tag: Tag, data: Row(tag)) !u32 {
-        return vat.tab(tag).new(vat.orb, vat.era, data);
+    pub fn new(ctx: *Ctx, comptime tag: Tag, data: Row(tag)) !u32 {
+        return ctx.tab(tag).new(ctx.orb, ctx.era, data);
     }
 
-    pub fn row(vat: *Vat, comptime tag: Tag, ptr: u32) !Row(tag) {
-        return vat.tab(tag).get(vat.era, ptr);
+    pub fn row(ctx: *Ctx, comptime tag: Tag, ptr: u32) !Row(tag) {
+        return ctx.tab(tag).get(ctx.era, ptr);
     }
 
     pub fn col(
-        vat: *Vat,
+        ctx: *Ctx,
         comptime tag: Tag,
         comptime c: Col(tag),
     ) []u32 {
-        return vat.tab(tag).col(c);
+        return ctx.tab(tag).col(c);
     }
 
     pub fn get(
-        vat: *Vat,
+        ctx: *Ctx,
         comptime tag: Tag,
         comptime c: Col(tag),
         p: u32,
     ) !u32 {
-        return vat.col(tag, c)[ref(p)];
+        return ctx.col(tag, c)[ref(p)];
     }
 
     pub fn put(
-        vat: *Vat,
+        ctx: *Ctx,
         comptime tag: Tag,
         ptr: u32,
         val: Row(tag),
     ) void {
-        vat.tab(tag).list.set(ref(ptr), val);
+        ctx.tab(tag).list.set(ref(ptr), val);
     }
 
     pub fn set(
-        vat: *Vat,
+        ctx: *Ctx,
         comptime tag: Tag,
         comptime c: Col(tag),
         p: u32,
         v: u32,
     ) !void {
-        vat.col(tag, c)[ref(p)] = v;
+        ctx.col(tag, c)[ref(p)] = v;
     }
 
-    pub fn newstr(vat: *Vat, txt: []const u8) !u32 {
-        try vat.v08.appendSlice(vat.orb, txt);
-        return vat.new(.str, .{
-            .idx = @intCast(u32, vat.v08.items.len - txt.len),
+    pub fn newstr(ctx: *Ctx, txt: []const u8) !u32 {
+        try ctx.v08.appendSlice(ctx.orb, txt);
+        return ctx.new(.str, .{
+            .idx = @intCast(u32, ctx.v08.items.len - txt.len),
             .len = @intCast(u32, txt.len),
         });
     }
 
-    pub fn strslice(vat: *Vat, ptr: u32) ![]const u8 {
-        const str = try vat.row(.str, ptr);
-        return vat.v08.items[str.idx .. str.idx + str.len];
+    pub fn strslice(ctx: *Ctx, ptr: u32) ![]const u8 {
+        const str = try ctx.row(.str, ptr);
+        return ctx.v08.items[str.idx .. str.idx + str.len];
     }
 
-    pub fn intern(vat: *Vat, txt: []const u8, pkgptr: u32) !u32 {
-        const symstrs = vat.tabs.sym.list.items(.str);
-        const pkg = try vat.row(.pkg, pkgptr);
+    pub fn intern(ctx: *Ctx, txt: []const u8, pkgptr: u32) !u32 {
+        const symstrs = ctx.vat.sym.list.items(.str);
+        const pkg = try ctx.row(.pkg, pkgptr);
         var duoptr = pkg.sym;
 
         while (duoptr != nil) {
-            const duo = try vat.row(.duo, duoptr);
+            const duo = try ctx.row(.duo, duoptr);
             const strptr = symstrs[Ptr.from(duo.car).idx];
-            if (std.mem.eql(u8, txt, try vat.strslice(strptr))) {
+            if (std.mem.eql(u8, txt, try ctx.strslice(strptr))) {
                 return duo.car;
             } else {
                 duoptr = duo.cdr;
             }
         }
 
-        const symptr = try vat.new(.sym, .{
-            .str = try vat.newstr(txt),
+        const symptr = try ctx.new(.sym, .{
+            .str = try ctx.newstr(txt),
             .pkg = pkgptr,
             .val = wisp.nah,
             .fun = nil,
         });
 
-        vat.col(.pkg, .sym)[ref(pkgptr)] = try vat.new(.duo, .{
+        ctx.col(.pkg, .sym)[ref(pkgptr)] = try ctx.new(.duo, .{
             .car = symptr,
             .cdr = pkg.sym,
         });
@@ -268,17 +268,17 @@ pub const Vat = struct {
     }
 };
 
-pub fn list(vat: *Vat, xs: anytype) !u32 {
+pub fn list(ctx: *Ctx, xs: anytype) !u32 {
     var cur = nil;
     var i = xs.len;
     while (i >= 1) : (i -= 1) {
         const x = xs[i - 1];
-        cur = try vat.new(.duo, .{ .car = x, .cdr = cur });
+        cur = try ctx.new(.duo, .{ .car = x, .cdr = cur });
     }
     return cur;
 }
 
-test "vat" {
-    var vat = try Vat.init(std.testing.allocator, .e0);
-    defer vat.deinit();
+test "ctx" {
+    var ctx = try Ctx.init(std.testing.allocator, .e0);
+    defer ctx.deinit();
 }

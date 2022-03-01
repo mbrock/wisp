@@ -36,7 +36,7 @@ const wisp = @import("./wisp.zig");
 const util = @import("./util.zig");
 
 const ref = wisp.ref;
-const Vat = wisp.Vat;
+const Ctx = wisp.Ctx;
 const Ptr = wisp.Ptr;
 const DeclEnum = util.DeclEnum;
 
@@ -47,18 +47,18 @@ pub const FnTag = enum {
 
     pub fn from(comptime T: type) FnTag {
         return switch (T) {
-            fn (*Vat, []u32) anyerror!u32 => .f0x,
-            fn (*Vat, u32) anyerror!u32 => .f1,
-            fn (*Vat, u32, u32) anyerror!u32 => .f2,
+            fn (*Ctx, []u32) anyerror!u32 => .f0x,
+            fn (*Ctx, u32) anyerror!u32 => .f1,
+            fn (*Ctx, u32, u32) anyerror!u32 => .f2,
             else => @compileLog("unhandled op type", T),
         };
     }
 
     pub fn functionType(comptime self: FnTag) type {
         return switch (self) {
-            .f0x => fn (*Vat, []u32) anyerror!u32,
-            .f2 => fn (*Vat, u32, u32) anyerror!u32,
-            .f1 => fn (*Vat, u32) anyerror!u32,
+            .f0x => fn (*Ctx, []u32) anyerror!u32,
+            .f2 => fn (*Ctx, u32, u32) anyerror!u32,
+            .f1 => fn (*Ctx, u32) anyerror!u32,
         };
     }
 
@@ -95,14 +95,14 @@ test "ops" {
     );
 }
 
-pub fn load(vat: *Vat) !void {
+pub fn load(ctx: *Ctx) !void {
     inline for (fops.values) |fop, i| {
-        var sym = try vat.intern(fop.name, vat.base);
-        vat.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.fop, i).word();
+        var sym = try ctx.intern(fop.name, ctx.base);
+        ctx.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.fop, i).word();
     }
 
     inline for (mops.values) |mop, i| {
-        var sym = try vat.intern(mop.name, vat.base);
-        vat.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.mop, i).word();
+        var sym = try ctx.intern(mop.name, ctx.base);
+        ctx.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.mop, i).word();
     }
 }

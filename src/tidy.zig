@@ -18,31 +18,31 @@
 
 const GC = @This();
 
-old: *wisp.Vat,
-new: wisp.Vat,
+old: *wisp.Ctx,
+new: wisp.Ctx,
 
 const std = @import("std");
 const wisp = @import("./wisp.zig");
 const read = @import("./read.zig").read;
 const printer = @import("./print.zig");
 
-pub fn tidy(vat: *wisp.Vat) !void {
-    const n1 = vat.bytesize();
-    var gc = try init(vat);
+pub fn tidy(ctx: *wisp.Ctx) !void {
+    const n1 = ctx.bytesize();
+    var gc = try init(ctx);
     defer gc.deinit();
     try gc.copyRoots();
     try gc.scavenge();
-    vat.* = gc.finalize();
-    const n2 = vat.bytesize();
+    ctx.* = gc.finalize();
+    const n2 = ctx.bytesize();
 
     std.log.info("gc: before {d}, after {d}", .{ n1, n2 });
 }
 
-pub fn init(old: *wisp.Vat) !GC {
+pub fn init(old: *wisp.Ctx) !GC {
     const era = old.era.flip();
     return GC{
         .old = old,
-        .new = wisp.Vat{
+        .new = wisp.Ctx{
             .era = era,
             .orb = old.orb,
             .v08 = old.v08,
@@ -56,7 +56,7 @@ pub fn deinit(gc: *GC) void {
     _ = gc;
 }
 
-fn finalize(gc: *GC) wisp.Vat {
+fn finalize(gc: *GC) wisp.Ctx {
     gc.old.v08 = .{};
     gc.old.deinit();
     return gc.new;
@@ -152,63 +152,63 @@ fn scavengeRow(
 }
 
 test "garbage collection of conses" {
-    var vat = try wisp.Vat.init(std.testing.allocator, .e0);
+    var ctx = try wisp.Ctx.init(std.testing.allocator, .e0);
 
-    defer vat.deinit();
+    defer ctx.deinit();
 
-    _ = try vat.new(.duo, .{ .car = 1, .cdr = 2 });
+    _ = try ctx.new(.duo, .{ .car = 1, .cdr = 2 });
 
     const cons = wisp.Row(.duo){
         .car = 3,
         .cdr = 4,
     };
 
-    const cons1 = try vat.new(.duo, cons);
+    const cons1 = try ctx.new(.duo, cons);
 
-    var gc = try GC.init(&vat);
+    var gc = try GC.init(&ctx);
     defer gc.deinit();
 
     const cons2 = try gc.copy(cons1);
 
     try gc.scavenge();
 
-    vat = gc.finalize();
+    ctx = gc.finalize();
 
-    try std.testing.expectEqual(vat.tabs.duo.list.len, 1);
-    try std.testing.expectEqual(cons, try vat.row(.duo, cons2));
+    try std.testing.expectEqual(ctx.vat.duo.list.len, 1);
+    try std.testing.expectEqual(cons, try ctx.row(.duo, cons2));
 }
 
 test "read and gc" {
-    var vat = try wisp.Vat.init(std.testing.allocator, .e0);
-    defer vat.deinit();
+    var ctx = try wisp.Ctx.init(std.testing.allocator, .e0);
+    defer ctx.deinit();
 
-    const t1 = try read(&vat, "(foo (bar (baz)))");
-    const v1 = try vat.intern("X", vat.base);
+    const t1 = try read(&ctx, "(foo (bar (baz)))");
+    const v1 = try ctx.intern("X", ctx.base);
 
-    try vat.set(.sym, .val, v1, t1);
-    try tidy(&vat);
+    try ctx.set(.sym, .val, v1, t1);
+    try tidy(&ctx);
 
-    try std.testing.expectEqual(wisp.Era.e1, vat.era);
+    try std.testing.expectEqual(wisp.Era.e1, ctx.era);
 
-    const v2 = try vat.intern("X", vat.base);
-    const t2 = try vat.get(.sym, .val, v2);
+    const v2 = try ctx.intern("X", ctx.base);
+    const t2 = try ctx.get(.sym, .val, v2);
 
-    try printer.expect("(FOO (BAR (BAZ)))", &vat, t2);
+    try printer.expect("(FOO (BAR (BAZ)))", &ctx, t2);
 }
 
 test "gc ephemeral strings" {
-    var vat = try wisp.Vat.init(std.testing.allocator, .e0);
-    defer vat.deinit();
+    var ctx = try wisp.Ctx.init(std.testing.allocator, .e0);
+    defer ctx.deinit();
 
-    const x = try read(&vat,
+    const x = try read(&ctx,
         \\ ("foo" "bar" "baz")
     );
 
-    const foo = try vat.get(.duo, .car, x);
-    try vat.set(.sym, .val, try vat.intern("X", vat.base), foo);
+    const foo = try ctx.get(.duo, .car, x);
+    try ctx.set(.sym, .val, try ctx.intern("X", ctx.base), foo);
 
-    const n1 = vat.tabs.str.list.len;
-    try tidy(&vat);
-    const n2 = vat.tabs.str.list.len;
+    const n1 = ctx.vat.str.list.len;
+    try tidy(&ctx);
+    const n2 = ctx.vat.str.list.len;
     try std.testing.expectEqual(n1 - 2, n2);
 }

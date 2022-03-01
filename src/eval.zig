@@ -16,7 +16,7 @@
 // <https://www.gnu.org/licenses/>.
 //
 
-vat: *Vat,
+ctx: *Ctx,
 job: Job,
 scopes: u32,
 way: u32,
@@ -29,7 +29,7 @@ const expectEqualStrings = std.testing.expectEqualStrings;
 
 const wisp = @import("./wisp.zig");
 
-const Vat = wisp.Vat;
+const Ctx = wisp.Ctx;
 const Ptr = wisp.Ptr;
 const ref = wisp.ref;
 
@@ -73,7 +73,7 @@ pub fn step(this: *Eval) !void {
 }
 
 fn findVariable(this: *Eval, sym: u32) !void {
-    return switch (try this.vat.get(.sym, .val, sym)) {
+    return switch (try this.ctx.get(.sym, .val, sym)) {
         wisp.nah => Error.Nope,
         else => |x| this.doneWithJob(x),
     };
@@ -81,12 +81,12 @@ fn findVariable(this: *Eval, sym: u32) !void {
 
 fn step_IF(this: *Eval, cdr: u32) !void {
     var xs: [3]u32 = undefined;
-    const args = try scanList(this.vat, &xs, false, cdr);
+    const args = try scanList(this.ctx, &xs, false, cdr);
     this.* = .{
-        .vat = this.vat,
+        .ctx = this.ctx,
         .scopes = this.scopes,
         .job = .{ .exp = args[0] },
-        .way = try this.vat.new(.ct1, .{
+        .way = try this.ctx.new(.ct1, .{
             .hop = this.way,
             .env = this.scopes,
             .yay = args[1],
@@ -96,16 +96,16 @@ fn step_IF(this: *Eval, cdr: u32) !void {
 }
 
 fn stepDuo(this: *Eval, p: u32) !void {
-    const duo = try this.vat.row(.duo, p);
+    const duo = try this.ctx.row(.duo, p);
     const car = duo.car;
-    const cdr = try this.vat.row(.duo, duo.cdr);
-    const specials = this.vat.specials;
+    const cdr = try this.ctx.row(.duo, duo.cdr);
+    const specials = this.ctx.specials;
 
     if (specials.IF == car) {
         return try this.step_IF(duo.cdr);
     } else if (specials.QUOTE == car) {
         return this.doneWithJob(cdr.car);
-    } else switch (try this.vat.get(.sym, .fun, car)) {
+    } else switch (try this.ctx.get(.sym, .fun, car)) {
         wisp.nil => return Error.Nope,
         else => |fun| try this.stepCall(fun, duo, cdr),
     }
@@ -120,10 +120,10 @@ fn stepCall(
     switch (wisp.tagOf(fun)) {
         .fop => {
             this.* = .{
-                .vat = this.vat,
+                .ctx = this.ctx,
                 .scopes = this.scopes,
                 .job = .{ .exp = cdr.car },
-                .way = try this.vat.new(.ct0, .{
+                .way = try this.ctx.new(.ct0, .{
                     .hop = this.way,
                     .env = this.scopes,
                     .fun = fun,
@@ -142,7 +142,7 @@ fn stepCall(
             );
 
             this.* = .{
-                .vat = this.vat,
+                .ctx = this.ctx,
                 .scopes = this.scopes,
                 .job = .{ .exp = result },
                 .way = this.way,
@@ -163,8 +163,8 @@ pub fn proceed(this: *Eval, x: u32) !void {
     }
 
     switch (wisp.tagOf(this.way)) {
-        .ct0 => try this.execCt0(try this.vat.row(.ct0, this.way)),
-        .ct1 => try this.execCt1(try this.vat.row(.ct1, this.way)),
+        .ct0 => try this.execCt0(try this.ctx.row(.ct0, this.way)),
+        .ct1 => try this.execCt1(try this.ctx.row(.ct1, this.way)),
         else => unreachable,
     }
 }
@@ -172,7 +172,7 @@ pub fn proceed(this: *Eval, x: u32) !void {
 fn execCt1(this: *Eval, ct1: wisp.Row(.ct1)) !void {
     const exp = if (this.job.val == wisp.nil) ct1.nay else ct1.yay;
     this.* = .{
-        .vat = this.vat,
+        .ctx = this.ctx,
         .way = ct1.hop,
         .scopes = ct1.env,
         .job = .{ .exp = exp },
@@ -180,7 +180,7 @@ fn execCt1(this: *Eval, ct1: wisp.Row(.ct1)) !void {
 }
 
 fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
-    const values = try this.vat.new(.duo, .{
+    const values = try this.ctx.new(.duo, .{
         .car = this.job.val,
         .cdr = ct0.arg,
     });
@@ -196,7 +196,7 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
                 );
 
                 this.* = .{
-                    .vat = this.vat,
+                    .ctx = this.ctx,
                     .way = ct0.hop,
                     .scopes = ct0.env,
                     .job = .{ .val = result },
@@ -205,12 +205,12 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
             else => return Error.Nope,
         }
     } else {
-        const cons = try this.vat.row(.duo, ct0.exp);
+        const cons = try this.ctx.row(.duo, ct0.exp);
         this.* = .{
-            .vat = this.vat,
+            .ctx = this.ctx,
             .job = .{ .exp = cons.car },
             .scopes = this.scopes,
-            .way = try this.vat.new(.ct0, .{
+            .way = try this.ctx.new(.ct0, .{
                 .hop = ct0.hop,
                 .env = ct0.env,
                 .fun = ct0.fun,
@@ -221,11 +221,11 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
     }
 }
 
-pub fn scanList(vat: *Vat, buffer: []u32, reverse: bool, list: u32) ![]u32 {
+pub fn scanList(ctx: *Ctx, buffer: []u32, reverse: bool, list: u32) ![]u32 {
     var i: usize = 0;
     var cur = list;
     while (cur != wisp.nil) {
-        const cons = try vat.row(.duo, cur);
+        const cons = try ctx.row(.duo, cur);
         buffer[i] = cons.car;
         cur = cons.cdr;
         i += 1;
@@ -242,23 +242,23 @@ fn callOp(this: *Eval, primop: Ops.Op, reverse: bool, values: u32) !u32 {
     switch (primop.tag) {
         .f0x => {
             var xs: [31]u32 = undefined;
-            const slice = try scanList(this.vat, &xs, reverse, values);
+            const slice = try scanList(this.ctx, &xs, reverse, values);
             const f = Ops.FnTag.f0x.cast(primop.func);
-            return try f(this.vat, slice);
+            return try f(this.ctx, slice);
         },
 
         .f1 => {
             var xs: [1]u32 = undefined;
-            const slice = try scanList(this.vat, &xs, reverse, values);
+            const slice = try scanList(this.ctx, &xs, reverse, values);
             const f = Ops.FnTag.f1.cast(primop.func);
-            return try f(this.vat, slice[0]);
+            return try f(this.ctx, slice[0]);
         },
 
         .f2 => {
             var xs: [2]u32 = undefined;
-            const slice = try scanList(this.vat, &xs, reverse, values);
+            const slice = try scanList(this.ctx, &xs, reverse, values);
             const f = Ops.FnTag.f2.cast(primop.func);
-            return try f(this.vat, slice[0], slice[1]);
+            return try f(this.ctx, slice[0], slice[1]);
         },
     }
 }
@@ -279,15 +279,15 @@ pub fn evaluate(this: *Eval, limit: u32) !u32 {
     return Error.EvaluationLimitExceeded;
 }
 
-fn newTestVat() !Vat {
-    var vat = try Vat.init(std.testing.allocator, .e0);
-    try Ops.load(&vat);
-    return vat;
+fn newTestCtx() !Ctx {
+    var ctx = try Ctx.init(std.testing.allocator, .e0);
+    try Ops.load(&ctx);
+    return ctx;
 }
 
-pub fn init(vat: *Vat, job: u32) Eval {
+pub fn init(ctx: *Ctx, job: u32) Eval {
     return Eval{
-        .vat = vat,
+        .ctx = ctx,
         .way = wisp.nil,
         .scopes = wisp.nil,
         .job = Job{ .exp = job },
@@ -295,51 +295,51 @@ pub fn init(vat: *Vat, job: u32) Eval {
 }
 
 test "step evaluates string" {
-    var vat = try newTestVat();
-    defer vat.deinit();
+    var ctx = try newTestCtx();
+    defer ctx.deinit();
 
-    const exp = try vat.newstr("foo");
-    var ctx = init(&vat, exp);
+    const exp = try ctx.newstr("foo");
+    var exe = init(&ctx, exp);
 
-    try ctx.step();
-    try expectEqual(Job{ .val = exp }, ctx.job);
+    try exe.step();
+    try expectEqual(Job{ .val = exp }, exe.job);
 }
 
 test "step evaluates variable" {
-    var vat = try newTestVat();
-    defer vat.deinit();
+    var ctx = try newTestCtx();
+    defer ctx.deinit();
 
-    const x = try vat.intern("X", vat.base);
-    const foo = try vat.newstr("foo");
+    const x = try ctx.intern("X", ctx.base);
+    const foo = try ctx.newstr("foo");
 
-    var ctx = init(&vat, x);
+    var exe = init(&ctx, x);
 
-    try vat.set(.sym, .val, x, foo);
+    try ctx.set(.sym, .val, x, foo);
 
-    try ctx.step();
-    try expectEqual(Job{ .val = foo }, ctx.job);
+    try exe.step();
+    try expectEqual(Job{ .val = foo }, exe.job);
 }
 
 fn expectEval(want: []const u8, src: []const u8) !void {
-    var vat = try newTestVat();
-    defer vat.deinit();
+    var ctx = try newTestCtx();
+    defer ctx.deinit();
 
-    const exp = try read(&vat, src);
-    var ctx = init(&vat, exp);
-    const val = try ctx.evaluate(100);
+    const exp = try read(&ctx, src);
+    var exe = init(&ctx, exp);
+    const val = try exe.evaluate(100);
 
-    const valueString = try Print.printAlloc(vat.orb, &vat, val);
+    const valueString = try Print.printAlloc(ctx.orb, &ctx, val);
 
-    defer vat.orb.free(valueString);
+    defer ctx.orb.free(valueString);
 
-    const wantValue = try read(&vat, want);
+    const wantValue = try read(&ctx, want);
     const wantString = try Print.printAlloc(
-        vat.orb,
-        &vat,
+        ctx.orb,
+        &ctx,
         wantValue,
     );
 
-    defer vat.orb.free(wantString);
+    defer ctx.orb.free(wantString);
 
     try expectEqualStrings(wantString, valueString);
 }
