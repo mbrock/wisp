@@ -54,24 +54,15 @@ pub fn Col(comptime tag: Tag) type {
 pub fn Tab(comptime tag: Tag) type {
     return struct {
         const This = @This();
-
-        rat: Ptr.Idx = 0,
-
-        list: std.MultiArrayList(Row(tag)) = .{},
-
         const prefix: u32 = @enumToInt(tag) << (32 - 5);
+
+        scan: Ptr.Idx = 0,
+        list: std.MultiArrayList(Row(tag)) = .{},
 
         pub fn new(tab: *This, orb: Orb, era: Era, row: Row(tag)) !u32 {
             try tab.list.append(orb, row);
-            return Ptr.make(
-                tag,
-                @intCast(u26, tab.list.len - 1),
-                era,
-            ).word();
-        }
-
-        pub fn makeptr(tab: This, idx: u26) Ptr {
-            return Ptr.make(tag, idx, tab.era);
+            const idx = @intCast(u26, tab.list.len - 1);
+            return Ptr.make(tag, idx, era).word();
         }
 
         pub fn get(tab: This, era: Era, ptr: u32) !Row(tag) {
@@ -221,17 +212,30 @@ pub const Ctx = struct {
         ctx.tab(tag).list.set(ref(ptr), val);
     }
 
-    pub fn newv08(ctx: *Ctx, txt: []const u8) !u32 {
-        try ctx.v08.appendSlice(ctx.orb, txt);
+    pub fn newv08(ctx: *Ctx, dat: []const u8) !u32 {
+        try ctx.v08.appendSlice(ctx.orb, dat);
         return ctx.new(.v08, .{
-            .idx = @intCast(u32, ctx.v08.items.len - txt.len),
-            .len = @intCast(u32, txt.len),
+            .idx = @intCast(u32, ctx.v08.items.len - dat.len),
+            .len = @intCast(u32, dat.len),
+        });
+    }
+
+    pub fn newv32(ctx: *Ctx, dat: []const u32) !u32 {
+        try ctx.v32.appendSlice(ctx.orb, dat);
+        return ctx.new(.v32, .{
+            .idx = @intCast(u32, ctx.v32.items.len - dat.len),
+            .len = @intCast(u32, dat.len),
         });
     }
 
     pub fn v08slice(ctx: *Ctx, ptr: u32) ![]const u8 {
         const str = try ctx.row(.v08, ptr);
         return ctx.v08.items[str.idx .. str.idx + str.len];
+    }
+
+    pub fn v32slice(ctx: *Ctx, ptr: u32) ![]const u32 {
+        const str = try ctx.row(.v32, ptr);
+        return ctx.v32.items[str.idx .. str.idx + str.len];
     }
 
     pub fn intern(ctx: *Ctx, txt: []const u8, pkgptr: u32) !u32 {

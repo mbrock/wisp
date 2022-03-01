@@ -120,7 +120,7 @@ fn scavenge(gc: *GC) !void {
 
 fn isDone(gc: *GC) bool {
     inline for (wisp.pointerTags) |tag| {
-        if (gc.new.tab(tag).rat < gc.new.tab(tag).list.len)
+        if (gc.new.tab(tag).scan < gc.new.tab(tag).list.len)
             return false;
     }
 
@@ -130,12 +130,12 @@ fn isDone(gc: *GC) bool {
 fn scavengeTag(gc: *GC, comptime tag: wisp.Tag) !void {
     const tab = gc.new.tab(tag);
 
-    var i = tab.rat;
+    var i = tab.scan;
     while (i < tab.list.len) : (i += 1) {
         try gc.scavengeRow(tag, tab, i);
     }
 
-    tab.rat = i;
+    tab.scan = i;
 }
 
 fn scavengeRow(
