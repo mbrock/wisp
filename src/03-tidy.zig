@@ -88,6 +88,8 @@ fn copy(gc: *GC, x: u32) !u32 {
         .pkg => gc.push(.pkg, x),
         .ct0 => gc.push(.ct0, x),
         .ct1 => gc.push(.ct1, x),
+        .ct2 => gc.push(.ct2, x),
+        .ct3 => gc.push(.ct3, x),
     };
 }
 

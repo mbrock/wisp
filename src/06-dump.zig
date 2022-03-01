@@ -81,6 +81,16 @@ pub fn dump(
             try out.print("\"{s}\"", .{s});
         },
 
+        .v32 => {
+            try out.print("[", .{});
+            const xs = try ctx.v32slice(x);
+            for (xs) |y, i| {
+                if (i > 0) try out.print(" ", .{});
+                try dump(ctx, out, y);
+            }
+            try out.print("]", .{});
+        },
+
         .duo => {
             try out.print("(", .{});
             var cur = x;
@@ -110,8 +120,17 @@ pub fn dump(
             try out.print("<package>", .{});
         },
 
-        .chr, .fop, .mop => {},
-        .fun, .v32, .ct0, .ct1 => {},
+        .ct3 => {
+            const ct3 = try ctx.row(.ct3, x);
+            try out.print("<ct3", .{});
+            inline for (std.meta.fields(@TypeOf(ct3))) |field| {
+                try out.print(" {s}=", .{field.name});
+                try dump(ctx, out, @field(ct3, field.name));
+            }
+            try out.print(">", .{});
+        },
+
+        else => |t| try out.print("<{any}>", .{t}),
     }
 }
 

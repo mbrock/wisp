@@ -32,6 +32,7 @@ const wisp = @import("./ff-wisp.zig");
 const Ctx = wisp.Ctx;
 const Ptr = wisp.Ptr;
 const ref = wisp.ref;
+const nil = wisp.nil;
 
 const read = @import("./05-read.zig").read;
 const dump = @import("./06-dump.zig");
@@ -73,6 +74,20 @@ pub fn step(this: *Eval) !void {
 }
 
 fn findVariable(this: *Eval, sym: u32) !void {
+    var cur = this.env;
+    while (cur != nil) {
+        var curduo = try this.ctx.row(.duo, cur);
+        var v32 = try this.ctx.v32slice(curduo.car);
+        var i: usize = 0;
+        while (i < v32.len) : ({
+            i += 2;
+            cur = curduo.cdr;
+        }) {
+            if (v32[i] == sym)
+                return this.doneWithJob(v32[i + 1]);
+        }
+    }
+
     return switch (try this.ctx.get(.sym, .val, sym)) {
         wisp.nah => Error.Nope,
         else => |x| this.doneWithJob(x),
@@ -82,6 +97,32 @@ fn findVariable(this: *Eval, sym: u32) !void {
 const kwds = struct {
     pub fn QUOTE(this: *Eval, cdr: u32) !void {
         this.doneWithJob(try this.ctx.get(.duo, .car, cdr));
+    }
+
+    pub fn @"%LET"(this: *Eval, cdr: u32) !void {
+        // (%let ((v1 . e1) (v2 . e2)) e)
+
+        var xs: [2]u32 = undefined;
+        const args = try scanList(this.ctx, &xs, false, cdr);
+
+        const bs = args[0];
+        const e = args[1];
+
+        if (bs == nil) {
+            this.job = .{ .exp = e };
+        } else {
+            // find the first expression
+            const b1 = try this.ctx.get(.duo, .car, bs);
+            const e1 = try this.ctx.get(.duo, .cdr, b1);
+            this.job = .{ .exp = e1 };
+            this.way = try this.ctx.new(.ct3, .{
+                .hop = this.way,
+                .env = this.env,
+                .exp = e,
+                .arg = bs,
+                .dew = nil,
+            });
+        }
     }
 
     pub fn IF(this: *Eval, cdr: u32) !void {
@@ -99,6 +140,20 @@ const kwds = struct {
             }),
         };
     }
+
+    pub fn PROGN(this: *Eval, cdr: u32) !void {
+        if (cdr == nil) {
+            this.doneWithJob(nil);
+        } else {
+            const duo = try this.ctx.row(.duo, cdr);
+            this.job = .{ .exp = duo.car };
+            this.way = try this.ctx.new(.ct2, .{
+                .hop = this.way,
+                .env = this.env,
+                .exp = duo.cdr,
+            });
+        }
+    }
 };
 
 fn stepDuo(this: *Eval, p: u32) !void {
@@ -107,14 +162,16 @@ fn stepDuo(this: *Eval, p: u32) !void {
     const cdr = try this.ctx.row(.duo, duo.cdr);
     const kwd = this.ctx.kwd;
 
-    inline for (std.meta.declarations(kwds)) |decl| {
-        if (@field(kwd, decl.name) == car) {
-            return try @field(kwds, decl.name)(this, duo.cdr);
-        }
-    }
-
-    switch (try this.ctx.get(.sym, .fun, car)) {
-        wisp.nil => return Error.Nope,
+    if (car == kwd.IF)
+        try kwds.IF(this, duo.cdr)
+    else if (car == kwd.QUOTE)
+        try kwds.QUOTE(this, duo.cdr)
+    else if (car == kwd.PROGN)
+        try kwds.PROGN(this, duo.cdr)
+    else if (car == kwd.@"%LET")
+        try kwds.@"%LET"(this, duo.cdr)
+    else switch (try this.ctx.get(.sym, .fun, car)) {
+        nil => return Error.Nope,
         else => |fun| try this.stepCall(fun, duo, cdr),
     }
 }
@@ -135,7 +192,7 @@ fn stepCall(
                     .hop = this.way,
                     .env = this.env,
                     .fun = fun,
-                    .arg = wisp.nil,
+                    .arg = nil,
                     .exp = cdr.cdr,
                 }),
             };
@@ -158,14 +215,17 @@ fn stepCall(
         },
 
         else => {
-            std.log.warn("callee {any} {any}", .{ wisp.tagOf(fun), wisp.Ptr.from(fun) });
+            std.log.warn("callee {any} {any}", .{
+                wisp.tagOf(fun),
+                wisp.Ptr.from(fun),
+            });
             return Error.Nope;
         },
     }
 }
 
 pub fn proceed(this: *Eval, x: u32) !void {
-    if (this.way == wisp.nil) {
+    if (this.way == nil) {
         this.job = .{ .val = x };
         return;
     }
@@ -173,12 +233,84 @@ pub fn proceed(this: *Eval, x: u32) !void {
     switch (wisp.tagOf(this.way)) {
         .ct0 => try this.execCt0(try this.ctx.row(.ct0, this.way)),
         .ct1 => try this.execCt1(try this.ctx.row(.ct1, this.way)),
+        .ct2 => try this.execCt2(try this.ctx.row(.ct2, this.way)),
+        .ct3 => try this.execCt3(try this.ctx.row(.ct3, this.way)),
+
         else => unreachable,
     }
 }
 
+fn execCt3(this: *Eval, ct3: wisp.Row(.ct3)) !void {
+    const val = this.job.val;
+    const argduo = try this.ctx.row(.duo, ct3.arg);
+    const sym = try this.ctx.get(.duo, .car, argduo.car);
+    const bs = argduo.cdr;
+
+    if (bs == nil) {
+        const n = 1 + try wisp.length(this.ctx, ct3.dew);
+        var scope = try this.ctx.orb.alloc(u32, 2 * n);
+        defer this.ctx.orb.free(scope);
+
+        scope[0] = sym;
+        scope[1] = val;
+
+        var cur = ct3.dew;
+        var i: u32 = 2;
+
+        while (cur != nil) : (i += 2) {
+            const curduo = try this.ctx.row(.duo, cur);
+            const b1 = try this.ctx.row(.duo, curduo.car);
+            const s1 = b1.car;
+            const v1 = b1.cdr;
+
+            scope[i] = s1;
+            scope[i + 1] = v1;
+
+            cur = curduo.cdr;
+        }
+
+        this.way = ct3.hop;
+        this.job = .{ .exp = ct3.exp };
+        this.env = try this.ctx.new(.duo, .{
+            .car = try this.ctx.newv32(scope),
+            .cdr = this.env,
+        });
+    } else {
+        const bsduo = try this.ctx.row(.duo, bs);
+        const e1 = try this.ctx.get(.duo, .cdr, bsduo.car);
+        this.job = .{ .exp = e1 };
+        this.way = try this.ctx.new(.ct3, .{
+            .hop = ct3.hop,
+            .env = ct3.env,
+            .exp = ct3.exp,
+            .arg = argduo.cdr,
+            .dew = try this.ctx.new(.duo, .{
+                .car = try this.ctx.new(.duo, .{ .car = sym, .cdr = val }),
+                .cdr = ct3.dew,
+            }),
+        });
+    }
+}
+
+fn execCt2(this: *Eval, ct2: wisp.Row(.ct2)) !void {
+    const duo = try this.ctx.row(.duo, ct2.exp);
+
+    this.job = .{ .exp = duo.car };
+
+    if (duo.cdr == nil) {
+        this.way = ct2.hop;
+        this.env = ct2.env;
+    } else {
+        this.way = try this.ctx.new(.ct2, .{
+            .hop = ct2.hop,
+            .env = ct2.env,
+            .exp = duo.cdr,
+        });
+    }
+}
+
 fn execCt1(this: *Eval, ct1: wisp.Row(.ct1)) !void {
-    const exp = if (this.job.val == wisp.nil) ct1.nay else ct1.yay;
+    const exp = if (this.job.val == nil) ct1.nay else ct1.yay;
     this.* = .{
         .ctx = this.ctx,
         .way = ct1.hop,
@@ -193,7 +325,7 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
         .cdr = ct0.arg,
     });
 
-    if (ct0.exp == wisp.nil) {
+    if (ct0.exp == nil) {
         // Done with evaluating subterms.
         switch (wisp.tagOf(ct0.fun)) {
             .fop => {
@@ -232,7 +364,7 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
 pub fn scanList(ctx: *Ctx, buffer: []u32, reverse: bool, list: u32) ![]u32 {
     var i: usize = 0;
     var cur = list;
-    while (cur != wisp.nil) {
+    while (cur != nil) {
         const cons = try ctx.row(.duo, cur);
         buffer[i] = cons.car;
         cur = cons.cdr;
@@ -274,7 +406,7 @@ fn callOp(this: *Eval, primop: xops.Op, reverse: bool, values: u32) !u32 {
 pub fn evaluate(this: *Eval, limit: u32) !u32 {
     var i: u32 = 0;
     while (i < limit) : (i += 1) {
-        if (this.way == wisp.nil) {
+        if (this.way == nil) {
             switch (this.job) {
                 .val => |x| return x,
                 else => {},
@@ -296,8 +428,8 @@ fn newTestCtx() !Ctx {
 pub fn init(ctx: *Ctx, job: u32) Eval {
     return Eval{
         .ctx = ctx,
-        .way = wisp.nil,
-        .env = wisp.nil,
+        .way = nil,
+        .env = nil,
         .job = Job{ .exp = job },
     };
 }
@@ -391,4 +523,11 @@ test "prog1" {
 
 test "quote" {
     try expectEval("(1 2 3)", "(quote (1 2 3))");
+}
+
+test "let" {
+    try expectEval(
+        "3",
+        "(%let ((a . 1) (b . 2)) (+ a b))",
+    );
 }

@@ -19,11 +19,6 @@
 const wisp = @import("./ff-wisp.zig");
 const Ctx = wisp.Ctx;
 
-pub fn @"PROGN"(ctx: *Ctx, xs: []u32) anyerror!u32 {
-    _ = ctx;
-    return xs[xs.len - 1];
-}
-
 pub fn @"PROG1"(ctx: *Ctx, xs: []u32) anyerror!u32 {
     _ = ctx;
     return xs[0];

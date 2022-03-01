@@ -19,6 +19,10 @@
 const wisp = @import("./ff-wisp.zig");
 const Ctx = wisp.Ctx;
 
+fn duo(ctx: *Ctx, car: u32, cdr: u32) !u32 {
+    return try ctx.new(.duo, .{ .car = car, .cdr = cdr });
+}
+
 pub fn @"FOO"(ctx: *Ctx, x: u32, y: u32) anyerror!u32 {
     _ = ctx;
     return try ctx.new(.duo, .{

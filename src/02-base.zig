@@ -38,12 +38,14 @@ pub fn Row(comptime t: Tag) type {
         .pkg => struct { nam: u32, sym: u32 },
         .ct0 => struct { hop: u32, env: u32, fun: u32, arg: u32, exp: u32 },
         .ct1 => struct { hop: u32, env: u32, yay: u32, nay: u32 },
+        .ct2 => struct { hop: u32, env: u32, exp: u32 },
+        .ct3 => struct { hop: u32, env: u32, exp: u32, dew: u32, arg: u32 },
     };
 }
 
 pub const Orb = std.mem.Allocator;
 pub const V08 = std.ArrayListUnmanaged(u8);
-pub const V32 = std.ArrayListUnmanaged(u8);
+pub const V32 = std.ArrayListUnmanaged(u32);
 
 pub const Err = error{Bad};
 
@@ -98,6 +100,8 @@ pub const Vat = struct {
     pkg: Tab(.pkg) = .{},
     ct0: Tab(.ct0) = .{},
     ct1: Tab(.ct1) = .{},
+    ct2: Tab(.ct2) = .{},
+    ct3: Tab(.ct3) = .{},
 
     pub fn bytesize(vat: Vat) usize {
         var n: usize = 0;
@@ -115,6 +119,8 @@ fn S32(comptime t: type) type {
 pub const Kwd = enum {
     IF,
     QUOTE,
+    PROGN,
+    @"%LET",
 };
 
 pub const Ctx = struct {
@@ -238,8 +244,12 @@ pub const Ctx = struct {
     }
 
     pub fn intern(ctx: *Ctx, txt: []const u8, pkgptr: u32) !u32 {
-        if (pkgptr == ctx.base and std.mem.eql(u8, txt, "NIL")) {
-            return nil;
+        if (pkgptr == ctx.base) {
+            if (std.mem.eql(u8, txt, "NIL")) {
+                return nil;
+            } else if (std.mem.eql(u8, txt, "T")) {
+                return wisp.t;
+            }
         }
 
         const symstrs = ctx.vat.sym.list.items(.str);
@@ -274,7 +284,7 @@ pub const Ctx = struct {
 
 pub fn list(ctx: *Ctx, xs: anytype) !u32 {
     var cur = nil;
-    var i = xs.len;
+    var i: u32 = xs.len;
     while (i >= 1) : (i -= 1) {
         const x = xs[i - 1];
         cur = try ctx.new(.duo, .{ .car = x, .cdr = cur });
@@ -282,7 +292,27 @@ pub fn list(ctx: *Ctx, xs: anytype) !u32 {
     return cur;
 }
 
+pub fn length(ctx: *Ctx, x: u32) !u32 {
+    var cur = x;
+    var i: u32 = 0;
+    while (cur != nil) : (i += 1) {
+        cur = try ctx.get(.duo, .cdr, cur);
+    }
+
+    return i;
+}
+
 test "ctx" {
     var ctx = try Ctx.init(std.testing.allocator, .e0);
     defer ctx.deinit();
+}
+
+test "list length" {
+    var ctx = try Ctx.init(std.testing.allocator, .e0);
+    defer ctx.deinit();
+
+    try same(
+        @as(u32, 3),
+        try length(&ctx, try list(&ctx, [_]u32{ 1, 2, 3 })),
+    );
 }

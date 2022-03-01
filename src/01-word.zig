@@ -39,6 +39,8 @@ pub const Tag = enum(u5) {
 
     ct0 = 0x1b, // funarg continuation
     ct1 = 0x1c, // conditional continuation
+    ct2 = 0x1d, // progn continuation
+    ct3 = 0x1e, // let continuation
 };
 
 pub const pointerTags = .{
@@ -50,6 +52,8 @@ pub const pointerTags = .{
     .pkg,
     .ct0,
     .ct1,
+    .ct2,
+    .ct3,
 };
 
 pub const Era = enum(u1) {
