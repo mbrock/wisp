@@ -36,13 +36,14 @@ const Tag = wisp.Tag;
 
 pub fn tidy(ctx: *Ctx) !void {
     const n1 = ctx.bytesize();
-    var gc = try init(ctx);
-    defer gc.deinit();
-    try gc.copyRoots();
-    try gc.scavenge();
-    ctx.* = gc.finalize();
-    const n2 = ctx.bytesize();
 
+    var gc = try init(ctx);
+    defer gc.free();
+    try gc.root();
+    try gc.scan();
+    ctx.* = gc.done();
+
+    const n2 = ctx.bytesize();
     std.log.info("gc: before {d}, after {d}", .{ n1, n2 });
 }
 
@@ -60,11 +61,11 @@ pub fn init(old: *Ctx) !GC {
     };
 }
 
-pub fn deinit(gc: *GC) void {
+pub fn free(gc: *GC) void {
     _ = gc;
 }
 
-fn finalize(gc: *GC) Ctx {
+fn done(gc: *GC) Ctx {
     gc.old.v08 = .{};
     gc.old.deinit();
     return gc.new;
@@ -74,7 +75,7 @@ fn copyPlace(gc: *GC, x: *u32) !void {
     x.* = try gc.copy(x.*);
 }
 
-fn copyRoots(gc: *GC) !void {
+fn root(gc: *GC) !void {
     gc.new.base = try gc.copy(gc.old.base);
 
     inline for (std.meta.fields(wisp.Special)) |s| {
@@ -118,7 +119,7 @@ fn copyRow(gc: *GC, comptime tag: Tag, x: u32) !u32 {
     return new;
 }
 
-fn scavenge(gc: *GC) !void {
+fn scan(gc: *GC) !void {
     while (!gc.isDone()) {
         inline for (wisp.pointerTags) |tag| {
             try gc.scavengeTag(tag);
@@ -174,13 +175,13 @@ test "garbage collection of conses" {
     const cons1 = try ctx.new(.duo, cons);
 
     var gc = try GC.init(&ctx);
-    defer gc.deinit();
+    defer gc.free();
 
     const cons2 = try gc.copy(cons1);
 
-    try gc.scavenge();
+    try gc.scan();
 
-    ctx = gc.finalize();
+    ctx = gc.done();
 
     try std.testing.expectEqual(ctx.vat.duo.list.len, 1);
     try std.testing.expectEqual(cons, try ctx.row(.duo, cons2));
