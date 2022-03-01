@@ -126,6 +126,19 @@ const kwds = struct {
         }
     }
 
+    pub fn @"%LAMBDA"(this: *Eval, cdr: u32) !void {
+        var xs: [2]u32 = undefined;
+        const args = try scanList(this.ctx, &xs, false, cdr);
+
+        this.job = .{
+            .val = try this.ctx.new(.fun, .{
+                .env = this.env,
+                .par = args[0],
+                .exp = args[1],
+            }),
+        };
+    }
+
     pub fn IF(this: *Eval, cdr: u32) !void {
         var xs: [3]u32 = undefined;
         const args = try scanList(this.ctx, &xs, false, cdr);
@@ -171,6 +184,8 @@ fn stepDuo(this: *Eval, p: u32) !void {
         try kwds.PROGN(this, duo.cdr)
     else if (car == kwd.@"%LET")
         try kwds.@"%LET"(this, duo.cdr)
+    else if (car == kwd.@"%LAMBDA")
+        try kwds.@"%LAMBDA"(this, duo.cdr)
     else switch (try this.ctx.get(.sym, .fun, car)) {
         nil => return Error.Nope,
         else => |fun| try this.stepCall(fun, duo, cdr),
