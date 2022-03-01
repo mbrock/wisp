@@ -433,31 +433,27 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
             .fun => {
                 const fun = try this.ctx.row(.fun, ct0.fun);
 
-                var xs = std.ArrayList(u32).init(this.ctx.orb);
-                defer xs.deinit();
+                var pars = try scanListAlloc(this.ctx, fun.par);
+                defer this.ctx.orb.free(pars);
+                var vals = try scanListAlloc(this.ctx, values);
+                defer this.ctx.orb.free(vals);
 
-                var curpar = fun.par;
-                var curval = values;
+                if (pars.len != vals.len) {
+                    return Error.Nope;
+                }
 
-                while (curpar != nil) {
-                    const parduo = try this.ctx.row(.duo, curpar);
+                std.mem.reverse(u32, vals);
 
-                    if (curval == nil) {
-                        try dump.warn("mismatch", this.ctx, ct0.fun);
-                        return Error.Nope;
-                    }
+                var scope = try this.ctx.orb.alloc(u32, 2 * pars.len);
+                defer this.ctx.orb.free(scope);
 
-                    const valduo = try this.ctx.row(.duo, curval);
-
-                    try xs.append(parduo.car);
-                    try xs.append(valduo.car);
-
-                    curpar = parduo.cdr;
-                    curval = valduo.cdr;
+                for (pars) |par, i| {
+                    scope[i * 2 + 0] = par;
+                    scope[i * 2 + 1] = vals[i];
                 }
 
                 const env = try this.ctx.new(.duo, .{
-                    .car = try this.ctx.newv32(xs.items),
+                    .car = try this.ctx.newv32(scope),
                     .cdr = fun.env,
                 });
 
@@ -486,6 +482,20 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
             }),
         };
     }
+}
+
+fn scanListAlloc(ctx: *Ctx, list: u32) ![]u32 {
+    var xs = std.ArrayList(u32).init(ctx.orb);
+    errdefer xs.deinit();
+
+    var cur = list;
+    while (cur != nil) {
+        const duo = try ctx.row(.duo, cur);
+        try xs.append(duo.car);
+        cur = duo.cdr;
+    }
+
+    return xs.toOwnedSlice();
 }
 
 pub fn scanList(ctx: *Ctx, buffer: []u32, reverse: bool, list: u32) ![]u32 {
@@ -694,4 +704,10 @@ test "EQ" {
     try expectEval("NIL", "(eq 1 2)");
     try expectEval("T", "(eq 'foo 'foo)");
     try expectEval("NIL", "(eq 'foo 'bar)");
+}
+
+test "defun" {
+    try expectEval("(1 . 2)",
+        \\ (progn (defun f (x y) (cons x y)) (f 1 2))
+    );
 }
