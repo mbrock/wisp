@@ -20,7 +20,7 @@ const std = @import("std");
 const assert = std.debug.assert;
 const same = std.testing.expectEqual;
 
-const wisp = @import("./wisp.zig");
+const wisp = @import("./ff-wisp.zig");
 const ref = wisp.ref;
 const nil = wisp.nil;
 const Tag = wisp.Tag;

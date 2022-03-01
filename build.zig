@@ -6,7 +6,7 @@ pub fn build(b: *std.build.Builder) void {
 
     const exe = b.addExecutable(
         "wisp",
-        "src/main.zig",
+        "src/0a-repl.zig",
     );
 
     exe.addPackagePath("ziglyph", "vendor/ziglyph/src/ziglyph.zig");
@@ -16,7 +16,7 @@ pub fn build(b: *std.build.Builder) void {
 
     const wasm = b.addSharedLibrary(
         "wisp",
-        "src/main.zig",
+        "src/ff-wisp.zig",
         .unversioned,
     );
 
@@ -38,7 +38,7 @@ pub fn build(b: *std.build.Builder) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    const exe_tests = b.addTest("src/main.zig");
+    const exe_tests = b.addTest("src/0a-repl.zig");
     exe_tests.addPackagePath(
         "ziglyph",
         "vendor/ziglyph/src/ziglyph.zig",

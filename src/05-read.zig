@@ -19,7 +19,7 @@
 const std = @import("std");
 const ziglyph = @import("ziglyph");
 
-const wisp = @import("./wisp.zig");
+const wisp = @import("./ff-wisp.zig");
 const Ctx = wisp.Ctx;
 
 const Error = error{

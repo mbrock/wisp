@@ -16,8 +16,8 @@
 // <https://www.gnu.org/licenses/>.
 //
 
-pub const Fops = @import("./fops.zig");
-pub const Mops = @import("./mops.zig");
+pub const Fops = @import("./08-fops.zig");
+pub const Mops = @import("./09-mops.zig");
 
 pub const FopTag = DeclEnum(Fops, u27);
 pub const MopTag = DeclEnum(Mops, u27);
@@ -32,8 +32,8 @@ const expectEqualStrings = std.testing.expectEqualStrings;
 
 const EnumArray = std.enums.EnumArray;
 
-const wisp = @import("./wisp.zig");
-const util = @import("./util.zig");
+const wisp = @import("./ff-wisp.zig");
+const util = @import("./00-util.zig");
 
 const ref = wisp.ref;
 const Ctx = wisp.Ctx;

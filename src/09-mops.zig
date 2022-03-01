@@ -16,38 +16,19 @@
 // <https://www.gnu.org/licenses/>.
 //
 
-const wisp = @import("./wisp.zig");
+const wisp = @import("./ff-wisp.zig");
 const Ctx = wisp.Ctx;
 
-pub fn @"PROGN"(ctx: *Ctx, xs: []u32) anyerror!u32 {
+pub fn @"FOO"(ctx: *Ctx, x: u32, y: u32) anyerror!u32 {
     _ = ctx;
-    return xs[xs.len - 1];
-}
-
-pub fn @"PROG1"(ctx: *Ctx, xs: []u32) anyerror!u32 {
-    _ = ctx;
-    return xs[0];
-}
-
-pub fn @"+"(ctx: *Ctx, xs: []u32) anyerror!u32 {
-    _ = ctx;
-
-    var result: i31 = 0;
-    for (xs) |x| {
-        result += @intCast(i31, x);
-    }
-
-    return @intCast(u32, result);
-}
-
-pub fn @"CONS"(ctx: *Ctx, car: u32, cdr: u32) anyerror!u32 {
-    return ctx.new(.duo, .{ .car = car, .cdr = cdr });
-}
-
-pub fn @"CAR"(ctx: *Ctx, x: u32) anyerror!u32 {
-    return ctx.get(.duo, .car, x);
-}
-
-pub fn @"CDR"(ctx: *Ctx, x: u32) anyerror!u32 {
-    return ctx.get(.duo, .cdr, x);
+    return try ctx.new(.duo, .{
+        .car = x,
+        .cdr = try ctx.new(.duo, .{
+            .car = y,
+            .cdr = try ctx.new(.duo, .{
+                .car = 1,
+                .cdr = wisp.nil,
+            }),
+        }),
+    });
 }

@@ -27,15 +27,15 @@ const assert = std.debug.assert;
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 
-const wisp = @import("./wisp.zig");
+const wisp = @import("./ff-wisp.zig");
 
 const Ctx = wisp.Ctx;
 const Ptr = wisp.Ptr;
 const ref = wisp.ref;
 
-const read = @import("./read.zig").read;
-const dump = @import("./dump.zig");
-const xops = @import("./xops.zig");
+const read = @import("./05-read.zig").read;
+const dump = @import("./06-dump.zig");
+const xops = @import("./07-xops.zig");
 
 const Eval = @This();
 

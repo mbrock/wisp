@@ -18,7 +18,7 @@
 
 const std = @import("std");
 
-const wisp = @import("./wisp.zig");
+const wisp = @import("./ff-wisp.zig");
 const Ctx = wisp.Ctx;
 
 test "print one" {

@@ -19,12 +19,12 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const wisp = @import("./wisp.zig");
-const read = @import("./read.zig").read;
-const dump = @import("./dump.zig").dump;
-const eval = @import("./eval.zig");
-const xops = @import("./xops.zig");
-const tidy = @import("./tidy.zig");
+const wisp = @import("./ff-wisp.zig");
+const read = @import("./05-read.zig").read;
+const dump = @import("./06-dump.zig").dump;
+const eval = @import("./04-eval.zig");
+const xops = @import("./07-xops.zig");
+const tidy = @import("./03-tidy.zig");
 
 test {
     std.testing.refAllDecls(@This());

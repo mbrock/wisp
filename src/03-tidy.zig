@@ -22,9 +22,10 @@ old: *wisp.Ctx,
 new: wisp.Ctx,
 
 const std = @import("std");
-const wisp = @import("./wisp.zig");
-const read = @import("./read.zig").read;
-const dump = @import("./dump.zig");
+
+const wisp = @import("./ff-wisp.zig");
+const read = @import("./05-read.zig").read;
+const dump = @import("./06-dump.zig");
 
 const Col = wisp.Col;
 const Ctx = wisp.Ctx;

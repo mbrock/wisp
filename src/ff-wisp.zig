@@ -16,19 +16,5 @@
 // <https://www.gnu.org/licenses/>.
 //
 
-const wisp = @import("./wisp.zig");
-const Ctx = wisp.Ctx;
-
-pub fn @"FOO"(ctx: *Ctx, x: u32, y: u32) anyerror!u32 {
-    _ = ctx;
-    return try ctx.new(.duo, .{
-        .car = x,
-        .cdr = try ctx.new(.duo, .{
-            .car = y,
-            .cdr = try ctx.new(.duo, .{
-                .car = 1,
-                .cdr = wisp.nil,
-            }),
-        }),
-    });
-}
+pub usingnamespace @import("./01-word.zig");
+pub usingnamespace @import("./02-base.zig");
