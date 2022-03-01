@@ -527,6 +527,12 @@ fn callOp(this: *Eval, primop: xops.Op, reverse: bool, values: u32) !u32 {
             return try f(this, slice);
         },
 
+        .f0 => {
+            if (values != nil) return Error.Nope;
+            const f = xops.FnTag.f0.cast(primop.func);
+            return try f(this);
+        },
+
         .f1 => {
             var xs: [1]u32 = undefined;
             const slice = try scanList(this.ctx, &xs, reverse, values);

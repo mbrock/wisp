@@ -43,12 +43,14 @@ const DeclEnum = util.DeclEnum;
 
 pub const FnTag = enum {
     f0x,
+    f0,
     f1,
     f2,
 
     pub fn from(comptime T: type) FnTag {
         return switch (T) {
             fn (*Ctx, []u32) anyerror!u32 => .f0x,
+            fn (*Ctx) anyerror!u32 => .f0,
             fn (*Ctx, u32) anyerror!u32 => .f1,
             fn (*Ctx, u32, u32) anyerror!u32 => .f2,
             else => @compileLog("unhandled op type", T),
@@ -58,6 +60,7 @@ pub const FnTag = enum {
     pub fn functionType(comptime self: FnTag) type {
         return switch (self) {
             .f0x => fn (*Ctx, []u32) anyerror!u32,
+            .f0 => fn (*Ctx) anyerror!u32,
             .f2 => fn (*Ctx, u32, u32) anyerror!u32,
             .f1 => fn (*Ctx, u32) anyerror!u32,
         };

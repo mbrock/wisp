@@ -122,3 +122,7 @@ pub fn @"ERROR"(ctx: *Ctx, xs: []u32) anyerror!u32 {
     try out.writeByte('\n');
     return Err.Error;
 }
+
+pub fn @"GET/CC"(ctx: *Ctx) anyerror!u32 {
+    return ctx.way;
+}

@@ -130,6 +130,36 @@ pub fn dump(
             try out.print(">", .{});
         },
 
+        .ct0 => {
+            const ct0 = try ctx.row(.ct0, x);
+            try out.print("<ct0", .{});
+            inline for (std.meta.fields(@TypeOf(ct0))) |field| {
+                try out.print(" {s}=", .{field.name});
+                try dump(ctx, out, @field(ct0, field.name));
+            }
+            try out.print(">", .{});
+        },
+
+        .ct2 => {
+            const ct2 = try ctx.row(.ct2, x);
+            try out.print("<ct2", .{});
+            inline for (std.meta.fields(@TypeOf(ct2))) |field| {
+                try out.print(" {s}=", .{field.name});
+                try dump(ctx, out, @field(ct2, field.name));
+            }
+            try out.print(">", .{});
+        },
+
+        .ct1 => {
+            const ct1 = try ctx.row(.ct1, x);
+            try out.print("<ct1", .{});
+            inline for (std.meta.fields(@TypeOf(ct1))) |field| {
+                try out.print(" {s}=", .{field.name});
+                try dump(ctx, out, @field(ct1, field.name));
+            }
+            try out.print(">", .{});
+        },
+
         .fun => {
             const fun = try ctx.row(.fun, x);
             try out.print("<fun", .{});
