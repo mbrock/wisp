@@ -38,7 +38,6 @@ pub fn tidy(ctx: *Ctx) !void {
     const n1 = ctx.bytesize();
 
     var gc = try init(ctx);
-    defer gc.free();
     try gc.root();
     try gc.scan();
     ctx.* = gc.done();
@@ -48,21 +47,15 @@ pub fn tidy(ctx: *Ctx) !void {
 }
 
 pub fn init(old: *Ctx) !GC {
-    const era = old.era.flip();
     return GC{
         .old = old,
         .new = Ctx{
-            .era = era,
+            .era = old.era.flip(),
             .orb = old.orb,
             .v08 = old.v08,
             .specials = old.specials,
-            .base = 0xdeadbeef,
         },
     };
-}
-
-pub fn free(gc: *GC) void {
-    _ = gc;
 }
 
 fn done(gc: *GC) Ctx {
@@ -71,37 +64,33 @@ fn done(gc: *GC) Ctx {
     return gc.new;
 }
 
-fn copyPlace(gc: *GC, x: *u32) !void {
-    x.* = try gc.copy(x.*);
-}
-
 fn root(gc: *GC) !void {
     gc.new.base = try gc.copy(gc.old.base);
 
     inline for (std.meta.fields(wisp.Special)) |s| {
-        try gc.copyPlace(&@field(gc.new.specials, s.name));
+        try gc.move(&@field(gc.new.specials, s.name));
     }
+}
+
+fn move(gc: *GC, x: *u32) !void {
+    x.* = try gc.copy(x.*);
 }
 
 fn copy(gc: *GC, x: u32) !u32 {
     return switch (wisp.tagOf(x)) {
         .int, .chr, .sys, .fop, .mop => x,
-        .sym => gc.copyRow(.sym, x),
-        .duo => gc.copyRow(.duo, x),
-        .fun => gc.copyRow(.fun, x),
-        .v32 => gc.copyRow(.v32, x),
-        .v08 => gc.copyRow(.v08, x),
-        .pkg => gc.copyRow(.pkg, x),
-        .ct0 => gc.copyRow(.ct0, x),
-        .ct1 => gc.copyRow(.ct1, x),
+        .sym => gc.push(.sym, x),
+        .duo => gc.push(.duo, x),
+        .fun => gc.push(.fun, x),
+        .v32 => gc.push(.v32, x),
+        .v08 => gc.push(.v08, x),
+        .pkg => gc.push(.pkg, x),
+        .ct0 => gc.push(.ct0, x),
+        .ct1 => gc.push(.ct1, x),
     };
 }
 
-fn nthField(comptime tag: Tag, i: comptime_int) []const u8 {
-    return @tagName(@intToEnum(std.meta.FieldEnum(Row(tag)), i));
-}
-
-fn copyRow(gc: *GC, comptime tag: Tag, x: u32) !u32 {
+fn push(gc: *GC, comptime tag: Tag, x: u32) !u32 {
     const ptr = Ptr.from(x);
     if (ptr.era == gc.new.era) return x;
 
@@ -120,14 +109,14 @@ fn copyRow(gc: *GC, comptime tag: Tag, x: u32) !u32 {
 }
 
 fn scan(gc: *GC) !void {
-    while (!gc.isDone()) {
+    while (!gc.calm()) {
         inline for (wisp.pointerTags) |tag| {
-            try gc.scavengeTag(tag);
+            try gc.pull(tag);
         }
     }
 }
 
-fn isDone(gc: *GC) bool {
+fn calm(gc: *GC) bool {
     inline for (wisp.pointerTags) |tag| {
         if (gc.new.tab(tag).scan < gc.new.tab(tag).list.len)
             return false;
@@ -136,23 +125,18 @@ fn isDone(gc: *GC) bool {
     return true;
 }
 
-fn scavengeTag(gc: *GC, comptime tag: Tag) !void {
+fn pull(gc: *GC, comptime tag: Tag) !void {
     const tab = gc.new.tab(tag);
 
     var i = tab.scan;
     while (i < tab.list.len) : (i += 1) {
-        try gc.scavengeRow(tag, tab, i);
+        try gc.drag(tag, tab, i);
     }
 
     tab.scan = i;
 }
 
-fn scavengeRow(
-    gc: *GC,
-    comptime tag: Tag,
-    tab: *Tab(tag),
-    i: Ptr.Idx,
-) !void {
+fn drag(gc: *GC, comptime tag: Tag, tab: *Tab(tag), i: Ptr.Idx) !void {
     inline for (std.meta.fields(Row(tag))) |_, j| {
         const col = @intToEnum(Col(tag), j);
         const new = try gc.copy(tab.list.items(col)[i]);
@@ -175,12 +159,8 @@ test "garbage collection of conses" {
     const cons1 = try ctx.new(.duo, cons);
 
     var gc = try GC.init(&ctx);
-    defer gc.free();
-
     const cons2 = try gc.copy(cons1);
-
     try gc.scan();
-
     ctx = gc.done();
 
     try std.testing.expectEqual(ctx.vat.duo.list.len, 1);
