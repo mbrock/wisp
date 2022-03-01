@@ -40,6 +40,7 @@ fn readValue(self: *Reader) anyerror!u32 {
         return switch (try classifyInitial(c)) {
             .leftParen => self.readList(),
             .doubleQuote => self.readString(),
+            .singleQuote => self.readQuote(),
             .symbolChar => self.readSymbol(),
             .digitChar => self.readNumber(),
         };
@@ -53,6 +54,7 @@ const InitialCharType = enum {
     symbolChar,
     digitChar,
     doubleQuote,
+    singleQuote,
 };
 
 fn classifyInitial(c: u21) !InitialCharType {
@@ -64,6 +66,8 @@ fn classifyInitial(c: u21) !InitialCharType {
         return .digitChar;
     } else if (c == '"') {
         return .doubleQuote;
+    } else if (c == '\'') {
+        return .singleQuote;
     } else {
         return Error.ReadError;
     }
@@ -98,6 +102,18 @@ fn readWhile(
     self.utf8 = scout;
 
     return text;
+}
+
+fn readQuote(self: *Reader) !u32 {
+    try self.skipOnly('\'');
+    const x = try self.readValue();
+    return try self.ctx.new(.duo, .{
+        .car = self.ctx.kwd.QUOTE,
+        .cdr = try self.ctx.new(.duo, .{
+            .car = x,
+            .cdr = wisp.nil,
+        }),
+    });
 }
 
 fn readSymbol(self: *Reader) !u32 {

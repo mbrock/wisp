@@ -575,6 +575,10 @@ test "quote" {
     try expectEval("(1 2 3)", "(quote (1 2 3))");
 }
 
+test "abbreviated quote" {
+    try expectEval("(1 2 3)", "'(1 2 3)");
+}
+
 test "let" {
     try expectEval(
         "3",
@@ -586,8 +590,7 @@ test "calling a closure" {
     try expectEval("13",
         \\ (progn
         \\   (%let ((ten . 10))
-        \\     (set-function (quote foo)
-        \\                   (%lambda (x y) (+ ten x y))))
+        \\     (set-function 'foo (%lambda (x y) (+ ten x y))))
         \\   (foo 1 2))
     );
 }
