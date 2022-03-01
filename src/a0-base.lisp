@@ -38,4 +38,5 @@
   (defun assert (x s)
     (if x nil (error (cons x s))))
 
-  (assert (equal '(1 2 3) '(1 2 3)) "list equality"))
+  (defun base-test ()
+    (assert (equal '(1 2 3) '(1 2 3)) "list equality")))

@@ -193,7 +193,6 @@ const kwds = struct {
 fn stepDuo(this: *Eval, p: u32) !void {
     const duo = try this.ctx.row(.duo, p);
     const car = duo.car;
-    const cdr = try this.ctx.row(.duo, duo.cdr);
     const kwd = this.ctx.kwd;
 
     if (car == kwd.IF)
@@ -213,7 +212,7 @@ fn stepDuo(this: *Eval, p: u32) !void {
             try dump.warn("no function", this.ctx, car);
             return Error.Nope;
         },
-        else => |fun| try this.stepCall(fun, duo, cdr),
+        else => |fun| try this.stepCall(fun, duo),
     }
 }
 
@@ -221,25 +220,30 @@ fn stepCall(
     this: *Eval,
     fun: u32,
     duo: wisp.Row(.duo),
-    cdr: wisp.Row(.duo),
 ) !void {
     switch (wisp.tagOf(fun)) {
         .fop, .fun => {
-            this.* = .{
-                .ctx = this.ctx,
-                .env = this.env,
-                .job = .{ .exp = cdr.car },
-                .way = try this.ctx.new(.ct0, .{
-                    .hop = this.way,
+            if (duo.cdr == nil) {
+                try this.doFuncall(this.way, this.env, fun, nil);
+            } else {
+                const cdr = try this.ctx.row(.duo, duo.cdr);
+                this.* = .{
+                    .ctx = this.ctx,
                     .env = this.env,
-                    .fun = fun,
-                    .arg = nil,
-                    .exp = cdr.cdr,
-                }),
-            };
+                    .job = .{ .exp = cdr.car },
+                    .way = try this.ctx.new(.ct0, .{
+                        .hop = this.way,
+                        .env = this.env,
+                        .fun = fun,
+                        .arg = nil,
+                        .exp = cdr.cdr,
+                    }),
+                };
+            }
         },
 
         .mac => {
+            const cdr = try this.ctx.row(.duo, duo.cdr);
             const mac = try this.ctx.row(.mac, fun);
             var xs = std.ArrayList(u32).init(this.ctx.orb);
             defer xs.deinit();
@@ -406,6 +410,60 @@ fn execCt1(this: *Eval, ct1: wisp.Row(.ct1)) !void {
     };
 }
 
+fn doFuncall(this: *Eval, way: u32, env: u32, funptr: u32, args: u32) !void {
+    switch (wisp.tagOf(funptr)) {
+        .fop => {
+            const result = try this.callOp(
+                xops.fops.values[wisp.Imm.from(funptr).idx],
+                true,
+                args,
+            );
+
+            this.* = .{
+                .ctx = this.ctx,
+                .way = way,
+                .env = env,
+                .job = .{ .val = result },
+            };
+        },
+
+        .fun => {
+            const fun = try this.ctx.row(.fun, funptr);
+
+            var pars = try scanListAlloc(this.ctx, fun.par);
+            defer this.ctx.orb.free(pars);
+            var vals = try scanListAlloc(this.ctx, args);
+            defer this.ctx.orb.free(vals);
+
+            if (pars.len != vals.len) {
+                return Error.Nope;
+            }
+
+            std.mem.reverse(u32, vals);
+
+            var scope = try this.ctx.orb.alloc(u32, 2 * pars.len);
+            defer this.ctx.orb.free(scope);
+
+            for (pars) |par, i| {
+                scope[i * 2 + 0] = par;
+                scope[i * 2 + 1] = vals[i];
+            }
+
+            this.* = .{
+                .ctx = this.ctx,
+                .way = way,
+                .job = .{ .exp = fun.exp },
+                .env = try this.ctx.new(.duo, .{
+                    .car = try this.ctx.newv32(scope),
+                    .cdr = fun.env,
+                }),
+            };
+        },
+
+        else => return Error.Nope,
+    }
+}
+
 fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
     const values = try this.ctx.new(.duo, .{
         .car = this.job.val,
@@ -413,60 +471,7 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
     });
 
     if (ct0.exp == nil) {
-        // Done with evaluating subterms.
-        switch (wisp.tagOf(ct0.fun)) {
-            .fop => {
-                const result = try this.callOp(
-                    xops.fops.values[wisp.Imm.from(ct0.fun).idx],
-                    true,
-                    values,
-                );
-
-                this.* = .{
-                    .ctx = this.ctx,
-                    .way = ct0.hop,
-                    .env = ct0.env,
-                    .job = .{ .val = result },
-                };
-            },
-
-            .fun => {
-                const fun = try this.ctx.row(.fun, ct0.fun);
-
-                var pars = try scanListAlloc(this.ctx, fun.par);
-                defer this.ctx.orb.free(pars);
-                var vals = try scanListAlloc(this.ctx, values);
-                defer this.ctx.orb.free(vals);
-
-                if (pars.len != vals.len) {
-                    return Error.Nope;
-                }
-
-                std.mem.reverse(u32, vals);
-
-                var scope = try this.ctx.orb.alloc(u32, 2 * pars.len);
-                defer this.ctx.orb.free(scope);
-
-                for (pars) |par, i| {
-                    scope[i * 2 + 0] = par;
-                    scope[i * 2 + 1] = vals[i];
-                }
-
-                const env = try this.ctx.new(.duo, .{
-                    .car = try this.ctx.newv32(scope),
-                    .cdr = fun.env,
-                });
-
-                this.* = .{
-                    .ctx = this.ctx,
-                    .way = ct0.hop,
-                    .job = .{ .exp = fun.exp },
-                    .env = env,
-                };
-            },
-
-            else => return Error.Nope,
-        }
+        try this.doFuncall(ct0.hop, ct0.env, ct0.fun, values);
     } else {
         const cons = try this.ctx.row(.duo, ct0.exp);
         this.* = .{
@@ -606,7 +611,7 @@ fn expectEval(want: []const u8, src: []const u8) !void {
 
     const exp = try read(&ctx, src);
     var exe = init(&ctx, exp);
-    const val = try exe.evaluate(100, true);
+    const val = try exe.evaluate(1_000_000, true);
 
     const valueString = try dump.printAlloc(ctx.orb, &ctx, val);
 
@@ -710,4 +715,8 @@ test "defun" {
     try expectEval("(1 . 2)",
         \\ (progn (defun f (x y) (cons x y)) (f 1 2))
     );
+}
+
+test "base test suite" {
+    try expectEval("nil", "(base-test)");
 }
