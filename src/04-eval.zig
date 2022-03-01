@@ -663,7 +663,7 @@ test "calling a macro closure" {
         \\ (progn
         \\   (set-function 'frob
         \\      (%macro-lambda (x y z)
-        \\        (cons y (cons x (cons z nil)))))
+        \\        (list y x z)))
         \\   (frob 1 + 2))
     );
 }
