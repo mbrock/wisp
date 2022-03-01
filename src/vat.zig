@@ -43,6 +43,7 @@ pub fn Row(comptime t: Tag) type {
 
 pub const Orb = std.mem.Allocator;
 pub const V08 = std.ArrayListUnmanaged(u8);
+pub const V32 = std.ArrayListUnmanaged(u8);
 
 pub const Err = error{Bad};
 
@@ -126,19 +127,17 @@ pub const Special = enum {
 pub const Ctx = struct {
     orb: Orb,
     era: Era = .e0,
-    v08: V08 = .{},
     vat: Vat = .{},
+    v08: V08 = .{},
+    v32: V32 = .{},
 
-    base: u32,
-
+    base: u32 = nil,
     specials: std.enums.EnumFieldStruct(Special, u32, 0) = .{},
 
     pub fn init(orb: Orb, era: Era) !Ctx {
         var ctx = Ctx{
             .orb = orb,
             .era = era,
-            .vat = .{},
-            .base = 0xdeadbeef,
         };
 
         ctx.base = try ctx.new(.pkg, .{
