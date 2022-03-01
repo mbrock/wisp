@@ -26,7 +26,15 @@ const wisp = @import("./wisp.zig");
 const read = @import("./read.zig").read;
 const printer = @import("./print.zig");
 
-pub fn tidy(ctx: *wisp.Ctx) !void {
+const Col = wisp.Col;
+const Ctx = wisp.Ctx;
+const Era = wisp.Era;
+const Ptr = wisp.Ptr;
+const Row = wisp.Row;
+const Tab = wisp.Tab;
+const Tag = wisp.Tag;
+
+pub fn tidy(ctx: *Ctx) !void {
     const n1 = ctx.bytesize();
     var gc = try init(ctx);
     defer gc.deinit();
@@ -38,11 +46,11 @@ pub fn tidy(ctx: *wisp.Ctx) !void {
     std.log.info("gc: before {d}, after {d}", .{ n1, n2 });
 }
 
-pub fn init(old: *wisp.Ctx) !GC {
+pub fn init(old: *Ctx) !GC {
     const era = old.era.flip();
     return GC{
         .old = old,
-        .new = wisp.Ctx{
+        .new = Ctx{
             .era = era,
             .orb = old.orb,
             .v08 = old.v08,
@@ -56,7 +64,7 @@ pub fn deinit(gc: *GC) void {
     _ = gc;
 }
 
-fn finalize(gc: *GC) wisp.Ctx {
+fn finalize(gc: *GC) Ctx {
     gc.old.v08 = .{};
     gc.old.deinit();
     return gc.new;
@@ -88,18 +96,18 @@ fn copy(gc: *GC, x: u32) !u32 {
     };
 }
 
-fn nthField(comptime tag: wisp.Tag, i: comptime_int) []const u8 {
-    return @tagName(@intToEnum(std.meta.FieldEnum(wisp.Row(tag)), i));
+fn nthField(comptime tag: Tag, i: comptime_int) []const u8 {
+    return @tagName(@intToEnum(std.meta.FieldEnum(Row(tag)), i));
 }
 
-fn copyRow(gc: *GC, comptime tag: wisp.Tag, x: u32) !u32 {
-    const ptr = wisp.Ptr.from(x);
+fn copyRow(gc: *GC, comptime tag: Tag, x: u32) !u32 {
+    const ptr = Ptr.from(x);
     if (ptr.era == gc.new.era) return x;
 
     var row = try gc.old.row(tag, x);
 
-    var c0 = gc.old.col(tag, @intToEnum(wisp.Col(tag), 0));
-    var c1 = gc.old.col(tag, @intToEnum(wisp.Col(tag), 1));
+    var c0 = gc.old.col(tag, @intToEnum(Col(tag), 0));
+    var c1 = gc.old.col(tag, @intToEnum(Col(tag), 1));
     if (c0[ptr.idx] == wisp.zap) return c1[ptr.idx];
 
     const new = try gc.new.new(tag, row);
@@ -127,7 +135,7 @@ fn isDone(gc: *GC) bool {
     return true;
 }
 
-fn scavengeTag(gc: *GC, comptime tag: wisp.Tag) !void {
+fn scavengeTag(gc: *GC, comptime tag: Tag) !void {
     const tab = gc.new.tab(tag);
 
     var i = tab.scan;
@@ -140,25 +148,25 @@ fn scavengeTag(gc: *GC, comptime tag: wisp.Tag) !void {
 
 fn scavengeRow(
     gc: *GC,
-    comptime tag: wisp.Tag,
-    tab: *wisp.Tab(tag),
-    i: wisp.Ptr.Idx,
+    comptime tag: Tag,
+    tab: *Tab(tag),
+    i: Ptr.Idx,
 ) !void {
-    inline for (std.meta.fields(wisp.Row(tag))) |_, j| {
-        const col = @intToEnum(wisp.Col(tag), j);
+    inline for (std.meta.fields(Row(tag))) |_, j| {
+        const col = @intToEnum(Col(tag), j);
         const new = try gc.copy(tab.list.items(col)[i]);
         tab.list.items(col)[i] = new;
     }
 }
 
 test "garbage collection of conses" {
-    var ctx = try wisp.Ctx.init(std.testing.allocator, .e0);
+    var ctx = try Ctx.init(std.testing.allocator, .e0);
 
     defer ctx.deinit();
 
     _ = try ctx.new(.duo, .{ .car = 1, .cdr = 2 });
 
-    const cons = wisp.Row(.duo){
+    const cons = Row(.duo){
         .car = 3,
         .cdr = 4,
     };
@@ -179,7 +187,7 @@ test "garbage collection of conses" {
 }
 
 test "read and gc" {
-    var ctx = try wisp.Ctx.init(std.testing.allocator, .e0);
+    var ctx = try Ctx.init(std.testing.allocator, .e0);
     defer ctx.deinit();
 
     const t1 = try read(&ctx, "(foo (bar (baz)))");
@@ -188,7 +196,7 @@ test "read and gc" {
     try ctx.set(.sym, .val, v1, t1);
     try tidy(&ctx);
 
-    try std.testing.expectEqual(wisp.Era.e1, ctx.era);
+    try std.testing.expectEqual(Era.e1, ctx.era);
 
     const v2 = try ctx.intern("X", ctx.base);
     const t2 = try ctx.get(.sym, .val, v2);
@@ -197,7 +205,7 @@ test "read and gc" {
 }
 
 test "gc ephemeral strings" {
-    var ctx = try wisp.Ctx.init(std.testing.allocator, .e0);
+    var ctx = try Ctx.init(std.testing.allocator, .e0);
     defer ctx.deinit();
 
     const x = try read(&ctx,
