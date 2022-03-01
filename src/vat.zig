@@ -46,7 +46,7 @@ pub const Bin = std.ArrayListUnmanaged(u8);
 
 pub const Err = error{Bad};
 
-pub fn TagCol(comptime tag: Tag) type {
+pub fn Col(comptime tag: Tag) type {
     return std.meta.FieldEnum(Row(tag));
 }
 
@@ -54,19 +54,18 @@ pub fn Tab(comptime tag: Tag) type {
     return struct {
         const This = @This();
 
-        era: Era,
         rat: Ptr.Idx = 0,
 
         list: std.MultiArrayList(Row(tag)) = .{},
 
         const prefix: u32 = @enumToInt(tag) << (32 - 5);
 
-        pub fn new(tab: *This, orb: Orb, row: Row(tag)) !u32 {
+        pub fn new(tab: *This, orb: Orb, era: Era, row: Row(tag)) !u32 {
             try tab.list.append(orb, row);
             return Ptr.make(
                 tag,
                 @intCast(u26, tab.list.len - 1),
-                tab.era,
+                era,
             ).word();
         }
 
@@ -74,14 +73,14 @@ pub fn Tab(comptime tag: Tag) type {
             return Ptr.make(tag, idx, tab.era);
         }
 
-        pub fn get(tab: This, ptr: u32) !Row(tag) {
+        pub fn get(tab: This, era: Era, ptr: u32) !Row(tag) {
             const p = Ptr.from(ptr);
             assert(p.tag == tag);
-            assert(p.era == tab.era);
+            assert(p.era == era);
             return tab.list.get(p.idx);
         }
 
-        pub fn col(tab: This, comptime c: TagCol(tag)) []u32 {
+        pub fn col(tab: This, comptime c: Col(tag)) []u32 {
             return tab.list.items(c);
         }
 
@@ -99,27 +98,14 @@ pub fn Tab(comptime tag: Tag) type {
 }
 
 pub const Tabs = struct {
-    duo: Tab(.duo),
-    sym: Tab(.sym),
-    fun: Tab(.fun),
-    vec: Tab(.vec),
-    str: Tab(.str),
-    pkg: Tab(.pkg),
-    ct0: Tab(.ct0),
-    ct1: Tab(.ct1),
-
-    pub fn init(era: Era) Tabs {
-        return .{
-            .duo = .{ .era = era },
-            .sym = .{ .era = era },
-            .fun = .{ .era = era },
-            .vec = .{ .era = era },
-            .str = .{ .era = era },
-            .pkg = .{ .era = era },
-            .ct0 = .{ .era = era },
-            .ct1 = .{ .era = era },
-        };
-    }
+    duo: Tab(.duo) = .{},
+    sym: Tab(.sym) = .{},
+    fun: Tab(.fun) = .{},
+    vec: Tab(.vec) = .{},
+    str: Tab(.str) = .{},
+    pkg: Tab(.pkg) = .{},
+    ct0: Tab(.ct0) = .{},
+    ct1: Tab(.ct1) = .{},
 
     pub fn bytesize(tabs: Tabs) usize {
         var n: usize = 0;
@@ -141,7 +127,7 @@ pub const Vat = struct {
     orb: Orb,
     era: Era = .e0,
     bin: Bin = .{},
-    tabs: Tabs,
+    tabs: Tabs = .{},
 
     base: u32,
 
@@ -150,7 +136,8 @@ pub const Vat = struct {
     pub fn init(orb: Orb, era: Era) !Vat {
         var vat = Vat{
             .orb = orb,
-            .tabs = Tabs.init(era),
+            .era = era,
+            .tabs = .{},
             .base = 0xdeadbeef,
         };
 
@@ -194,17 +181,17 @@ pub const Vat = struct {
     }
 
     pub fn new(vat: *Vat, comptime tag: Tag, data: Row(tag)) !u32 {
-        return vat.tab(tag).new(vat.orb, data);
+        return vat.tab(tag).new(vat.orb, vat.era, data);
     }
 
     pub fn row(vat: *Vat, comptime tag: Tag, ptr: u32) !Row(tag) {
-        return vat.tab(tag).get(ptr);
+        return vat.tab(tag).get(vat.era, ptr);
     }
 
     pub fn col(
         vat: *Vat,
         comptime tag: Tag,
-        comptime c: TagCol(tag),
+        comptime c: Col(tag),
     ) []u32 {
         return vat.tab(tag).col(c);
     }
@@ -212,7 +199,7 @@ pub const Vat = struct {
     pub fn get(
         vat: *Vat,
         comptime tag: Tag,
-        comptime c: TagCol(tag),
+        comptime c: Col(tag),
         p: u32,
     ) !u32 {
         return vat.col(tag, c)[ref(p)];
@@ -227,14 +214,8 @@ pub const Vat = struct {
         vat.tab(tag).list.set(ref(ptr), val);
     }
 
-    pub fn set(
-        vat: *Vat,
-        comptime tag: Tag,
-        comptime c: TagCol(tag),
-        p: u32,
-        v: u32,
-    ) !void {
-        vat.col(tag, c)[ref(p)] = v;
+    pub fn set(vat: *Vat, comptime t: Tag, comptime c: Col(t), p: u32, v: u32) !void {
+        vat.col(t, c)[ref(p)] = v;
     }
 
     pub fn newstr(vat: *Vat, txt: []const u8) !u32 {

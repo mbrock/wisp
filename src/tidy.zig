@@ -47,7 +47,6 @@ pub fn init(old: *wisp.Vat) !GC {
             .orb = old.orb,
             .bin = old.bin,
             .specials = old.specials,
-            .tabs = wisp.Tabs.init(era),
             .base = 0xdeadbeef,
         },
     };
@@ -99,12 +98,11 @@ fn copyRow(gc: *GC, comptime tag: wisp.Tag, x: u32) !u32 {
 
     var row = try gc.old.row(tag, x);
 
-    var c0 = gc.old.col(tag, @intToEnum(wisp.TagCol(tag), 0));
-    var c1 = gc.old.col(tag, @intToEnum(wisp.TagCol(tag), 1));
+    var c0 = gc.old.col(tag, @intToEnum(wisp.Col(tag), 0));
+    var c1 = gc.old.col(tag, @intToEnum(wisp.Col(tag), 1));
     if (c0[ptr.idx] == wisp.zap) return c1[ptr.idx];
 
-    const tab = gc.new.tab(tag);
-    const new = try tab.new(gc.new.orb, row);
+    const new = try gc.new.new(tag, row);
 
     c0[ptr.idx] = wisp.zap;
     c1[ptr.idx] = new;
@@ -147,7 +145,7 @@ fn scavengeRow(
     i: wisp.Ptr.Idx,
 ) !void {
     inline for (std.meta.fields(wisp.Row(tag))) |_, j| {
-        const col = @intToEnum(wisp.TagCol(tag), j);
+        const col = @intToEnum(wisp.Col(tag), j);
         const new = try gc.copy(tab.list.items(col)[i]);
         tab.list.items(col)[i] = new;
     }

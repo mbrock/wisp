@@ -23,22 +23,22 @@ const same = std.testing.expectEqual;
 const util = @import("./util.zig");
 
 pub const Tag = enum(u5) {
-    int,
+    int = 0x00, // 31-bit fixnum
 
-    sys = 0x11,
-    chr = 0x12,
-    fop = 0x13,
-    mop = 0x14,
+    sys = 0x11, // static constant value
+    chr = 0x12, // unicode codepoint
+    fop = 0x13, // builtin function
+    mop = 0x14, // builtin macro
 
-    duo = 0x15,
-    sym = 0x16,
-    fun = 0x17,
-    vec = 0x18,
-    str = 0x19,
-    pkg = 0x1a,
+    duo = 0x15, // cons pair pointer
+    sym = 0x16, // symbol pointer
+    fun = 0x17, // closure pointer
+    vec = 0x18, // vector pointer
+    str = 0x19, // string pointer
+    pkg = 0x1a, // package pointer
 
-    ct0 = 0x1b,
-    ct1 = 0x1c,
+    ct0 = 0x1b, // funarg continuation
+    ct1 = 0x1c, // conditional continuation
 };
 
 pub const pointerTags = .{ .duo, .sym, .fun, .vec, .str, .pkg, .ct0 };
