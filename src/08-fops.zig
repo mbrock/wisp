@@ -46,3 +46,8 @@ pub fn @"CAR"(ctx: *Ctx, x: u32) anyerror!u32 {
 pub fn @"CDR"(ctx: *Ctx, x: u32) anyerror!u32 {
     return ctx.get(.duo, .cdr, x);
 }
+
+pub fn @"SET-FUNCTION"(ctx: *Ctx, sym: u32, fun: u32) anyerror!u32 {
+    try ctx.set(.sym, .fun, sym, fun);
+    return fun;
+}

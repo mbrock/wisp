@@ -199,7 +199,7 @@ fn stepCall(
     cdr: wisp.Row(.duo),
 ) !void {
     switch (wisp.tagOf(fun)) {
-        .fop => {
+        .fop, .fun => {
             this.* = .{
                 .ctx = this.ctx,
                 .env = this.env,
@@ -358,6 +358,38 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
                     .job = .{ .val = result },
                 };
             },
+
+            .fun => {
+                const fun = try this.ctx.row(.fun, ct0.fun);
+
+                var xs = std.ArrayList(u32).init(this.ctx.orb);
+                defer xs.deinit();
+
+                var curpar = fun.par;
+                var curval = values;
+
+                while (curpar != nil) {
+                    const parduo = try this.ctx.row(.duo, curpar);
+                    const valduo = try this.ctx.row(.duo, curval);
+
+                    try xs.append(parduo.car);
+                    try xs.append(valduo.car);
+
+                    curpar = parduo.cdr;
+                    curval = valduo.cdr;
+                }
+
+                this.* = .{
+                    .ctx = this.ctx,
+                    .way = ct0.hop,
+                    .job = .{ .exp = fun.exp },
+                    .env = try this.ctx.new(.duo, .{
+                        .car = try this.ctx.newv32(xs.items),
+                        .cdr = fun.env,
+                    }),
+                };
+            },
+
             else => return Error.Nope,
         }
     } else {
@@ -547,5 +579,15 @@ test "let" {
     try expectEval(
         "3",
         "(%let ((a . 1) (b . 2)) (+ a b))",
+    );
+}
+
+test "calling a closure" {
+    try expectEval("13",
+        \\ (progn
+        \\   (%let ((ten . 10))
+        \\     (set-function (quote foo)
+        \\                   (%lambda (x y) (+ ten x y))))
+        \\   (foo 1 2))
     );
 }
