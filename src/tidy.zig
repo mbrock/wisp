@@ -45,7 +45,7 @@ pub fn init(old: *wisp.Vat) !GC {
         .new = wisp.Vat{
             .era = era,
             .orb = old.orb,
-            .bin = old.bin,
+            .v08 = old.v08,
             .specials = old.specials,
             .base = 0xdeadbeef,
         },
@@ -57,7 +57,7 @@ pub fn deinit(gc: *GC) void {
 }
 
 fn finalize(gc: *GC) wisp.Vat {
-    gc.old.bin = .{};
+    gc.old.v08 = .{};
     gc.old.deinit();
     return gc.new;
 }

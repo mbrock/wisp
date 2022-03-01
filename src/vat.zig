@@ -42,7 +42,7 @@ pub fn Row(comptime t: Tag) type {
 }
 
 pub const Orb = std.mem.Allocator;
-pub const Bin = std.ArrayListUnmanaged(u8);
+pub const V08 = std.ArrayListUnmanaged(u8);
 
 pub const Err = error{Bad};
 
@@ -126,7 +126,7 @@ pub const Special = enum {
 pub const Vat = struct {
     orb: Orb,
     era: Era = .e0,
-    bin: Bin = .{},
+    v08: V08 = .{},
     tabs: Tabs = .{},
 
     base: u32,
@@ -166,14 +166,14 @@ pub const Vat = struct {
     }
 
     pub fn deinit(vat: *Vat) void {
-        vat.bin.deinit(vat.orb);
+        vat.v08.deinit(vat.orb);
         inline for (std.meta.fields(Tabs)) |field| {
             @field(vat.tabs, field.name).list.deinit(vat.orb);
         }
     }
 
     pub fn bytesize(vat: Vat) usize {
-        return vat.bin.items.len + vat.tabs.bytesize();
+        return vat.v08.items.len + vat.tabs.bytesize();
     }
 
     pub fn tab(vat: *Vat, comptime tag: Tag) *Tab(tag) {
@@ -225,16 +225,16 @@ pub const Vat = struct {
     }
 
     pub fn newstr(vat: *Vat, txt: []const u8) !u32 {
-        try vat.bin.appendSlice(vat.orb, txt);
+        try vat.v08.appendSlice(vat.orb, txt);
         return vat.new(.str, .{
-            .idx = @intCast(u32, vat.bin.items.len - txt.len),
+            .idx = @intCast(u32, vat.v08.items.len - txt.len),
             .len = @intCast(u32, txt.len),
         });
     }
 
     pub fn strslice(vat: *Vat, ptr: u32) ![]const u8 {
         const str = try vat.row(.str, ptr);
-        return vat.bin.items[str.idx .. str.idx + str.len];
+        return vat.v08.items[str.idx .. str.idx + str.len];
     }
 
     pub fn intern(vat: *Vat, txt: []const u8, pkgptr: u32) !u32 {
