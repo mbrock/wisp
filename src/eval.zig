@@ -99,11 +99,11 @@ fn stepDuo(this: *Eval, p: u32) !void {
     const duo = try this.ctx.row(.duo, p);
     const car = duo.car;
     const cdr = try this.ctx.row(.duo, duo.cdr);
-    const specials = this.ctx.specials;
+    const kwd = this.ctx.kwd;
 
-    if (specials.IF == car) {
+    if (kwd.IF == car) {
         return try this.step_IF(duo.cdr);
-    } else if (specials.QUOTE == car) {
+    } else if (kwd.QUOTE == car) {
         return this.doneWithJob(cdr.car);
     } else switch (try this.ctx.get(.sym, .fun, car)) {
         wisp.nil => return Error.Nope,

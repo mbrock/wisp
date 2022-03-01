@@ -53,7 +53,7 @@ pub fn init(old: *Ctx) !GC {
             .era = old.era.flip(),
             .orb = old.orb,
             .v08 = old.v08,
-            .specials = old.specials,
+            .kwd = old.kwd,
         },
     };
 }
@@ -67,8 +67,8 @@ fn done(gc: *GC) Ctx {
 fn root(gc: *GC) !void {
     gc.new.base = try gc.copy(gc.old.base);
 
-    inline for (std.meta.fields(wisp.Special)) |s| {
-        try gc.move(&@field(gc.new.specials, s.name));
+    inline for (std.meta.fields(@TypeOf(gc.new.kwd))) |s| {
+        try gc.move(&@field(gc.new.kwd, s.name));
     }
 }
 

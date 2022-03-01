@@ -108,7 +108,11 @@ pub const Vat = struct {
     }
 };
 
-pub const Special = enum {
+fn S32(comptime t: type) type {
+    return std.enums.EnumFieldStruct(t, u32, 0);
+}
+
+pub const Kwd = enum {
     NIL,
     T,
     IF,
@@ -121,9 +125,9 @@ pub const Ctx = struct {
     vat: Vat = .{},
     v08: V08 = .{},
     v32: V32 = .{},
+    kwd: S32(Kwd) = .{},
 
     base: u32 = nil,
-    specials: std.enums.EnumFieldStruct(Special, u32, 0) = .{},
 
     pub fn init(orb: Orb, era: Era) !Ctx {
         var ctx = Ctx{ .orb = orb, .era = era };
@@ -136,14 +140,14 @@ pub const Ctx = struct {
         try ctx.initvar("NIL", wisp.nil);
         try ctx.initvar("T", wisp.t);
 
-        inline for (std.meta.fields(Special)) |s| {
-            @field(ctx.specials, s.name) = try ctx.intern(s.name, ctx.base);
+        inline for (std.meta.fields(Kwd)) |s| {
+            @field(ctx.kwd, s.name) = try ctx.intern(s.name, ctx.base);
         }
 
         return ctx;
     }
 
-    pub fn special(ctx: *Ctx, s: Special) u32 {
+    pub fn special(ctx: *Ctx, s: Kwd) u32 {
         return @field(ctx.specials, @tagName(s));
     }
 
