@@ -60,10 +60,12 @@ pub fn doneWithJob(this: *Eval, x: u32) void {
 pub fn step(this: *Eval) !void {
     switch (this.job) {
         .val => |x| {
+            // try dump.warn("val", this.ctx, x);
             return this.proceed(x);
         },
 
         .exp => |t| {
+            // try dump.warn("exp", this.ctx, t);
             switch (wisp.tagOf(t)) {
                 .int, .v08, .sys => this.doneWithJob(t),
                 .sym => return this.findVariable(t),
@@ -89,10 +91,15 @@ fn findVariable(this: *Eval, sym: u32) !void {
         }
     }
 
-    return switch (try this.ctx.get(.sym, .val, sym)) {
-        wisp.nah => Error.Nope,
-        else => |x| this.doneWithJob(x),
-    };
+    switch (try this.ctx.get(.sym, .val, sym)) {
+        wisp.nah => {
+            try dump.warn("unbound variable", this.ctx, sym);
+            return Error.Nope;
+        },
+        else => |x| {
+            this.doneWithJob(x);
+        },
+    }
 }
 
 const kwds = struct {
@@ -373,20 +380,20 @@ fn execCt3(this: *Eval, ct3: wisp.Row(.ct3)) !void {
 }
 
 fn execCt2(this: *Eval, ct2: wisp.Row(.ct2)) !void {
+    if (ct2.exp == nil) {
+        this.way = ct2.hop;
+        this.env = ct2.env;
+        return;
+    }
+
     const duo = try this.ctx.row(.duo, ct2.exp);
 
     this.job = .{ .exp = duo.car };
-
-    if (duo.cdr == nil) {
-        this.way = ct2.hop;
-        this.env = ct2.env;
-    } else {
-        this.way = try this.ctx.new(.ct2, .{
-            .hop = ct2.hop,
-            .env = ct2.env,
-            .exp = duo.cdr,
-        });
-    }
+    this.way = try this.ctx.new(.ct2, .{
+        .hop = ct2.hop,
+        .env = ct2.env,
+        .exp = duo.cdr,
+    });
 }
 
 fn execCt1(this: *Eval, ct1: wisp.Row(.ct1)) !void {
@@ -434,6 +441,12 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
 
                 while (curpar != nil) {
                     const parduo = try this.ctx.row(.duo, curpar);
+
+                    if (curval == nil) {
+                        try dump.warn("mismatch", this.ctx, ct0.fun);
+                        return Error.Nope;
+                    }
+
                     const valduo = try this.ctx.row(.duo, curval);
 
                     try xs.append(parduo.car);

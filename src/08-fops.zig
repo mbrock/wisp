@@ -22,6 +22,8 @@ const wisp = @import("./ff-wisp.zig");
 const dump = @import("./06-dump.zig");
 const Ctx = wisp.Ctx;
 
+const Err = error{Error};
+
 pub fn @"PROG1"(ctx: *Ctx, xs: []u32) anyerror!u32 {
     _ = ctx;
     return xs[0];
@@ -74,4 +76,40 @@ pub fn @"PRINT"(ctx: *Ctx, x: u32) anyerror!u32 {
     try dump.dump(ctx, out, x);
     try out.writeByte('\n');
     return x;
+}
+
+pub fn @"TYPE-OF"(ctx: *Ctx, x: u32) anyerror!u32 {
+    if (x == wisp.nil) return ctx.kwd.NULL;
+    if (x == wisp.t) return ctx.kwd.BOOLEAN;
+
+    return switch (wisp.tagOf(x)) {
+        .int => ctx.kwd.INTEGER,
+        .chr => ctx.kwd.CHARACTER,
+        .duo => ctx.kwd.CONS,
+        .sym => ctx.kwd.SYMBOL,
+        .fun, .fop => ctx.kwd.FUNCTION,
+        .mac, .mop => ctx.kwd.MACRO,
+        .v32 => ctx.kwd.VECTOR,
+        .v08 => ctx.kwd.STRING,
+        .pkg => ctx.kwd.PACKAGE,
+
+        .ct0,
+        .ct1,
+        .ct2,
+        .ct3,
+        => ctx.kwd.CONTINUATION,
+
+        .sys => unreachable,
+    };
+}
+
+pub fn @"ERROR"(ctx: *Ctx, xs: []u32) anyerror!u32 {
+    const out = std.io.getStdOut().writer();
+    try out.print("ERROR: ", .{});
+    for (xs) |x| {
+        try dump.dump(ctx, out, x);
+        try out.writeByte(' ');
+    }
+    try out.writeByte('\n');
+    return Err.Error;
 }

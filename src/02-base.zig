@@ -133,6 +133,19 @@ pub const Kwd = enum {
     @"%LET",
     @"%LAMBDA",
     @"%MACRO-LAMBDA",
+
+    BOOLEAN,
+    CHARACTER,
+    CONS,
+    CONTINUATION,
+    FUNCTION,
+    INTEGER,
+    MACRO,
+    NULL,
+    PACKAGE,
+    STRING,
+    SYMBOL,
+    VECTOR,
 };
 
 pub const Ctx = struct {
