@@ -35,8 +35,17 @@
                   (equal-lists (cdr x) (cdr y))
                   nil)))))
 
-  (defun assert (x s)
-    (if x nil (error (cons x s))))
+  (defmacro assert (x)
+    (progn
+      (list 'if x
+            (list 'print (list 'quote x))
+            (list 'error (list 'quote x)))))
 
   (defun base-test ()
-    (assert (equal '(1 2 3) '(1 2 3)) "list equality")))
+    (progn
+      (print "base test")
+      (assert (equal 1 1))
+      (assert (equal '(1 2 3) '(1 2 3)))
+      (assert (not (equal '(1) '(1 2))))
+      (print "base test done")
+      )))

@@ -49,6 +49,11 @@ pub fn repl() anyerror!void {
     try xops.load(&ctx);
     try ctx.cook();
 
+    _ = try eval.init(
+        &ctx,
+        try read(&ctx, "(base-test)"),
+    ).evaluate(1_000_000, false);
+
     while (true) {
         try stdout.writeAll("wisp> ");
 
