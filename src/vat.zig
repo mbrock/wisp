@@ -214,8 +214,14 @@ pub const Vat = struct {
         vat.tab(tag).list.set(ref(ptr), val);
     }
 
-    pub fn set(vat: *Vat, comptime t: Tag, comptime c: Col(t), p: u32, v: u32) !void {
-        vat.col(t, c)[ref(p)] = v;
+    pub fn set(
+        vat: *Vat,
+        comptime tag: Tag,
+        comptime c: Col(tag),
+        p: u32,
+        v: u32,
+    ) !void {
+        vat.col(tag, c)[ref(p)] = v;
     }
 
     pub fn newstr(vat: *Vat, txt: []const u8) !u32 {

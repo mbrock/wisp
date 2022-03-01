@@ -78,38 +78,25 @@ Let's enumerate the types of objects we have:
   9. builtins,
   10. other structs.
 
+|-------+-----+------------------------------------|
+| Class | Hex | Binary                             |
+|-------+-----+------------------------------------|
+| int   |  00 | ~0wwwwwwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| sys   |  11 | ~10001wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| chr   |  12 | ~10010wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| fop   |  13 | ~10011wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| mop   |  14 | ~10100wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| duo   |  15 | ~10101wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| sym   |  16 | ~10110wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| fun   |  17 | ~10111wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| vec   |  18 | ~11000wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| str   |  19 | ~11001wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| pkg   |  1a | ~11001wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| ct0   |  1b | ~11001wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+| ct1   |  1c | ~11010wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
+|-------+-----+------------------------------------|
 
-|-------+--------+------------------------------------|
-| Class |  Octal | Binary                             |
-|-------+--------+------------------------------------|
-| int   |      0 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00~ |
-| duo   |      1 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx001~ |
-| sym   |      2 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx 10~ |
-| fun   |      3 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx011~ |
-| vec   |      5 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx101~ |
-| str   |      6 | ~xxxxxxxxxxxxxxxxxxxxxxxxxxxxx110~ |
-| chr   |      7 | ~xxxxxxxxxxxxxxxxxxxxx00000000111~ |
-| pkg   |     17 | ~xxxxxxxxxxxxxxxxxxxxx00000001111~ |
-| sys   |     27 | ~xxxxxxxxxxxxxxxxxxx0000000010111~ |
-| nil   |  #4027 | ~00000000000000000000100000010111~ |
-| zap   | #10027 | ~00000000000000000001000000010111~ |
-| ct0   |     37 | ~xxxxxxxxxxxxxxxxxxxxx00000110111~ |
-|-------+--------+------------------------------------|
 
-|-------+--------+------------------------------------|
-| Class |  Octal | Binary                             |
-|-------+--------+------------------------------------|
-| int   |      0 | ~0wwwwwwwwwwwwwwwwwwwwwwwwwwwwwww~ |
-| duo   |      1 | ~10001wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
-| sym   |      2 | ~10010wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
-| fun   |      3 | ~10011wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
-| vec   |      5 | ~10100wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
-| str   |      6 | ~10101wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
-| chr   |      7 | ~10110wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
-| pkg   |     17 | ~10111wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
-| sys   |     27 | ~11000wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
-| ct0   |     37 | ~11001wwwwwwwwwwwwwwwwwwwwwwwwwww~ |
-|-------+--------+------------------------------------|
 
 ** Garbage collection
 
