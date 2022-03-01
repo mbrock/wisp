@@ -31,7 +31,7 @@
           (eq y nil)
           (if (eq y nil)
               nil
-              (if (eq (car x) (car y))
+              (if (equal (car x) (car y))
                   (equal-lists (cdr x) (cdr y))
                   nil)))))
 
@@ -46,6 +46,7 @@
       (print "base test")
       (assert (equal 1 1))
       (assert (equal '(1 2 3) '(1 2 3)))
+      (assert (equal '((1 2) (3 4)) '((1 2) (3 4))))
       (assert (not (equal '(1) '(1 2))))
       (print "base test done")
       )))
