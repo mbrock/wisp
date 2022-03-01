@@ -113,8 +113,6 @@ fn S32(comptime t: type) type {
 }
 
 pub const Kwd = enum {
-    NIL,
-    T,
     IF,
     QUOTE,
 };
@@ -136,9 +134,6 @@ pub const Ctx = struct {
             .nam = try ctx.newv08("WISP"),
             .sym = nil,
         });
-
-        try ctx.initvar("NIL", wisp.nil);
-        try ctx.initvar("T", wisp.t);
 
         inline for (std.meta.fields(Kwd)) |s| {
             @field(ctx.kwd, s.name) = try ctx.intern(s.name, ctx.base);
@@ -243,6 +238,10 @@ pub const Ctx = struct {
     }
 
     pub fn intern(ctx: *Ctx, txt: []const u8, pkgptr: u32) !u32 {
+        if (pkgptr == ctx.base and std.mem.eql(u8, txt, "NIL")) {
+            return nil;
+        }
+
         const symstrs = ctx.vat.sym.list.items(.str);
         const pkg = try ctx.row(.pkg, pkgptr);
         var duoptr = pkg.sym;

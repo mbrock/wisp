@@ -63,7 +63,7 @@ pub fn step(this: *Eval) !void {
 
         .exp => |t| {
             switch (wisp.tagOf(t)) {
-                .int, .v08 => this.doneWithJob(t),
+                .int, .v08, .sys => this.doneWithJob(t),
                 .sym => return this.findVariable(t),
                 .duo => return this.stepDuo(t),
                 else => return Error.Nope,
@@ -79,21 +79,27 @@ fn findVariable(this: *Eval, sym: u32) !void {
     };
 }
 
-fn step_IF(this: *Eval, cdr: u32) !void {
-    var xs: [3]u32 = undefined;
-    const args = try scanList(this.ctx, &xs, false, cdr);
-    this.* = .{
-        .ctx = this.ctx,
-        .env = this.env,
-        .job = .{ .exp = args[0] },
-        .way = try this.ctx.new(.ct1, .{
-            .hop = this.way,
+const kwds = struct {
+    pub fn QUOTE(this: *Eval, cdr: u32) !void {
+        this.doneWithJob(try this.ctx.get(.duo, .car, cdr));
+    }
+
+    pub fn IF(this: *Eval, cdr: u32) !void {
+        var xs: [3]u32 = undefined;
+        const args = try scanList(this.ctx, &xs, false, cdr);
+        this.* = .{
+            .ctx = this.ctx,
             .env = this.env,
-            .yay = args[1],
-            .nay = args[2],
-        }),
-    };
-}
+            .job = .{ .exp = args[0] },
+            .way = try this.ctx.new(.ct1, .{
+                .hop = this.way,
+                .env = this.env,
+                .yay = args[1],
+                .nay = args[2],
+            }),
+        };
+    }
+};
 
 fn stepDuo(this: *Eval, p: u32) !void {
     const duo = try this.ctx.row(.duo, p);
@@ -101,11 +107,13 @@ fn stepDuo(this: *Eval, p: u32) !void {
     const cdr = try this.ctx.row(.duo, duo.cdr);
     const kwd = this.ctx.kwd;
 
-    if (kwd.IF == car) {
-        return try this.step_IF(duo.cdr);
-    } else if (kwd.QUOTE == car) {
-        return this.doneWithJob(cdr.car);
-    } else switch (try this.ctx.get(.sym, .fun, car)) {
+    inline for (std.meta.declarations(kwds)) |decl| {
+        if (@field(kwd, decl.name) == car) {
+            return try @field(kwds, decl.name)(this, duo.cdr);
+        }
+    }
+
+    switch (try this.ctx.get(.sym, .fun, car)) {
         wisp.nil => return Error.Nope,
         else => |fun| try this.stepCall(fun, duo, cdr),
     }

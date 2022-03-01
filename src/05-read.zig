@@ -247,3 +247,9 @@ test "read symbol uppercasing" {
         name,
     );
 }
+
+test "read nil" {
+    var ctx = try Ctx.init(std.testing.allocator, .e0);
+    defer ctx.deinit();
+    try std.testing.expectEqual(wisp.nil, try read(&ctx, "nil"));
+}
