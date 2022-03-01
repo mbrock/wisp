@@ -34,6 +34,7 @@ const Ptr = wisp.Ptr;
 const ref = wisp.ref;
 const nil = wisp.nil;
 
+const tidy = @import("./03-tidy.zig");
 const read = @import("./05-read.zig").read;
 const dump = @import("./06-dump.zig");
 const xops = @import("./07-xops.zig");
@@ -403,7 +404,7 @@ fn callOp(this: *Eval, primop: xops.Op, reverse: bool, values: u32) !u32 {
     }
 }
 
-pub fn evaluate(this: *Eval, limit: u32) !u32 {
+pub fn evaluate(this: *Eval, limit: u32, gc: bool) !u32 {
     var i: u32 = 0;
     while (i < limit) : (i += 1) {
         if (this.way == nil) {
@@ -414,6 +415,8 @@ pub fn evaluate(this: *Eval, limit: u32) !u32 {
         }
 
         try this.step();
+
+        if (gc) try tidy.tidyEval(this);
     }
 
     return Error.EvaluationLimitExceeded;
@@ -466,7 +469,7 @@ fn expectEval(want: []const u8, src: []const u8) !void {
 
     const exp = try read(&ctx, src);
     var exe = init(&ctx, exp);
-    const val = try exe.evaluate(100);
+    const val = try exe.evaluate(100, true);
 
     const valueString = try dump.printAlloc(ctx.orb, &ctx, val);
 

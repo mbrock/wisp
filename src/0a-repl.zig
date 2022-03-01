@@ -63,7 +63,7 @@ pub fn repl() anyerror!void {
         if (lineOrEof) |line| {
             const exp = try read(&ctx, line);
             var exe = eval.init(&ctx, exp);
-            const val = try exe.evaluate(1000);
+            const val = try exe.evaluate(1000, false);
             try dump(&ctx, stdout, val);
             try stdout.writeByte('\n');
             try tidy.tidy(&ctx);

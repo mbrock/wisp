@@ -45,7 +45,11 @@ pub fn Row(comptime t: Tag) type {
 
 pub const Orb = std.mem.Allocator;
 pub const V08 = std.ArrayListUnmanaged(u8);
-pub const V32 = std.ArrayListUnmanaged(u32);
+
+pub const V32 = struct {
+    list: std.ArrayListUnmanaged(u32) = .{},
+    scan: u32 = 0,
+};
 
 pub const Err = error{Bad};
 
@@ -159,7 +163,7 @@ pub const Ctx = struct {
 
     pub fn deinit(ctx: *Ctx) void {
         ctx.v08.deinit(ctx.orb);
-        ctx.v32.deinit(ctx.orb);
+        ctx.v32.list.deinit(ctx.orb);
         inline for (std.meta.fields(Vat)) |field| {
             @field(ctx.vat, field.name).list.deinit(ctx.orb);
         }
@@ -226,9 +230,9 @@ pub const Ctx = struct {
     }
 
     pub fn newv32(ctx: *Ctx, dat: []const u32) !u32 {
-        try ctx.v32.appendSlice(ctx.orb, dat);
+        try ctx.v32.list.appendSlice(ctx.orb, dat);
         return ctx.new(.v32, .{
-            .idx = @intCast(u32, ctx.v32.items.len - dat.len),
+            .idx = @intCast(u32, ctx.v32.list.items.len - dat.len),
             .len = @intCast(u32, dat.len),
         });
     }
@@ -240,7 +244,7 @@ pub const Ctx = struct {
 
     pub fn v32slice(ctx: *Ctx, ptr: u32) ![]const u32 {
         const str = try ctx.row(.v32, ptr);
-        return ctx.v32.items[str.idx .. str.idx + str.len];
+        return ctx.v32.list.items[str.idx .. str.idx + str.len];
     }
 
     pub fn intern(ctx: *Ctx, txt: []const u8, pkgptr: u32) !u32 {

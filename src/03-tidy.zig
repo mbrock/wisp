@@ -24,6 +24,7 @@ new: wisp.Ctx,
 const std = @import("std");
 
 const wisp = @import("./ff-wisp.zig");
+const Eval = @import("./04-eval.zig");
 const read = @import("./05-read.zig").read;
 const dump = @import("./06-dump.zig");
 
@@ -45,6 +46,21 @@ pub fn tidy(ctx: *Ctx) !void {
 
     const n2 = ctx.bytesize();
     std.log.info("gc: before {d}, after {d}", .{ n1, n2 });
+}
+
+pub fn tidyEval(eval: *Eval) !void {
+    var gc = try init(eval.ctx);
+    try gc.root();
+
+    try gc.move(&eval.env);
+    try gc.move(&eval.way);
+    switch (eval.job) {
+        .val => |*x| try gc.move(x),
+        .exp => |*x| try gc.move(x),
+    }
+
+    try gc.scan();
+    eval.ctx.* = gc.done();
 }
 
 pub fn init(old: *Ctx) !GC {
@@ -97,13 +113,14 @@ fn push(gc: *GC, comptime tag: Tag, x: u32) !u32 {
     const ptr = Ptr.from(x);
     if (ptr.era == gc.new.era) return x;
 
-    var row = try gc.old.row(tag, x);
-
     var c0 = gc.old.col(tag, @intToEnum(Col(tag), 0));
     var c1 = gc.old.col(tag, @intToEnum(Col(tag), 1));
     if (c0[ptr.idx] == wisp.zap) return c1[ptr.idx];
 
-    const new = try gc.new.new(tag, row);
+    const new = if (tag == .v32)
+        try gc.new.newv32(try gc.old.v32slice(x))
+    else
+        try gc.new.new(tag, try gc.old.row(tag, x));
 
     c0[ptr.idx] = wisp.zap;
     c1[ptr.idx] = new;
@@ -116,16 +133,35 @@ fn scan(gc: *GC) !void {
         inline for (wisp.pointerTags) |tag| {
             try gc.pull(tag);
         }
+
+        try gc.pullV32();
     }
 }
 
 fn calm(gc: *GC) bool {
+    var r = true;
+
     inline for (wisp.pointerTags) |tag| {
-        if (gc.new.tab(tag).scan < gc.new.tab(tag).list.len)
-            return false;
+        if (gc.new.tab(tag).scan < gc.new.tab(tag).list.len) {
+            r = false;
+        }
     }
 
-    return true;
+    if (gc.new.v32.scan < gc.new.v32.list.items.len)
+        r = false;
+
+    return r;
+}
+
+fn pullV32(gc: *GC) !void {
+    const tab = &gc.new.v32;
+
+    var i = tab.scan;
+    while (i < tab.list.items.len) : (i += 1) {
+        try gc.move(&tab.list.items[i]);
+    }
+
+    tab.scan = i;
 }
 
 fn pull(gc: *GC, comptime tag: Tag) !void {
