@@ -72,12 +72,12 @@ pub fn print(
 
         .sym => {
             const sym = try ctx.row(.sym, x);
-            const name = ctx.strslice(sym.str);
+            const name = ctx.v08slice(sym.str);
             try out.print("{s}", .{name});
         },
 
-        .str => {
-            const s = ctx.strslice(x);
+        .v08 => {
+            const s = ctx.v08slice(x);
             try out.print("\"{s}\"", .{s});
         },
 
@@ -111,7 +111,7 @@ pub fn print(
         },
 
         .chr, .fop, .mop => {},
-        .fun, .vec, .ct0, .ct1 => {},
+        .fun, .v32, .ct0, .ct1 => {},
     }
 }
 
@@ -185,6 +185,6 @@ test "print strings" {
     try expectPrintResult(
         &ctx,
         "\"hello\"",
-        try ctx.newstr("hello"),
+        try ctx.newv08("hello"),
     );
 }

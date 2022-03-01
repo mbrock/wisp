@@ -63,7 +63,7 @@ pub fn step(this: *Eval) !void {
 
         .exp => |t| {
             switch (wisp.tagOf(t)) {
-                .int, .str => this.doneWithJob(t),
+                .int, .v08 => this.doneWithJob(t),
                 .sym => return this.findVariable(t),
                 .duo => return this.stepDuo(t),
                 else => return Error.Nope,
@@ -298,7 +298,7 @@ test "step evaluates string" {
     var ctx = try newTestCtx();
     defer ctx.deinit();
 
-    const exp = try ctx.newstr("foo");
+    const exp = try ctx.newv08("foo");
     var exe = init(&ctx, exp);
 
     try exe.step();
@@ -310,7 +310,7 @@ test "step evaluates variable" {
     defer ctx.deinit();
 
     const x = try ctx.intern("X", ctx.base);
-    const foo = try ctx.newstr("foo");
+    const foo = try ctx.newv08("foo");
 
     var exe = init(&ctx, x);
 

@@ -80,8 +80,8 @@ fn copy(gc: *GC, x: u32) !u32 {
         .sym => gc.copyRow(.sym, x),
         .duo => gc.copyRow(.duo, x),
         .fun => gc.copyRow(.fun, x),
-        .vec => gc.copyRow(.vec, x),
-        .str => gc.copyRow(.str, x),
+        .v32 => gc.copyRow(.v32, x),
+        .v08 => gc.copyRow(.v08, x),
         .pkg => gc.copyRow(.pkg, x),
         .ct0 => gc.copyRow(.ct0, x),
         .ct1 => gc.copyRow(.ct1, x),
@@ -207,8 +207,8 @@ test "gc ephemeral strings" {
     const foo = try ctx.get(.duo, .car, x);
     try ctx.set(.sym, .val, try ctx.intern("X", ctx.base), foo);
 
-    const n1 = ctx.vat.str.list.len;
+    const n1 = ctx.vat.v08.list.len;
     try tidy(&ctx);
-    const n2 = ctx.vat.str.list.len;
+    const n2 = ctx.vat.v08.list.len;
     try std.testing.expectEqual(n1 - 2, n2);
 }

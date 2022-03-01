@@ -33,8 +33,8 @@ pub fn Row(comptime t: Tag) type {
         .duo => struct { car: u32, cdr: u32 },
         .sym => struct { str: u32, pkg: u32, val: u32, fun: u32 },
         .fun => struct { env: u32, exp: u32 },
-        .vec => struct { idx: u32, len: u32 },
-        .str => struct { idx: u32, len: u32 },
+        .v32 => struct { idx: u32, len: u32 },
+        .v08 => struct { idx: u32, len: u32 },
         .pkg => struct { nam: u32, sym: u32 },
         .ct0 => struct { hop: u32, env: u32, fun: u32, arg: u32, exp: u32 },
         .ct1 => struct { hop: u32, env: u32, yay: u32, nay: u32 },
@@ -102,8 +102,8 @@ pub const Vat = struct {
     duo: Tab(.duo) = .{},
     sym: Tab(.sym) = .{},
     fun: Tab(.fun) = .{},
-    vec: Tab(.vec) = .{},
-    str: Tab(.str) = .{},
+    v32: Tab(.v32) = .{},
+    v08: Tab(.v08) = .{},
     pkg: Tab(.pkg) = .{},
     ct0: Tab(.ct0) = .{},
     ct1: Tab(.ct1) = .{},
@@ -135,13 +135,10 @@ pub const Ctx = struct {
     specials: std.enums.EnumFieldStruct(Special, u32, 0) = .{},
 
     pub fn init(orb: Orb, era: Era) !Ctx {
-        var ctx = Ctx{
-            .orb = orb,
-            .era = era,
-        };
+        var ctx = Ctx{ .orb = orb, .era = era };
 
         ctx.base = try ctx.new(.pkg, .{
-            .nam = try ctx.newstr("WISP"),
+            .nam = try ctx.newv08("WISP"),
             .sym = nil,
         });
 
@@ -166,6 +163,7 @@ pub const Ctx = struct {
 
     pub fn deinit(ctx: *Ctx) void {
         ctx.v08.deinit(ctx.orb);
+        ctx.v32.deinit(ctx.orb);
         inline for (std.meta.fields(Vat)) |field| {
             @field(ctx.vat, field.name).list.deinit(ctx.orb);
         }
@@ -223,16 +221,16 @@ pub const Ctx = struct {
         ctx.col(tag, c)[ref(p)] = v;
     }
 
-    pub fn newstr(ctx: *Ctx, txt: []const u8) !u32 {
+    pub fn newv08(ctx: *Ctx, txt: []const u8) !u32 {
         try ctx.v08.appendSlice(ctx.orb, txt);
-        return ctx.new(.str, .{
+        return ctx.new(.v08, .{
             .idx = @intCast(u32, ctx.v08.items.len - txt.len),
             .len = @intCast(u32, txt.len),
         });
     }
 
-    pub fn strslice(ctx: *Ctx, ptr: u32) ![]const u8 {
-        const str = try ctx.row(.str, ptr);
+    pub fn v08slice(ctx: *Ctx, ptr: u32) ![]const u8 {
+        const str = try ctx.row(.v08, ptr);
         return ctx.v08.items[str.idx .. str.idx + str.len];
     }
 
@@ -244,7 +242,7 @@ pub const Ctx = struct {
         while (duoptr != nil) {
             const duo = try ctx.row(.duo, duoptr);
             const strptr = symstrs[Ptr.from(duo.car).idx];
-            if (std.mem.eql(u8, txt, try ctx.strslice(strptr))) {
+            if (std.mem.eql(u8, txt, try ctx.v08slice(strptr))) {
                 return duo.car;
             } else {
                 duoptr = duo.cdr;
@@ -252,7 +250,7 @@ pub const Ctx = struct {
         }
 
         const symptr = try ctx.new(.sym, .{
-            .str = try ctx.newstr(txt),
+            .str = try ctx.newv08(txt),
             .pkg = pkgptr,
             .val = wisp.nah,
             .fun = nil,

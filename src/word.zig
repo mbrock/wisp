@@ -33,15 +33,24 @@ pub const Tag = enum(u5) {
     duo = 0x15, // cons pair pointer
     sym = 0x16, // symbol pointer
     fun = 0x17, // closure pointer
-    vec = 0x18, // vector pointer
-    str = 0x19, // string pointer
+    v32 = 0x18, // word vector pointer
+    v08 = 0x19, // byte vector pointer
     pkg = 0x1a, // package pointer
 
     ct0 = 0x1b, // funarg continuation
     ct1 = 0x1c, // conditional continuation
 };
 
-pub const pointerTags = .{ .duo, .sym, .fun, .vec, .str, .pkg, .ct0 };
+pub const pointerTags = .{
+    .duo,
+    .sym,
+    .fun,
+    .v08,
+    .v32,
+    .pkg,
+    .ct0,
+    .ct1,
+};
 
 pub const Era = enum(u1) {
     e0,
