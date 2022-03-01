@@ -202,15 +202,6 @@ pub const Ctx = struct {
         return ctx.col(tag, c)[ref(p)];
     }
 
-    pub fn put(
-        ctx: *Ctx,
-        comptime tag: Tag,
-        ptr: u32,
-        val: Row(tag),
-    ) void {
-        ctx.tab(tag).list.set(ref(ptr), val);
-    }
-
     pub fn set(
         ctx: *Ctx,
         comptime tag: Tag,
@@ -219,6 +210,15 @@ pub const Ctx = struct {
         v: u32,
     ) !void {
         ctx.col(tag, c)[ref(p)] = v;
+    }
+
+    pub fn put(
+        ctx: *Ctx,
+        comptime tag: Tag,
+        ptr: u32,
+        val: Row(tag),
+    ) void {
+        ctx.tab(tag).list.set(ref(ptr), val);
     }
 
     pub fn newv08(ctx: *Ctx, txt: []const u8) !u32 {
@@ -256,10 +256,10 @@ pub const Ctx = struct {
             .fun = nil,
         });
 
-        ctx.col(.pkg, .sym)[ref(pkgptr)] = try ctx.new(.duo, .{
+        try ctx.set(.pkg, .sym, pkgptr, try ctx.new(.duo, .{
             .car = symptr,
             .cdr = pkg.sym,
-        });
+        }));
 
         return symptr;
     }
