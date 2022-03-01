@@ -93,7 +93,6 @@ fn findVariable(this: *Eval, sym: u32) !void {
 
     switch (try this.ctx.get(.sym, .val, sym)) {
         wisp.nah => {
-            try dump.warn("unbound variable", this.ctx, sym);
             return Error.Nope;
         },
         else => |x| {
@@ -209,7 +208,6 @@ fn stepDuo(this: *Eval, p: u32) !void {
         try kwds.@"%MACRO-LAMBDA"(this, duo.cdr)
     else switch (try this.ctx.get(.sym, .fun, car)) {
         nil => {
-            try dump.warn("no function", this.ctx, car);
             return Error.Nope;
         },
         else => |fun| try this.stepCall(fun, duo),
@@ -526,21 +524,23 @@ fn callOp(this: *Eval, primop: xops.Op, reverse: bool, values: u32) !u32 {
             var xs: [31]u32 = undefined;
             const slice = try scanList(this.ctx, &xs, reverse, values);
             const f = xops.FnTag.f0x.cast(primop.func);
-            return try f(this.ctx, slice);
+            return try f(this, slice);
         },
 
         .f1 => {
             var xs: [1]u32 = undefined;
             const slice = try scanList(this.ctx, &xs, reverse, values);
+            if (slice.len != 1) return Error.Nope;
             const f = xops.FnTag.f1.cast(primop.func);
-            return try f(this.ctx, slice[0]);
+            return try f(this, slice[0]);
         },
 
         .f2 => {
             var xs: [2]u32 = undefined;
             const slice = try scanList(this.ctx, &xs, reverse, values);
+            if (slice.len != 2) return Error.Nope;
             const f = xops.FnTag.f2.cast(primop.func);
-            return try f(this.ctx, slice[0], slice[1]);
+            return try f(this, slice[0], slice[1]);
         },
     }
 }

@@ -26,27 +26,21 @@
                       (error xt))))))
 
   (defun equal-lists (x y)
-    (progn
-      (if (eq x nil)
-          (eq y nil)
-          (if (eq y nil)
-              nil
-              (if (equal (car x) (car y))
-                  (equal-lists (cdr x) (cdr y))
-                  nil)))))
+    (if (eq x nil)
+        (eq y nil)
+        (if (eq y nil)
+            nil
+            (if (equal (car x) (car y))
+                (equal-lists (cdr x) (cdr y))
+                nil))))
 
   (defmacro assert (x)
-    (progn
-      (list 'if x
-            (list 'print (list 'quote x))
-            (list 'error (list 'quote x)))))
+    (list 'if x nil (list 'error (list 'quote x))))
 
   (defun base-test ()
     (progn
-      (print "base test")
       (assert (equal 1 1))
       (assert (equal '(1 2 3) '(1 2 3)))
       (assert (equal '((1 2) (3 4)) '((1 2) (3 4))))
       (assert (not (equal '(1) '(1 2))))
-      (print "base test done")
       )))

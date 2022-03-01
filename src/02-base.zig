@@ -210,6 +210,9 @@ pub const Ctx = struct {
     }
 
     pub fn row(ctx: *Ctx, comptime tag: Tag, ptr: u32) !Row(tag) {
+        if (wisp.tagOf(ptr) != tag)
+            return Err.Bad;
+
         return ctx.tab(tag).get(ctx.era, ptr);
     }
 
@@ -227,6 +230,9 @@ pub const Ctx = struct {
         comptime c: Col(tag),
         p: u32,
     ) !u32 {
+        if (wisp.tagOf(p) != tag)
+            return Err.Bad;
+
         return ctx.col(tag, c)[ref(p)];
     }
 
@@ -237,6 +243,9 @@ pub const Ctx = struct {
         p: u32,
         v: u32,
     ) !void {
+        if (wisp.tagOf(p) != tag)
+            return Err.Bad;
+
         ctx.col(tag, c)[ref(p)] = v;
     }
 
@@ -246,6 +255,9 @@ pub const Ctx = struct {
         ptr: u32,
         val: Row(tag),
     ) void {
+        if (wisp.tagOf(ptr) != tag)
+            return Err.Bad;
+
         ctx.tab(tag).list.set(ref(ptr), val);
     }
 

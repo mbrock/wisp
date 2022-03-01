@@ -37,15 +37,15 @@ const Tab = wisp.Tab;
 const Tag = wisp.Tag;
 
 pub fn tidy(ctx: *Ctx) !void {
-    const n1 = ctx.bytesize();
+    // const n1 = ctx.bytesize();
 
     var gc = try init(ctx);
     try gc.root();
     try gc.scan();
     ctx.* = gc.done();
 
-    const n2 = ctx.bytesize();
-    std.log.info("gc: before {d}, after {d}", .{ n1, n2 });
+    // const n2 = ctx.bytesize();
+    // std.log.info("gc: before {d}, after {d}", .{ n1, n2 });
 }
 
 pub fn tidyEval(eval: *Eval) !void {

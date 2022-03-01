@@ -33,10 +33,11 @@ const expectEqualStrings = std.testing.expectEqualStrings;
 const EnumArray = std.enums.EnumArray;
 
 const wisp = @import("./ff-wisp.zig");
+const Eval = @import("./04-eval.zig");
 const util = @import("./00-util.zig");
 
 const ref = wisp.ref;
-const Ctx = wisp.Ctx;
+const Ctx = Eval;
 const Ptr = wisp.Ptr;
 const DeclEnum = util.DeclEnum;
 
@@ -95,7 +96,7 @@ test "ops" {
     );
 }
 
-pub fn load(ctx: *Ctx) !void {
+pub fn load(ctx: *wisp.Ctx) !void {
     inline for (fops.values) |fop, i| {
         var sym = try ctx.intern(fop.name, ctx.base);
         ctx.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.fop, i).word();

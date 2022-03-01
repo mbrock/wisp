@@ -17,19 +17,18 @@
 //
 
 const wisp = @import("./ff-wisp.zig");
-const Ctx = wisp.Ctx;
+const Eval = @import("./04-eval.zig");
 
-fn duo(ctx: *Ctx, car: u32, cdr: u32) !u32 {
+fn duo(ctx: *wisp.Ctx, car: u32, cdr: u32) !u32 {
     return try ctx.new(.duo, .{ .car = car, .cdr = cdr });
 }
 
-pub fn @"FOO"(ctx: *Ctx, x: u32, y: u32) anyerror!u32 {
-    _ = ctx;
-    return try ctx.new(.duo, .{
+pub fn @"FOO"(exe: *Eval, x: u32, y: u32) anyerror!u32 {
+    return try exe.ctx.new(.duo, .{
         .car = x,
-        .cdr = try ctx.new(.duo, .{
+        .cdr = try exe.ctx.new(.duo, .{
             .car = y,
-            .cdr = try ctx.new(.duo, .{
+            .cdr = try exe.ctx.new(.duo, .{
                 .car = 1,
                 .cdr = wisp.nil,
             }),

@@ -21,7 +21,7 @@ const builtin = @import("builtin");
 
 const wisp = @import("./ff-wisp.zig");
 const read = @import("./05-read.zig").read;
-const dump = @import("./06-dump.zig").dump;
+const dump = @import("./06-dump.zig");
 const eval = @import("./04-eval.zig");
 const xops = @import("./07-xops.zig");
 const tidy = @import("./03-tidy.zig");
@@ -55,7 +55,7 @@ pub fn repl() anyerror!void {
     ).evaluate(1_000_000, false);
 
     while (true) {
-        try stdout.writeAll("wisp> ");
+        try stdout.writeAll("> ");
 
         var arena = std.heap.ArenaAllocator.init(allocator);
         defer arena.deinit();
@@ -69,10 +69,34 @@ pub fn repl() anyerror!void {
         if (lineOrEof) |line| {
             const exp = try read(&ctx, line);
             var exe = eval.init(&ctx, exp);
-            const val = try exe.evaluate(1000, false);
-            try dump(&ctx, stdout, val);
-            try stdout.writeByte('\n');
-            try tidy.tidy(&ctx);
+
+            loop: while (true) {
+                if (exe.evaluate(1000, false)) |val| {
+                    try dump.dump(&ctx, stdout, val);
+                    try stdout.writeByte('\n');
+                    try tidy.tidy(&ctx);
+                    break :loop;
+                } else |_| {
+                    try dump.warn(
+                        "term fail:",
+                        &ctx,
+                        exe.job.exp,
+                    );
+
+                    try stdout.writeAll("*> ");
+                    if (try stdin.readUntilDelimiterOrEofAlloc(
+                        arena.allocator(),
+                        '\n',
+                        4096,
+                    )) |l2| {
+                        const rexp = try read(&ctx, l2);
+                        exe.job = .{ .exp = rexp };
+                        continue :loop;
+                    } else {
+                        return error.Nope;
+                    }
+                }
+            }
         } else {
             try stdout.writeByte('\n');
             return;
