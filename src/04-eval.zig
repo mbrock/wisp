@@ -17,9 +17,9 @@
 //
 
 ctx: *Ctx,
-job: Job,
-scopes: u32,
+env: u32,
 way: u32,
+job: Job,
 
 const std = @import("std");
 
@@ -84,11 +84,11 @@ fn step_IF(this: *Eval, cdr: u32) !void {
     const args = try scanList(this.ctx, &xs, false, cdr);
     this.* = .{
         .ctx = this.ctx,
-        .scopes = this.scopes,
+        .env = this.env,
         .job = .{ .exp = args[0] },
         .way = try this.ctx.new(.ct1, .{
             .hop = this.way,
-            .env = this.scopes,
+            .env = this.env,
             .yay = args[1],
             .nay = args[2],
         }),
@@ -121,11 +121,11 @@ fn stepCall(
         .fop => {
             this.* = .{
                 .ctx = this.ctx,
-                .scopes = this.scopes,
+                .env = this.env,
                 .job = .{ .exp = cdr.car },
                 .way = try this.ctx.new(.ct0, .{
                     .hop = this.way,
-                    .env = this.scopes,
+                    .env = this.env,
                     .fun = fun,
                     .arg = wisp.nil,
                     .exp = cdr.cdr,
@@ -143,7 +143,7 @@ fn stepCall(
 
             this.* = .{
                 .ctx = this.ctx,
-                .scopes = this.scopes,
+                .env = this.env,
                 .job = .{ .exp = result },
                 .way = this.way,
             };
@@ -174,7 +174,7 @@ fn execCt1(this: *Eval, ct1: wisp.Row(.ct1)) !void {
     this.* = .{
         .ctx = this.ctx,
         .way = ct1.hop,
-        .scopes = ct1.env,
+        .env = ct1.env,
         .job = .{ .exp = exp },
     };
 }
@@ -198,7 +198,7 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
                 this.* = .{
                     .ctx = this.ctx,
                     .way = ct0.hop,
-                    .scopes = ct0.env,
+                    .env = ct0.env,
                     .job = .{ .val = result },
                 };
             },
@@ -209,7 +209,7 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
         this.* = .{
             .ctx = this.ctx,
             .job = .{ .exp = cons.car },
-            .scopes = this.scopes,
+            .env = this.env,
             .way = try this.ctx.new(.ct0, .{
                 .hop = ct0.hop,
                 .env = ct0.env,
@@ -289,7 +289,7 @@ pub fn init(ctx: *Ctx, job: u32) Eval {
     return Eval{
         .ctx = ctx,
         .way = wisp.nil,
-        .scopes = wisp.nil,
+        .env = wisp.nil,
         .job = Job{ .exp = job },
     };
 }
