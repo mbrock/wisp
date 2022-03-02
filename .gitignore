@@ -11,3 +11,4 @@ node_modules
 .log
 zig-out
 zig-cache
+*.core

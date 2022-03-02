@@ -82,13 +82,13 @@ pub fn dump(
         },
 
         .v32 => {
-            try out.print("[", .{});
+            try out.print("<", .{});
             const xs = try ctx.v32slice(x);
             for (xs) |y, i| {
                 if (i > 0) try out.print(" ", .{});
                 try dump(ctx, out, y);
             }
-            try out.print("]", .{});
+            try out.print(">", .{});
         },
 
         .duo => {

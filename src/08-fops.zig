@@ -22,22 +22,20 @@ const wisp = @import("./ff-wisp.zig");
 const Eval = @import("./04-eval.zig");
 const dump = @import("./06-dump.zig");
 
-const Ctx = Eval;
-
-const Err = error{Error};
+const Job = Eval;
 
 fn int(x: u32) !i31 {
-    if (wisp.tagOf(x) != .int) return Err.Error;
+    if (wisp.tagOf(x) != .int) return wisp.Oof.Err;
     return @intCast(i31, x);
 }
 
-pub fn @"PROG1"(ctx: *Ctx, xs: []u32) anyerror!u32 {
-    _ = ctx;
+pub fn @"PROG1"(job: *Job, xs: []u32) anyerror!u32 {
+    _ = job;
     return xs[0];
 }
 
-pub fn @"+"(ctx: *Ctx, xs: []u32) anyerror!u32 {
-    _ = ctx;
+pub fn @"+"(job: *Job, xs: []u32) anyerror!u32 {
+    _ = job;
 
     var result: i31 = 0;
     for (xs) |x| {
@@ -47,46 +45,46 @@ pub fn @"+"(ctx: *Ctx, xs: []u32) anyerror!u32 {
     return @intCast(u32, result);
 }
 
-pub fn @"CONS"(ctx: *Ctx, car: u32, cdr: u32) anyerror!u32 {
-    return ctx.ctx.new(.duo, .{ .car = car, .cdr = cdr });
+pub fn @"CONS"(job: *Job, car: u32, cdr: u32) anyerror!u32 {
+    return job.ctx.new(.duo, .{ .car = car, .cdr = cdr });
 }
 
-pub fn @"CAR"(ctx: *Ctx, x: u32) anyerror!u32 {
-    return ctx.ctx.get(.duo, .car, x);
+pub fn @"CAR"(job: *Job, x: u32) anyerror!u32 {
+    return job.ctx.get(.duo, .car, x);
 }
 
-pub fn @"CDR"(ctx: *Ctx, x: u32) anyerror!u32 {
-    return ctx.ctx.get(.duo, .cdr, x);
+pub fn @"CDR"(job: *Job, x: u32) anyerror!u32 {
+    return job.ctx.get(.duo, .cdr, x);
 }
 
-pub fn @"SET-FUNCTION"(ctx: *Ctx, sym: u32, fun: u32) anyerror!u32 {
-    try ctx.ctx.set(.sym, .fun, sym, fun);
+pub fn @"SET-FUNCTION"(job: *Job, sym: u32, fun: u32) anyerror!u32 {
+    try job.ctx.set(.sym, .fun, sym, fun);
     return fun;
 }
 
-pub fn @"LIST"(ctx: *Ctx, xs: []u32) anyerror!u32 {
+pub fn @"LIST"(job: *Job, xs: []u32) anyerror!u32 {
     var cur = wisp.nil;
     var i = xs.len;
     while (i > 0) : (i -= 1) {
-        cur = try ctx.ctx.new(.duo, .{ .car = xs[i - 1], .cdr = cur });
+        cur = try job.ctx.new(.duo, .{ .car = xs[i - 1], .cdr = cur });
     }
     return cur;
 }
 
-pub fn @"EQ"(ctx: *Ctx, x: u32, y: u32) anyerror!u32 {
-    _ = ctx;
+pub fn @"EQ"(job: *Job, x: u32, y: u32) anyerror!u32 {
+    _ = job;
     return if (x == y) wisp.t else wisp.nil;
 }
 
-pub fn @"PRINT"(ctx: *Ctx, x: u32) anyerror!u32 {
+pub fn @"PRINT"(job: *Job, x: u32) anyerror!u32 {
     const out = std.io.getStdOut().writer();
-    try dump.dump(ctx.ctx, out, x);
+    try dump.dump(job.ctx, out, x);
     try out.writeByte('\n');
     return x;
 }
 
-pub fn @"TYPE-OF"(ctx: *Ctx, x: u32) anyerror!u32 {
-    const kwd = ctx.ctx.kwd;
+pub fn @"TYPE-OF"(job: *Job, x: u32) anyerror!u32 {
+    const kwd = job.ctx.kwd;
 
     if (x == wisp.nil) return kwd.NULL;
     if (x == wisp.t) return kwd.BOOLEAN;
@@ -112,17 +110,21 @@ pub fn @"TYPE-OF"(ctx: *Ctx, x: u32) anyerror!u32 {
     };
 }
 
-pub fn @"ERROR"(ctx: *Ctx, xs: []u32) anyerror!u32 {
+pub fn @"ERROR"(job: *Job, xs: []u32) anyerror!u32 {
     const out = std.io.getStdOut().writer();
     try out.print("ERROR: ", .{});
     for (xs) |x| {
-        try dump.dump(ctx.ctx, out, x);
+        try dump.dump(job.ctx, out, x);
         try out.writeByte(' ');
     }
     try out.writeByte('\n');
-    return Err.Error;
+    return wisp.Oof.Err;
 }
 
-pub fn @"GET/CC"(ctx: *Ctx) anyerror!u32 {
-    return ctx.way;
+pub fn @"GET/CC"(job: *Job) anyerror!u32 {
+    return job.way;
+}
+
+pub fn SAVE(job: *Job, @"CORE-NAME": u32) anyerror!u32 {
+    return try wisp.core.save(job, try job.ctx.v08slice(@"CORE-NAME"));
 }

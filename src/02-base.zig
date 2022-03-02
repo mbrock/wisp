@@ -48,15 +48,52 @@ pub fn Row(comptime t: Tag) type {
     };
 }
 
+/// These symbols are always interned and available for easy access
+/// from the Zig code.
+pub const Kwd = enum {
+    IF,
+    QUOTE,
+    PROGN,
+    @"%LET",
+    @"%LAMBDA",
+    @"%MACRO-LAMBDA",
+
+    BOOLEAN,
+    CHARACTER,
+    CONS,
+    CONTINUATION,
+    FUNCTION,
+    INTEGER,
+    MACRO,
+    NULL,
+    PACKAGE,
+    STRING,
+    SYMBOL,
+    VECTOR,
+
+    @"UNDEFINED-FUNCTION",
+    @"UNBOUND-VARIABLE",
+    @"BUG",
+};
+
+/// The orb is the vat's allocator.  All Lisp values reside in memory
+/// granted from the orb.
 pub const Orb = std.mem.Allocator;
+
+/// A vat uses a single growing byte array for all its string data.
 pub const V08 = std.ArrayListUnmanaged(u8);
 
+/// A vat uses a single growing word array for all its vector data.
 pub const V32 = struct {
     list: std.ArrayListUnmanaged(u32) = .{},
     scan: u32 = 0,
 };
 
-pub const Err = error{Bad};
+/// Zig errors are used for escaping from errors in the evaluator, but
+/// they're just enums.  Lisp conditions are rows in the vat.  So the
+/// step function can always fail, and when it fails, it stores its
+/// err in the job.
+pub const Oof = error{ Ugh, Bug, Err };
 
 pub fn Col(comptime tag: Tag) type {
     return std.meta.FieldEnum(Row(tag));
@@ -126,28 +163,6 @@ fn S32(comptime t: type) type {
     return std.enums.EnumFieldStruct(t, u32, 0);
 }
 
-pub const Kwd = enum {
-    IF,
-    QUOTE,
-    PROGN,
-    @"%LET",
-    @"%LAMBDA",
-    @"%MACRO-LAMBDA",
-
-    BOOLEAN,
-    CHARACTER,
-    CONS,
-    CONTINUATION,
-    FUNCTION,
-    INTEGER,
-    MACRO,
-    NULL,
-    PACKAGE,
-    STRING,
-    SYMBOL,
-    VECTOR,
-};
-
 pub const Ctx = struct {
     orb: Orb,
     era: Era = .e0,
@@ -155,7 +170,6 @@ pub const Ctx = struct {
     v08: V08 = .{},
     v32: V32 = .{},
     kwd: S32(Kwd) = .{},
-
     base: u32 = nil,
 
     pub fn init(orb: Orb, era: Era) !Ctx {
@@ -211,7 +225,7 @@ pub const Ctx = struct {
 
     pub fn row(ctx: *Ctx, comptime tag: Tag, ptr: u32) !Row(tag) {
         if (wisp.tagOf(ptr) != tag)
-            return Err.Bad;
+            return Oof.Bug;
 
         return ctx.tab(tag).get(ctx.era, ptr);
     }
@@ -231,7 +245,7 @@ pub const Ctx = struct {
         p: u32,
     ) !u32 {
         if (wisp.tagOf(p) != tag)
-            return Err.Bad;
+            return Oof.Bug;
 
         return ctx.col(tag, c)[ref(p)];
     }
@@ -244,7 +258,7 @@ pub const Ctx = struct {
         v: u32,
     ) !void {
         if (wisp.tagOf(p) != tag)
-            return Err.Bad;
+            return Oof.Bug;
 
         ctx.col(tag, c)[ref(p)] = v;
     }
@@ -256,7 +270,7 @@ pub const Ctx = struct {
         val: Row(tag),
     ) void {
         if (wisp.tagOf(ptr) != tag)
-            return Err.Bad;
+            return Oof.Bug;
 
         ctx.tab(tag).list.set(ref(ptr), val);
     }

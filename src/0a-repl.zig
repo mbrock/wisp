@@ -76,9 +76,17 @@ pub fn repl() anyerror!void {
                     try stdout.writeByte('\n');
                     try tidy.tidy(&ctx);
                     break :loop;
-                } else |_| {
+                } else |e| {
+                    if (exe.err == wisp.nil) {
+                        exe.err = try ctx.newv32(&[_]u32{
+                            ctx.kwd.BUG,
+                            try ctx.intern(@errorName(e), ctx.base),
+                        });
+                    }
+
+                    try dump.warn("Condition", &ctx, exe.err);
                     try dump.warn(
-                        "term fail:",
+                        "Failed term",
                         &ctx,
                         exe.job.exp,
                     );
@@ -89,6 +97,7 @@ pub fn repl() anyerror!void {
                         '\n',
                         4096,
                     )) |l2| {
+                        exe.err = wisp.nil;
                         const rexp = try read(&ctx, l2);
                         exe.job = .{ .exp = rexp };
                         continue :loop;

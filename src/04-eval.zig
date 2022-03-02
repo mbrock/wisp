@@ -20,6 +20,7 @@ ctx: *Ctx,
 env: u32,
 way: u32,
 job: Job,
+err: u32 = nil,
 
 const std = @import("std");
 
@@ -29,6 +30,7 @@ const expectEqualStrings = std.testing.expectEqualStrings;
 
 const wisp = @import("./ff-wisp.zig");
 
+const Oof = wisp.Oof;
 const Ctx = wisp.Ctx;
 const Ptr = wisp.Ptr;
 const ref = wisp.ref;
@@ -48,11 +50,6 @@ const Job = union(Status) {
     exp: u32,
 };
 
-pub const Error = error{
-    Nope,
-    EvaluationLimitExceeded,
-};
-
 pub fn doneWithJob(this: *Eval, x: u32) void {
     this.job = .{ .val = x };
 }
@@ -70,7 +67,7 @@ pub fn step(this: *Eval) !void {
                 .int, .v08, .sys => this.doneWithJob(t),
                 .sym => return this.findVariable(t),
                 .duo => return this.stepDuo(t),
-                else => return Error.Nope,
+                else => return Oof.Bug,
             }
         },
     }
@@ -93,7 +90,9 @@ fn findVariable(this: *Eval, sym: u32) !void {
 
     switch (try this.ctx.get(.sym, .val, sym)) {
         wisp.nah => {
-            return Error.Nope;
+            const err = [2]u32{ this.ctx.kwd.@"UNBOUND-VARIABLE", sym };
+            this.err = try this.ctx.newv32(&err);
+            return Oof.Err;
         },
         else => |x| {
             this.doneWithJob(x);
@@ -189,6 +188,11 @@ const kwds = struct {
     }
 };
 
+fn fail(this: *Eval, xs: []const u32) !void {
+    this.err = try this.ctx.newv32(xs);
+    return Oof.Err;
+}
+
 fn stepDuo(this: *Eval, p: u32) !void {
     const duo = try this.ctx.row(.duo, p);
     const car = duo.car;
@@ -207,9 +211,7 @@ fn stepDuo(this: *Eval, p: u32) !void {
     else if (car == kwd.@"%MACRO-LAMBDA")
         try kwds.@"%MACRO-LAMBDA"(this, duo.cdr)
     else switch (try this.ctx.get(.sym, .fun, car)) {
-        nil => {
-            return Error.Nope;
-        },
+        nil => return this.fail(&[_]u32{ kwd.@"UNDEFINED-FUNCTION", car }),
         else => |fun| try this.stepCall(fun, duo),
     }
 }
@@ -297,7 +299,7 @@ fn stepCall(
                 wisp.tagOf(fun),
                 wisp.Ptr.from(fun),
             });
-            return Error.Nope;
+            return Oof.Bug;
         },
     }
 }
@@ -434,7 +436,7 @@ fn doFuncall(this: *Eval, way: u32, env: u32, funptr: u32, args: u32) !void {
             defer this.ctx.orb.free(vals);
 
             if (pars.len != vals.len) {
-                return Error.Nope;
+                return Oof.Err;
             }
 
             std.mem.reverse(u32, vals);
@@ -458,7 +460,7 @@ fn doFuncall(this: *Eval, way: u32, env: u32, funptr: u32, args: u32) !void {
             };
         },
 
-        else => return Error.Nope,
+        else => return Oof.Bug,
     }
 }
 
@@ -528,7 +530,7 @@ fn callOp(this: *Eval, primop: xops.Op, reverse: bool, values: u32) !u32 {
         },
 
         .f0 => {
-            if (values != nil) return Error.Nope;
+            if (values != nil) return Oof.Err;
             const f = xops.FnTag.f0.cast(primop.func);
             return try f(this);
         },
@@ -536,7 +538,7 @@ fn callOp(this: *Eval, primop: xops.Op, reverse: bool, values: u32) !u32 {
         .f1 => {
             var xs: [1]u32 = undefined;
             const slice = try scanList(this.ctx, &xs, reverse, values);
-            if (slice.len != 1) return Error.Nope;
+            if (slice.len != 1) return Oof.Err;
             const f = xops.FnTag.f1.cast(primop.func);
             return try f(this, slice[0]);
         },
@@ -544,7 +546,7 @@ fn callOp(this: *Eval, primop: xops.Op, reverse: bool, values: u32) !u32 {
         .f2 => {
             var xs: [2]u32 = undefined;
             const slice = try scanList(this.ctx, &xs, reverse, values);
-            if (slice.len != 2) return Error.Nope;
+            if (slice.len != 2) return Oof.Err;
             const f = xops.FnTag.f2.cast(primop.func);
             return try f(this, slice[0], slice[1]);
         },
@@ -552,6 +554,8 @@ fn callOp(this: *Eval, primop: xops.Op, reverse: bool, values: u32) !u32 {
 }
 
 pub fn evaluate(this: *Eval, limit: u32, gc: bool) !u32 {
+    if (this.err != nil) return wisp.Oof.Bug;
+
     var i: u32 = 0;
     while (i < limit) : (i += 1) {
         if (this.way == nil) {
@@ -566,10 +570,10 @@ pub fn evaluate(this: *Eval, limit: u32, gc: bool) !u32 {
         if (gc) try tidy.tidyEval(this);
     }
 
-    return Error.EvaluationLimitExceeded;
+    return Oof.Ugh;
 }
 
-fn newTestCtx() !Ctx {
+pub fn newTestCtx() !Ctx {
     var ctx = try Ctx.init(std.testing.allocator, .e0);
     try xops.load(&ctx);
     try ctx.cook();
@@ -611,7 +615,7 @@ test "step evaluates variable" {
     try expectEqual(Job{ .val = foo }, exe.job);
 }
 
-fn expectEval(want: []const u8, src: []const u8) !void {
+pub fn expectEval(want: []const u8, src: []const u8) !void {
     var ctx = try newTestCtx();
     defer ctx.deinit();
 

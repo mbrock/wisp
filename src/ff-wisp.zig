@@ -18,3 +18,7 @@
 
 pub usingnamespace @import("./01-word.zig");
 pub usingnamespace @import("./02-base.zig");
+
+pub const tidy = @import("./03-tidy.zig").tidy;
+pub const core = @import("./0b-disk.zig");
+pub const Eval = @import("./04-eval.zig");
