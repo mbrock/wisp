@@ -13,6 +13,9 @@
 (defmacro defvar (var val)
   (list 'set-symbol-value (list 'quote var) val))
 
+(defmacro setq (var val)
+  (progn var (list 'set-symbol-value (list 'quote var) val)))
+
 (defun not (x)
   (if x nil t))
 
@@ -44,9 +47,4 @@
     (assert (equal '(1 2 3) '(1 2 3)))
     (assert (equal '((1 2) (3 4)) '((1 2) (3 4))))
     (assert (not (equal '(1) '(1 2))))
-
-    (defvar *foo* 1)
-    (assert (eq 1 *foo*))
-    (setq *foo* 2)
-    (assert (eq 2 *foo*))
     ))

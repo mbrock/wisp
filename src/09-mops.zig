@@ -89,13 +89,3 @@ pub fn PROGN(job: *Eval, rest: Rest) anyerror!void {
         job.give(.exp, duo.car);
     }
 }
-
-pub fn SETQ(job: *Eval, sym: u32, val: u32) anyerror!void {
-    const cur = try job.ctx.get(.sym, .val, sym);
-    if (cur == wisp.nah) {
-        try job.fail(&[_]u32{ job.ctx.kwd.@"UNBOUND-VARIABLE", sym });
-    } else {
-        try job.ctx.set(.sym, .val, sym, val);
-        job.give(.val, val);
-    }
-}

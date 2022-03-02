@@ -16,7 +16,7 @@
 // <https://www.gnu.org/licenses/>.
 //
 
-const wtf = false;
+pub var wtf = false;
 
 ctx: *Ctx,
 env: u32,
@@ -57,7 +57,9 @@ pub fn step(this: *Eval) !void {
         .val => |x| {
             if (wtf) {
                 try dump.warn("val", this.ctx, x);
+                try dump.warn("env", this.ctx, this.env);
                 try dump.warn("way", this.ctx, this.way);
+                try std.io.getStdErr().writer().print("\n", .{});
             }
             return this.proceed(x);
         },
@@ -65,6 +67,9 @@ pub fn step(this: *Eval) !void {
         .exp => |t| {
             if (wtf) {
                 try dump.warn("exp", this.ctx, t);
+                try dump.warn("env", this.ctx, this.env);
+                try dump.warn("way", this.ctx, this.way);
+                try std.io.getStdErr().writer().print("\n", .{});
             }
             switch (wisp.tagOf(t)) {
                 .int, .v08, .sys => this.give(.val, t),
@@ -176,13 +181,16 @@ fn stepCall(
                 .cdr = mac.env,
             });
 
+            const oldenv = this.env;
+            const oldway = this.way;
+
             this.* = .{
                 .ctx = this.ctx,
                 .job = .{ .exp = mac.exp },
                 .env = env,
                 .way = try this.ctx.new(.duo, .{
-                    .car = this.env,
-                    .cdr = this.way,
+                    .car = oldenv,
+                    .cdr = oldway,
                 }),
             };
         },
@@ -221,6 +229,12 @@ pub fn proceed(this: *Eval, x: u32) !void {
 
 fn execDuo(this: *Eval, duo: wisp.Row(.duo)) !void {
     const val = this.job.val;
+
+    if (wtf) {
+        try dump.warn("mac env", this.ctx, duo.car);
+        try dump.warn("mac way", this.ctx, duo.cdr);
+    }
+
     this.* = .{
         .ctx = this.ctx,
         .job = .{ .exp = val },

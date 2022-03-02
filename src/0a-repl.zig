@@ -69,6 +69,7 @@ pub fn repl() anyerror!void {
         if (lineOrEof) |line| {
             const exp = try read(&ctx, line);
             var exe = eval.init(&ctx, exp);
+            eval.wtf = true;
 
             loop: while (true) {
                 if (exe.evaluate(1000, false)) |val| {

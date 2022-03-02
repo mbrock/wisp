@@ -122,14 +122,7 @@ pub fn @"TYPE-OF"(job: *Eval, x: u32) anyerror!void {
 }
 
 pub fn @"ERROR"(job: *Eval, xs: []u32) anyerror!void {
-    const out = std.io.getStdOut().writer();
-    try out.print("ERROR: ", .{});
-    for (xs) |x| {
-        try dump.dump(job.ctx, out, x);
-        try out.writeByte(' ');
-    }
-    try out.writeByte('\n');
-    return wisp.Oof.Err;
+    try job.fail(xs);
 }
 
 pub fn @"GET/CC"(job: *Eval) anyerror!void {
