@@ -57,9 +57,22 @@ pub fn @"CDR"(job: *Eval, x: u32) anyerror!void {
     job.give(.val, try job.ctx.get(.duo, .cdr, x));
 }
 
-pub fn @"SET-FUNCTION"(job: *Eval, sym: u32, fun: u32) anyerror!void {
+pub fn @"SET-SYMBOL-FUNCTION"(
+    job: *Eval,
+    sym: u32,
+    fun: u32,
+) anyerror!void {
     try job.ctx.set(.sym, .fun, sym, fun);
     job.give(.val, fun);
+}
+
+pub fn @"SET-SYMBOL-VALUE"(
+    job: *Eval,
+    sym: u32,
+    val: u32,
+) anyerror!void {
+    try job.ctx.set(.sym, .val, sym, val);
+    job.give(.val, val);
 }
 
 pub fn @"LIST"(job: *Eval, xs: []u32) anyerror!void {

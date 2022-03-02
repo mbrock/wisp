@@ -105,7 +105,7 @@ fn findVariable(this: *Eval, sym: u32) !void {
 
 const kwds = struct {};
 
-fn fail(this: *Eval, xs: []const u32) !void {
+pub fn fail(this: *Eval, xs: []const u32) !void {
     this.err = try this.ctx.newv32(xs);
     return Oof.Err;
 }
@@ -665,7 +665,7 @@ test "calling a closure" {
     try expectEval("13",
         \\ (progn
         \\   (let ((ten 10))
-        \\     (set-function 'foo (lambda (x y) (+ ten x y))))
+        \\     (set-symbol-function 'foo (lambda (x y) (+ ten x y))))
         \\   (foo 1 2))
     );
 }
@@ -673,7 +673,7 @@ test "calling a closure" {
 test "calling a macro closure" {
     try expectEval("3",
         \\ (progn
-        \\   (set-function 'frob
+        \\   (set-symbol-function 'frob
         \\      (%macro-lambda (x y z)
         \\        (list y x z)))
         \\   (frob 1 + 2))

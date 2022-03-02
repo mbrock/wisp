@@ -1,15 +1,17 @@
-(set-function
+(set-symbol-function
  'DEFUN
  (%macro-lambda (name args body)
-                (list 'set-function (list 'quote name)
+                (list 'set-symbol-function (list 'quote name)
                       (list 'lambda args body))))
 
-(set-function
+(set-symbol-function
  'DEFMACRO
  (%macro-lambda (name args body)
-                (list 'set-function (list 'quote name)
+                (list 'set-symbol-function (list 'quote name)
                       (list '%macro-lambda args body))))
 
+(defmacro defvar (var val)
+  (list 'set-symbol-value (list 'quote var) val))
 
 (defun not (x)
   (if x nil t))
@@ -42,4 +44,9 @@
     (assert (equal '(1 2 3) '(1 2 3)))
     (assert (equal '((1 2) (3 4)) '((1 2) (3 4))))
     (assert (not (equal '(1) '(1 2))))
+
+    (defvar *foo* 1)
+    (assert (eq 1 *foo*))
+    (setq *foo* 2)
+    (assert (eq 2 *foo*))
     ))
