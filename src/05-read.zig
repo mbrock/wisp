@@ -45,7 +45,7 @@ fn readValue(self: *Reader) anyerror!u32 {
             .digitChar => self.readNumber(),
         };
     } else {
-        return Error.ReadError;
+        return Error.EOF;
     }
 }
 
@@ -248,6 +248,27 @@ pub fn read(ctx: *Ctx, stream: []const u8) !u32 {
     };
 
     return reader.readValue();
+}
+
+pub fn readMany(ctx: *Ctx, stream: []const u8) !std.ArrayList(u32) {
+    var list = std.ArrayList(u32).init(ctx.orb);
+
+    var reader = Reader{
+        .utf8 = (try std.unicode.Utf8View.init(stream)).iterator(),
+        .ctx = ctx,
+    };
+
+    while (true) {
+        if (reader.readValue()) |x| {
+            try list.append(x);
+        } else |e| {
+            if (e == Error.EOF) {
+                return list;
+            } else {
+                return e;
+            }
+        }
+    }
 }
 
 test "read symbol uppercasing" {

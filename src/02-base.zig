@@ -184,10 +184,15 @@ pub const Ctx = struct {
     }
 
     pub fn cook(ctx: *Ctx) !void {
-        const lib = try read.read(ctx, @embedFile("./a0-base.lisp"));
-        var exe = eval.init(ctx, lib);
-        _ = try exe.evaluate(1_000_000, false);
-        try tidy.tidyEval(&exe);
+        const forms = try read.readMany(ctx, @embedFile("./a0-base.lisp"));
+        defer forms.deinit();
+
+        for (forms.items) |form| {
+            var exe = eval.init(ctx, form);
+            _ = try exe.evaluate(1_000, false);
+        }
+
+        try tidy.tidy(ctx);
     }
 
     pub fn special(ctx: *Ctx, s: Kwd) u32 {
