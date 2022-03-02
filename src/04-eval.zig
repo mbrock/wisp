@@ -50,6 +50,8 @@ const Job = union(Status) {
     exp: u32,
 };
 
+const wtf = false;
+
 pub fn doneWithJob(this: *Eval, x: u32) void {
     this.job = .{ .val = x };
 }
@@ -57,12 +59,17 @@ pub fn doneWithJob(this: *Eval, x: u32) void {
 pub fn step(this: *Eval) !void {
     switch (this.job) {
         .val => |x| {
-            // try dump.warn("val", this.ctx, x);
+            if (wtf) {
+                try dump.warn("val", this.ctx, x);
+                try dump.warn("way", this.ctx, this.way);
+            }
             return this.proceed(x);
         },
 
         .exp => |t| {
-            // try dump.warn("exp", this.ctx, t);
+            if (wtf) {
+                try dump.warn("exp", this.ctx, t);
+            }
             switch (wisp.tagOf(t)) {
                 .int, .v08, .sys => this.doneWithJob(t),
                 .sym => return this.findVariable(t),
@@ -100,93 +107,7 @@ fn findVariable(this: *Eval, sym: u32) !void {
     }
 }
 
-const kwds = struct {
-    pub fn QUOTE(this: *Eval, cdr: u32) !void {
-        this.doneWithJob(try this.ctx.get(.duo, .car, cdr));
-    }
-
-    pub fn @"%LET"(this: *Eval, cdr: u32) !void {
-        // (%let ((v1 . e1) (v2 . e2)) e)
-
-        var xs: [2]u32 = undefined;
-        const args = try scanList(this.ctx, &xs, false, cdr);
-
-        const bs = args[0];
-        const e = args[1];
-
-        if (bs == nil) {
-            this.job = .{ .exp = e };
-        } else {
-            // find the first expression
-            const b1 = try this.ctx.get(.duo, .car, bs);
-            const e1 = try this.ctx.get(.duo, .cdr, b1);
-            this.job = .{ .exp = e1 };
-            this.way = try this.ctx.new(.ct3, .{
-                .hop = this.way,
-                .env = this.env,
-                .exp = e,
-                .arg = bs,
-                .dew = nil,
-            });
-        }
-    }
-
-    pub fn @"%LAMBDA"(this: *Eval, cdr: u32) !void {
-        var xs: [2]u32 = undefined;
-        const args = try scanList(this.ctx, &xs, false, cdr);
-
-        this.job = .{
-            .val = try this.ctx.new(.fun, .{
-                .env = this.env,
-                .par = args[0],
-                .exp = args[1],
-            }),
-        };
-    }
-
-    pub fn @"%MACRO-LAMBDA"(this: *Eval, cdr: u32) !void {
-        var xs: [2]u32 = undefined;
-        const args = try scanList(this.ctx, &xs, false, cdr);
-
-        this.job = .{
-            .val = try this.ctx.new(.mac, .{
-                .env = this.env,
-                .par = args[0],
-                .exp = args[1],
-            }),
-        };
-    }
-
-    pub fn IF(this: *Eval, cdr: u32) !void {
-        var xs: [3]u32 = undefined;
-        const args = try scanList(this.ctx, &xs, false, cdr);
-        this.* = .{
-            .ctx = this.ctx,
-            .env = this.env,
-            .job = .{ .exp = args[0] },
-            .way = try this.ctx.new(.ct1, .{
-                .hop = this.way,
-                .env = this.env,
-                .yay = args[1],
-                .nay = args[2],
-            }),
-        };
-    }
-
-    pub fn PROGN(this: *Eval, cdr: u32) !void {
-        if (cdr == nil) {
-            this.doneWithJob(nil);
-        } else {
-            const duo = try this.ctx.row(.duo, cdr);
-            this.job = .{ .exp = duo.car };
-            this.way = try this.ctx.new(.ct2, .{
-                .hop = this.way,
-                .env = this.env,
-                .exp = duo.cdr,
-            });
-        }
-    }
-};
+const kwds = struct {};
 
 fn fail(this: *Eval, xs: []const u32) !void {
     this.err = try this.ctx.newv32(xs);
@@ -198,19 +119,7 @@ fn stepDuo(this: *Eval, p: u32) !void {
     const car = duo.car;
     const kwd = this.ctx.kwd;
 
-    if (car == kwd.IF)
-        try kwds.IF(this, duo.cdr)
-    else if (car == kwd.QUOTE)
-        try kwds.QUOTE(this, duo.cdr)
-    else if (car == kwd.PROGN)
-        try kwds.PROGN(this, duo.cdr)
-    else if (car == kwd.@"%LET")
-        try kwds.@"%LET"(this, duo.cdr)
-    else if (car == kwd.@"%LAMBDA")
-        try kwds.@"%LAMBDA"(this, duo.cdr)
-    else if (car == kwd.@"%MACRO-LAMBDA")
-        try kwds.@"%MACRO-LAMBDA"(this, duo.cdr)
-    else switch (try this.ctx.get(.sym, .fun, car)) {
+    switch (try this.ctx.get(.sym, .fun, car)) {
         nil => return this.fail(&[_]u32{ kwd.@"UNDEFINED-FUNCTION", car }),
         else => |fun| try this.stepCall(fun, duo),
     }
@@ -224,7 +133,7 @@ fn stepCall(
     switch (wisp.tagOf(fun)) {
         .fop, .fun => {
             if (duo.cdr == nil) {
-                try this.doFuncall(this.way, this.env, fun, nil);
+                try this.apply(this.way, fun, nil);
             } else {
                 const cdr = try this.ctx.row(.duo, duo.cdr);
                 this.* = .{
@@ -279,19 +188,8 @@ fn stepCall(
         },
 
         .mop => {
-            const result = try callOp(
-                this,
-                xops.mops.values[wisp.Imm.from(fun).idx],
-                false,
-                duo.cdr,
-            );
-
-            this.* = .{
-                .ctx = this.ctx,
-                .env = this.env,
-                .job = .{ .exp = result },
-                .way = this.way,
-            };
+            const mop = xops.mops.values[wisp.Imm.from(fun).idx];
+            try this.oper(mop, duo.cdr);
         },
 
         else => {
@@ -410,43 +308,36 @@ fn execCt1(this: *Eval, ct1: wisp.Row(.ct1)) !void {
     };
 }
 
-fn doFuncall(this: *Eval, way: u32, env: u32, funptr: u32, args: u32) !void {
+/// Perform an application, either by directly calling a builtin or by
+/// entering a closure.
+fn apply(this: *Eval, way: u32, funptr: u32, args: u32) !void {
     switch (wisp.tagOf(funptr)) {
         .fop => {
-            const result = try this.callOp(
-                xops.fops.values[wisp.Imm.from(funptr).idx],
-                true,
-                args,
-            );
-
-            this.* = .{
-                .ctx = this.ctx,
-                .way = way,
-                .env = env,
-                .job = .{ .val = result },
-            };
+            const fop = xops.fops.values[wisp.Imm.from(funptr).idx];
+            try this.oper(fop, args);
+            this.way = way;
         },
 
         .fun => {
             const fun = try this.ctx.row(.fun, funptr);
 
             var pars = try scanListAlloc(this.ctx, fun.par);
-            defer this.ctx.orb.free(pars);
+            defer pars.deinit();
             var vals = try scanListAlloc(this.ctx, args);
-            defer this.ctx.orb.free(vals);
+            defer vals.deinit();
 
-            if (pars.len != vals.len) {
+            if (pars.items.len != vals.items.len) {
                 return Oof.Err;
             }
 
-            std.mem.reverse(u32, vals);
+            std.mem.reverse(u32, vals.items);
 
-            var scope = try this.ctx.orb.alloc(u32, 2 * pars.len);
+            var scope = try this.ctx.orb.alloc(u32, 2 * pars.items.len);
             defer this.ctx.orb.free(scope);
 
-            for (pars) |par, i| {
+            for (pars.items) |par, i| {
                 scope[i * 2 + 0] = par;
-                scope[i * 2 + 1] = vals[i];
+                scope[i * 2 + 1] = vals.items[i];
             }
 
             this.* = .{
@@ -471,7 +362,7 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
     });
 
     if (ct0.exp == nil) {
-        try this.doFuncall(ct0.hop, ct0.env, ct0.fun, values);
+        try this.apply(ct0.hop, ct0.fun, values);
     } else {
         const cons = try this.ctx.row(.duo, ct0.exp);
         this.* = .{
@@ -489,7 +380,7 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
     }
 }
 
-fn scanListAlloc(ctx: *Ctx, list: u32) ![]u32 {
+fn scanListAlloc(ctx: *Ctx, list: u32) !std.ArrayList(u32) {
     var xs = std.ArrayList(u32).init(ctx.orb);
     errdefer xs.deinit();
 
@@ -500,7 +391,7 @@ fn scanListAlloc(ctx: *Ctx, list: u32) ![]u32 {
         cur = duo.cdr;
     }
 
-    return xs.toOwnedSlice();
+    return xs;
 }
 
 pub fn scanList(ctx: *Ctx, buffer: []u32, reverse: bool, list: u32) ![]u32 {
@@ -520,35 +411,110 @@ pub fn scanList(ctx: *Ctx, buffer: []u32, reverse: bool, list: u32) ![]u32 {
     return slice;
 }
 
-fn callOp(this: *Eval, primop: xops.Op, reverse: bool, values: u32) !u32 {
-    switch (primop.tag) {
+fn give(job: *Eval, xop: xops.Op, val: u32) void {
+    switch (xop.ilk) {
+        .mac => job.job = .{ .exp = val },
+        .fun => job.job = .{ .val = val },
+        .ctl => {},
+    }
+}
+
+fn cast(
+    comptime tag: xops.FnTag,
+    xop: xops.Op,
+) tag.functionType() {
+    return tag.cast(xop.fun);
+}
+
+fn reverseList(ctx: *Ctx, list: u32) !u32 {
+    var cur = list;
+    var rev = nil;
+    while (cur != nil) {
+        const duo = try ctx.row(.duo, cur);
+        rev = try ctx.new(.duo, .{ .car = duo.car, .cdr = rev });
+        cur = duo.cdr;
+    }
+    return rev;
+}
+
+fn oper(job: *Eval, xop: xops.Op, arg: u32) !void {
+    switch (xop.tag) {
+        .fc => {
+            const fun = cast(.fc, xop);
+            try fun(job, arg);
+        },
+
         .f0x => {
-            var xs: [31]u32 = undefined;
-            const slice = try scanList(this.ctx, &xs, reverse, values);
-            const f = xops.FnTag.f0x.cast(primop.func);
-            return try f(this, slice);
+            const args = try scanListAlloc(job.ctx, arg);
+            defer args.deinit();
+            if (xop.ilk == .fun) std.mem.reverse(u32, args.items);
+            const fun = cast(.f0x, xop);
+            job.give(xop, try fun(job, args.items));
+        },
+
+        .f0r => {
+            var rest = arg;
+            if (xop.ilk == .fun) {
+                rest = try reverseList(job.ctx, rest);
+            }
+            const fun = cast(.f0r, xop);
+            job.give(xop, try fun(job, .{ .arg = rest }));
         },
 
         .f0 => {
-            if (values != nil) return Oof.Err;
-            const f = xops.FnTag.f0.cast(primop.func);
-            return try f(this);
+            if (arg == nil) {
+                const fun = cast(.f0, xop);
+                job.give(xop, try fun(job));
+            } else {
+                try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
+            }
         },
 
         .f1 => {
-            var xs: [1]u32 = undefined;
-            const slice = try scanList(this.ctx, &xs, reverse, values);
-            if (slice.len != 1) return Oof.Err;
-            const f = xops.FnTag.f1.cast(primop.func);
-            return try f(this, slice[0]);
+            const args = try scanListAlloc(job.ctx, arg);
+            defer args.deinit();
+            if (args.items.len == 1) {
+                const fun = cast(.f1, xop);
+                job.give(xop, try fun(
+                    job,
+                    args.items[0],
+                ));
+            } else {
+                try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
+            }
         },
 
         .f2 => {
-            var xs: [2]u32 = undefined;
-            const slice = try scanList(this.ctx, &xs, reverse, values);
-            if (slice.len != 2) return Oof.Err;
-            const f = xops.FnTag.f2.cast(primop.func);
-            return try f(this, slice[0], slice[1]);
+            const args = try scanListAlloc(job.ctx, arg);
+            defer args.deinit();
+            if (args.items.len == 2) {
+                if (xop.ilk == .fun) std.mem.reverse(u32, args.items);
+                const fun = cast(.f2, xop);
+                job.give(xop, try fun(
+                    job,
+                    args.items[0],
+                    args.items[1],
+                ));
+            } else {
+                try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
+            }
+        },
+
+        .f3 => {
+            const args = try scanListAlloc(job.ctx, arg);
+            defer args.deinit();
+            if (args.items.len == 3) {
+                if (xop.ilk == .fun) std.mem.reverse(u32, args.items);
+                const fun = cast(.f3, xop);
+                job.give(xop, try fun(
+                    job,
+                    args.items[0],
+                    args.items[1],
+                    args.items[2],
+                ));
+            } else {
+                try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
+            }
         },
     }
 }
@@ -645,10 +611,6 @@ test "(+ 1 2 3) => 6" {
 
 test "(+ (+ 1 2) (+ 3 4))" {
     try expectEval("10", "(+ (+ 1 2) (+ 3 4))");
-}
-
-test "(foo + 1) => 2" {
-    try expectEval("2", "(foo + 1)");
 }
 
 test "(car (cons 1 2)) => 1" {

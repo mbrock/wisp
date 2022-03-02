@@ -22,8 +22,8 @@ pub const Mops = @import("./09-mops.zig");
 pub const FopTag = DeclEnum(Fops, u27);
 pub const MopTag = DeclEnum(Mops, u27);
 
-pub const fops = makeOpArray(FopTag, Fops);
-pub const mops = makeOpArray(MopTag, Mops);
+pub const fops = makeOpArray(FopTag, Fops, .fun);
+pub const mops = makeOpArray(MopTag, Mops, .ctl);
 
 const std = @import("std");
 const assert = std.debug.assert;
@@ -37,32 +37,48 @@ const Eval = @import("./04-eval.zig");
 const util = @import("./00-util.zig");
 
 const ref = wisp.ref;
-const Ctx = Eval;
+const Job = Eval;
 const Ptr = wisp.Ptr;
 const DeclEnum = util.DeclEnum;
 
+pub const Rest = struct { arg: u32 };
+
 pub const FnTag = enum {
+    fc,
     f0x,
+    f0r,
     f0,
     f1,
     f2,
+    f3,
 
     pub fn from(comptime T: type) FnTag {
         return switch (T) {
-            fn (*Ctx, []u32) anyerror!u32 => .f0x,
-            fn (*Ctx) anyerror!u32 => .f0,
-            fn (*Ctx, u32) anyerror!u32 => .f1,
-            fn (*Ctx, u32, u32) anyerror!u32 => .f2,
+            fn (*Job, u32) anyerror!void => .fc,
+
+            fn (*Job) anyerror!u32 => .f0,
+            fn (*Job, u32) anyerror!u32 => .f1,
+            fn (*Job, u32, u32) anyerror!u32 => .f2,
+            fn (*Job, u32, u32, u32) anyerror!u32 => .f3,
+
+            fn (*Job, Rest) anyerror!u32 => .f0r,
+            fn (*Job, []u32) anyerror!u32 => .f0x,
+
             else => @compileLog("unhandled op type", T),
         };
     }
 
     pub fn functionType(comptime self: FnTag) type {
         return switch (self) {
-            .f0x => fn (*Ctx, []u32) anyerror!u32,
-            .f0 => fn (*Ctx) anyerror!u32,
-            .f2 => fn (*Ctx, u32, u32) anyerror!u32,
-            .f1 => fn (*Ctx, u32) anyerror!u32,
+            .fc => fn (*Job, u32) anyerror!void,
+
+            .f0 => fn (*Job) anyerror!u32,
+            .f1 => fn (*Job, u32) anyerror!u32,
+            .f2 => fn (*Job, u32, u32) anyerror!u32,
+            .f3 => fn (*Job, u32, u32, u32) anyerror!u32,
+
+            .f0r => fn (*Job, Rest) anyerror!u32,
+            .f0x => fn (*Job, []u32) anyerror!u32,
         };
     }
 
@@ -71,21 +87,29 @@ pub const FnTag = enum {
     }
 };
 
+pub const Ilk = enum { fun, mac, ctl };
+
 pub const Op = struct {
-    name: []const u8,
+    txt: []const u8,
+    ilk: Ilk,
     tag: FnTag,
-    func: *const anyopaque,
+    fun: *const anyopaque,
 };
 
-fn makeOpArray(comptime T: type, comptime S: type) EnumArray(T, Op) {
+fn makeOpArray(
+    comptime T: type,
+    comptime S: type,
+    ilk: Ilk,
+) EnumArray(T, Op) {
     var ops = EnumArray(T, Op).initUndefined();
 
     inline for (@typeInfo(T).Enum.fields) |x| {
         const f = @field(S, x.name);
         ops.set(@intToEnum(T, x.value), .{
-            .name = x.name,
+            .txt = x.name,
+            .ilk = ilk,
             .tag = FnTag.from(@TypeOf(f)),
-            .func = f,
+            .fun = f,
         });
     }
 
@@ -95,18 +119,18 @@ fn makeOpArray(comptime T: type, comptime S: type) EnumArray(T, Op) {
 test "ops" {
     try expectEqual(
         @ptrCast(*const anyopaque, Fops.@"+"),
-        fops.get(.@"+").func,
+        fops.get(.@"+").fun,
     );
 }
 
 pub fn load(ctx: *wisp.Ctx) !void {
     inline for (fops.values) |fop, i| {
-        var sym = try ctx.intern(fop.name, ctx.base);
+        var sym = try ctx.intern(fop.txt, ctx.base);
         ctx.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.fop, i).word();
     }
 
     inline for (mops.values) |mop, i| {
-        var sym = try ctx.intern(mop.name, ctx.base);
+        var sym = try ctx.intern(mop.txt, ctx.base);
         ctx.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.mop, i).word();
     }
 }

@@ -51,12 +51,7 @@ pub fn Row(comptime t: Tag) type {
 /// These symbols are always interned and available for easy access
 /// from the Zig code.
 pub const Kwd = enum {
-    IF,
     QUOTE,
-    PROGN,
-    @"%LET",
-    @"%LAMBDA",
-    @"%MACRO-LAMBDA",
 
     BOOLEAN,
     CHARACTER,
@@ -73,6 +68,7 @@ pub const Kwd = enum {
 
     @"UNDEFINED-FUNCTION",
     @"UNBOUND-VARIABLE",
+    @"PROGRAM-ERROR",
     @"BUG",
 };
 
