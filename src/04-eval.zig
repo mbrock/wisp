@@ -16,6 +16,8 @@
 // <https://www.gnu.org/licenses/>.
 //
 
+const wtf = false;
+
 ctx: *Ctx,
 env: u32,
 way: u32,
@@ -49,8 +51,6 @@ const Job = union(Status) {
     val: u32,
     exp: u32,
 };
-
-const wtf = false;
 
 pub fn doneWithJob(this: *Eval, x: u32) void {
     this.job = .{ .val = x };
@@ -266,13 +266,17 @@ fn execCt3(this: *Eval, ct3: wisp.Row(.ct3)) !void {
         });
     } else {
         const bsduo = try this.ctx.row(.duo, bs);
-        const e1 = try this.ctx.get(.duo, .cdr, bsduo.car);
+        const e1 = try this.ctx.get(
+            .duo,
+            .car,
+            try this.ctx.get(.duo, .cdr, bsduo.car),
+        );
         this.job = .{ .exp = e1 };
         this.way = try this.ctx.new(.ct3, .{
             .hop = ct3.hop,
             .env = ct3.env,
             .exp = ct3.exp,
-            .arg = argduo.cdr,
+            .arg = bs,
             .dew = try this.ctx.new(.duo, .{
                 .car = try this.ctx.new(.duo, .{ .car = sym, .cdr = val }),
                 .cdr = ct3.dew,
@@ -649,14 +653,14 @@ test "abbreviated quote" {
 test "let" {
     try expectEval(
         "3",
-        "(%let ((a . 1) (b . 2)) (+ a b))",
+        "(let ((a 1) (b 2)) (+ a b))",
     );
 }
 
 test "calling a closure" {
     try expectEval("13",
         \\ (progn
-        \\   (%let ((ten . 10))
+        \\   (let ((ten 10))
         \\     (set-function 'foo (%lambda (x y) (+ ten x y))))
         \\   (foo 1 2))
     );

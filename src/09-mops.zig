@@ -37,15 +37,18 @@ pub fn @"%MACRO-LAMBDA"(this: *Eval, par: u32, exp: u32) anyerror!u32 {
     return wisp.nah;
 }
 
-pub fn @"%LET"(this: *Eval, bs: u32, e: u32) anyerror!u32 {
-    // (%let ((v1 . e1) (v2 . e2)) e)
-
+pub fn @"LET"(this: *Eval, bs: u32, e: u32) anyerror!u32 {
     if (bs == wisp.nil) {
         this.job = .{ .exp = e };
     } else {
         // find the first expression
         const b1 = try this.ctx.get(.duo, .car, bs);
-        const e1 = try this.ctx.get(.duo, .cdr, b1);
+        const e1 = try this.ctx.get(
+            .duo,
+            .car,
+            try this.ctx.get(.duo, .cdr, b1),
+        );
+
         this.job = .{ .exp = e1 };
         this.way = try this.ctx.new(.ct3, .{
             .hop = this.way,
