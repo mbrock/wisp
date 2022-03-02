@@ -122,7 +122,7 @@ pub fn dump(
 
         .ct3 => {
             const ct3 = try ctx.row(.ct3, x);
-            try out.print("<ct3", .{});
+            try out.print("<%if", .{});
             inline for (std.meta.fields(@TypeOf(ct3))) |field| {
                 try out.print(" {s}=", .{field.name});
                 try dump(ctx, out, @field(ct3, field.name));
@@ -132,7 +132,7 @@ pub fn dump(
 
         .ct0 => {
             const ct0 = try ctx.row(.ct0, x);
-            try out.print("<ct0", .{});
+            try out.print("<%xs", .{});
             inline for (std.meta.fields(@TypeOf(ct0))) |field| {
                 try out.print(" {s}=", .{field.name});
                 try dump(ctx, out, @field(ct0, field.name));
@@ -142,7 +142,7 @@ pub fn dump(
 
         .ct2 => {
             const ct2 = try ctx.row(.ct2, x);
-            try out.print("<ct2", .{});
+            try out.print("<%do", .{});
             inline for (std.meta.fields(@TypeOf(ct2))) |field| {
                 try out.print(" {s}=", .{field.name});
                 try dump(ctx, out, @field(ct2, field.name));
@@ -152,7 +152,7 @@ pub fn dump(
 
         .ct1 => {
             const ct1 = try ctx.row(.ct1, x);
-            try out.print("<ct1", .{});
+            try out.print("<%if", .{});
             inline for (std.meta.fields(@TypeOf(ct1))) |field| {
                 try out.print(" {s}=", .{field.name});
                 try dump(ctx, out, @field(ct1, field.name));
