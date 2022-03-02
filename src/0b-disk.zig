@@ -128,9 +128,21 @@ test "save" {
     var ctx = try wisp.Eval.newTestCtx();
     defer ctx.deinit();
 
-    try wisp.Eval.expectEval((
-        \\ "/src/wisp/src/foo.core"
-    ), (
+    const path = try std.fs.cwd().realpathAlloc(
+        ctx.orb,
+        "foo.core",
+    );
+
+    const pathExpr = try std.fmt.allocPrint(
+        ctx.orb,
+        "\"{s}\"",
+        .{path},
+    );
+
+    defer ctx.orb.free(path);
+    defer ctx.orb.free(pathExpr);
+
+    try wisp.Eval.expectEval(pathExpr, (
         \\ (save "foo.core")
     ));
 }
