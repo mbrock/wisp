@@ -20,88 +20,72 @@ const wisp = @import("./ff-wisp.zig");
 const Eval = @import("./04-eval.zig");
 const Rest = @import("./07-xops.zig").Rest;
 
-pub fn QUOTE(this: *Eval, x: u32) anyerror!u32 {
-    this.doneWithJob(x);
-    return wisp.nah;
+pub fn QUOTE(job: *Eval, x: u32) anyerror!void {
+    job.give(.val, x);
 }
 
-pub fn @"%MACRO-LAMBDA"(this: *Eval, par: u32, exp: u32) anyerror!u32 {
-    this.job = .{
-        .val = try this.ctx.new(.mac, .{
-            .env = this.env,
-            .par = par,
-            .exp = exp,
-        }),
-    };
-
-    return wisp.nah;
+pub fn @"%MACRO-LAMBDA"(job: *Eval, par: u32, exp: u32) anyerror!void {
+    job.give(.val, try job.ctx.new(.mac, .{
+        .env = job.env,
+        .par = par,
+        .exp = exp,
+    }));
 }
 
-pub fn @"LET"(this: *Eval, bs: u32, e: u32) anyerror!u32 {
+pub fn @"LET"(job: *Eval, bs: u32, e: u32) anyerror!void {
     if (bs == wisp.nil) {
-        this.job = .{ .exp = e };
+        job.give(.exp, e);
     } else {
         // find the first expression
-        const b1 = try this.ctx.get(.duo, .car, bs);
-        const e1 = try this.ctx.get(
+        const b1 = try job.ctx.get(.duo, .car, bs);
+        const e1 = try job.ctx.get(
             .duo,
             .car,
-            try this.ctx.get(.duo, .cdr, b1),
+            try job.ctx.get(.duo, .cdr, b1),
         );
 
-        this.job = .{ .exp = e1 };
-        this.way = try this.ctx.new(.ct3, .{
-            .hop = this.way,
-            .env = this.env,
+        job.way = try job.ctx.new(.ct3, .{
+            .hop = job.way,
+            .env = job.env,
             .exp = e,
             .arg = bs,
             .dew = wisp.nil,
         });
+
+        job.give(.exp, e1);
     }
-
-    return wisp.nah;
 }
 
-pub fn @"%LAMBDA"(this: *Eval, par: u32, exp: u32) anyerror!u32 {
-    this.job = .{
-        .val = try this.ctx.new(.fun, .{
-            .env = this.env,
-            .par = par,
-            .exp = exp,
-        }),
-    };
-
-    return wisp.nah;
+pub fn @"%LAMBDA"(job: *Eval, par: u32, exp: u32) anyerror!void {
+    job.give(.val, try job.ctx.new(.fun, .{
+        .env = job.env,
+        .par = par,
+        .exp = exp,
+    }));
 }
 
-pub fn IF(this: *Eval, exp: u32, yay: u32, nay: u32) anyerror!u32 {
-    this.* = .{
-        .ctx = this.ctx,
-        .env = this.env,
-        .job = .{ .exp = exp },
-        .way = try this.ctx.new(.ct1, .{
-            .hop = this.way,
-            .env = this.env,
-            .yay = yay,
-            .nay = nay,
-        }),
-    };
-
-    return wisp.nah;
+pub fn IF(job: *Eval, exp: u32, yay: u32, nay: u32) anyerror!void {
+    job.give(.exp, exp);
+    job.way = try job.ctx.new(.ct1, .{
+        .hop = job.way,
+        .env = job.env,
+        .yay = yay,
+        .nay = nay,
+    });
 }
 
-pub fn PROGN(this: *Eval, rest: Rest) anyerror!u32 {
+pub fn PROGN(job: *Eval, rest: Rest) anyerror!void {
     if (rest.arg == wisp.nil) {
-        this.doneWithJob(wisp.nil);
+        job.give(.val, wisp.nil);
     } else {
-        const duo = try this.ctx.row(.duo, rest.arg);
-        this.job = .{ .exp = duo.car };
-        this.way = try this.ctx.new(.ct2, .{
-            .hop = this.way,
-            .env = this.env,
+        const duo = try job.ctx.row(.duo, rest.arg);
+
+        job.way = try job.ctx.new(.ct2, .{
+            .hop = job.way,
+            .env = job.env,
             .exp = duo.cdr,
         });
-    }
 
-    return wisp.nah;
+        job.give(.exp, duo.car);
+    }
 }

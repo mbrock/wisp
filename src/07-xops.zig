@@ -44,7 +44,6 @@ const DeclEnum = util.DeclEnum;
 pub const Rest = struct { arg: u32 };
 
 pub const FnTag = enum {
-    fc,
     f0x,
     f0r,
     f0,
@@ -54,15 +53,13 @@ pub const FnTag = enum {
 
     pub fn from(comptime T: type) FnTag {
         return switch (T) {
-            fn (*Job, u32) anyerror!void => .fc,
+            fn (*Job) anyerror!void => .f0,
+            fn (*Job, u32) anyerror!void => .f1,
+            fn (*Job, u32, u32) anyerror!void => .f2,
+            fn (*Job, u32, u32, u32) anyerror!void => .f3,
 
-            fn (*Job) anyerror!u32 => .f0,
-            fn (*Job, u32) anyerror!u32 => .f1,
-            fn (*Job, u32, u32) anyerror!u32 => .f2,
-            fn (*Job, u32, u32, u32) anyerror!u32 => .f3,
-
-            fn (*Job, Rest) anyerror!u32 => .f0r,
-            fn (*Job, []u32) anyerror!u32 => .f0x,
+            fn (*Job, Rest) anyerror!void => .f0r,
+            fn (*Job, []u32) anyerror!void => .f0x,
 
             else => @compileLog("unhandled op type", T),
         };
@@ -70,15 +67,13 @@ pub const FnTag = enum {
 
     pub fn functionType(comptime self: FnTag) type {
         return switch (self) {
-            .fc => fn (*Job, u32) anyerror!void,
+            .f0 => fn (*Job) anyerror!void,
+            .f1 => fn (*Job, u32) anyerror!void,
+            .f2 => fn (*Job, u32, u32) anyerror!void,
+            .f3 => fn (*Job, u32, u32, u32) anyerror!void,
 
-            .f0 => fn (*Job) anyerror!u32,
-            .f1 => fn (*Job, u32) anyerror!u32,
-            .f2 => fn (*Job, u32, u32) anyerror!u32,
-            .f3 => fn (*Job, u32, u32, u32) anyerror!u32,
-
-            .f0r => fn (*Job, Rest) anyerror!u32,
-            .f0x => fn (*Job, []u32) anyerror!u32,
+            .f0r => fn (*Job, Rest) anyerror!void,
+            .f0x => fn (*Job, []u32) anyerror!void,
         };
     }
 

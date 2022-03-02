@@ -52,10 +52,6 @@ const Job = union(Status) {
     exp: u32,
 };
 
-pub fn doneWithJob(this: *Eval, x: u32) void {
-    this.job = .{ .val = x };
-}
-
 pub fn step(this: *Eval) !void {
     switch (this.job) {
         .val => |x| {
@@ -71,7 +67,7 @@ pub fn step(this: *Eval) !void {
                 try dump.warn("exp", this.ctx, t);
             }
             switch (wisp.tagOf(t)) {
-                .int, .v08, .sys => this.doneWithJob(t),
+                .int, .v08, .sys => this.give(.val, t),
                 .sym => return this.findVariable(t),
                 .duo => return this.stepDuo(t),
                 else => return Oof.Bug,
@@ -91,7 +87,7 @@ fn findVariable(this: *Eval, sym: u32) !void {
             cur = curduo.cdr;
         }) {
             if (v32[i] == sym)
-                return this.doneWithJob(v32[i + 1]);
+                return this.give(.val, v32[i + 1]);
         }
     }
 
@@ -102,7 +98,7 @@ fn findVariable(this: *Eval, sym: u32) !void {
             return Oof.Err;
         },
         else => |x| {
-            this.doneWithJob(x);
+            this.give(.val, x);
         },
     }
 }
@@ -133,8 +129,11 @@ fn stepCall(
     switch (wisp.tagOf(fun)) {
         .fop, .fun => {
             if (duo.cdr == nil) {
+                // No need for argument evaluation.
                 try this.apply(this.way, fun, nil);
             } else {
+                // Start evaluating the first argument with a
+                // continuation of the remaining arguments.
                 const cdr = try this.ctx.row(.duo, duo.cdr);
                 this.* = .{
                     .ctx = this.ctx,
@@ -152,6 +151,7 @@ fn stepCall(
         },
 
         .mac => {
+            // With macros we don't evaluate arguments.
             const cdr = try this.ctx.row(.duo, duo.cdr);
             const mac = try this.ctx.row(.mac, fun);
             var xs = std.ArrayList(u32).init(this.ctx.orb);
@@ -233,9 +233,9 @@ fn execCt3(this: *Eval, ct3: wisp.Row(.ct3)) !void {
     const val = this.job.val;
     const argduo = try this.ctx.row(.duo, ct3.arg);
     const sym = try this.ctx.get(.duo, .car, argduo.car);
-    const bs = argduo.cdr;
+    const bindings = argduo.cdr;
 
-    if (bs == nil) {
+    if (bindings == nil) {
         const n = 1 + try wisp.length(this.ctx, ct3.dew);
         var scope = try this.ctx.orb.alloc(u32, 2 * n);
         defer this.ctx.orb.free(scope);
@@ -265,18 +265,14 @@ fn execCt3(this: *Eval, ct3: wisp.Row(.ct3)) !void {
             .cdr = this.env,
         });
     } else {
-        const bsduo = try this.ctx.row(.duo, bs);
-        const e1 = try this.ctx.get(
-            .duo,
-            .car,
-            try this.ctx.get(.duo, .cdr, bsduo.car),
-        );
+        const binding = try this.ctx.row(.duo, bindings);
+        const e1 = try this.ctx.get(.duo, .car, try this.ctx.get(.duo, .cdr, binding.car));
         this.job = .{ .exp = e1 };
         this.way = try this.ctx.new(.ct3, .{
             .hop = ct3.hop,
             .env = ct3.env,
             .exp = ct3.exp,
-            .arg = bs,
+            .arg = bindings,
             .dew = try this.ctx.new(.duo, .{
                 .car = try this.ctx.new(.duo, .{ .car = sym, .cdr = val }),
                 .cdr = ct3.dew,
@@ -415,12 +411,11 @@ pub fn scanList(ctx: *Ctx, buffer: []u32, reverse: bool, list: u32) ![]u32 {
     return slice;
 }
 
-fn give(job: *Eval, xop: xops.Op, val: u32) void {
-    switch (xop.ilk) {
-        .mac => job.job = .{ .exp = val },
-        .fun => job.job = .{ .val = val },
-        .ctl => {},
-    }
+pub fn give(job: *Eval, status: Status, x: u32) void {
+    job.job = switch (status) {
+        .val => .{ .val = x },
+        .exp => .{ .exp = x },
+    };
 }
 
 fn cast(
@@ -443,17 +438,12 @@ fn reverseList(ctx: *Ctx, list: u32) !u32 {
 
 fn oper(job: *Eval, xop: xops.Op, arg: u32) !void {
     switch (xop.tag) {
-        .fc => {
-            const fun = cast(.fc, xop);
-            try fun(job, arg);
-        },
-
         .f0x => {
             const args = try scanListAlloc(job.ctx, arg);
             defer args.deinit();
             if (xop.ilk == .fun) std.mem.reverse(u32, args.items);
             const fun = cast(.f0x, xop);
-            job.give(xop, try fun(job, args.items));
+            try fun(job, args.items);
         },
 
         .f0r => {
@@ -462,60 +452,54 @@ fn oper(job: *Eval, xop: xops.Op, arg: u32) !void {
                 rest = try reverseList(job.ctx, rest);
             }
             const fun = cast(.f0r, xop);
-            job.give(xop, try fun(job, .{ .arg = rest }));
+            try fun(job, .{ .arg = rest });
         },
 
         .f0 => {
             if (arg == nil) {
                 const fun = cast(.f0, xop);
-                job.give(xop, try fun(job));
+                try fun(job);
             } else {
                 try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
             }
         },
 
         .f1 => {
-            const args = try scanListAlloc(job.ctx, arg);
-            defer args.deinit();
-            if (args.items.len == 1) {
+            const list = try scanListAlloc(job.ctx, arg);
+            const args = list.items;
+            defer list.deinit();
+
+            if (args.len == 1) {
                 const fun = cast(.f1, xop);
-                job.give(xop, try fun(
-                    job,
-                    args.items[0],
-                ));
+                try fun(job, args[0]);
             } else {
                 try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
             }
         },
 
         .f2 => {
-            const args = try scanListAlloc(job.ctx, arg);
-            defer args.deinit();
-            if (args.items.len == 2) {
-                if (xop.ilk == .fun) std.mem.reverse(u32, args.items);
+            const list = try scanListAlloc(job.ctx, arg);
+            const args = list.items;
+            defer list.deinit();
+
+            if (args.len == 2) {
+                if (xop.ilk == .fun) std.mem.reverse(u32, args);
                 const fun = cast(.f2, xop);
-                job.give(xop, try fun(
-                    job,
-                    args.items[0],
-                    args.items[1],
-                ));
+                try fun(job, args[0], args[1]);
             } else {
                 try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
             }
         },
 
         .f3 => {
-            const args = try scanListAlloc(job.ctx, arg);
-            defer args.deinit();
-            if (args.items.len == 3) {
-                if (xop.ilk == .fun) std.mem.reverse(u32, args.items);
+            const list = try scanListAlloc(job.ctx, arg);
+            const args = list.items;
+            defer list.deinit();
+
+            if (args.len == 3) {
+                if (xop.ilk == .fun) std.mem.reverse(u32, args);
                 const fun = cast(.f3, xop);
-                job.give(xop, try fun(
-                    job,
-                    args.items[0],
-                    args.items[1],
-                    args.items[2],
-                ));
+                try fun(job, args[0], args[1], args[2]);
             } else {
                 try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
             }

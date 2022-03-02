@@ -29,12 +29,12 @@ fn int(x: u32) !i31 {
     return @intCast(i31, x);
 }
 
-pub fn @"PROG1"(job: *Job, xs: []u32) anyerror!u32 {
+pub fn @"PROG1"(job: *Job, xs: []u32) anyerror!void {
     _ = job;
-    return xs[0];
+    job.give(.val, xs[0]);
 }
 
-pub fn @"+"(job: *Job, xs: []u32) anyerror!u32 {
+pub fn @"+"(job: *Job, xs: []u32) anyerror!void {
     _ = job;
 
     var result: i31 = 0;
@@ -42,75 +42,73 @@ pub fn @"+"(job: *Job, xs: []u32) anyerror!u32 {
         result += try int(x);
     }
 
-    return @intCast(u32, result);
+    job.give(.val, @intCast(u32, result));
 }
 
-pub fn @"CONS"(job: *Job, car: u32, cdr: u32) anyerror!u32 {
-    return job.ctx.new(.duo, .{ .car = car, .cdr = cdr });
+pub fn @"CONS"(job: *Job, car: u32, cdr: u32) anyerror!void {
+    job.give(.val, try job.ctx.new(.duo, .{ .car = car, .cdr = cdr }));
 }
 
-pub fn @"CAR"(job: *Job, x: u32) anyerror!u32 {
-    return job.ctx.get(.duo, .car, x);
+pub fn @"CAR"(job: *Job, x: u32) anyerror!void {
+    job.give(.val, try job.ctx.get(.duo, .car, x));
 }
 
-pub fn @"CDR"(job: *Job, x: u32) anyerror!u32 {
-    return job.ctx.get(.duo, .cdr, x);
+pub fn @"CDR"(job: *Job, x: u32) anyerror!void {
+    job.give(.val, try job.ctx.get(.duo, .cdr, x));
 }
 
-pub fn @"SET-FUNCTION"(job: *Job, sym: u32, fun: u32) anyerror!u32 {
+pub fn @"SET-FUNCTION"(job: *Job, sym: u32, fun: u32) anyerror!void {
     try job.ctx.set(.sym, .fun, sym, fun);
-    return fun;
+    job.give(.val, fun);
 }
 
-pub fn @"LIST"(job: *Job, xs: []u32) anyerror!u32 {
+pub fn @"LIST"(job: *Job, xs: []u32) anyerror!void {
     var cur = wisp.nil;
     var i = xs.len;
+
     while (i > 0) : (i -= 1) {
         cur = try job.ctx.new(.duo, .{ .car = xs[i - 1], .cdr = cur });
     }
-    return cur;
+
+    job.give(.val, cur);
 }
 
-pub fn @"EQ"(job: *Job, x: u32, y: u32) anyerror!u32 {
-    _ = job;
-    return if (x == y) wisp.t else wisp.nil;
+pub fn @"EQ"(job: *Job, x: u32, y: u32) anyerror!void {
+    job.give(.val, if (x == y) wisp.t else wisp.nil);
 }
 
-pub fn @"PRINT"(job: *Job, x: u32) anyerror!u32 {
+pub fn @"PRINT"(job: *Job, x: u32) anyerror!void {
     const out = std.io.getStdOut().writer();
     try dump.dump(job.ctx, out, x);
     try out.writeByte('\n');
-    return x;
+    job.give(.val, x);
 }
 
-pub fn @"TYPE-OF"(job: *Job, x: u32) anyerror!u32 {
+pub fn @"TYPE-OF"(job: *Job, x: u32) anyerror!void {
     const kwd = job.ctx.kwd;
 
-    if (x == wisp.nil) return kwd.NULL;
-    if (x == wisp.t) return kwd.BOOLEAN;
-
-    return switch (wisp.tagOf(x)) {
-        .int => kwd.INTEGER,
-        .chr => kwd.CHARACTER,
-        .duo => kwd.CONS,
-        .sym => kwd.SYMBOL,
-        .fun, .fop => kwd.FUNCTION,
-        .mac, .mop => kwd.MACRO,
-        .v32 => kwd.VECTOR,
-        .v08 => kwd.STRING,
-        .pkg => kwd.PACKAGE,
-
-        .ct0,
-        .ct1,
-        .ct2,
-        .ct3,
-        => kwd.CONTINUATION,
-
-        .sys => unreachable,
-    };
+    if (x == wisp.nil) {
+        job.give(.val, kwd.NULL);
+    } else if (x == wisp.t) {
+        job.give(.val, kwd.BOOLEAN);
+    } else {
+        job.give(.val, switch (wisp.tagOf(x)) {
+            .int => kwd.INTEGER,
+            .chr => kwd.CHARACTER,
+            .duo => kwd.CONS,
+            .sym => kwd.SYMBOL,
+            .fun, .fop => kwd.FUNCTION,
+            .mac, .mop => kwd.MACRO,
+            .v32 => kwd.VECTOR,
+            .v08 => kwd.STRING,
+            .pkg => kwd.PACKAGE,
+            .ct0, .ct1, .ct2, .ct3 => kwd.CONTINUATION,
+            .sys => unreachable,
+        });
+    }
 }
 
-pub fn @"ERROR"(job: *Job, xs: []u32) anyerror!u32 {
+pub fn @"ERROR"(job: *Job, xs: []u32) anyerror!void {
     const out = std.io.getStdOut().writer();
     try out.print("ERROR: ", .{});
     for (xs) |x| {
@@ -121,10 +119,10 @@ pub fn @"ERROR"(job: *Job, xs: []u32) anyerror!u32 {
     return wisp.Oof.Err;
 }
 
-pub fn @"GET/CC"(job: *Job) anyerror!u32 {
-    return job.way;
+pub fn @"GET/CC"(job: *Job) anyerror!void {
+    job.give(.val, job.way);
 }
 
-pub fn SAVE(job: *Job, @"CORE-NAME": u32) anyerror!u32 {
-    return try wisp.core.save(job, try job.ctx.v08slice(@"CORE-NAME"));
+pub fn SAVE(job: *Job, @"CORE-NAME": u32) anyerror!void {
+    job.give(.val, try wisp.core.save(job, try job.ctx.v08slice(@"CORE-NAME")));
 }
