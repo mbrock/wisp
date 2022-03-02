@@ -87,13 +87,11 @@ fn findVariable(this: *Eval, sym: u32) !void {
         var curduo = try this.ctx.row(.duo, cur);
         var v32 = try this.ctx.v32slice(curduo.car);
         var i: usize = 0;
-        while (i < v32.len) : ({
-            i += 2;
-            cur = curduo.cdr;
-        }) {
+        while (i < v32.len) : (i += 2) {
             if (v32[i] == sym)
                 return this.give(.val, v32[i + 1]);
         }
+        cur = curduo.cdr;
     }
 
     switch (try this.ctx.get(.sym, .val, sym)) {
