@@ -48,6 +48,7 @@ pub const FnTag = enum {
     f0r,
     f0,
     f1,
+    f1r,
     f2,
     f3,
 
@@ -59,6 +60,7 @@ pub const FnTag = enum {
             fn (*Job, u32, u32, u32) anyerror!void => .f3,
 
             fn (*Job, Rest) anyerror!void => .f0r,
+            fn (*Job, u32, Rest) anyerror!void => .f1r,
             fn (*Job, []u32) anyerror!void => .f0x,
 
             else => @compileLog("unhandled op type", T),
@@ -73,6 +75,7 @@ pub const FnTag = enum {
             .f3 => fn (*Job, u32, u32, u32) anyerror!void,
 
             .f0r => fn (*Job, Rest) anyerror!void,
+            .f1r => fn (*Job, u32, Rest) anyerror!void,
             .f0x => fn (*Job, []u32) anyerror!void,
         };
     }

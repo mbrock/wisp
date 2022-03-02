@@ -130,7 +130,7 @@ fn stepCall(
         .fop, .fun => {
             if (duo.cdr == nil) {
                 // No need for argument evaluation.
-                try this.apply(this.way, fun, nil);
+                try this.apply(this.way, fun, nil, false);
             } else {
                 // Start evaluating the first argument with a
                 // continuation of the remaining arguments.
@@ -310,7 +310,14 @@ fn execCt1(this: *Eval, ct1: wisp.Row(.ct1)) !void {
 
 /// Perform an application, either by directly calling a builtin or by
 /// entering a closure.
-fn apply(this: *Eval, way: u32, funptr: u32, args: u32) !void {
+pub fn apply(
+    this: *Eval,
+    way: u32,
+    funptr: u32,
+    args: u32,
+    /// Ugly hack to cope with FUNCALL.
+    noreverse: bool,
+) !void {
     switch (wisp.tagOf(funptr)) {
         .fop => {
             const fop = xops.fops.values[wisp.Imm.from(funptr).idx];
@@ -330,7 +337,8 @@ fn apply(this: *Eval, way: u32, funptr: u32, args: u32) !void {
                 return Oof.Err;
             }
 
-            std.mem.reverse(u32, vals.items);
+            if (!noreverse)
+                std.mem.reverse(u32, vals.items);
 
             var scope = try this.ctx.orb.alloc(u32, 2 * pars.items.len);
             defer this.ctx.orb.free(scope);
@@ -362,7 +370,7 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
     });
 
     if (ct0.exp == nil) {
-        try this.apply(ct0.hop, ct0.fun, values);
+        try this.apply(ct0.hop, ct0.fun, values, false);
     } else {
         const cons = try this.ctx.row(.duo, ct0.exp);
         this.* = .{
@@ -453,6 +461,18 @@ fn oper(job: *Eval, xop: xops.Op, arg: u32) !void {
             }
             const fun = cast(.f0r, xop);
             try fun(job, .{ .arg = rest });
+        },
+
+        .f1r => {
+            var list = arg;
+            if (xop.ilk == .fun) {
+                list = try reverseList(job.ctx, list);
+            }
+
+            var duo = try job.ctx.row(.duo, list);
+            var rest = duo.cdr;
+            const fun = cast(.f1r, xop);
+            try fun(job, duo.car, .{ .arg = rest });
         },
 
         .f0 => {
@@ -679,4 +699,10 @@ test "defun" {
 
 test "base test suite" {
     try expectEval("nil", "(base-test)");
+}
+
+test "funcall" {
+    try expectEval("(b . a)",
+        \\ (funcall (%lambda (x y) (cons y x)) 'a 'b)
+    );
 }

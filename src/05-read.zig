@@ -32,21 +32,25 @@ const Reader = @This();
 utf8: std.unicode.Utf8Iterator,
 ctx: *Ctx,
 
-fn readValue(self: *Reader) anyerror!u32 {
+fn readValueOrEOF(self: *Reader) anyerror!?u32 {
     try self.skipSpace();
 
     const next = try self.peek();
     if (next) |c| {
         return switch (try classifyInitial(c)) {
-            .leftParen => self.readList(),
-            .doubleQuote => self.readString(),
-            .singleQuote => self.readQuote(),
-            .symbolChar => self.readSymbol(),
-            .digitChar => self.readNumber(),
+            .leftParen => try self.readList(),
+            .doubleQuote => try self.readString(),
+            .singleQuote => try self.readQuote(),
+            .symbolChar => try self.readSymbol(),
+            .digitChar => try self.readNumber(),
         };
     } else {
-        return Error.EOF;
+        return null;
     }
+}
+
+fn readValue(self: *Reader) anyerror!u32 {
+    return if (try self.readValueOrEOF()) |x| x else Error.EOF;
 }
 
 const InitialCharType = enum {
@@ -259,14 +263,10 @@ pub fn readMany(ctx: *Ctx, stream: []const u8) !std.ArrayList(u32) {
     };
 
     while (true) {
-        if (reader.readValue()) |x| {
+        if (try reader.readValueOrEOF()) |x| {
             try list.append(x);
-        } else |e| {
-            if (e == Error.EOF) {
-                return list;
-            } else {
-                return e;
-            }
+        } else {
+            return list;
         }
     }
 }
