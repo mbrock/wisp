@@ -129,8 +129,16 @@ pub fn SAVE(job: *Eval, @"CORE-NAME": u32) anyerror!void {
 
 pub fn FUNCALL(
     job: *Eval,
-    FUNCTION: u32,
-    ARGUMENTS: Rest,
+    function: u32,
+    arguments: Rest,
 ) anyerror!void {
-    try job.apply(job.way, FUNCTION, ARGUMENTS.arg, true);
+    try job.apply(job.way, function, arguments.arg, true);
+}
+
+pub fn APPLY(
+    job: *Eval,
+    function: u32,
+    list: u32,
+) anyerror!void {
+    try job.apply(job.way, function, list, true);
 }

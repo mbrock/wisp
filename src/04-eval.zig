@@ -691,7 +691,7 @@ test "EQ" {
     try expectEval("NIL", "(eq 'foo 'bar)");
 }
 
-test "defun" {
+test "DEFUN" {
     try expectEval("(1 . 2)",
         \\ (progn (defun f (x y) (cons x y)) (f 1 2))
     );
@@ -701,8 +701,14 @@ test "base test suite" {
     try expectEval("nil", "(base-test)");
 }
 
-test "funcall" {
+test "FUNCALL" {
     try expectEval("(b . a)",
         \\ (funcall (%lambda (x y) (cons y x)) 'a 'b)
+    );
+}
+
+test "APPLY" {
+    try expectEval("(a b c)",
+        \\ (apply (%lambda (x y z) (list x y z)) '(a b c))
     );
 }
