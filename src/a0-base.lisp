@@ -41,10 +41,18 @@
 (defmacro assert (x)
   (list 'if x nil (list 'error (list 'quote x))))
 
+(defmacro with-trace (body)
+  (list 'progn '(wtf t) (list 'prog1 body '(wtf nil))))
+
 (defun base-test ()
   (progn
     (assert (equal 1 1))
     (assert (equal '(1 2 3) '(1 2 3)))
     (assert (equal '((1 2) (3 4)) '((1 2) (3 4))))
     (assert (not (equal '(1) '(1 2))))
+
+    (defvar *x* 1)
+    (assert (eq *x* 1))
+    (setq *x* 2)
+    (assert (eq *x* 2))
     ))

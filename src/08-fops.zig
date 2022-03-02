@@ -155,3 +155,8 @@ pub fn @"CALL/CC"(job: *Eval, function: u32) anyerror!void {
         .cdr = wisp.nil,
     }), true);
 }
+
+pub fn WTF(job: *Eval, wtf: u32) anyerror!void {
+    Eval.wtf = wtf > 0;
+    job.give(.val, wtf);
+}
