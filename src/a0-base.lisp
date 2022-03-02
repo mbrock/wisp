@@ -54,5 +54,16 @@
     (defvar *x* 1)
     (assert (eq *x* 1))
     (setq *x* 2)
-    (assert (eq *x* 2))
-    ))
+    (assert (eq *x* 2))))
+
+(defun test-call/cc ()
+  (progn
+    (defvar *plusser* nil)
+    (progn
+      (call/cc (lambda (break)
+                 (progn
+                   (+ 10 (call/cc (lambda (k)
+                                    (progn
+                                      (setq *plusser* k)
+                                      (funcall break nil))))))))
+      (assert (eq 11 (funcall *plusser* 1))))))

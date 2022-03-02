@@ -125,6 +125,7 @@ pub const nil = (Imm{ .tag = .sys, .idx = 0 }).word();
 pub const t = (Imm{ .tag = .sys, .idx = 1 }).word();
 pub const nah = (Imm{ .tag = .sys, .idx = 2 }).word();
 pub const zap = (Imm{ .tag = .sys, .idx = 3 }).word();
+pub const top = (Imm{ .tag = .sys, .idx = 4 }).word();
 
 test "nil, nah, zap" {
     try same(0b10001000000000000000000000000000, nil);

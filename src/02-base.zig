@@ -41,10 +41,10 @@ pub fn Row(comptime t: Tag) type {
         .v32 => struct { idx: u32, len: u32 },
         .v08 => struct { idx: u32, len: u32 },
         .pkg => struct { nam: u32, sym: u32 },
-        .ct0 => struct { hop: u32, env: u32, fun: u32, arg: u32, exp: u32 },
-        .ct1 => struct { hop: u32, env: u32, yay: u32, nay: u32 },
-        .ct2 => struct { hop: u32, env: u32, exp: u32 },
-        .ct3 => struct { hop: u32, env: u32, exp: u32, dew: u32, arg: u32 },
+        .ct0 => struct { env: u32, fun: u32, arg: u32, exp: u32, hop: u32 },
+        .ct1 => struct { env: u32, yay: u32, nay: u32, hop: u32 },
+        .ct2 => struct { env: u32, exp: u32, hop: u32 },
+        .ct3 => struct { env: u32, exp: u32, dew: u32, arg: u32, hop: u32 },
     };
 }
 

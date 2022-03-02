@@ -209,7 +209,7 @@ fn stepCall(
 }
 
 pub fn proceed(this: *Eval, x: u32) !void {
-    if (this.way == nil) {
+    if (this.way == wisp.top) {
         this.job = .{ .val = x };
         return;
     }
@@ -333,8 +333,10 @@ pub fn apply(
     switch (wisp.tagOf(funptr)) {
         .fop => {
             const fop = xops.fops.values[wisp.Imm.from(funptr).idx];
+            const theway = this.way;
             try this.oper(fop, args);
-            this.way = way;
+            if (this.way == theway)
+                this.way = way;
         },
 
         .fun => {
@@ -380,6 +382,24 @@ pub fn apply(
             } else {
                 this.way = funptr;
                 try this.proceed(vals.items[0]);
+            }
+        },
+
+        .sys => {
+            if (funptr == wisp.top) {
+                var vals = try scanListAlloc(this.ctx, args);
+                defer vals.deinit();
+
+                if (vals.items.len != 1) {
+                    try this.fail(
+                        &[_]u32{this.ctx.kwd.@"PROGRAM-ERROR"},
+                    );
+                } else {
+                    this.way = funptr;
+                    try this.proceed(vals.items[0]);
+                }
+            } else {
+                return Oof.Bug;
             }
         },
 
@@ -556,7 +576,7 @@ pub fn evaluate(this: *Eval, limit: u32, gc: bool) !u32 {
 
     var i: u32 = 0;
     while (i < limit) : (i += 1) {
-        if (this.way == nil) {
+        if (this.way == wisp.top) {
             switch (this.job) {
                 .val => |x| return x,
                 else => {},
@@ -581,7 +601,7 @@ pub fn newTestCtx() !Ctx {
 pub fn init(ctx: *Ctx, job: u32) Eval {
     return Eval{
         .ctx = ctx,
-        .way = nil,
+        .way = wisp.top,
         .env = nil,
         .job = Job{ .exp = job },
     };

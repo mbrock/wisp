@@ -67,6 +67,7 @@ pub fn dump(
             switch (x) {
                 wisp.nil => try out.print("NIL", .{}),
                 wisp.t => try out.print("T", .{}),
+                wisp.top => try out.print("%TOP", .{}),
                 else => unreachable,
             }
         },
