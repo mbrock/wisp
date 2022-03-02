@@ -2,7 +2,7 @@
  'DEFUN
  (%macro-lambda (name args body)
                 (list 'set-function (list 'quote name)
-                      (list '%lambda args body))))
+                      (list 'lambda args body))))
 
 (set-function
  'DEFMACRO

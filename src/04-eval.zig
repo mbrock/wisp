@@ -665,7 +665,7 @@ test "calling a closure" {
     try expectEval("13",
         \\ (progn
         \\   (let ((ten 10))
-        \\     (set-function 'foo (%lambda (x y) (+ ten x y))))
+        \\     (set-function 'foo (lambda (x y) (+ ten x y))))
         \\   (foo 1 2))
     );
 }
@@ -703,12 +703,12 @@ test "base test suite" {
 
 test "FUNCALL" {
     try expectEval("(b . a)",
-        \\ (funcall (%lambda (x y) (cons y x)) 'a 'b)
+        \\ (funcall (lambda (x y) (cons y x)) 'a 'b)
     );
 }
 
 test "APPLY" {
     try expectEval("(a b c)",
-        \\ (apply (%lambda (x y z) (list x y z)) '(a b c))
+        \\ (apply (lambda (x y z) (list x y z)) '(a b c))
     );
 }

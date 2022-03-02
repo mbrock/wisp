@@ -56,7 +56,7 @@ pub fn @"LET"(job: *Eval, bs: u32, e: u32) anyerror!void {
     }
 }
 
-pub fn @"%LAMBDA"(job: *Eval, par: u32, exp: u32) anyerror!void {
+pub fn @"LAMBDA"(job: *Eval, par: u32, exp: u32) anyerror!void {
     job.give(.val, try job.ctx.new(.fun, .{
         .env = job.env,
         .par = par,

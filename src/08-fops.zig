@@ -142,3 +142,10 @@ pub fn APPLY(
 ) anyerror!void {
     try job.apply(job.way, function, list, true);
 }
+
+pub fn @"CALL/CC"(job: *Eval, function: u32) anyerror!void {
+    try job.apply(job.way, function, try job.ctx.new(.duo, .{
+        .car = job.way,
+        .cdr = wisp.nil,
+    }), true);
+}
