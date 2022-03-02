@@ -19,6 +19,7 @@
 const std = @import("std");
 
 const wisp = @import("./ff-wisp.zig");
+const xops = @import("./07-xops.zig");
 const Ctx = wisp.Ctx;
 
 test "print one" {
@@ -168,6 +169,11 @@ pub fn dump(
                 try dump(ctx, out, @field(fun, field.name));
             }
             try out.print(">", .{});
+        },
+
+        .fop => {
+            const fop = xops.fops.values[wisp.Imm.from(x).idx];
+            try out.print("<fop {s}>", .{fop.txt});
         },
 
         else => |t| try out.print("<{any}>", .{t}),

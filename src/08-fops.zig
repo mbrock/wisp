@@ -150,8 +150,10 @@ pub fn APPLY(
 }
 
 pub fn @"CALL/CC"(job: *Eval, function: u32) anyerror!void {
+    // Take the parent continuation of the CALL/CC form.
+    const ct0 = try job.ctx.row(.ct0, job.way);
     try job.apply(job.way, function, try job.ctx.new(.duo, .{
-        .car = job.way,
+        .car = ct0.hop,
         .cdr = wisp.nil,
     }), true);
 }

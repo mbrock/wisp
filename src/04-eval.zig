@@ -329,7 +329,7 @@ pub fn apply(
     args: u32,
     /// Ugly hack to cope with FUNCALL.
     noreverse: bool,
-) !void {
+) anyerror!void {
     switch (wisp.tagOf(funptr)) {
         .fop => {
             const fop = xops.fops.values[wisp.Imm.from(funptr).idx];
@@ -369,6 +369,18 @@ pub fn apply(
                     .cdr = fun.env,
                 }),
             };
+        },
+
+        .ct0, .ct1, .ct2, .ct3 => {
+            var vals = try scanListAlloc(this.ctx, args);
+            defer vals.deinit();
+
+            if (vals.items.len != 1) {
+                try this.fail(&[_]u32{this.ctx.kwd.@"PROGRAM-ERROR"});
+            } else {
+                this.way = funptr;
+                try this.proceed(vals.items[0]);
+            }
         },
 
         else => return Oof.Bug,

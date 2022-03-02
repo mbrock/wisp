@@ -86,25 +86,38 @@ pub fn repl() anyerror!void {
                     }
 
                     try dump.warn("Condition", &ctx, exe.err);
-                    try dump.warn(
-                        "Failed term",
-                        &ctx,
-                        exe.job.exp,
-                    );
-
-                    try stdout.writeAll("*> ");
-                    if (try stdin.readUntilDelimiterOrEofAlloc(
-                        arena.allocator(),
-                        '\n',
-                        4096,
-                    )) |l2| {
-                        exe.err = wisp.nil;
-                        const rexp = try read(&ctx, l2);
-                        exe.job = .{ .exp = rexp };
-                        continue :loop;
-                    } else {
-                        return error.Nope;
+                    switch (exe.job) {
+                        .exp => {
+                            try dump.warn(
+                                "Failed term",
+                                &ctx,
+                                exe.job.exp,
+                            );
+                        },
+                        .val => {
+                            try dump.warn(
+                                "Failed value",
+                                &ctx,
+                                exe.job.val,
+                            );
+                        },
                     }
+
+                    return e;
+
+                    // try stdout.writeAll("*> ");
+                    // if (try stdin.readUntilDelimiterOrEofAlloc(
+                    //     arena.allocator(),
+                    //     '\n',
+                    //     4096,
+                    // )) |l2| {
+                    //     exe.err = wisp.nil;
+                    //     const rexp = try read(&ctx, l2);
+                    //     exe.job = .{ .exp = rexp };
+                    //     continue :loop;
+                    // } else {
+                    //     return error.Nope;
+                    // }
                 }
             }
         } else {
