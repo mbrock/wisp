@@ -26,6 +26,8 @@ const eval = @import("./04-eval.zig");
 const xops = @import("./07-xops.zig");
 const tidy = @import("./03-tidy.zig");
 
+const wasm = @import("./e0-wasm.zig");
+
 test {
     std.testing.refAllDecls(@This());
 }

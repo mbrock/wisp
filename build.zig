@@ -16,7 +16,7 @@ pub fn build(b: *std.build.Builder) void {
 
     const wasm = b.addSharedLibrary(
         "wisp",
-        "src/ff-wisp.zig",
+        "src/e0-wasm.zig",
         .unversioned,
     );
 
