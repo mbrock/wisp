@@ -17,6 +17,9 @@
 //
 
 const std = @import("std");
+
+const eval = @import("./04-eval.zig");
+const xops = @import("./07-xops.zig");
 const wisp = @import("./ff-wisp.zig");
 
 export const wisp_tag_int = wisp.Tag.int;
@@ -43,12 +46,14 @@ export const wisp_sys_zap: u32 = wisp.zap;
 export const wisp_sys_top: u32 = wisp.top;
 
 export fn wisp_ctx_init() ?*wisp.Ctx {
-    var gpa: std.heap.GeneralPurposeAllocator(.{}) = .{};
-    var orb: std.mem.Allocator = gpa.allocator();
+    var orb = std.heap.page_allocator;
 
     if (orb.create(wisp.Ctx)) |ctxptr| {
         if (wisp.Ctx.init(orb, .e0)) |ctx| {
-            ctxptr.* = ctx;
+            var ctx2 = ctx;
+            xops.load(&ctx2) catch return null;
+            ctx2.cook() catch return null;
+            ctxptr.* = ctx2;
             return ctxptr;
         } else |_| {
             return null;
@@ -64,6 +69,10 @@ export fn wisp_read(ctx: *wisp.Ctx, str: [*:0]const u8) u32 {
     } else |_| {
         return wisp.zap;
     }
+}
+
+export fn wisp_eval(ctx: *wisp.Ctx, exp: u32, max: u32) u32 {
+    return eval.init(ctx, exp).evaluate(max, false) catch wisp.zap;
 }
 
 fn Field(comptime name: []const u8, t: type) std.builtin.TypeInfo.StructField {
@@ -127,6 +136,35 @@ export fn wisp_dat_read(ctx: *wisp.Ctx, dat: *Dat) void {
             @field(tagdat, field.name) = @ptrToInt(slice.items(@intToEnum(E, i)).ptr);
         }
     }
+}
+
+export fn wisp_ctx_v08_len(ctx: *wisp.Ctx) usize {
+    return ctx.v08.items.len;
+}
+
+export fn wisp_ctx_v08_ptr(ctx: *wisp.Ctx) [*]u8 {
+    return ctx.v08.items.ptr;
+}
+
+export fn wisp_ctx_v32_len(ctx: *wisp.Ctx) usize {
+    return ctx.v32.list.items.len;
+}
+
+export fn wisp_ctx_v32_ptr(ctx: *wisp.Ctx) [*]u32 {
+    return ctx.v32.list.items.ptr;
+}
+
+export fn wisp_alloc(ctx: *wisp.Ctx, n: u32) usize {
+    const buf = ctx.orb.alloc(u8, n) catch return 0;
+    return @ptrToInt(buf.ptr);
+}
+
+export fn wisp_free(ctx: *wisp.Ctx, x: [*:0]u8) void {
+    ctx.orb.free(std.mem.span(x));
+}
+
+export fn wisp_destroy(ctx: *wisp.Ctx, x: [*]u8) void {
+    ctx.orb.destroy(x);
 }
 
 test "sanity" {

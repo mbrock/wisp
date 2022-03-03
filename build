@@ -2,7 +2,7 @@
 set -ex
 rm -rf dist/*
 
-esbuild index.tsx --outdir=dist --bundle --sourcemap \
+esbuild ts/index.tsx --outdir=dist --bundle --sourcemap \
   --entry-names=[dir]/[name]-[hash]
 
 cd dist

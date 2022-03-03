@@ -2,6 +2,7 @@
   "compilerOptions": {
     "target": "es2017",
     "jsx": "react",
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "esModuleInterop": true
   }
 }

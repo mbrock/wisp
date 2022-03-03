@@ -55,22 +55,10 @@ const Job = union(Status) {
 pub fn step(this: *Eval) !void {
     switch (this.job) {
         .val => |x| {
-            if (wtf) {
-                try dump.warn("val", this.ctx, x);
-                try dump.warn("env", this.ctx, this.env);
-                try dump.warn("way", this.ctx, this.way);
-                try std.io.getStdErr().writer().print("\n", .{});
-            }
             return this.proceed(x);
         },
 
         .exp => |t| {
-            if (wtf) {
-                try dump.warn("exp", this.ctx, t);
-                try dump.warn("env", this.ctx, this.env);
-                try dump.warn("way", this.ctx, this.way);
-                try std.io.getStdErr().writer().print("\n", .{});
-            }
             switch (wisp.tagOf(t)) {
                 .int, .v08, .sys => this.give(.val, t),
                 .sym => return this.findVariable(t),
@@ -199,10 +187,6 @@ fn stepCall(
         },
 
         else => {
-            std.log.warn("callee {any} {any}", .{
-                wisp.tagOf(fun),
-                wisp.Ptr.from(fun),
-            });
             return Oof.Bug;
         },
     }
@@ -227,11 +211,6 @@ pub fn proceed(this: *Eval, x: u32) !void {
 
 fn execDuo(this: *Eval, duo: wisp.Row(.duo)) !void {
     const val = this.job.val;
-
-    if (wtf) {
-        try dump.warn("mac env", this.ctx, duo.car);
-        try dump.warn("mac way", this.ctx, duo.cdr);
-    }
 
     this.* = .{
         .ctx = this.ctx,

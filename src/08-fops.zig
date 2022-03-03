@@ -90,10 +90,14 @@ pub fn @"EQ"(job: *Eval, x: u32, y: u32) anyerror!void {
     job.give(.val, if (x == y) wisp.t else wisp.nil);
 }
 
+const wasm = @import("builtin").target.isWasm();
+
 pub fn @"PRINT"(job: *Eval, x: u32) anyerror!void {
-    const out = std.io.getStdOut().writer();
-    try dump.dump(job.ctx, out, x);
-    try out.writeByte('\n');
+    if (!wasm) {
+        const out = std.io.getStdOut().writer();
+        try dump.dump(job.ctx, out, x);
+        try out.writeByte('\n');
+    }
     job.give(.val, x);
 }
 
@@ -130,7 +134,11 @@ pub fn @"GET/CC"(job: *Eval) anyerror!void {
 }
 
 pub fn SAVE(job: *Eval, @"CORE-NAME": u32) anyerror!void {
-    job.give(.val, try wisp.core.save(job, try job.ctx.v08slice(@"CORE-NAME")));
+    if (wasm) {
+        job.give(.val, wisp.zap);
+    } else {
+        job.give(.val, try wisp.core.save(job, try job.ctx.v08slice(@"CORE-NAME")));
+    }
 }
 
 pub fn FUNCALL(
