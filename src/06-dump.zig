@@ -55,7 +55,11 @@ pub fn warn(prefix: []const u8, ctx: *Ctx, word: u32) !void {
     ctx.orb.free(s);
 }
 
-pub fn dump(
+pub fn dump(ctx: *Ctx, out: anytype, x: u32) anyerror!void {
+    return dump_(ctx, out, x);
+}
+
+pub fn dump_(
     ctx: *Ctx,
     out: anytype,
     x: u32,
