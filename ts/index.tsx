@@ -1,17 +1,17 @@
 import * as ReactDOM from "react-dom"
 import * as React from "react"
 
-import { TAG, SYS, Wisp, CtxData, tagOf, idxOf } from "./wisp"
+import { Wisp, View } from "./wisp"
 
-const Val = ({ data, val }: { data: CtxData, val: number }) => {
-  switch (tagOf(val)) {
+const Val = ({ data, val }: { data: View, val: number }) => {
+  switch (data.ctx.tagOf(val)) {
     case "int":
       return <span>{val}</span>
 
     case "sys": {
-      if (val === SYS.nil) {
+      if (val === data.ctx.sys.nil) {
         return <span>NIL</span>
-      } else if (val === SYS.t) {
+      } else if (val === data.ctx.sys.t) {
         return <span>T</span>
       }
     }
@@ -40,7 +40,7 @@ const Val = ({ data, val }: { data: CtxData, val: number }) => {
   }
 }
 
-const Line = ({ data, turn }: { data: CtxData, turn: Turn }) => {
+const Line = ({ data, turn }: { data: View, turn: Turn }) => {
   return (
     <div>
       <Val data={data} val={turn.exp} />
@@ -73,7 +73,7 @@ const Home = ({ ctx }: { ctx: Wisp }) => {
         {
           lines.map(
             (turn, i) =>
-              <Line data={ctx.readData()} turn={turn} key={i} />)
+              <Line data={ctx.view()} turn={turn} key={i} />)
         }
       </div>
       <form id="form" 

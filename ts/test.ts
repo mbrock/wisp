@@ -1,18 +1,21 @@
-import { assertEquals } from "https://deno.land/std@0.127.0/testing/asserts.ts"
+import { Wisp } from "./wisp"
+import { readFile } from "fs/promises"
 
-import { Wisp } from "./wisp.ts"
+async function start(): Promise<Wisp> {
+  const wasm = await readFile("./zig-out/lib/wisp.wasm")
+  const inst = await WebAssembly.instantiate(wasm, {})
+  return new Wisp(inst)
+}
 
-Deno.test("wisp", { permissions: { read: true }}, async () => {
-  const code = await Deno.readFile("zig-out/lib/wisp.wasm")
-  const wasm = await WebAssembly.instantiate(code, {})
-  const wisp = new Wisp(wasm)
+test("basic wisp sanity check", async () => {
+  const wisp = await start()
 
-  assertEquals(wisp.tag.int, 0x00)
-  assertEquals(wisp.tag.sys, 0x11)
-  assertEquals(wisp.sys.nil, 0x88000000)
+  expect(wisp.tag.int).toBe(0x00)
+  expect(wisp.tag.sys).toBe(0x11)
+  expect(wisp.sys.nil).toBe(0x88000000)
 
   const x = wisp.read("(+ 1 2 3)");
   const y = wisp.eval(x)
 
-  assertEquals(y, 6)
+  expect(y).toBe(6)
 })

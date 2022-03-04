@@ -49,37 +49,38 @@ export interface WispAPI {
   wisp_eval(ctx: number, exp: number, max: number): number
 }
 
-export class CtxData {
+export class View {
   tab: Record<string, Record<string, number[]>>
   v08: ArrayBuffer
   v32: ArrayBuffer
   mem: WebAssembly.Memory
+  api: WispAPI
 
   constructor(
-    public ctx: number,
-    public api: WispAPI
+    public ctx: Wisp,
   ) {
-    this.mem = api.memory
+    this.api = ctx.api
+    this.mem = ctx.api.memory
     this.tab = this.readTab()
     this.v08 = this.readV08()
     this.v32 = this.readV32()
   }
 
   readV08() {
-    const v08len = this.api.wisp_ctx_v08_len(this.ctx)
-    const v08ptr = this.api.wisp_ctx_v08_ptr(this.ctx)
+    const v08len = this.ctx.v08len()
+    const v08ptr = this.ctx.v08ptr()
     return this.api.memory.buffer.slice(v08ptr, v08ptr + v08len)
   }
 
   readV32() {
-    const v32len = this.api.wisp_ctx_v32_len(this.ctx)
-    const v32ptr = this.api.wisp_ctx_v32_ptr(this.ctx)
+    const v32len = this.ctx.v32len()
+    const v32ptr = this.ctx.v32ptr()
     return this.api.memory.buffer.slice(v32ptr, v32ptr + 4 * v32len)
   }
 
   readTab() {
-    const datptr = this.api.wisp_dat_init(this.ctx)
-    this.api.wisp_dat_read(this.ctx, datptr)
+    const datptr = this.api.wisp_dat_init(this.ctx.ctx)
+    this.api.wisp_dat_read(this.ctx.ctx, datptr)
 
     const tabs = {
       duo: ["car", "cdr"],
@@ -143,30 +144,25 @@ export class CtxData {
     return new TextDecoder().decode(buf)
   }
 }
-
-export let TAG: Record<Tag, number> = undefined
-export let SYS: Record<Sys, number> = undefined
 export class Wisp {
   instance: WebAssembly.Instance
   api: WispAPI
-  mem: DataView
-
   ctx: number
+  tag: Record<Tag, number>
+  sys: Record<Sys, number>
 
   constructor(wasm: WebAssembly.WebAssemblyInstantiatedSource) {
     this.instance = wasm.instance
     this.api = this.instance.exports as unknown as WispAPI
-    this.mem = new DataView(this.api.memory.buffer)
-
-    TAG = this.loadTags()
-    SYS = this.loadSys()
-
+    this.tag = this.loadTags()
+    this.sys = this.loadSys()
     this.ctx = this.api.wisp_ctx_init()
   }
 
   loadTags(): Record<Tag, number> {
+    const mem = new DataView(this.api.memory.buffer)
     const tag = (x: Tag) =>
-      this.mem.getUint8(this.api[`wisp_tag_${x}`].value)
+      mem.getUint8(this.api[`wisp_tag_${x}`].value)
 
     return {
       int: tag("int"),
@@ -204,8 +200,24 @@ export class Wisp {
     }
   }
 
-  readData(): CtxData {
-    return new CtxData(this.ctx, this.api)
+  view(): View {
+    return new View(this)
+  }
+
+  v08len(): number {
+    return this.api.wisp_ctx_v08_len(this.ctx)
+  }
+
+  v08ptr(): number {
+    return this.api.wisp_ctx_v08_ptr(this.ctx)
+  }
+
+  v32len(): number {
+    return this.api.wisp_ctx_v32_len(this.ctx)
+  }
+
+  v32ptr(): number {
+    return this.api.wisp_ctx_v32_ptr(this.ctx)
   }
 
   read(sexp: string): number {
@@ -227,19 +239,19 @@ export class Wisp {
   eval(exp: number): number {
     return this.api.wisp_eval(this.ctx, exp, 10000)
   }
-}
+ 
+  tagOf(x: number): Tag {
+    const tagnum = x >>> (32 - 5)
+    if (tagnum < 0b10000) 
+      return "int"
 
-export function tagOf(x: number): Tag {
-  const tagnum = x >>> (32 - 5)
-  if (tagnum < 0b10000) 
-    return "int"
+    for (let [k, v] of Object.entries(this.tag)) {
+      if (v === tagnum)
+        return k as Tag
+    }
 
-  for (let [k, v] of Object.entries(TAG)) {
-    if (v === tagnum)
-      return k as Tag
+    throw new Error("weird tag")
   }
-
-  throw new Error("weird tag")
 }
 
 export function idxOf(x: number): number {

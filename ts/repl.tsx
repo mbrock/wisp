@@ -4,12 +4,12 @@ import * as wisp from "./wisp"
 
 import * as React from "react"
 
-import { render, Text, Box, Spacer } from "ink"
+import { render, Text, Box } from "ink"
 
 import TextInput from "ink-text-input"
 import useStdoutDimensions from "ink-use-stdout-dimensions"
 
-const Repl = ({ ctx, data }: { ctx: wisp.Wisp, data: wisp.CtxData }) => {
+const Repl = ({ ctx, data }: { ctx: wisp.Wisp, data: wisp.View }) => {
   const [input, setInput] = React.useState("")
   const [outputs, setOutputs] = React.useState([])
   const [tw, th] = useStdoutDimensions()
@@ -53,7 +53,7 @@ async function main() {
   const wasmCode = await fs.readFile("zig-out/lib/wisp.wasm")
   const ctx = new wisp.Wisp(await WebAssembly.instantiate(wasmCode))
 
-  render(<Repl ctx={ctx} data={ctx.readData()}/>)
+  render(<Repl ctx={ctx} data={ctx.view()}/>)
 }
 
 main()
