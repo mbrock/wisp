@@ -16,6 +16,30 @@
 ;; <https://www.gnu.org/licenses/>.
 ;;
 
+;; Needed to run this in Wisp:
+;;
+;;  - rest parameters
+;;  - keyword parameters
+;;
+;;  - DEFSTRUCT
+;;  - LET*
+;;
+;;  - COND
+;;  - DOLIST
+;;
+;;  - ASSOC
+;;  - LENGTH
+;;  - SORT
+;;  - SUBSEQ
+;;
+;;  - <=
+;;  - ATOM
+;;  - LISTP
+;;  - MAKE-STRING
+;;  - MAX
+;;  - PUSH
+;;
+
 (defpackage #:prty (:use #:common-lisp))
 
 (defparameter *max-width* 62)

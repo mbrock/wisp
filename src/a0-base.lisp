@@ -67,3 +67,44 @@
                                       (setq *plusser* k)
                                       (funcall break nil))))))))
       (assert (eq 11 (funcall *plusser* 1))))))
+
+(defun null (x)
+  (eq x nil))
+
+(defun mapcar (f xs)
+  (if (null xs) nil
+      (cons (funcall f (car xs))
+            (mapcar f (cdr xs)))))
+
+(defun append (xs ys)
+  (if (null xs) ys
+      (cons (car xs)
+            (append (cdr xs) ys))))
+
+(defun last (xs)
+  (if (null xs) nil
+      (if (null (cdr xs)) xs
+          (last (cdr xs)))))
+
+(defun reduce (f xs)
+  (if (null xs)
+      (funcall f)
+      (funcall f (car xs) (reduce f (cdr xs)))))
+
+(defun remove-if (f xs)
+  (if (null xs) nil
+      (if (funcall f (car xs))
+          (remove-if f (cdr xs))
+          (cons (car xs) (remove-if f (cdr xs))))))
+
+(defun some (f xs)
+  (if (null xs) nil
+      (if (funcall f (car xs))
+          t
+          (some f (cdr xs)))))
+
+(defun butlast (xs)
+  (if (null xs) nil
+      (if (null (cdr xs)) nil
+          (cons (car xs)
+                (butlast (cdr xs))))))
