@@ -16,14 +16,10 @@
 // <https://www.gnu.org/licenses/>.
 //
 
-pub const Fops = @import("./08-fops.zig");
-pub const Mops = @import("./09-mops.zig");
+pub const Funs = @import("./08-fops.zig");
+pub const Ctls = @import("./09-mops.zig");
 
-pub const FopTag = DeclEnum(Fops, u27);
-pub const MopTag = DeclEnum(Mops, u27);
-
-pub const fops = makeOpArray(FopTag, Fops, .fun);
-pub const mops = makeOpArray(MopTag, Mops, .ctl);
+pub const jets = makeOpArray(Ctls, .ctl) ++ makeOpArray(Funs, .fun);
 
 const std = @import("std");
 const assert = std.debug.assert;
@@ -85,7 +81,7 @@ pub const FnTag = enum {
     }
 };
 
-pub const Ilk = enum { fun, mac, ctl };
+pub const Ilk = enum { fun, ctl };
 
 pub const Op = struct {
     txt: []const u8,
@@ -95,20 +91,24 @@ pub const Op = struct {
 };
 
 fn makeOpArray(
-    comptime T: type,
     comptime S: type,
-    ilk: Ilk,
-) EnumArray(T, Op) {
-    var ops = EnumArray(T, Op).initUndefined();
+    comptime ilk: Ilk,
+) [std.meta.declarations(S).len]Op {
+    const decls = std.meta.declarations(S);
+    var ops: [decls.len]Op = undefined;
 
-    inline for (@typeInfo(T).Enum.fields) |x| {
-        const f = @field(S, x.name);
-        ops.set(@intToEnum(T, x.value), .{
-            .txt = x.name,
-            .ilk = ilk,
-            .tag = FnTag.from(@TypeOf(f)),
-            .fun = f,
-        });
+    var i = 0;
+    inline for (decls) |x| {
+        if (x.is_pub) {
+            const f = @field(S, x.name);
+            ops[i] = .{
+                .txt = x.name,
+                .ilk = ilk,
+                .tag = FnTag.from(@TypeOf(f)),
+                .fun = f,
+            };
+            i += 1;
+        }
     }
 
     return ops;
@@ -116,19 +116,14 @@ fn makeOpArray(
 
 test "ops" {
     try expectEqual(
-        @ptrCast(*const anyopaque, Fops.@"+"),
-        fops.get(.@"+").fun,
+        @ptrCast(*const anyopaque, Ctls.QUOTE),
+        jets[0].fun,
     );
 }
 
 pub fn load(ctx: *wisp.Ctx) !void {
-    inline for (fops.values) |fop, i| {
-        var sym = try ctx.intern(fop.txt, ctx.base);
-        ctx.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.fop, i).word();
-    }
-
-    inline for (mops.values) |mop, i| {
-        var sym = try ctx.intern(mop.txt, ctx.base);
-        ctx.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.mop, i).word();
+    inline for (jets) |jet, i| {
+        var sym = try ctx.intern(jet.txt, ctx.base);
+        ctx.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.jet, i).word();
     }
 }

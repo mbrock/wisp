@@ -53,16 +53,21 @@ const Job = union(Status) {
 };
 
 pub fn step(this: *Eval) !void {
+    // std.log.warn("\n", .{});
+    // try dump.warn("way", this.ctx, this.way);
+    // try dump.warn("env", this.ctx, this.env);
     switch (this.job) {
         .val => |x| {
+            // try dump.warn("val", this.ctx, x);
             return this.proceed(x);
         },
 
         .exp => |t| {
+            // try dump.warn("exp", this.ctx, t);
             switch (wisp.tagOf(t)) {
                 .int, .v08, .sys => this.give(.val, t),
                 .sym => return this.findVariable(t),
-                .duo => return this.stepDuo(t),
+                .duo => return this.intoPair(t),
                 else => return Oof.Bug,
             }
         },
@@ -101,95 +106,81 @@ pub fn fail(this: *Eval, xs: []const u32) !void {
     return Oof.Err;
 }
 
-fn stepDuo(this: *Eval, p: u32) !void {
+fn intoPair(this: *Eval, p: u32) !void {
     const duo = try this.ctx.row(.duo, p);
     const car = duo.car;
     const kwd = this.ctx.kwd;
 
     switch (try this.ctx.get(.sym, .fun, car)) {
         nil => return this.fail(&[_]u32{ kwd.@"UNDEFINED-FUNCTION", car }),
-        else => |fun| try this.stepCall(fun, duo),
+        else => |fun| try this.intoCall(fun, duo.cdr),
     }
 }
 
-fn stepCall(
+fn intoCall(
     this: *Eval,
     fun: u32,
-    duo: wisp.Row(.duo),
+    arg: u32,
 ) !void {
-    switch (wisp.tagOf(fun)) {
-        .fop, .fun => {
-            if (duo.cdr == nil) {
-                // No need for argument evaluation.
-                try this.apply(this.way, fun, nil, false);
+    return switch (wisp.tagOf(fun)) {
+        .jet => this.intoJet(fun, arg),
+        .fun => this.intoFunction(fun, arg),
+        .mac => this.intoMacro(fun, arg),
+        else => Oof.Bug,
+    };
+}
+
+fn intoJet(this: *Eval, fun: u32, arg: u32) !void {
+    const idx = wisp.Imm.from(fun).idx;
+    const jet = xops.jets[idx];
+
+    switch (jet.ilk) {
+        .fun => {
+            if (arg == nil) {
+                try this.oper(fun, nil, false);
             } else {
-                // Start evaluating the first argument with a
-                // continuation of the remaining arguments.
-                const cdr = try this.ctx.row(.duo, duo.cdr);
-                this.* = .{
-                    .ctx = this.ctx,
-                    .env = this.env,
-                    .job = .{ .exp = cdr.car },
-                    .way = try this.ctx.new(.ct0, .{
-                        .hop = this.way,
-                        .env = this.env,
-                        .fun = fun,
-                        .arg = nil,
-                        .exp = cdr.cdr,
-                    }),
-                };
+                try this.iter(fun, arg);
             }
         },
 
-        .mac => {
-            // With macros we don't evaluate arguments.
-            const cdr = try this.ctx.row(.duo, duo.cdr);
-            const mac = try this.ctx.row(.mac, fun);
-            var xs = std.ArrayList(u32).init(this.ctx.orb);
-            defer xs.deinit();
-
-            var curpar = mac.par;
-            var curval = try this.ctx.new(.duo, cdr);
-
-            while (curpar != nil) {
-                const parduo = try this.ctx.row(.duo, curpar);
-                const valduo = try this.ctx.row(.duo, curval);
-
-                try xs.append(parduo.car);
-                try xs.append(valduo.car);
-
-                curpar = parduo.cdr;
-                curval = valduo.cdr;
-            }
-
-            const env = try this.ctx.new(.duo, .{
-                .car = try this.ctx.newv32(xs.items),
-                .cdr = mac.env,
-            });
-
-            const oldenv = this.env;
-            const oldway = this.way;
-
-            this.* = .{
-                .ctx = this.ctx,
-                .job = .{ .exp = mac.exp },
-                .env = env,
-                .way = try this.ctx.new(.duo, .{
-                    .car = oldenv,
-                    .cdr = oldway,
-                }),
-            };
-        },
-
-        .mop => {
-            const mop = xops.mops.values[wisp.Imm.from(fun).idx];
-            try this.oper(mop, duo.cdr);
-        },
-
-        else => {
-            return Oof.Bug;
+        .ctl => {
+            try this.oper(fun, arg, false);
         },
     }
+}
+
+fn iter(this: *Eval, fun: u32, arg: u32) !void {
+    // Start evaluating the first argument with a
+    // continuation of the remaining arguments.
+    const duo = try this.ctx.row(.duo, arg);
+    this.job = .{ .exp = duo.car };
+    this.way = try this.ctx.new(.ct0, .{
+        .hop = this.way,
+        .env = this.env,
+        .fun = fun,
+        .arg = nil,
+        .exp = duo.cdr,
+    });
+}
+
+fn intoFunction(
+    this: *Eval,
+    fun: u32,
+    arg: u32,
+) !void {
+    if (arg == nil) {
+        try this.call(this.way, fun, nil, false);
+    } else {
+        try this.iter(fun, arg);
+    }
+}
+
+fn intoMacro(this: *Eval, fun: u32, arg: u32) !void {
+    const way = try this.ctx.new(.duo, .{
+        .car = this.env,
+        .cdr = this.way,
+    });
+    try this.call(way, fun, arg, false);
 }
 
 pub fn proceed(this: *Eval, x: u32) !void {
@@ -299,57 +290,59 @@ fn execCt1(this: *Eval, ct1: wisp.Row(.ct1)) !void {
     };
 }
 
+fn scan(this: *Eval, exp: u32, par: u32, arg: u32, way: u32, rev: bool) !void {
+    var pars = try scanListAlloc(this.ctx, par);
+    defer pars.deinit();
+    var vals = try scanListAlloc(this.ctx, arg);
+    defer vals.deinit();
+
+    if (pars.items.len != vals.items.len) {
+        return Oof.Err;
+    }
+
+    if (rev)
+        std.mem.reverse(u32, vals.items);
+
+    var scope = try this.ctx.orb.alloc(u32, 2 * pars.items.len);
+    defer this.ctx.orb.free(scope);
+
+    for (pars.items) |x, i| {
+        scope[i * 2 + 0] = x;
+        scope[i * 2 + 1] = vals.items[i];
+    }
+
+    this.env = try this.ctx.new(.duo, .{
+        .car = try this.ctx.newv32(scope),
+        .cdr = this.env,
+    });
+
+    this.job = .{ .exp = exp };
+    this.way = way;
+}
+
 /// Perform an application, either by directly calling a builtin or by
 /// entering a closure.
-pub fn apply(
+pub fn call(
     this: *Eval,
     way: u32,
     funptr: u32,
     args: u32,
-    /// Ugly hack to cope with FUNCALL.
-    noreverse: bool,
+    rev: bool,
 ) anyerror!void {
     switch (wisp.tagOf(funptr)) {
-        .fop => {
-            const fop = xops.fops.values[wisp.Imm.from(funptr).idx];
-            const theway = this.way;
-            try this.oper(fop, args);
-            if (this.way == theway)
-                this.way = way;
+        .jet => {
+            try this.oper(funptr, args, rev);
+            this.way = way;
         },
 
         .fun => {
             const fun = try this.ctx.row(.fun, funptr);
+            try this.scan(fun.exp, fun.par, args, way, rev);
+        },
 
-            var pars = try scanListAlloc(this.ctx, fun.par);
-            defer pars.deinit();
-            var vals = try scanListAlloc(this.ctx, args);
-            defer vals.deinit();
-
-            if (pars.items.len != vals.items.len) {
-                return Oof.Err;
-            }
-
-            if (!noreverse)
-                std.mem.reverse(u32, vals.items);
-
-            var scope = try this.ctx.orb.alloc(u32, 2 * pars.items.len);
-            defer this.ctx.orb.free(scope);
-
-            for (pars.items) |par, i| {
-                scope[i * 2 + 0] = par;
-                scope[i * 2 + 1] = vals.items[i];
-            }
-
-            this.* = .{
-                .ctx = this.ctx,
-                .way = way,
-                .job = .{ .exp = fun.exp },
-                .env = try this.ctx.new(.duo, .{
-                    .car = try this.ctx.newv32(scope),
-                    .cdr = fun.env,
-                }),
-            };
+        .mac => {
+            const mac = try this.ctx.row(.mac, funptr);
+            try this.scan(mac.exp, mac.par, args, way, rev);
         },
 
         .ct0, .ct1, .ct2, .ct3 => {
@@ -382,7 +375,10 @@ pub fn apply(
             }
         },
 
-        else => return Oof.Bug,
+        else => {
+            try dump.warn("oof", this.ctx, funptr);
+            return Oof.Bug;
+        },
     }
 }
 
@@ -393,18 +389,18 @@ fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
     });
 
     if (ct0.exp == nil) {
-        try this.apply(ct0.hop, ct0.fun, values, false);
+        try this.call(ct0.hop, ct0.fun, values, true);
     } else {
-        const cons = try this.ctx.row(.duo, ct0.exp);
+        const duo = try this.ctx.row(.duo, ct0.exp);
         this.* = .{
             .ctx = this.ctx,
-            .job = .{ .exp = cons.car },
+            .job = .{ .exp = duo.car },
             .env = this.env,
             .way = try this.ctx.new(.ct0, .{
                 .hop = ct0.hop,
                 .env = ct0.env,
                 .fun = ct0.fun,
-                .exp = cons.cdr,
+                .exp = duo.cdr,
                 .arg = values,
             }),
         };
@@ -467,33 +463,27 @@ fn reverseList(ctx: *Ctx, list: u32) !u32 {
     return rev;
 }
 
-fn oper(job: *Eval, xop: xops.Op, arg: u32) !void {
+fn oper(job: *Eval, jet: u32, arg: u32, rev: bool) !void {
+    const xop = xops.jets[wisp.Imm.from(jet).idx];
     switch (xop.tag) {
         .f0x => {
             const args = try scanListAlloc(job.ctx, arg);
             defer args.deinit();
-            if (xop.ilk == .fun) std.mem.reverse(u32, args.items);
+            if (rev) std.mem.reverse(u32, args.items);
             const fun = cast(.f0x, xop);
             try fun(job, args.items);
         },
 
         .f0r => {
-            var rest = arg;
-            if (xop.ilk == .fun) {
-                rest = try reverseList(job.ctx, rest);
-            }
+            const rest = if (rev) try reverseList(job.ctx, arg) else arg;
             const fun = cast(.f0r, xop);
             try fun(job, .{ .arg = rest });
         },
 
         .f1r => {
-            var list = arg;
-            if (xop.ilk == .fun) {
-                list = try reverseList(job.ctx, list);
-            }
-
-            var duo = try job.ctx.row(.duo, list);
-            var rest = duo.cdr;
+            const list = if (rev) try reverseList(job.ctx, arg) else arg;
+            const duo = try job.ctx.row(.duo, list);
+            const rest = duo.cdr;
             const fun = cast(.f1r, xop);
             try fun(job, duo.car, .{ .arg = rest });
         },
@@ -526,7 +516,7 @@ fn oper(job: *Eval, xop: xops.Op, arg: u32) !void {
             defer list.deinit();
 
             if (args.len == 2) {
-                if (xop.ilk == .fun) std.mem.reverse(u32, args);
+                if (rev) std.mem.reverse(u32, args);
                 const fun = cast(.f2, xop);
                 try fun(job, args[0], args[1]);
             } else {
@@ -540,7 +530,7 @@ fn oper(job: *Eval, xop: xops.Op, arg: u32) !void {
             defer list.deinit();
 
             if (args.len == 3) {
-                if (xop.ilk == .fun) std.mem.reverse(u32, args);
+                if (rev) std.mem.reverse(u32, args);
                 const fun = cast(.f3, xop);
                 try fun(job, args[0], args[1], args[2]);
             } else {
@@ -566,6 +556,9 @@ pub fn evaluate(this: *Eval, limit: u32, gc: bool) !u32 {
 
         if (gc) try tidy.tidyEval(this);
     }
+
+    try dump.warn("ugh way", this.ctx, this.way);
+    try dump.warn("ugh val", this.ctx, this.job.val);
 
     return Oof.Ugh;
 }
@@ -720,9 +713,9 @@ test "DEFUN" {
     );
 }
 
-test "base test suite" {
-    try expectEval("nil", "(base-test)");
-}
+// test "base test suite" {
+//     try expectEval("nil", "(base-test)");
+// }
 
 test "FUNCALL" {
     try expectEval("(b . a)",

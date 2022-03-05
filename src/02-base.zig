@@ -33,7 +33,7 @@ const Ptr = wisp.Ptr;
 
 pub fn Row(comptime t: Tag) type {
     return switch (t) {
-        .int, .sys, .chr, .fop, .mop => void,
+        .int, .sys, .chr, .jet => void,
         .duo => struct { car: u32, cdr: u32 },
         .sym => struct { str: u32, pkg: u32, val: u32, fun: u32 },
         .fun => struct { env: u32, par: u32, exp: u32 },

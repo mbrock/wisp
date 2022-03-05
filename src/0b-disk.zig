@@ -33,7 +33,7 @@ fn tell(out: anytype, x: u32) !void {
             .int => {
                 try out.print("{d}", .{x});
             },
-            .sys, .chr, .fop, .mop => {
+            .sys, .chr, .jet => {
                 try out.print("{d}", .{wisp.Imm.from(x).idx});
             },
             else => {

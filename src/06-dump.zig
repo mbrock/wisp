@@ -176,9 +176,9 @@ pub fn dump_(
             try out.print(">", .{});
         },
 
-        .fop => {
-            const fop = xops.fops.values[wisp.Imm.from(x).idx];
-            try out.print("<fop {s}>", .{fop.txt});
+        .jet => {
+            const jet = xops.jets[wisp.Imm.from(x).idx];
+            try out.print("<jet {s}>", .{jet.txt});
         },
 
         else => |t| try out.print("<{any}>", .{t}),

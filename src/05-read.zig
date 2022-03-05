@@ -212,11 +212,19 @@ fn skip(self: *Reader) !u21 {
     return self.utf8.nextCodepoint().?;
 }
 
+fn skipLine(self: *Reader) !void {
+    while ((try self.skip()) != '\n') {}
+}
+
 fn skipSpace(self: *Reader) !void {
     while (try self.peek()) |c| {
         switch (c) {
             ' ', '\n' => {
                 _ = try self.skip();
+            },
+
+            ';' => {
+                try self.skipLine();
             },
 
             else => {

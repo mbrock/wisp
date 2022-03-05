@@ -114,8 +114,9 @@ pub fn @"TYPE-OF"(job: *Eval, x: u32) anyerror!void {
             .chr => kwd.CHARACTER,
             .duo => kwd.CONS,
             .sym => kwd.SYMBOL,
-            .fun, .fop => kwd.FUNCTION,
-            .mac, .mop => kwd.MACRO,
+            .fun => kwd.FUNCTION,
+            .mac => kwd.MACRO,
+            .jet => kwd.FUNCTION,
             .v32 => kwd.VECTOR,
             .v08 => kwd.STRING,
             .pkg => kwd.PACKAGE,
@@ -146,7 +147,7 @@ pub fn FUNCALL(
     function: u32,
     arguments: Rest,
 ) anyerror!void {
-    try job.apply(job.way, function, arguments.arg, true);
+    try job.call(job.way, function, arguments.arg, false);
 }
 
 pub fn APPLY(
@@ -154,13 +155,13 @@ pub fn APPLY(
     function: u32,
     list: u32,
 ) anyerror!void {
-    try job.apply(job.way, function, list, true);
+    try job.call(job.way, function, list, false);
 }
 
 pub fn @"CALL/CC"(job: *Eval, function: u32) anyerror!void {
     // Take the parent continuation of the CALL/CC form.
     const ct0 = try job.ctx.row(.ct0, job.way);
-    try job.apply(job.way, function, try job.ctx.new(.duo, .{
+    try job.call(job.way, function, try job.ctx.new(.duo, .{
         .car = ct0.hop,
         .cdr = wisp.nil,
     }), true);

@@ -27,8 +27,7 @@ pub const Tag = enum(u5) {
 
     sys = 0x11, // static constant value
     chr = 0x12, // unicode codepoint
-    fop = 0x13, // builtin function
-    mop = 0x14, // builtin macro
+    jet = 0x13, // builtin operator
 
     duo = 0x15, // cons pair pointer
     sym = 0x16, // symbol pointer
@@ -112,7 +111,7 @@ pub const Imm = packed struct {
 pub fn Word(comptime tag: Tag) type {
     return switch (tag) {
         .int => unreachable,
-        .sys, .chr, .fop, .mop => Imm,
+        .sys, .chr, .jet => Imm,
         else => Ptr,
     };
 }

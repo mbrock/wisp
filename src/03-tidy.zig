@@ -95,7 +95,7 @@ fn move(gc: *GC, x: *u32) !void {
 
 fn copy(gc: *GC, x: u32) !u32 {
     return switch (wisp.tagOf(x)) {
-        .int, .chr, .sys, .fop, .mop => x,
+        .int, .chr, .sys, .jet => x,
         .sym => gc.push(.sym, x),
         .duo => gc.push(.duo, x),
         .fun => gc.push(.fun, x),
