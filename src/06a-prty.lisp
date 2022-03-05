@@ -41,11 +41,12 @@
 ;;
 
 (defpackage #:prty (:use #:common-lisp))
+(in-package #:prty)
 
-(defparameter *max-width* 62)
+(defvar *max-width* 62)
 
-(defun strcat (&rest xs)
-  (apply #'concatenate 'string xs))
+(defun strcat (a b)
+  (concatenate 'string a b))
 
 (defun indent (n xs)
   (mapcar (lambda (x)
@@ -187,11 +188,12 @@
                        (let . 1)
                        ))
 
-(defmacro defun-save-code (f args &body body)
-  `(progn
-     (defun ,f ,args ,@body)
-     (setf (get ',f 'code)
-           '(defun ,f ,args ,@body))))
+(defmacro defun-save-code (f args body)
+  (list 'progn
+        (list 'defun f args body)
+        (list 'setf
+              (list 'get f (list 'quote body))
+              (list 'quote (list 'defun f args body)))))
 
 (defun-save-code pretty (x)
   (cond

@@ -713,9 +713,9 @@ test "DEFUN" {
     );
 }
 
-// test "base test suite" {
-//     try expectEval("nil", "(base-test)");
-// }
+test "base test suite" {
+    try expectEval("nil", "(base-test)");
+}
 
 test "FUNCALL" {
     try expectEval("(b . a)",
@@ -727,4 +727,11 @@ test "APPLY" {
     try expectEval("(a b c)",
         \\ (apply (lambda (x y z) (list x y z)) '(a b c))
     );
+}
+
+test "prty.lisp" {
+    var ctx = try newTestCtx();
+    defer ctx.deinit();
+
+    try ctx.load(@embedFile("./06a-prty.lisp"));
 }

@@ -39,6 +39,8 @@ fn readValueOrEOF(self: *Reader) anyerror!?u32 {
     if (next) |c| {
         return switch (try classifyInitial(c)) {
             .leftParen => try self.readList(),
+            .hash => try self.readHash(),
+            .colon => try self.readKeyword(),
             .doubleQuote => try self.readString(),
             .singleQuote => try self.readQuote(),
             .symbolChar => try self.readSymbol(),
@@ -55,6 +57,8 @@ fn readValue(self: *Reader) anyerror!u32 {
 
 const InitialCharType = enum {
     leftParen,
+    hash,
+    colon,
     symbolChar,
     digitChar,
     doubleQuote,
@@ -64,6 +68,10 @@ const InitialCharType = enum {
 fn classifyInitial(c: u21) !InitialCharType {
     if (c == '(') {
         return .leftParen;
+    } else if (c == '#') {
+        return .hash;
+    } else if (c == ':') {
+        return .colon;
     } else if (isSymbolCharacter(c)) {
         return .symbolChar;
     } else if (ziglyph.isAsciiDigit(c)) {
@@ -73,6 +81,9 @@ fn classifyInitial(c: u21) !InitialCharType {
     } else if (c == '\'') {
         return .singleQuote;
     } else {
+        var out: [32]u8 = undefined;
+        const len = try std.unicode.utf8Encode(c, &out);
+        std.log.err("unexpected {s}", .{out[0..len]});
         return Error.ReadError;
     }
 }
@@ -105,6 +116,8 @@ fn readWhile(
     const text = self.utf8.peek(n);
     self.utf8 = scout;
 
+    // std.log.warn("skip {s}", .{text});
+
     return text;
 }
 
@@ -118,6 +131,72 @@ fn readQuote(self: *Reader) !u32 {
             .cdr = wisp.nil,
         }),
     });
+}
+
+fn readFunctionQuote(self: *Reader) !u32 {
+    try self.skipOnly('\'');
+    const x = try self.readValue();
+    return try self.ctx.new(.duo, .{
+        .car = self.ctx.kwd.FUNCTION,
+        .cdr = try self.ctx.new(.duo, .{
+            .car = x,
+            .cdr = wisp.nil,
+        }),
+    });
+}
+
+fn readHash(self: *Reader) !u32 {
+    try self.skipOnly('#');
+    return switch ((try self.peek()).?) {
+        ':' => self.readUninternedSymbol(),
+        '\\' => self.readChar(),
+        '\'' => self.readFunctionQuote(),
+        else => |c| {
+            var out: [32]u8 = undefined;
+            const len = try std.unicode.utf8Encode(c, &out);
+            std.log.err("skip {s}", .{out[0..len]});
+            unreachable;
+        },
+    };
+}
+
+fn readChar(self: *Reader) !u32 {
+    try self.skipOnly('\\');
+    const c = try self.skip();
+    return wisp.Imm.make(.chr, c).word();
+}
+
+fn readUninternedSymbol(self: *Reader) !u32 {
+    try self.skipOnly(':');
+
+    const text = try self.readWhile(isSymbolCharacterOrDigit);
+    const uppercase = try ziglyph.toUpperStr(
+        self.ctx.orb,
+        text,
+    );
+
+    defer self.ctx.orb.free(uppercase);
+
+    return try self.ctx.new(.sym, .{
+        .str = try self.ctx.newv08(uppercase),
+        .val = wisp.nah,
+        .pkg = wisp.nil,
+        .fun = wisp.nil,
+    });
+}
+
+fn readKeyword(self: *Reader) !u32 {
+    try self.skipOnly(':');
+
+    const text = try self.readWhile(isSymbolCharacterOrDigit);
+    const uppercase = try ziglyph.toUpperStr(
+        self.ctx.orb,
+        text,
+    );
+
+    defer self.ctx.orb.free(uppercase);
+
+    return try self.ctx.intern(uppercase, self.ctx.keywordPackage);
 }
 
 fn readSymbol(self: *Reader) !u32 {
@@ -209,7 +288,11 @@ fn peek(self: *Reader) !?u21 {
 }
 
 fn skip(self: *Reader) !u21 {
-    return self.utf8.nextCodepoint().?;
+    const c = self.utf8.nextCodepoint().?;
+    // var out: [32]u8 = undefined;
+    // const len = try std.unicode.utf8Encode(c, &out);
+    // std.log.err("skip {s}", .{out[0..len]});
+    return c;
 }
 
 fn skipLine(self: *Reader) !void {
@@ -243,7 +326,18 @@ fn isSymbolCharacter(c: u21) bool {
         return true;
     } else {
         return switch (c) {
-            '+', '-', '*', '/', '@', '=', '^', '%', '$' => true,
+            '+',
+            '-',
+            '*',
+            '/',
+            '@',
+            '=',
+            '^',
+            '%',
+            '$',
+            '<',
+            '>',
+            => true,
             else => false,
         };
     }

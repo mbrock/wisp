@@ -83,6 +83,7 @@ fn done(gc: *GC) Ctx {
 
 fn root(gc: *GC) !void {
     gc.new.base = try gc.copy(gc.old.base);
+    gc.new.keywordPackage = try gc.copy(gc.old.keywordPackage);
 
     inline for (std.meta.fields(@TypeOf(gc.new.kwd))) |s| {
         try gc.move(&@field(gc.new.kwd, s.name));

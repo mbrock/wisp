@@ -23,6 +23,7 @@ const same = std.testing.expectEqual;
 const tidy = @import("./03-tidy.zig");
 const eval = @import("./04-eval.zig");
 const read = @import("./05-read.zig");
+const dump = @import("./06-dump.zig");
 const wisp = @import("./ff-wisp.zig");
 
 const ref = wisp.ref;
@@ -166,13 +167,20 @@ pub const Ctx = struct {
     v08: V08 = .{},
     v32: V32 = .{},
     kwd: S32(Kwd) = .{},
+
     base: u32 = nil,
+    keywordPackage: u32 = nil,
 
     pub fn init(orb: Orb, era: Era) !Ctx {
         var ctx = Ctx{ .orb = orb, .era = era };
 
         ctx.base = try ctx.new(.pkg, .{
             .nam = try ctx.newv08("WISP"),
+            .sym = nil,
+        });
+
+        ctx.keywordPackage = try ctx.new(.pkg, .{
+            .nam = try ctx.newv08("KEYWORD"),
             .sym = nil,
         });
 
@@ -183,16 +191,23 @@ pub const Ctx = struct {
         return ctx;
     }
 
-    pub fn cook(ctx: *Ctx) !void {
-        const forms = try read.readMany(ctx, @embedFile("./a0-base.lisp"));
+    pub fn load(ctx: *Ctx, str: []const u8) !void {
+        const forms = try read.readMany(ctx, str);
         defer forms.deinit();
 
         for (forms.items) |form| {
             var exe = eval.init(ctx, form);
-            _ = try exe.evaluate(1_000, false);
+            if (exe.evaluate(1_000, false)) |_| {} else |_| {
+                try dump.warn("error", ctx, exe.err);
+                break;
+            }
         }
 
         try tidy.tidy(ctx);
+    }
+
+    pub fn cook(ctx: *Ctx) !void {
+        try ctx.load(@embedFile("./a0-base.lisp"));
     }
 
     pub fn special(ctx: *Ctx, s: Kwd) u32 {
