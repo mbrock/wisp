@@ -18,81 +18,186 @@
 
 (defpackage #:prty (:use #:common-lisp))
 
-(defstruct layout
-  height last-width max-width lines)
+(defparameter *max-width* 62)
 
-(defun indent (n s)
-  (concatenate 'string (make-string n :initial-element #\ ) s))
+(defun strcat (&rest xs)
+  (apply #'concatenate 'string xs))
 
-(defun layout-hcat (a b)
-  (make-layout
-   :height (+ (layout-height a) (layout-height b))
-   :last-width (+ (layout-last-width a) (layout-last-width b))
-   :max-width (max (layout-max-width a)
-                   (+ (layout-max-width b)
-                      (layout-last-width a)))
-   :lines
-   (let* ((xs (layout-lines a))
-          (ys (layout-lines b))
-          (x (last xs))
-          (n (length x)))
-     (append (butlast xs) x (cdr ys)
-             (mapcar (lambda (y) (indent n y)) (cdr ys))))))
+(defun indent (n xs)
+  (mapcar (lambda (x)
+            (strcat (make-string n :initial-element #\ ) x)) xs))
 
-(defun layout-vcat (a b)
-  (layout-hcat (flush-layout a) b))
+(defstruct box
+  len  ;; height of box minus one
+  fin  ;; width of final line
+  max  ;; max width of all lines
+  txt  ;; list of lines
+  )
 
-(defun text-layout (s)
-  (make-layout
-   :height 0
-   :last-width (length s)
-   :max-width (length s)
-   :lines (list s)))
+(defun text-box (s)
+  (make-box :len 0
+            :fin (length s)
+            :max (length s)
+            :txt (list s)))
 
-(defun flush-layout (a)
-  (make-layout
-   :height (+ 1 (layout-height a))
-   :last-width 0
-   :max-width (layout-max-width a)
-   :lines (append (layout-lines a) '(""))))
+(defun indent-box (a n)
+  (make-box :len (box-len a)
+            :fin (+ n (box-fin a))
+            :max (+ n (box-max a))
+            :txt (indent n (box-txt a))))
 
-(defun layout< (a b)
-  (and (< (layout-height a) (layout-height b))
-       (< (layout-max-width a) (layout-max-width b))
-       (< (layout-last-width a) (layout-last-width b))))
+(defun flush-box (a)
+  (make-box :len (+ 1 (box-len a))
+            :fin 0
+            :max (box-max a)
+            :txt (append (box-txt a) '(""))))
 
-(defun layout-render (a)
-  (format nil "~{~A~^~%~}" (layout-lines a)))
+;; aaaaa   <> bbbbb
+;; aa         bbbbbbb
+;;
+;; = aaaaa      all but last a
+;;   aabbbbb    last a ++ first b
+;;     bbbbbbb  all but first b, indented
+(defun box-hcat (a b)
+  (make-box :len (+ (box-len a) (box-len b))
+            :fin (+ (box-fin a) (box-fin b))
+            :max (max (box-max a) (+ (box-max b)
+                                     (box-fin a)))
+            :txt (let* ((as (box-txt a))
+                        (bs (box-txt b))
+                        (last-a (car (last as))))
+                   (append (butlast as)
+                           (cons (strcat last-a (car bs))
+                                 (indent (length last-a)
+                                         (cdr bs)))))))
 
-(defun pareto (xs <)
-  (pareto-loop < nil xs))
+(defun box-vcat (a b)
+  (box-hcat (flush-box a) b))
 
-(defun pareto-loop (< acc list)
+(defun box<= (a b)
+  (and (<= (box-len a) (box-len b))
+       (<= (box-max a) (box-max b))
+       (<= (box-fin a) (box-fin b))))
+
+(defun box-render (a)
+  (format nil "~{~A~^~%~}" (box-txt a)))
+
+(defun pareto-loop (acc list)
   (if (null list) acc
-      (let ((x (car acc)) (xs (cdr acc)))
-        (if (some (lambda (a) (funcall < a x)) acc)
-            (pareto-loop < acc xs)
-            (pareto-loop <
-             (cons x (remove-if-not (lambda (a) (< x a)) acc))
-             xs)))))
+      (let* ((x (car list))
+             (xs (cdr list))
+             (better-than-x (lambda (y)
+                              (box<= y x)))
+             (worse-than-x (lambda (y)
+                             (box<= x y))))
+        (if (some better-than-x acc)
+            (pareto-loop acc xs)
+            (pareto-loop
+             (cons x (remove-if worse-than-x acc)) xs)))))
 
-(defun layout-valid (a)
-  (< (layout-max-width a) 40))
+(defun pareto (xs)
+  (pareto-loop nil xs))
 
-(defun <> (xs ys)
+(defun box-valid (a)
+  (< (box-max a) *max-width*))
+
+(defun hcat (xs ys)
   (let ((candidates nil))
-    (loop for x in xs
-          do (loop for y in ys
-                   do (let ((xy (layout-hcat x y)))
-                        (when (layout-valid xy)
-                          (push xy candidates)))))
-    (pareto candidates #'layout<)))
+    (dolist (x xs)
+      (dolist (y ys)
+        (let ((xy (box-hcat x y)))
+          (when (box-valid xy)
+            (push xy candidates)))))
+    (pareto candidates)))
 
 (defun choose (xs ys)
-  (pareto (append xs ys) #'layout<))
+  (pareto (append xs ys)))
 
 (defun flush (xs)
-  (pareto (mapcar #'flush-layout xs) #'layout<))
+  (pareto (mapcar #'flush-box xs)))
+
+(defun vcat (a b)
+  (hcat (flush a) b))
 
 (defun text (s)
-  (remove-if-not #'layout-valid (list (text-layout s))))
+  (remove-if-not #'box-valid (list (text-box s))))
+
+(defun cat (xs ys)
+  (choose (hcat xs ys) (vcat xs ys)))
+
+(defun render (xs)
+  (box-render
+   (car (sort xs (lambda (a b)
+                   (< (box-len a)
+                      (box-len b)))))))
+
+(render
+ (cat (text "aaaaaa")
+      (text "bbbbbb")))
+
+(mapcar #'box-valid (text "aaaaaaaa"))
+
+(defun hjoin (xs)
+  (reduce #'hcat xs))
+
+(defun hspace (a b)
+  (hcat a (hcat (text " ") b)))
+
+(defun hsep (xs)
+  (reduce #'hspace xs))
+
+(defun vjoin (xs)
+  (reduce #'vcat xs))
+
+(defun shove (a)
+  (mapcar (lambda (x) (indent-box x 1)) a))
+
+(defun join (xs)
+  (if (null xs)
+      (text "")
+      (choose (hsep xs) (vjoin xs))))
+
+(defparameter *hang* '((defun . 2)
+                       (cond . 0)
+                       (if . 1)
+                       (let . 1)
+                       ))
+
+(defmacro defun-save-code (f args &body body)
+  `(progn
+     (defun ,f ,args ,@body)
+     (setf (get ',f 'code)
+           '(defun ,f ,args ,@body))))
+
+(defun-save-code pretty (x)
+  (cond
+    ((atom x)
+     (text (format nil "~s" x)))
+    ((listp x)
+     (let ((hang (assoc (car x) *hang*)))
+       (if hang
+           (let ((n (+ 1 (cdr hang))))
+             (hjoin
+              (list (text "(")
+                    (vcat (join (mapcar #'pretty (subseq x 0 n)))
+                          (shove
+                           (hcat (join
+                                  (mapcar #'pretty (subseq x n)))
+                                 (text ")")))))))
+           (if (> (length x) 2)
+               (hjoin (list (text "(")
+                            (pretty (car x))
+                            (text " ")
+                            (join (mapcar #'pretty (cdr x)))
+                            (text ")")))
+               (hjoin (list (text "(")
+                            (join (mapcar #'pretty x))
+                            (text ")")))
+               )
+           )))))
+
+(defun foo ()
+  (format t "~a"
+          (render
+           (pretty
+            (get 'pretty 'code)))))
