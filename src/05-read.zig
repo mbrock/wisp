@@ -43,6 +43,8 @@ fn readValueOrEOF(self: *Reader) anyerror!?u32 {
             .colon => try self.readKeyword(),
             .doubleQuote => try self.readString(),
             .singleQuote => try self.readQuote(),
+            .backQuote => try self.readQuasiquote(),
+            .comma => try self.readUnquote(),
             .symbolChar => try self.readSymbol(),
             .digitChar => try self.readNumber(),
         };
@@ -63,6 +65,8 @@ const InitialCharType = enum {
     digitChar,
     doubleQuote,
     singleQuote,
+    backQuote,
+    comma,
 };
 
 fn classifyInitial(c: u21) !InitialCharType {
@@ -80,6 +84,10 @@ fn classifyInitial(c: u21) !InitialCharType {
         return .doubleQuote;
     } else if (c == '\'') {
         return .singleQuote;
+    } else if (c == '`') {
+        return .backQuote;
+    } else if (c == ',') {
+        return .comma;
     } else {
         var out: [32]u8 = undefined;
         const len = try std.unicode.utf8Encode(c, &out);
@@ -126,6 +134,30 @@ fn readQuote(self: *Reader) !u32 {
     const x = try self.readValue();
     return try self.ctx.new(.duo, .{
         .car = self.ctx.kwd.QUOTE,
+        .cdr = try self.ctx.new(.duo, .{
+            .car = x,
+            .cdr = wisp.nil,
+        }),
+    });
+}
+
+fn readQuasiquote(self: *Reader) !u32 {
+    try self.skipOnly('`');
+    const x = try self.readValue();
+    return try self.ctx.new(.duo, .{
+        .car = self.ctx.kwd.QUASIQUOTE,
+        .cdr = try self.ctx.new(.duo, .{
+            .car = x,
+            .cdr = wisp.nil,
+        }),
+    });
+}
+
+fn readUnquote(self: *Reader) !u32 {
+    try self.skipOnly(',');
+    const x = try self.readValue();
+    return try self.ctx.new(.duo, .{
+        .car = self.ctx.kwd.UNQUOTE,
         .cdr = try self.ctx.new(.duo, .{
             .car = x,
             .cdr = wisp.nil,
@@ -321,17 +353,19 @@ fn isSymbolCharacter(c: u21) bool {
         return true;
     } else {
         return switch (c) {
+            '$',
+            '%',
+            '&',
+            '*',
             '+',
             '-',
-            '*',
             '/',
-            '@',
-            '=',
-            '^',
-            '%',
-            '$',
             '<',
+            '=',
             '>',
+            '?',
+            '@',
+            '^',
             => true,
             else => false,
         };

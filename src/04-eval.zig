@@ -296,19 +296,22 @@ fn scan(this: *Eval, exp: u32, par: u32, arg: u32, way: u32, rev: bool) !void {
     var vals = try scanListAlloc(this.ctx, arg);
     defer vals.deinit();
 
-    if (pars.items.len != vals.items.len) {
-        return Oof.Err;
-    }
-
     if (rev)
         std.mem.reverse(u32, vals.items);
 
     var scope = try this.ctx.orb.alloc(u32, 2 * pars.items.len);
     defer this.ctx.orb.free(scope);
 
-    for (pars.items) |x, i| {
-        scope[i * 2 + 0] = x;
-        scope[i * 2 + 1] = vals.items[i];
+    var i: usize = 0;
+    while (i < pars.items.len) : (i += 1) {
+        const x = pars.items[i];
+        if (x == this.ctx.kwd.@"&REST") {
+            scope[i * 2 + 0] = pars.items[i + 1];
+            scope[i * 2 + 1] = try wisp.list(this.ctx, vals.items[i..vals.items.len]);
+        } else {
+            scope[i * 2 + 0] = x;
+            scope[i * 2 + 1] = vals.items[i];
+        }
     }
 
     this.env = try this.ctx.new(.duo, .{
@@ -610,22 +613,26 @@ pub fn expectEval(want: []const u8, src: []const u8) !void {
 
     const exp = try read(&ctx, src);
     var exe = init(&ctx, exp);
-    const val = try exe.evaluate(1_000_000, true);
 
-    const valueString = try dump.printAlloc(ctx.orb, &ctx, val);
+    if (exe.evaluate(1_000, true)) |val| {
+        const valueString = try dump.printAlloc(ctx.orb, &ctx, val);
 
-    defer ctx.orb.free(valueString);
+        defer ctx.orb.free(valueString);
 
-    const wantValue = try read(&ctx, want);
-    const wantString = try dump.printAlloc(
-        ctx.orb,
-        &ctx,
-        wantValue,
-    );
+        const wantValue = try read(&ctx, want);
+        const wantString = try dump.printAlloc(
+            ctx.orb,
+            &ctx,
+            wantValue,
+        );
 
-    defer ctx.orb.free(wantString);
+        defer ctx.orb.free(wantString);
 
-    try expectEqualStrings(wantString, valueString);
+        try expectEqualStrings(wantString, valueString);
+    } else |e| {
+        try dump.warn("Error", &ctx, exe.err);
+        return e;
+    }
 }
 
 test "(+ 1 2 3) => 6" {
@@ -725,6 +732,21 @@ test "FUNCALL" {
 test "APPLY" {
     try expectEval("(a b c)",
         \\ (apply (lambda (x y z) (list x y z)) '(a b c))
+    );
+}
+
+test "defun with &rest" {
+    try expectEval("(x . (1 2 3))",
+        \\ (progn
+        \\   (defun foo (x &rest xs) (cons x xs))
+        \\   (foo 'x 1 2 3))
+    );
+}
+
+test "quasiquote" {
+    try expectEval("(foo 1)",
+        \\ (let ((x 1))
+        \\   `(foo ,x))
     );
 }
 

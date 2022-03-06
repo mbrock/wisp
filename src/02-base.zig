@@ -54,6 +54,10 @@ pub fn Row(comptime t: Tag) type {
 /// from the Zig code.
 pub const Kwd = enum {
     QUOTE,
+    QUASIQUOTE,
+    UNQUOTE,
+
+    @"&REST",
 
     BOOLEAN,
     CHARACTER,
@@ -384,7 +388,7 @@ pub const Ctx = struct {
 
 pub fn list(ctx: *Ctx, xs: anytype) !u32 {
     var cur = nil;
-    var i: u32 = xs.len;
+    var i: u32 = @intCast(u32, xs.len);
     while (i >= 1) : (i -= 1) {
         const x = xs[i - 1];
         cur = try ctx.new(.duo, .{ .car = x, .cdr = cur });

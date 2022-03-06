@@ -24,6 +24,11 @@ pub fn QUOTE(job: *Eval, x: u32) anyerror!void {
     job.give(.val, x);
 }
 
+pub fn FUNCTION(job: *Eval, x: u32) anyerror!void {
+    const fun = try job.ctx.get(.sym, .fun, x);
+    job.give(.val, fun);
+}
+
 pub fn @"%MACRO-LAMBDA"(job: *Eval, par: u32, exp: u32) anyerror!void {
     job.give(.val, try job.ctx.new(.mac, .{
         .env = job.env,
@@ -106,3 +111,8 @@ pub fn @"IN-PACKAGE"(job: *Eval, pkgsym: u32) anyerror!void {
         try job.fail(&[_]u32{ job.ctx.kwd.@"PACKAGE-ERROR", pkgsym });
     }
 }
+
+// pub fn QUASIQUOTE(job: *Eval, exp: u32) anyerror!void {
+//     // `(x ,y) => (list (quote x) y)
+
+// }

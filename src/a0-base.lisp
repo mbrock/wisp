@@ -108,3 +108,24 @@
       (if (null (cdr xs)) nil
           (cons (car xs)
                 (butlast (cdr xs))))))
+
+(defun unquote? (x)
+  (if (eq 'cons (type-of x))
+      (eq 'unquote (car x))
+      nil))
+
+(defun %quasiquote (x)
+  (let ((type (type-of x)))
+    (if (eq type 'cons)
+        (if (eq 'unquote (car x))
+            (car (cdr x))
+            (cons 'list
+                  (mapcar #'%quasiquote x)))
+        (list 'quote x))))
+
+(defmacro quasiquote (x)
+  (%quasiquote x))
+
+;; (defmacro defstruct (name &rest fields)
+
+;;   )

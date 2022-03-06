@@ -171,3 +171,12 @@ pub fn WTF(job: *Eval, wtf: u32) anyerror!void {
     Eval.wtf = wtf > 0;
     job.give(.val, wtf);
 }
+
+pub fn CONCATENATE(job: *Eval, typ: u32, rest: Rest) anyerror!void {
+    _ = rest;
+    if (typ == job.ctx.kwd.STRING) {
+        try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
+    } else {
+        try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
+    }
+}
