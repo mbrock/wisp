@@ -557,8 +557,7 @@ pub fn evaluate(this: *Eval, limit: u32, gc: bool) !u32 {
         if (gc) try tidy.tidyEval(this);
     }
 
-    try dump.warn("ugh way", this.ctx, this.way);
-    try dump.warn("ugh val", this.ctx, this.job.val);
+    try this.fail(&[_]u32{this.ctx.kwd.EXHAUSTED});
 
     return Oof.Ugh;
 }

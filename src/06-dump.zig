@@ -79,7 +79,11 @@ pub fn dump_(
         .sym => {
             const sym = try ctx.row(.sym, x);
             const name = ctx.v08slice(sym.str);
-            try out.print("{s}", .{name});
+            if (sym.pkg == wisp.nil) {
+                try out.print("#:{s}", .{name});
+            } else {
+                try out.print("{s}", .{name});
+            }
         },
 
         .v08 => {
@@ -88,7 +92,7 @@ pub fn dump_(
         },
 
         .v32 => {
-            try out.print("<", .{});
+            try out.print("#<", .{});
             const xs = try ctx.v32slice(x);
             for (xs) |y, i| {
                 if (i > 0) try out.print(" ", .{});
@@ -234,6 +238,17 @@ test "print symbols" {
         &ctx,
         "FOO",
         try ctx.intern("FOO", ctx.base),
+    );
+}
+
+test "print uninterned symbols" {
+    var ctx = try Ctx.init(std.testing.allocator, .e0);
+    defer ctx.deinit();
+
+    try expectPrintResult(
+        &ctx,
+        "#:FOO",
+        try ctx.newSymbol("FOO", wisp.nil),
     );
 }
 

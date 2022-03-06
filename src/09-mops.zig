@@ -89,3 +89,20 @@ pub fn PROGN(job: *Eval, rest: Rest) anyerror!void {
         job.give(.exp, duo.car);
     }
 }
+
+pub fn DEFPACKAGE(job: *Eval, name: u32, conf: u32) anyerror!void {
+    const txt = try job.ctx.get(.sym, .str, name);
+    job.give(.val, try job.ctx.defpackage(txt, conf));
+}
+
+pub fn @"IN-PACKAGE"(job: *Eval, pkgsym: u32) anyerror!void {
+    const v08 = try job.ctx.get(.sym, .str, pkgsym);
+    const str = try job.ctx.v08slice(v08);
+
+    if (job.ctx.pkgmap.get(str)) |pkg| {
+        job.ctx.pkg = pkg;
+        job.give(.val, pkg);
+    } else {
+        try job.fail(&[_]u32{ job.ctx.kwd.@"PACKAGE-ERROR", pkgsym });
+    }
+}

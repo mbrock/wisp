@@ -71,6 +71,9 @@ pub fn init(old: *Ctx) !GC {
             .orb = old.orb,
             .v08 = old.v08,
             .kwd = old.kwd,
+            .base = old.base,
+            .keywordPackage = old.keywordPackage,
+            .pkg = old.pkg,
         },
     };
 }
@@ -82,8 +85,9 @@ fn done(gc: *GC) Ctx {
 }
 
 fn root(gc: *GC) !void {
-    gc.new.base = try gc.copy(gc.old.base);
-    gc.new.keywordPackage = try gc.copy(gc.old.keywordPackage);
+    try gc.move(&gc.new.base);
+    try gc.move(&gc.new.keywordPackage);
+    try gc.move(&gc.new.pkg);
 
     inline for (std.meta.fields(@TypeOf(gc.new.kwd))) |s| {
         try gc.move(&@field(gc.new.kwd, s.name));

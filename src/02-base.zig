@@ -28,6 +28,7 @@ const wisp = @import("./ff-wisp.zig");
 
 const ref = wisp.ref;
 const nil = wisp.nil;
+const nah = wisp.nah;
 const Tag = wisp.Tag;
 const Era = wisp.Era;
 const Ptr = wisp.Ptr;
@@ -41,7 +42,7 @@ pub fn Row(comptime t: Tag) type {
         .mac => struct { env: u32, par: u32, exp: u32 },
         .v08 => struct { idx: u32, len: u32 },
         .v32 => struct { idx: u32, len: u32 },
-        .pkg => struct { nam: u32, sym: u32 },
+        .pkg => struct { nam: u32, sym: u32, use: u32 },
         .ct0 => struct { env: u32, fun: u32, arg: u32, exp: u32, hop: u32 },
         .ct1 => struct { env: u32, yay: u32, nay: u32, hop: u32 },
         .ct2 => struct { env: u32, exp: u32, hop: u32 },
@@ -67,10 +68,12 @@ pub const Kwd = enum {
     SYMBOL,
     VECTOR,
 
-    @"UNDEFINED-FUNCTION",
-    @"UNBOUND-VARIABLE",
-    @"PROGRAM-ERROR",
     @"BUG",
+    @"EXHAUSTED",
+    @"PACKAGE-ERROR",
+    @"PROGRAM-ERROR",
+    @"UNBOUND-VARIABLE",
+    @"UNDEFINED-FUNCTION",
 };
 
 /// The orb is the vat's allocator.  All Lisp values reside in memory
@@ -171,24 +174,35 @@ pub const Ctx = struct {
     base: u32 = nil,
     keywordPackage: u32 = nil,
 
+    pkg: u32 = nil,
+    pkgmap: std.StringArrayHashMapUnmanaged(u32) = .{},
+
     pub fn init(orb: Orb, era: Era) !Ctx {
         var ctx = Ctx{ .orb = orb, .era = era };
 
-        ctx.base = try ctx.new(.pkg, .{
-            .nam = try ctx.newv08("WISP"),
-            .sym = nil,
-        });
-
-        ctx.keywordPackage = try ctx.new(.pkg, .{
-            .nam = try ctx.newv08("KEYWORD"),
-            .sym = nil,
-        });
+        ctx.base = try ctx.defpackage(try ctx.newv08("WISP"), nil);
+        ctx.keywordPackage = try ctx.defpackage(try ctx.newv08("KEYWORD"), nil);
+        ctx.pkg = ctx.base;
 
         inline for (std.meta.fields(Kwd)) |s| {
             @field(ctx.kwd, s.name) = try ctx.intern(s.name, ctx.base);
         }
 
         return ctx;
+    }
+
+    pub fn defpackage(ctx: *Ctx, nam: u32, use: u32) !u32 {
+        const pkg = try ctx.new(.pkg, .{
+            .nam = nam,
+            .sym = nil,
+            .use = use,
+        });
+
+        const str = try ctx.orb.dupe(u8, try ctx.v08slice(nam));
+
+        try ctx.pkgmap.putNoClobber(ctx.orb, str, pkg);
+
+        return pkg;
     }
 
     pub fn load(ctx: *Ctx, str: []const u8) !void {
@@ -198,7 +212,8 @@ pub const Ctx = struct {
         for (forms.items) |form| {
             var exe = eval.init(ctx, form);
             if (exe.evaluate(1_000, false)) |_| {} else |_| {
-                try dump.warn("error", ctx, exe.err);
+                try dump.warn("failed", ctx, form);
+                try dump.warn("condition", ctx, exe.err);
                 break;
             }
         }
@@ -222,6 +237,13 @@ pub const Ctx = struct {
     pub fn deinit(ctx: *Ctx) void {
         ctx.v08.deinit(ctx.orb);
         ctx.v32.list.deinit(ctx.orb);
+
+        for (ctx.pkgmap.keys()) |key| {
+            ctx.orb.free(key);
+        }
+
+        ctx.pkgmap.deinit(ctx.orb);
+
         inline for (std.meta.fields(Vat)) |field| {
             @field(ctx.vat, field.name).list.deinit(ctx.orb);
         }
@@ -317,6 +339,15 @@ pub const Ctx = struct {
         return ctx.v32.list.items[str.idx .. str.idx + str.len];
     }
 
+    pub fn newSymbol(ctx: *Ctx, txt: []const u8, pkg: u32) !u32 {
+        return try ctx.new(.sym, .{
+            .str = try ctx.newv08(txt),
+            .val = nah,
+            .pkg = pkg,
+            .fun = nil,
+        });
+    }
+
     pub fn intern(ctx: *Ctx, txt: []const u8, pkgptr: u32) !u32 {
         if (pkgptr == ctx.base) {
             if (std.mem.eql(u8, txt, "NIL")) {
@@ -340,12 +371,7 @@ pub const Ctx = struct {
             }
         }
 
-        const symptr = try ctx.new(.sym, .{
-            .str = try ctx.newv08(txt),
-            .pkg = pkgptr,
-            .val = wisp.nah,
-            .fun = nil,
-        });
+        const symptr = try ctx.newSymbol(txt, pkgptr);
 
         try ctx.set(.pkg, .sym, pkgptr, try ctx.new(.duo, .{
             .car = symptr,

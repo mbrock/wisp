@@ -177,12 +177,7 @@ fn readUninternedSymbol(self: *Reader) !u32 {
 
     defer self.ctx.orb.free(uppercase);
 
-    return try self.ctx.new(.sym, .{
-        .str = try self.ctx.newv08(uppercase),
-        .val = wisp.nah,
-        .pkg = wisp.nil,
-        .fun = wisp.nil,
-    });
+    return self.ctx.newSymbol(uppercase, wisp.nil);
 }
 
 fn readKeyword(self: *Reader) !u32 {
@@ -208,7 +203,7 @@ fn readSymbol(self: *Reader) !u32 {
 
     defer self.ctx.orb.free(uppercase);
 
-    return try self.ctx.intern(uppercase, self.ctx.base);
+    return try self.ctx.intern(uppercase, self.ctx.pkg);
 }
 
 fn readNumber(self: *Reader) !u32 {

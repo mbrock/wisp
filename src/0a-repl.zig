@@ -40,6 +40,18 @@ pub fn main() anyerror!void {
     }
 }
 
+fn readLine(stream: anytype, orb: std.mem.Allocator) !?[]u8 {
+    return stream.readUntilDelimiterOrEofAlloc(orb, '\n', 4096);
+}
+
+fn readSexp(stream: anytype, orb: std.mem.Allocator, ctx: *wisp.Ctx) !?u32 {
+    if (try readLine(stream, orb)) |line| {
+        return try read(ctx, line);
+    } else {
+        return null;
+    }
+}
+
 pub fn repl() anyerror!void {
     const stdin = std.io.getStdIn().reader();
     const stdout = std.io.getStdOut().writer();
@@ -56,75 +68,46 @@ pub fn repl() anyerror!void {
         try read(&ctx, "(base-test)"),
     ).evaluate(1_000_000, false);
 
-    while (true) {
+    repl: while (true) {
         try stdout.writeAll("> ");
 
         var arena = std.heap.ArenaAllocator.init(allocator);
+        var tmp = arena.allocator();
         defer arena.deinit();
 
-        const lineOrEof = try stdin.readUntilDelimiterOrEofAlloc(
-            arena.allocator(),
-            '\n',
-            4096,
-        );
+        if (try readSexp(stdin, tmp, &ctx)) |term| {
+            var exe = eval.init(&ctx, term);
 
-        if (lineOrEof) |line| {
-            const exp = try read(&ctx, line);
-            var exe = eval.init(&ctx, exp);
-            // eval.wtf = true;
-
-            loop: while (true) {
+            term: while (true) {
                 if (exe.evaluate(1000, false)) |val| {
                     try dump.dump(&ctx, stdout, val);
                     try stdout.writeByte('\n');
                     try tidy.tidy(&ctx);
-                    break :loop;
+                    continue :repl;
                 } else |e| {
                     if (exe.err == wisp.nil) {
-                        exe.err = try ctx.newv32(&[_]u32{
-                            ctx.kwd.BUG,
-                            try ctx.intern(@errorName(e), ctx.base),
-                        });
+                        return e;
+                    } else {
+                        try dump.warn("Condition", &ctx, exe.err);
+                        switch (exe.job) {
+                            .exp => try dump.warn("Term", &ctx, exe.job.exp),
+                            .val => try dump.warn("Value", &ctx, exe.job.val),
+                        }
+
+                        try stdout.writeAll("*> ");
+                        if (try readSexp(stdin, tmp, &ctx)) |restart| {
+                            exe.err = wisp.nil;
+                            exe.job = .{ .exp = restart };
+                            continue :term;
+                        } else {
+                            return error.Nope;
+                        }
                     }
-
-                    try dump.warn("Condition", &ctx, exe.err);
-                    switch (exe.job) {
-                        .exp => {
-                            try dump.warn(
-                                "Failed term",
-                                &ctx,
-                                exe.job.exp,
-                            );
-                        },
-                        .val => {
-                            try dump.warn(
-                                "Failed value",
-                                &ctx,
-                                exe.job.val,
-                            );
-                        },
-                    }
-
-                    return e;
-
-                    // try stdout.writeAll("*> ");
-                    // if (try stdin.readUntilDelimiterOrEofAlloc(
-                    //     arena.allocator(),
-                    //     '\n',
-                    //     4096,
-                    // )) |l2| {
-                    //     exe.err = wisp.nil;
-                    //     const rexp = try read(&ctx, l2);
-                    //     exe.job = .{ .exp = rexp };
-                    //     continue :loop;
-                    // } else {
-                    //     return error.Nope;
-                    // }
                 }
             }
         } else {
             try stdout.writeByte('\n');
-            return;
+            break :repl;
         }
     }
 }
