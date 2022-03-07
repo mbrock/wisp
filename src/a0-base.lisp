@@ -21,13 +21,28 @@
  'DEFUN
  (%macro-lambda (name args body)
                 (list 'set-symbol-function (list 'quote name)
-                      (list 'lambda args body))))
+                      (list 'lambda args
+                            (list 'progn
+                                  (list 'print (list 'list
+                                                     ''entering
+                                                     (list 'quote name)
+                                                     '(env)))
+                                  (list 'prog1
+                                        body
+                                        (list 'print (list 'list ''leaving
+                                                           (list 'quote name)))
+                                        ))))))
 
 (set-symbol-function
  'DEFMACRO
  (%macro-lambda (name args body)
                 (list 'set-symbol-function (list 'quote name)
                       (list '%macro-lambda args body))))
+
+
+(defun caar (x) (car (car x)))
+(defun cadr (x) (car (cdr x)))
+(defun cddr (x) (cdr (cdr x)))
 
 (defmacro defvar (var val)
   (list 'set-symbol-value (list 'quote var) val))
@@ -37,6 +52,9 @@
 
 (defun not (x)
   (if x nil t))
+
+(defun atom (x)
+  (not (eq 'cons (type-of x))))
 
 (defun equal (x y)
   (if (eq x y) t
@@ -105,10 +123,30 @@
       (if (null (cdr xs)) xs
           (last (cdr xs)))))
 
-(defun reduce (f xs)
-  (if (null xs)
-      (funcall f)
-      (funcall f (car xs) (reduce f (cdr xs)))))
+(defun %cond (clauses)
+  (progn
+    (if (null clauses) nil
+        (let ((x (car clauses)))
+          (list 'if
+                (car x)
+                (car (cdr x))
+                (%cond (cdr clauses)))))))
+
+(defmacro cond (&rest clauses)
+  (%cond clauses))
+
+(defun reduce-loop (f x xs)
+  (cond ((null xs)
+         x)
+        ((null (cdr xs))
+         (funcall f x (car xs)))
+        (t
+         (reduce-loop f
+                      (funcall f x (car xs))
+                      (cdr xs)))))
+
+(defun reduce (f xs init)
+  (reduce-loop f init xs))
 
 (defun remove-if (f xs)
   (if (null xs) nil
@@ -128,23 +166,11 @@
           (cons (car xs)
                 (butlast (cdr xs))))))
 
-(defun unquote? (x)
-  (if (eq 'cons (type-of x))
-      (eq 'unquote (car x))
-      nil))
+(defun snoc (x y)
+  (cons y x))
 
-(defun %quasiquote (x)
-  (let ((type (type-of x)))
-    (if (eq type 'cons)
-        (if (eq 'unquote (car x))
-            (car (cdr x))
-            (cons 'list
-                  (mapcar #'%quasiquote x)))
-        (list 'quote x))))
+(defun revappend (list tail)
+  (reduce #'snoc list tail))
 
-(defmacro quasiquote (x)
-  (%quasiquote x))
-
-;; (defmacro defstruct (name &rest fields)
-
-;;   )
+(defmacro and (x y)
+  (list 'if x y nil))

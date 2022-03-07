@@ -54,17 +54,19 @@ const Job = union(Status) {
 };
 
 pub fn step(this: *Eval) !void {
-    // std.log.warn("\n", .{});
-    // try dump.warn("way", this.ctx, this.way);
-    // try dump.warn("env", this.ctx, this.env);
+    if (wtf) {
+        std.log.warn("\n", .{});
+        // try dump.warn("way", this.ctx, this.way);
+        try dump.warn("env", this.ctx, this.env);
+    }
     switch (this.job) {
         .val => |x| {
-            // try dump.warn("val", this.ctx, x);
+            if (wtf) try dump.warn("val", this.ctx, x);
             return this.proceed(x);
         },
 
         .exp => |t| {
-            // try dump.warn("exp", this.ctx, t);
+            if (wtf) try dump.warn("exp", this.ctx, t);
             switch (wisp.tagOf(t)) {
                 .int, .v08, .sys => this.give(.val, t),
                 .sym => return this.findVariable(t),
@@ -204,6 +206,10 @@ pub fn proceed(this: *Eval, x: u32) !void {
 fn execDuo(this: *Eval, duo: wisp.Row(.duo)) !void {
     const val = this.job.val;
 
+    try dump.warn("macroexpansion", this.ctx, val);
+    try dump.warn("old env", this.ctx, this.env);
+    try dump.warn("new env", this.ctx, duo.car);
+
     this.* = .{
         .ctx = this.ctx,
         .job = .{ .exp = val },
@@ -341,11 +347,13 @@ pub fn call(
 
         .fun => {
             const fun = try this.ctx.row(.fun, funptr);
+            this.env = fun.env;
             try this.scan(fun.exp, fun.par, args, way, rev);
         },
 
         .mac => {
             const mac = try this.ctx.row(.mac, funptr);
+            this.env = mac.env;
             try this.scan(mac.exp, mac.par, args, way, rev);
         },
 
@@ -386,7 +394,7 @@ pub fn call(
     }
 }
 
-fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
+pub fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
     const values = try this.ctx.new(.duo, .{
         .car = this.job.val,
         .cdr = ct0.arg,
@@ -556,7 +564,14 @@ pub fn evaluate(this: *Eval, limit: u32, gc: bool) !u32 {
             }
         }
 
-        try this.step();
+        if (this.step()) {} else |err| {
+            if (this.err == wisp.nil) {
+                this.err = try this.ctx.newv32(
+                    &[_]u32{this.ctx.kwd.@"PROGRAM-ERROR"},
+                );
+            }
+            return err;
+        }
 
         if (gc) try tidy.tidyEval(this);
     }

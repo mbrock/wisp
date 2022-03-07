@@ -22,7 +22,7 @@ pub fn build(b: *std.build.Builder) void {
 
     wasm.setTarget(.{
         .cpu_arch = .wasm32,
-        .os_tag = .freestanding,
+        .os_tag = .wasi,
     });
 
     wasm.addPackagePath("ziglyph", "vendor/ziglyph/src/ziglyph.zig");

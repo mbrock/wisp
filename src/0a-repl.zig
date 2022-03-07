@@ -45,7 +45,11 @@ fn readLine(stream: anytype, orb: std.mem.Allocator) !?[]u8 {
     return stream.readUntilDelimiterOrEofAlloc(orb, '\n', 4096);
 }
 
-fn readSexp(stream: anytype, orb: std.mem.Allocator, ctx: *wisp.Ctx) !?u32 {
+fn readSexp(
+    stream: anytype,
+    orb: std.mem.Allocator,
+    ctx: *wisp.Ctx,
+) !?u32 {
     if (try readLine(stream, orb)) |line| {
         return try read(ctx, line);
     } else {
@@ -80,7 +84,7 @@ pub fn repl() anyerror!void {
             var exe = eval.init(&ctx, term);
 
             term: while (true) {
-                if (exe.evaluate(1000, false)) |val| {
+                if (exe.evaluate(100_000, false)) |val| {
                     try dump.dump(&ctx, stdout, val);
                     try stdout.writeByte('\n');
                     try tidy.tidy(&ctx);
@@ -94,6 +98,7 @@ pub fn repl() anyerror!void {
                             .exp => try dump.warn("Term", &ctx, exe.job.exp),
                             .val => try dump.warn("Value", &ctx, exe.job.val),
                         }
+                        try dump.warn("Environment", &ctx, exe.env);
 
                         try stdout.writeAll("*> ");
                         if (try readSexp(stdin, tmp, &ctx)) |restart| {

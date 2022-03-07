@@ -79,6 +79,7 @@ pub const Kwd = enum {
     @"PROGRAM-ERROR",
     @"UNBOUND-VARIABLE",
     @"UNDEFINED-FUNCTION",
+    @"TYPE-MISMATCH",
 };
 
 /// The orb is the vat's allocator.  All Lisp values reside in memory
@@ -228,6 +229,7 @@ pub const Ctx = struct {
 
     pub fn cook(ctx: *Ctx) !void {
         try ctx.load(@embedFile("./a0-base.lisp"));
+        try ctx.load(@embedFile("./a1-backquote.lisp"));
     }
 
     pub fn special(ctx: *Ctx, s: Kwd) u32 {

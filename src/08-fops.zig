@@ -22,6 +22,7 @@ const std = @import("std");
 const wisp = @import("./ff-wisp.zig");
 
 const Eval = @import("./04-eval.zig");
+const read = @import("./05-read.zig");
 const dump = @import("./06-dump.zig");
 const Rest = @import("./07-xops.zig").Rest;
 
@@ -51,11 +52,31 @@ pub fn @"CONS"(job: *Eval, car: u32, cdr: u32) anyerror!void {
 }
 
 pub fn @"CAR"(job: *Eval, x: u32) anyerror!void {
-    job.give(.val, try job.ctx.get(.duo, .car, x));
+    if (x == wisp.nil) {
+        job.give(.val, wisp.nil);
+    } else if (job.ctx.get(.duo, .car, x)) |car| {
+        job.give(.val, car);
+    } else |_| {
+        try job.fail(&[_]u32{
+            job.ctx.kwd.@"TYPE-MISMATCH",
+            job.ctx.kwd.@"CONS",
+            x,
+        });
+    }
 }
 
 pub fn @"CDR"(job: *Eval, x: u32) anyerror!void {
-    job.give(.val, try job.ctx.get(.duo, .cdr, x));
+    if (x == wisp.nil) {
+        job.give(.val, wisp.nil);
+    } else if (job.ctx.get(.duo, .cdr, x)) |cdr| {
+        job.give(.val, cdr);
+    } else |_| {
+        try job.fail(&[_]u32{
+            job.ctx.kwd.@"TYPE-MISMATCH",
+            job.ctx.kwd.@"CONS",
+            x,
+        });
+    }
 }
 
 pub fn @"SET-SYMBOL-FUNCTION"(
@@ -148,7 +169,16 @@ pub fn FUNCALL(
     function: u32,
     arguments: Rest,
 ) anyerror!void {
-    try job.call(job.way, function, arguments.arg, false);
+    try job.call(
+        try job.ctx.new(.ct2, .{
+            .env = job.env,
+            .exp = wisp.nil,
+            .hop = job.way,
+        }),
+        function,
+        arguments.arg,
+        false,
+    );
 }
 
 pub fn APPLY(
@@ -180,4 +210,55 @@ pub fn CONCATENATE(job: *Eval, typ: u32, rest: Rest) anyerror!void {
     } else {
         try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
     }
+}
+
+fn cwd(allocator: std.mem.Allocator) !std.fs.Dir {
+    if (@import("builtin").os.tag == .wasi) {
+        var preopens = std.fs.wasi.PreopenList.init(allocator);
+        defer preopens.deinit();
+
+        try preopens.populate();
+        if (preopens.find(.{ .Dir = "." })) |x| {
+            return std.fs.Dir{ .fd = x.fd };
+        } else {
+            return wisp.Oof.Err;
+        }
+    } else {
+        return std.fs.cwd();
+    }
+}
+
+fn readFileAlloc(
+    allocator: std.mem.Allocator,
+    path: []const u8,
+) ![]u8 {
+    const dir = try cwd(allocator);
+    return dir.readFileAlloc(allocator, path, 1024 * 1024);
+}
+
+pub fn LOAD(job: *Eval, src: u32) anyerror!void {
+    const path = try job.ctx.v08slice(src);
+
+    const code = try readFileAlloc(job.ctx.orb, path);
+    defer job.ctx.orb.free(code);
+
+    const forms = try read.readMany(job.ctx, code);
+    defer forms.deinit();
+
+    for (forms.items) |form| {
+        var exe = Eval.init(job.ctx, form);
+        try dump.warn("loading", job.ctx, form);
+        if (exe.evaluate(1_000, false)) |_| {} else |err| {
+            try dump.warn("failed", job.ctx, form);
+            try dump.warn("condition", job.ctx, exe.err);
+            job.err = exe.err;
+            return err;
+        }
+    }
+
+    job.give(.val, wisp.t);
+}
+
+pub fn ENV(job: *Eval) anyerror!void {
+    job.give(.val, job.env);
 }

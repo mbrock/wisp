@@ -172,12 +172,12 @@ pub fn dump_(
         },
 
         .fun => {
-            const fun = try ctx.row(.fun, x);
+            // const fun = try ctx.row(.fun, x);
             try out.print("<fun", .{});
-            inline for (std.meta.fields(@TypeOf(fun))) |field| {
-                try out.print(" {s}=", .{field.name});
-                try dump(ctx, out, @field(fun, field.name));
-            }
+            // inline for (std.meta.fields(@TypeOf(fun))) |field| {
+            //     try out.print(" {s}=", .{field.name});
+            //     try dump(ctx, out, @field(fun, field.name));
+            // }
             try out.print(">", .{});
         },
 
