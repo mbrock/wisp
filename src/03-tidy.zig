@@ -183,7 +183,7 @@ fn pull(gc: *GC, comptime tag: Tag) !void {
 }
 
 fn drag(gc: *GC, comptime tag: Tag, tab: *Tab(tag), i: Ptr.Idx) !void {
-    inline for (std.meta.fields(Row(tag))) |_, j| {
+    inline for (std.meta.fields(Col(tag))) |_, j| {
         const col = @intToEnum(Col(tag), j);
         const new = try gc.copy(tab.list.items(col)[i]);
         tab.list.items(col)[i] = new;

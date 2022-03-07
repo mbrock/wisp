@@ -34,20 +34,21 @@ const Tag = wisp.Tag;
 const Era = wisp.Era;
 const Ptr = wisp.Ptr;
 
-pub fn Row(comptime t: Tag) type {
+/// Each pointer type has a set of columns.
+pub fn ColEnum(comptime t: Tag) type {
     return switch (t) {
         .int, .sys, .chr, .jet => void,
-        .duo => struct { car: u32, cdr: u32 },
-        .sym => struct { str: u32, pkg: u32, val: u32, fun: u32 },
-        .fun => struct { env: u32, par: u32, exp: u32 },
-        .mac => struct { env: u32, par: u32, exp: u32 },
-        .v08 => struct { idx: u32, len: u32 },
-        .v32 => struct { idx: u32, len: u32 },
-        .pkg => struct { nam: u32, sym: u32, use: u32 },
-        .ct0 => struct { env: u32, fun: u32, arg: u32, exp: u32, hop: u32 },
-        .ct1 => struct { env: u32, yay: u32, nay: u32, hop: u32 },
-        .ct2 => struct { env: u32, exp: u32, hop: u32 },
-        .ct3 => struct { env: u32, exp: u32, dew: u32, arg: u32, hop: u32 },
+        .duo => enum { car, cdr },
+        .sym => enum { str, pkg, val, fun },
+        .fun => enum { env, par, exp },
+        .mac => enum { env, par, exp },
+        .v08 => enum { idx, len },
+        .v32 => enum { idx, len },
+        .pkg => enum { nam, sym, use },
+        .ct0 => enum { env, fun, arg, exp, hop },
+        .ct1 => enum { env, yay, nay, hop },
+        .ct2 => enum { env, exp, hop },
+        .ct3 => enum { env, exp, dew, arg, hop },
     };
 }
 
@@ -101,14 +102,20 @@ pub const V32 = struct {
 /// err in the job.
 pub const Oof = error{ Ugh, Bug, Err };
 
+pub fn Row(comptime tag: Tag) type {
+    return std.enums.EnumFieldStruct(ColEnum(tag), u32, null);
+}
+
 pub fn Col(comptime tag: Tag) type {
-    return std.meta.FieldEnum(Row(tag));
+    return Tab(tag).Field;
 }
 
 pub fn Tab(comptime tag: Tag) type {
     return struct {
         const This = @This();
         const prefix: u32 = @enumToInt(tag) << (32 - 5);
+
+        pub const Field = std.MultiArrayList(Row(tag)).Field;
 
         scan: Ptr.Idx = 0,
         list: std.MultiArrayList(Row(tag)) = .{},
