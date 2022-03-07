@@ -24,6 +24,7 @@ const wisp = @import("./ff-wisp.zig");
 const Eval = @import("./04-eval.zig");
 const read = @import("./05-read.zig");
 const dump = @import("./06-dump.zig");
+const disk = @import("./0b-disk.zig");
 const Rest = @import("./07-xops.zig").Rest;
 
 fn int(x: u32) !i31 {
@@ -112,14 +113,10 @@ pub fn @"EQ"(job: *Eval, x: u32, y: u32) anyerror!void {
     job.give(.val, if (x == y) wisp.t else wisp.nil);
 }
 
-const wasm = @import("builtin").target.isWasm();
-
 pub fn @"PRINT"(job: *Eval, x: u32) anyerror!void {
-    if (!wasm) {
-        const out = std.io.getStdOut().writer();
-        try dump.dump(job.ctx, out, x);
-        try out.writeByte('\n');
-    }
+    const out = std.io.getStdOut().writer();
+    try dump.dump(job.ctx, out, x);
+    try out.writeByte('\n');
     job.give(.val, x);
 }
 
@@ -157,11 +154,13 @@ pub fn @"GET/CC"(job: *Eval) anyerror!void {
 }
 
 pub fn SAVE(job: *Eval, @"CORE-NAME": u32) anyerror!void {
-    if (wasm) {
-        job.give(.val, wisp.zap);
-    } else {
-        job.give(.val, try wisp.core.save(job, try job.ctx.v08slice(@"CORE-NAME")));
-    }
+    job.give(
+        .val,
+        try wisp.core.save(
+            job,
+            try job.ctx.v08slice(@"CORE-NAME"),
+        ),
+    );
 }
 
 pub fn FUNCALL(
@@ -212,34 +211,10 @@ pub fn CONCATENATE(job: *Eval, typ: u32, rest: Rest) anyerror!void {
     }
 }
 
-fn cwd(allocator: std.mem.Allocator) !std.fs.Dir {
-    if (@import("builtin").os.tag == .wasi) {
-        var preopens = std.fs.wasi.PreopenList.init(allocator);
-        defer preopens.deinit();
-
-        try preopens.populate();
-        if (preopens.find(.{ .Dir = "." })) |x| {
-            return std.fs.Dir{ .fd = x.fd };
-        } else {
-            return wisp.Oof.Err;
-        }
-    } else {
-        return std.fs.cwd();
-    }
-}
-
-fn readFileAlloc(
-    allocator: std.mem.Allocator,
-    path: []const u8,
-) ![]u8 {
-    const dir = try cwd(allocator);
-    return dir.readFileAlloc(allocator, path, 1024 * 1024);
-}
-
 pub fn LOAD(job: *Eval, src: u32) anyerror!void {
     const path = try job.ctx.v08slice(src);
 
-    const code = try readFileAlloc(job.ctx.orb, path);
+    const code = try disk.readFileAlloc(job.ctx.orb, path);
     defer job.ctx.orb.free(code);
 
     const forms = try read.readMany(job.ctx, code);

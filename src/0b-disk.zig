@@ -20,6 +20,30 @@
 const wisp = @import("./ff-wisp.zig");
 const std = @import("std");
 
+pub fn cwd(allocator: std.mem.Allocator) !std.fs.Dir {
+    if (@import("builtin").os.tag == .wasi) {
+        var preopens = std.fs.wasi.PreopenList.init(allocator);
+        defer preopens.deinit();
+
+        try preopens.populate();
+        if (preopens.find(.{ .Dir = "." })) |x| {
+            return std.fs.Dir{ .fd = x.fd };
+        } else {
+            return wisp.Oof.Err;
+        }
+    } else {
+        return std.fs.cwd();
+    }
+}
+
+pub fn readFileAlloc(
+    allocator: std.mem.Allocator,
+    path: []const u8,
+) ![]u8 {
+    const dir = try cwd(allocator);
+    return dir.readFileAlloc(allocator, path, 1024 * 1024);
+}
+
 fn tell(out: anytype, x: u32) !void {
     if (x == wisp.nil)
         try out.print("nil", .{})
@@ -58,7 +82,7 @@ pub fn save(eval: *wisp.Eval, name: []const u8) !u32 {
 
     var atom = try std.io.BufferedAtomicFile.create(
         room.allocator(),
-        std.fs.cwd(),
+        try cwd(room.allocator()),
         name,
         .{},
     );
@@ -103,7 +127,11 @@ pub fn save(eval: *wisp.Eval, name: []const u8) !u32 {
         const tab = ctx.tab(tag);
         if (tab.list.len > 0) {
             try file.print("\n", .{});
-            try file.print("* {s} #{d}\n", .{ @tagName(tag), tab.list.len });
+            try file.print("* {s} #{d}\n", .{
+                @tagName(tag),
+                tab.list.len,
+            });
+
             inline for (std.meta.fields(wisp.Row(tag))) |_, j| {
                 const col = @intToEnum(wisp.Col(tag), j);
                 for (ctx.col(tag, col)) |x| {
@@ -118,10 +146,7 @@ pub fn save(eval: *wisp.Eval, name: []const u8) !u32 {
     try atom.finish();
 
     return try eval.ctx.newv08(
-        try atom.atomic_file.dir.realpathAlloc(
-            room.allocator(),
-            atom.atomic_file.dest_basename,
-        ),
+        atom.atomic_file.dest_basename,
     );
 }
 

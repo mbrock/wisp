@@ -206,9 +206,11 @@ pub fn proceed(this: *Eval, x: u32) !void {
 fn execDuo(this: *Eval, duo: wisp.Row(.duo)) !void {
     const val = this.job.val;
 
-    try dump.warn("macroexpansion", this.ctx, val);
-    try dump.warn("old env", this.ctx, this.env);
-    try dump.warn("new env", this.ctx, duo.car);
+    if (wtf) {
+        try dump.warn("macroexpansion", this.ctx, val);
+        try dump.warn("old env", this.ctx, this.env);
+        try dump.warn("new env", this.ctx, duo.car);
+    }
 
     this.* = .{
         .ctx = this.ctx,
