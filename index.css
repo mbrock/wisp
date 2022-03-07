@@ -110,3 +110,7 @@ input:focus {
   display: flex;
   justify-content: space-between;
 }
+
+.list.dotted > *:last-child::before {
+  content: ". ";
+}

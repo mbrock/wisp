@@ -36,11 +36,29 @@ const Val = ({ data, val }: { data: View, val: number }) => {
     }
 
     case "duo": {
-      const { car, cdr } = data.row("duo", val)
+      const list = []
+      let dotted = false
+      let cur = val
+      while (cur != data.ctx.sys.nil) {
+        const { car, cdr } = data.row("duo", cur)
+        list.push(car)
+        if (data.ctx.tagOf(cdr) == "duo") {
+          cur = cdr
+        } else if (cdr == data.ctx.sys.nil) {
+          break
+        } else {
+          list.push(cdr)
+          dotted = true
+          break
+        }
+      }
+      
       return (
-        <div className="list">
-          <Val data={data} val={car} />
-          <Val data={data} val={cdr} />
+        <div className={`list ${dotted ? "dotted" : ""}`}>
+          {
+            list.map((x, i) =>
+              <Val data={data} val={x} key={i} />)
+          }
         </div>
       )
     }
@@ -65,8 +83,8 @@ const Line = ({ data, turn, i }: {
   i: number,
 }) => {
   return (
-    <div>
-      <span style={{ opacity: 0.6, padding: "0 1rem 0 0" }}>{i}</span>
+    <div style={{ marginBottom: "0.5rem" }}>
+      <span style={{ opacity: 0.4, padding: "0 1.5rem 0 0" }}>#{i}</span>
       <Val data={data} val={turn.exp} />
       <span style={{ padding: "0 1rem" }}>↦</span>
       <Val data={data} val={turn.val} />
@@ -97,7 +115,7 @@ const Home = ({ ctx }: { ctx: Wisp }) => {
         {
           lines.map(
             (turn, i) =>
-              <Line data={ctx.view()} turn={turn} i={i} />
+              <Line data={ctx.view()} turn={turn} i={i} key={i} />
           )
         }
       </div>
@@ -151,7 +169,6 @@ class WASI {
       proc_exit() {},
       
       fd_prestat_get() {},
-      
       fd_prestat_dir_name() {},
       
       fd_write: (fd, iovs, iovsLen, nwritten) => {
@@ -187,12 +204,16 @@ class WASI {
       },
       
       fd_close() {},
-      
       fd_read() {},
       
       path_open() {},
+      path_rename() {},
+      path_remove_directory() {},
+      path_unlink_file() {},
       
       fd_filestat_get() {},
+
+      random_get() {},
     }
   }
 }
