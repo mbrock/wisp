@@ -1,0 +1,106 @@
+/* -*- fill-column: 64; -*-
+ *
+ * This file is part of Wisp.
+ *
+ * Wisp is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License
+ * as published by the Free Software Foundation, either version
+ * 3 of the License, or (at your option) any later version.
+ *
+ * Wisp is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General
+ * Public License along with Wisp. If not, see
+ * <https://www.gnu.org/licenses/>.
+ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #eee;
+  font-size: 16px;
+  line-height: 20px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+}
+
+html { --sans: apple-system, BlinkMacSystemFont, avenir next,
+  avenir, segoe ui, helvetica neue, helvetica, Ubuntu, roboto,
+  noto, arial, sans-serif }
+
+html { --mono: DM Mono, Source Code Pro, Inconsolata, Menlo,
+  Consolas, Monaco, Liberation Mono, Lucida Console,
+  monospace; }
+
+* { font-family: var(--mono); }
+
+#app {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#repl {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+#output {
+  flex-grow: 1;
+  padding: 5px 10px;
+  overflow-y: auto;
+}
+
+form {
+  display: flex;
+  align-items: center;
+}
+
+input {
+  flex-grow: 1;
+  padding: 0.5rem 1rem;
+  background: white;
+  border: 0;
+  border-top: 1px solid #aaa;
+  color: inherit;
+}
+
+input:focus {
+  outline: 0;
+}
+
+.list {
+  display: inline-flex;
+  flex-wrap: wrap;
+}
+
+.list > *:not(:last-child) {
+  margin-right: 5px;
+}
+
+.list {
+  border: 1px solid #ccc;
+  padding: 1px 6px;
+  background: #aaaaff0e;
+  align-items: center;
+}
+
+.list .list {
+  margin: 3px;
+}
+
+.titlebar {
+  padding: 5px 10px;
+  display: flex;
+  justify-content: space-between;
+}

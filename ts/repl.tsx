@@ -1,3 +1,22 @@
+// -*- fill-column: 64; -*-
+//
+// This file is part of Wisp.
+//
+// Wisp is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License
+// as published by the Free Software Foundation, either version
+// 3 of the License, or (at your option) any later version.
+//
+// Wisp is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General
+// Public License along with Wisp. If not, see
+// <https://www.gnu.org/licenses/>.
+//
+
 import * as fs from "fs/promises"
 
 import * as wisp from "./wisp"
@@ -9,7 +28,10 @@ import { render, Text, Box } from "ink"
 import TextInput from "ink-text-input"
 import useStdoutDimensions from "ink-use-stdout-dimensions"
 
-const Repl = ({ ctx, data }: { ctx: wisp.Wisp, data: wisp.View }) => {
+const Repl = ({ ctx, data }: {
+  ctx: wisp.Wisp,
+  data: wisp.View
+}) => {
   const [input, setInput] = React.useState("")
   const [outputs, setOutputs] = React.useState([])
   const [tw, th] = useStdoutDimensions()
@@ -39,7 +61,10 @@ const Repl = ({ ctx, data }: { ctx: wisp.Wisp, data: wisp.View }) => {
           <Box paddingRight={1}>
             <Text dimColor >{">"}</Text>
           </Box>
-          <TextInput value={input} onChange={setInput} onSubmit={submit} />
+          <TextInput
+             value={input}
+             onChange={setInput}
+             onSubmit={submit} />
         </Box>
       </Box>
       <Box>
@@ -50,8 +75,9 @@ const Repl = ({ ctx, data }: { ctx: wisp.Wisp, data: wisp.View }) => {
 }
 
 async function main() {
-  const wasmCode = await fs.readFile("zig-out/lib/wisp.wasm")
-  const ctx = new wisp.Wisp(await WebAssembly.instantiate(wasmCode))
+  const source = await fs.readFile("zig-out/lib/wisp.wasm")
+  const instance = await WebAssembly.instantiate(source)
+  const ctx = new wisp.Wisp(instance)
 
   render(<Repl ctx={ctx} data={ctx.view()}/>)
 }

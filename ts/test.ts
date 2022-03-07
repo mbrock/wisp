@@ -1,10 +1,29 @@
+// -*- fill-column: 64; -*-
+//
+// This file is part of Wisp.
+//
+// Wisp is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License
+// as published by the Free Software Foundation, either version
+// 3 of the License, or (at your option) any later version.
+//
+// Wisp is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General
+// Public License along with Wisp. If not, see
+// <https://www.gnu.org/licenses/>.
+//
+
 import { Wisp } from "./wisp"
 import { readFile } from "fs/promises"
 
 async function start(): Promise<Wisp> {
-  const wasm = await readFile("./zig-out/lib/wisp.wasm")
-  const inst = await WebAssembly.instantiate(wasm, {})
-  return new Wisp(inst)
+  const source = await readFile("./zig-out/lib/wisp.wasm")
+  const instance = await WebAssembly.instantiate(source, {})
+  return new Wisp(instance)
 }
 
 test("basic wisp sanity check", async () => {
