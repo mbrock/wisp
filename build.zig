@@ -1,51 +1,58 @@
 const std = @import("std");
 
-pub fn build(b: *std.build.Builder) void {
-    const target = b.standardTargetOptions(.{});
-    const mode = b.standardReleaseOptions();
+fn wispStep(
+    mode: std.builtin.Mode,
+    target: std.zig.CrossTarget,
+    step: *std.build.LibExeObjStep,
+) *std.build.LibExeObjStep {
+    step.addPackagePath("ziglyph", "vendor/ziglyph/src/ziglyph.zig");
+    step.setTarget(target);
+    step.setBuildMode(mode);
+    return step;
+}
 
-    const exe = b.addExecutable(
+pub fn build(b: *std.build.Builder) void {
+    const mode = b.standardReleaseOptions();
+    const standardTarget = b.standardTargetOptions(.{});
+    const wasiTarget = std.zig.CrossTarget{
+        .cpu_arch = .wasm32,
+        .os_tag = .wasi,
+    };
+
+    const exe = wispStep(mode, standardTarget, b.addExecutable(
         "wisp",
         "src/0a-repl.zig",
-    );
+    ));
 
-    exe.addPackagePath("ziglyph", "vendor/ziglyph/src/ziglyph.zig");
-    exe.setTarget(target);
-    exe.setBuildMode(mode);
-    exe.install();
+    const wasmExe = wispStep(mode, wasiTarget, b.addExecutable(
+        "wisp",
+        "src/0a-repl.zig",
+    ));
 
-    const wasm = b.addSharedLibrary(
+    const wasmLib = wispStep(mode, wasiTarget, b.addSharedLibrary(
         "wisp",
         "src/e0-wasm.zig",
         .unversioned,
-    );
+    ));
 
-    wasm.setTarget(.{
-        .cpu_arch = .wasm32,
-        .os_tag = .wasi,
-    });
+    exe.install();
+    wasmExe.install();
+    wasmLib.install();
 
-    wasm.addPackagePath("ziglyph", "vendor/ziglyph/src/ziglyph.zig");
-    wasm.setBuildMode(mode);
-    wasm.install();
+    const tests = wispStep(mode, standardTarget, b.addTest(
+        "src/0a-repl.zig",
+    ));
 
-    const run_cmd = exe.run();
-    run_cmd.step.dependOn(b.getInstallStep());
+    const testStep = b.step("test", "Run unit tests");
+    testStep.dependOn(&tests.step);
+
+    const runCmd = exe.run();
+    runCmd.step.dependOn(b.getInstallStep());
+
     if (b.args) |args| {
-        run_cmd.addArgs(args);
+        runCmd.addArgs(args);
     }
 
-    const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_cmd.step);
-
-    const exe_tests = b.addTest("src/0a-repl.zig");
-    exe_tests.addPackagePath(
-        "ziglyph",
-        "vendor/ziglyph/src/ziglyph.zig",
-    );
-    exe_tests.setTarget(target);
-    exe_tests.setBuildMode(mode);
-
-    const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&exe_tests.step);
+    const runStep = b.step("run", "Run the Wisp REPL");
+    runStep.dependOn(&runCmd.step);
 }
