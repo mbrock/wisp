@@ -30,15 +30,21 @@ body {
   bottom: 0;
 }
 
-html { --sans: apple-system, BlinkMacSystemFont, avenir next,
-  avenir, segoe ui, helvetica neue, helvetica, Ubuntu, roboto,
-  noto, arial, sans-serif }
+html {
+  --sans: apple-system, BlinkMacSystemFont, avenir next,
+          avenir, segoe ui, helvetica neue, helvetica, Ubuntu, roboto,
+          noto, arial, sans-serif
+}
 
-html { --mono: DM Mono, Source Code Pro, Inconsolata, Menlo,
-  Consolas, Monaco, Liberation Mono, Lucida Console,
-  monospace; }
+html {
+  --mono: Berkeley Mono, DM Mono, Source Code Pro, Inconsolata, Menlo,
+          Consolas, Monaco, Liberation Mono, Lucida Console,
+          monospace;
+}
 
-* { font-family: var(--mono); }
+* {
+  font-family: var(--mono);
+}
 
 #app {
   height: 100vh;

@@ -17,10 +17,10 @@
 // <https://www.gnu.org/licenses/>.
 //
 
+import { Wisp, View } from "./wisp"
+
 import * as ReactDOM from "react-dom"
 import * as React from "react"
-
-import { Wisp, View } from "./wisp"
 
 const Val = ({ data, val }: { data: View, val: number }) => {
   switch (data.ctx.tagOf(val)) {
@@ -59,11 +59,16 @@ const Val = ({ data, val }: { data: View, val: number }) => {
   }
 }
 
-const Line = ({ data, turn }: { data: View, turn: Turn }) => {
+const Line = ({ data, turn, i }: {
+  data: View,
+  turn: Turn,
+  i: number,
+}) => {
   return (
     <div>
+      <span style={{ opacity: 0.6, padding: "0 1rem 0 0" }}>{i}</span>
       <Val data={data} val={turn.exp} />
-      ↦
+      <span style={{ padding: "0 1rem" }}>↦</span>
       <Val data={data} val={turn.val} />
     </div>
   )
@@ -92,7 +97,8 @@ const Home = ({ ctx }: { ctx: Wisp }) => {
         {
           lines.map(
             (turn, i) =>
-              <Line data={ctx.view()} turn={turn} key={i} />)
+              <Line data={ctx.view()} turn={turn} i={i} />
+          )
         }
       </div>
       <form id="form" 
@@ -122,11 +128,85 @@ declare global {
   }
 }
 
+const WASI_ESUCCESS = 0
+const WASI_EBADF = 8
+const WASI_EINVAL = 28
+const WASI_ENOSYS = 52
+const WASI_STDOUT_FILENO = 1
+const WASI_STDERR_FILENO = 2
+
+class WASI {
+  instance: WebAssembly.Instance
+
+  setInstance(instance: WebAssembly.Instance) {
+    this.instance = instance
+  }
+
+  getDataView(): DataView {
+    return new DataView(this.instance.exports.memory.buffer)
+  }
+  
+  exports() {
+    return {
+      proc_exit() {},
+      
+      fd_prestat_get() {},
+      
+      fd_prestat_dir_name() {},
+      
+      fd_write: (fd, iovs, iovsLen, nwritten) => {
+        const view = this.getDataView()
+        let written = 0
+        let bufferBytes = []
+
+        const buffers = Array.from({ length: iovsLen }, (_, i) => {
+          const ptr = iovs + i * 8
+          const buf = view.getUint32(ptr, !0)
+          const bufLen = view.getUint32(ptr + 4, !0)
+          
+          return new Uint8Array(
+            this.instance.exports.memory.buffer, buf, bufLen
+          )
+        })
+        
+        for (const iov of buffers) {
+          for (var b = 0; b < iov.byteLength; b++)
+            bufferBytes.push(iov[b])
+
+          written += b
+        }
+
+        if (fd === WASI_STDOUT_FILENO)
+          console.log(String.fromCharCode.apply(null, bufferBytes))
+        else if (fd === WASI_STDERR_FILENO)
+          console.warn(String.fromCharCode.apply(null, bufferBytes))
+
+        view.setUint32(nwritten, written, !0)
+
+        return WASI_ESUCCESS;
+      },
+      
+      fd_close() {},
+      
+      fd_read() {},
+      
+      path_open() {},
+      
+      fd_filestat_get() {},
+    }
+  }
+}
+
 onload = async () => {
-  const ctx = new Wisp(
-    await WebAssembly.instantiateStreaming(
-      fetch(window.wispWasmUrl),
-      {}))
+  const wasi = new WASI
+  const instance = await WebAssembly.instantiateStreaming(
+    fetch(window.wispWasmUrl), {
+    wasi_snapshot_preview1: wasi.exports()
+  })
+
+  wasi.setInstance(instance.instance)
+  
+  const ctx = new Wisp(instance.instance)
 
   ReactDOM.render(
     <Home ctx={ctx} />,

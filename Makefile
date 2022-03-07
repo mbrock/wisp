@@ -1,5 +1,6 @@
 default: zig-out/bin/wisp
-web: zig-out/lib/wisp.wasm dist/index.html
+
+.PHONY: web
 
 SOURCES = \
   00-util.zig 01-word.zig 02-base.zig 03-tidy.zig 04-eval.zig \
@@ -13,7 +14,8 @@ zig-out/bin/wisp: build.zig $(ZIGSOURCES)
 zig-out/lib/wisp.wasm: build.zig $(ZIGSOURCES)
 	zig build
 
-dist/index.html: index.tsx index.html zig-out/lib/wisp.wasm build
+web:
+	zig build
 	./build
 
 clean:; rm -rf dist/* wasm/* zig-cache zig-out src/zig-cache

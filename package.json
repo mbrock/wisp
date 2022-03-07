@@ -6,6 +6,7 @@
   "license": "AGPL-3.0",
   "dependencies": {
     "@types/node": "^17.0.21",
+    "@wasmer/wasi": "^1.0.2",
     "ink": "^3.2.0",
     "ink-text-input": "^4.0.3",
     "ink-use-stdout-dimensions": "^1.0.5",

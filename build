@@ -8,6 +8,7 @@ esbuild ts/index.tsx --outdir=dist --bundle --sourcemap \
 cd dist
 
 cp ../index.html .
+cp ../index.css .
 
 mvhash() {
   hash=$(sha256sum "$1")
@@ -19,8 +20,12 @@ mvhash() {
 cp ../zig-out/lib/wisp.wasm .
 mvhash wisp.wasm
 
+mvhash index.css
+result=$(ls index*.css)
+sed -i.bak -e "s|index.css|$result|" index.html
+
 result=$(ls wisp*.wasm)
-sed -i -e "s|wisp.wasm|$result|" index.html
+sed -i.bak -e "s|wisp.wasm|$result|" index.html
 
 result=$(ls index*.js)
-sed -i -e "s|index.js|$result|" index.html
+sed -i.bak -e "s|index.js|$result|" index.html
