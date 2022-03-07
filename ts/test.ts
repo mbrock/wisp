@@ -19,11 +19,24 @@
 
 import { Wisp } from "./wisp"
 import { readFile } from "fs/promises"
+import { WASI } from "wasi"
 
 async function start(): Promise<Wisp> {
+  const wasi = new WASI({
+    args: [],
+    env: {},
+    preopens: {},
+  })
+
   const source = await readFile("./zig-out/lib/wisp.wasm")
-  const instance = await WebAssembly.instantiate(source, {})
-  return new Wisp(instance)
+  const wasm = await WebAssembly.compile(source)
+  const result = await WebAssembly.instantiate(wasm, {
+    wasi_snapshot_preview1: wasi.wasiImport
+  })
+
+  wasi.initialize(result)
+
+  return new Wisp(result)
 }
 
 test("basic wisp sanity check", async () => {

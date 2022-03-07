@@ -23,6 +23,8 @@ const eval = @import("./04-eval.zig");
 const xops = @import("./07-xops.zig");
 const wisp = @import("./ff-wisp.zig");
 
+pub fn main() void {}
+
 export const wisp_tag_int = wisp.Tag.int;
 export const wisp_tag_sys = wisp.Tag.sys;
 export const wisp_tag_chr = wisp.Tag.chr;

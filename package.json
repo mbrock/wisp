@@ -15,8 +15,8 @@
   },
   "scripts": {
     "build": "make",
-    "test": "jest",
-    "watch": "jest --watchAll"
+    "test": "NODE_OPTIONS=--experimental-wasi-unstable-preview1 jest",
+    "watch": "NODE_OPTIONS=--experimental-wasi-unstable-preview1 jest --watchAll"
   },
   "devDependencies": {
     "@types/jest": "^27.4.1",

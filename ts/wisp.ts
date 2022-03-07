@@ -18,7 +18,7 @@
 //
 
 type Tag =
-  "int" | "sys" | "chr" | "jet"
+  "int" | "sys" | "chr" | "jet" |
   "duo" | "sym" | "fun" | "mac" | "v32" | "v08" | "pkg" |
   "ct0" | "ct1" | "ct2" | "ct3"
 
@@ -170,8 +170,8 @@ export class Wisp {
   tag: Record<Tag, number>
   sys: Record<Sys, number>
 
-  constructor(wasm: WebAssembly.WebAssemblyInstantiatedSource) {
-    this.instance = wasm.instance
+  constructor(instance: WebAssembly.Instance) {
+    this.instance = instance
     this.api = this.instance.exports as unknown as WispAPI
     this.tag = this.loadTags()
     this.sys = this.loadSys()
