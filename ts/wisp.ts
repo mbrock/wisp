@@ -18,7 +18,7 @@
 //
 
 type Tag =
-  "int" | "sys" | "chr" | "fop" | "mop" |
+  "int" | "sys" | "chr" | "jet"
   "duo" | "sym" | "fun" | "mac" | "v32" | "v08" | "pkg" |
   "ct0" | "ct1" | "ct2" | "ct3"
 
@@ -30,8 +30,7 @@ export interface WispAPI {
   wisp_tag_int: WebAssembly.Global
   wisp_tag_sys: WebAssembly.Global
   wisp_tag_chr: WebAssembly.Global
-  wisp_tag_fop: WebAssembly.Global
-  wisp_tag_mop: WebAssembly.Global
+  wisp_tag_jet: WebAssembly.Global
   wisp_tag_duo: WebAssembly.Global
   wisp_tag_sym: WebAssembly.Global
   wisp_tag_fun: WebAssembly.Global
@@ -163,6 +162,7 @@ export class View {
     return new TextDecoder().decode(buf)
   }
 }
+
 export class Wisp {
   instance: WebAssembly.Instance
   api: WispAPI
@@ -187,8 +187,7 @@ export class Wisp {
       int: tag("int"),
       sys: tag("sys"),
       chr: tag("chr"),
-      fop: tag("fop"),
-      mop: tag("mop"),
+      jet: tag("jet"),
       duo: tag("duo"),
       sym: tag("sym"),
       fun: tag("fun"),
