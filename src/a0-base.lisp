@@ -17,21 +17,27 @@
 ;; <https://www.gnu.org/licenses/>.
 ;;
 
+;; (set-symbol-function
+;;  'DEFUN
+;;  (%macro-lambda (name args body)
+;;                 (list 'set-symbol-function (list 'quote name)
+;;                       (list 'lambda args
+;;                             (list 'progn
+;;                                   (list 'print (list 'list
+;;                                                      ''entering
+;;                                                      (list 'quote name)
+;;                                                      '(env)))
+;;                                   (list 'prog1
+;;                                         body
+;;                                         (list 'print (list 'list ''leaving
+;;                                                            (list 'quote name)))
+;;                                         ))))))
+
 (set-symbol-function
  'DEFUN
  (%macro-lambda (name args body)
                 (list 'set-symbol-function (list 'quote name)
-                      (list 'lambda args
-                            (list 'progn
-                                  (list 'print (list 'list
-                                                     ''entering
-                                                     (list 'quote name)
-                                                     '(env)))
-                                  (list 'prog1
-                                        body
-                                        (list 'print (list 'list ''leaving
-                                                           (list 'quote name)))
-                                        ))))))
+                      (list 'lambda args body))))
 
 (set-symbol-function
  'DEFMACRO
