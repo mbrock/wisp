@@ -35,6 +35,11 @@ const Val = ({ data, val }: { data: View, val: number }) => {
       }
     }
 
+    case "v08": {
+      const str = data.str(val)
+      return <div class="string">"{str}"</div>
+    }
+
     case "duo": {
       const list = []
       let dotted = false
@@ -52,7 +57,7 @@ const Val = ({ data, val }: { data: View, val: number }) => {
           break
         }
       }
-      
+
       return (
         <div className={`list ${dotted ? "dotted" : ""}`}>
           {
@@ -63,11 +68,42 @@ const Val = ({ data, val }: { data: View, val: number }) => {
       )
     }
 
-    case "sym": {
-      const { str } = data.row("sym", val)
+    case "fun": {
+      const { env, par, exp } = data.row("fun", val)
       return (
-        <span className="sym">
-          {data.str(str)}
+        <table style={{ border: "1px solid #ccc", padding: "0.25rem" }}>
+          <tbody>
+            <tr>
+              <td>env</td>
+              <td><Val data={data} val={env} /></td>
+            </tr>
+            <tr>
+              <td>par</td>
+              <td><Val data={data} val={par} /></td>
+            </tr>
+            <tr>
+              <td>exp</td>
+              <td><Val data={data} val={exp} /></td>
+            </tr>
+          </tbody>
+        </table>
+      )
+    }
+
+    case "sym": {
+      const { str, pkg, fun } = data.row("sym", val)
+      const funtag = data.ctx.tagOf(fun)
+      const symstr = data.str(str)
+      const pkgstr = pkg == data.ctx.sys.nil
+        ? "#" : data.str(data.row("pkg", pkg).nam)
+
+      return (
+        <span className="sym"
+              data-package={pkgstr}
+              data-name={symstr}
+              data-funtag={funtag} >
+          <span className="pkg">{pkgstr}:</span>
+          <span className="str">{data.str(str)}</span>
         </span>
       )
     }
@@ -119,7 +155,7 @@ const Home = ({ ctx }: { ctx: Wisp }) => {
           )
         }
       </div>
-      <form id="form" 
+      <form id="form"
         onSubmit={e => {
             e.preventDefault()
             const exp = ctx.read(input)
@@ -163,14 +199,14 @@ class WASI {
   getDataView(): DataView {
     return new DataView(this.instance.exports.memory.buffer)
   }
-  
+
   exports() {
     return {
       proc_exit() {},
-      
+
       fd_prestat_get() {},
       fd_prestat_dir_name() {},
-      
+
       fd_write: (fd, iovs, iovsLen, nwritten) => {
         const view = this.getDataView()
         let written = 0
@@ -180,12 +216,12 @@ class WASI {
           const ptr = iovs + i * 8
           const buf = view.getUint32(ptr, !0)
           const bufLen = view.getUint32(ptr + 4, !0)
-          
+
           return new Uint8Array(
             this.instance.exports.memory.buffer, buf, bufLen
           )
         })
-        
+
         for (const iov of buffers) {
           for (var b = 0; b < iov.byteLength; b++)
             bufferBytes.push(iov[b])
@@ -202,15 +238,15 @@ class WASI {
 
         return WASI_ESUCCESS;
       },
-      
+
       fd_close() {},
       fd_read() {},
-      
+
       path_open() {},
       path_rename() {},
       path_remove_directory() {},
       path_unlink_file() {},
-      
+
       fd_filestat_get() {},
 
       random_get() {},
@@ -226,7 +262,7 @@ onload = async () => {
   })
 
   wasi.setInstance(instance.instance)
-  
+
   const ctx = new Wisp(instance.instance)
 
   ReactDOM.render(

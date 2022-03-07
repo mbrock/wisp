@@ -88,21 +88,17 @@ input:focus {
 .list {
   display: inline-flex;
   flex-wrap: wrap;
-}
-
-.list > *:not(:last-child) {
-  margin-right: 5px;
+  column-gap: 8px;
+  row-gap: 2px;
 }
 
 .list {
-  border: 1px solid #ccc;
-  padding: 1px 6px;
-  background: #aaaaff0e;
+  border: 0 solid #0005;
+  border-width: 0 1.5px;
+  border-radius: 6px;
+  padding: 1px 5px;
+  background: #aaaaaa0e;
   align-items: center;
-}
-
-.list .list {
-  margin: 3px;
 }
 
 .titlebar {
@@ -112,5 +108,23 @@ input:focus {
 }
 
 .list.dotted > *:last-child::before {
-  content: ". ";
+  content: ".";
+  padding-right: 5px;
+}
+
+td:first-child {
+  padding-right: 5px;
+}
+
+.sym[data-package="WISP"] .pkg {
+  display: none;
+}
+
+
+.list > .sym[data-funtag=jet]:first-child .str {
+  color: navy;
+}
+
+.list > .sym[data-funtag=mac]:first-child .str {
+  color: mediumblue;
 }
