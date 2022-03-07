@@ -12,3 +12,4 @@ node_modules
 zig-out
 zig-cache
 *.core
+wapm_packages

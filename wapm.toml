@@ -1,0 +1,18 @@
+[package]
+name = "mbrock/wisp"
+version = "0.5.0"
+description = "Lisp for WebAssembly"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/mbrock/wisp"
+
+[[module]]
+name = "wisp"
+source = "zig-out/bin/wisp.wasm"
+abi = "wasi"
+
+[module.interfaces]
+wasi = "0.1.0-unstable"
+
+[[command]]
+name = "wisp"
+module = "wisp"
