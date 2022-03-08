@@ -33,7 +33,7 @@ pub fn initBot(exp: u32) Bot {
     };
 }
 
-ctx: *Ctx,
+heap: *Heap,
 bot: *Bot,
 
 const std = @import("std");
@@ -45,7 +45,7 @@ const expectEqualStrings = std.testing.expectEqualStrings;
 const wisp = @import("./ff-wisp.zig");
 
 const Oof = wisp.Oof;
-const Ctx = wisp.Ctx;
+const Heap = wisp.Heap;
 const Ptr = wisp.Ptr;
 const ref = wisp.ref;
 const nil = wisp.nil;
@@ -61,15 +61,15 @@ const Eval = @This();
 pub fn step(this: *Eval) !void {
     if (wtf) {
         std.log.warn("\n", .{});
-        // try dump.warn("way", this.ctx, this.bot.way);
-        try dump.warn("env", this.ctx, this.bot.env);
+        // try dump.warn("way", this.heap, this.bot.way);
+        try dump.warn("env", this.heap, this.bot.env);
     }
 
     const exp = this.bot.exp;
     const val = this.bot.val;
 
     if (val == nah) {
-        if (wtf) try dump.warn("exp", this.ctx, exp);
+        if (wtf) try dump.warn("exp", this.heap, exp);
         switch (wisp.tagOf(exp)) {
             .int, .v08, .sys => this.give(.val, exp),
             .sym => return this.findVariable(exp),
@@ -77,7 +77,7 @@ pub fn step(this: *Eval) !void {
             else => return Oof.Bug,
         }
     } else {
-        if (wtf) try dump.warn("val", this.ctx, val);
+        if (wtf) try dump.warn("val", this.heap, val);
         return this.proceed(val);
     }
 }
@@ -85,8 +85,8 @@ pub fn step(this: *Eval) !void {
 fn findVariable(this: *Eval, sym: u32) !void {
     var cur = this.bot.env;
     while (cur != nil) {
-        var curduo = try this.ctx.row(.duo, cur);
-        var v32 = try this.ctx.v32slice(curduo.car);
+        var curduo = try this.heap.row(.duo, cur);
+        var v32 = try this.heap.v32slice(curduo.car);
         var i: usize = 0;
         while (i < v32.len) : (i += 2) {
             if (v32[i] == sym)
@@ -95,13 +95,13 @@ fn findVariable(this: *Eval, sym: u32) !void {
         cur = curduo.cdr;
     }
 
-    switch (try this.ctx.get(.sym, .val, sym)) {
+    switch (try this.heap.get(.sym, .val, sym)) {
         wisp.nah => {
             const err = [2]u32{
-                this.ctx.kwd.@"UNBOUND-VARIABLE",
+                this.heap.kwd.@"UNBOUND-VARIABLE",
                 sym,
             };
-            this.bot.err = try this.ctx.newv32(&err);
+            this.bot.err = try this.heap.newv32(&err);
             return Oof.Err;
         },
         else => |x| {
@@ -111,16 +111,16 @@ fn findVariable(this: *Eval, sym: u32) !void {
 }
 
 pub fn fail(this: *Eval, xs: []const u32) !void {
-    this.bot.err = try this.ctx.newv32(xs);
+    this.bot.err = try this.heap.newv32(xs);
     return Oof.Err;
 }
 
 fn intoPair(this: *Eval, p: u32) !void {
-    const duo = try this.ctx.row(.duo, p);
+    const duo = try this.heap.row(.duo, p);
     const car = duo.car;
-    const kwd = this.ctx.kwd;
+    const kwd = this.heap.kwd;
 
-    switch (try this.ctx.get(.sym, .fun, car)) {
+    switch (try this.heap.get(.sym, .fun, car)) {
         nil => return this.fail(&[_]u32{
             kwd.@"UNDEFINED-FUNCTION",
             car,
@@ -164,9 +164,9 @@ fn intoJet(this: *Eval, fun: u32, arg: u32) !void {
 fn iter(this: *Eval, fun: u32, arg: u32) !void {
     // Start evaluating the first argument with a
     // continuation of the remaining arguments.
-    const duo = try this.ctx.row(.duo, arg);
+    const duo = try this.heap.row(.duo, arg);
     this.give(.exp, duo.car);
-    this.bot.way = try this.ctx.new(.ktx, .{
+    this.bot.way = try this.heap.new(.ktx, .{
         .hop = this.bot.way,
         .env = this.bot.env,
         .fun = fun,
@@ -188,7 +188,7 @@ fn intoFunction(
 }
 
 fn intoMacro(this: *Eval, fun: u32, arg: u32) !void {
-    const way = try this.ctx.new(.duo, .{
+    const way = try this.heap.new(.duo, .{
         .car = this.bot.env,
         .cdr = this.bot.way,
     });
@@ -202,8 +202,8 @@ pub fn proceed(this: *Eval, x: u32) !void {
     }
 
     switch (wisp.tagOf(this.bot.way)) {
-        .ktx => try this.execKtx(try this.ctx.row(.ktx, this.bot.way)),
-        .duo => try this.execDuo(try this.ctx.row(.duo, this.bot.way)),
+        .ktx => try this.execKtx(try this.heap.row(.ktx, this.bot.way)),
+        .duo => try this.execDuo(try this.heap.row(.duo, this.bot.way)),
 
         else => unreachable,
     }
@@ -213,9 +213,9 @@ fn execDuo(this: *Eval, duo: wisp.Row(.duo)) !void {
     const val = this.bot.val;
 
     if (wtf) {
-        try dump.warn("macroexpansion", this.ctx, val);
-        try dump.warn("old env", this.ctx, this.bot.env);
-        try dump.warn("new env", this.ctx, duo.car);
+        try dump.warn("macroexpansion", this.heap, val);
+        try dump.warn("old env", this.heap, this.bot.env);
+        try dump.warn("new env", this.heap, duo.car);
     }
 
     this.bot.* = .{
@@ -235,24 +235,24 @@ fn scan(
     way: u32,
     rev: bool,
 ) !void {
-    var pars = try scanListAlloc(this.ctx, par);
+    var pars = try scanListAlloc(this.heap, par);
     defer pars.deinit();
-    var vals = try scanListAlloc(this.ctx, arg);
+    var vals = try scanListAlloc(this.heap, arg);
     defer vals.deinit();
 
     if (rev)
         std.mem.reverse(u32, vals.items);
 
-    var scope = try this.ctx.orb.alloc(u32, 2 * pars.items.len);
-    defer this.ctx.orb.free(scope);
+    var scope = try this.heap.orb.alloc(u32, 2 * pars.items.len);
+    defer this.heap.orb.free(scope);
 
     var i: usize = 0;
     while (i < pars.items.len) : (i += 1) {
         const x = pars.items[i];
-        if (x == this.ctx.kwd.@"&REST") {
+        if (x == this.heap.kwd.@"&REST") {
             scope[i * 2 + 0] = pars.items[i + 1];
             scope[i * 2 + 1] = try wisp.list(
-                this.ctx,
+                this.heap,
                 vals.items[i..vals.items.len],
             );
         } else {
@@ -261,8 +261,8 @@ fn scan(
         }
     }
 
-    this.bot.env = try this.ctx.new(.duo, .{
-        .car = try this.ctx.newv32(scope),
+    this.bot.env = try this.heap.new(.duo, .{
+        .car = try this.heap.newv32(scope),
         .cdr = this.bot.env,
     });
 
@@ -286,23 +286,23 @@ pub fn call(
         },
 
         .fun => {
-            const fun = try this.ctx.row(.fun, funptr);
+            const fun = try this.heap.row(.fun, funptr);
             this.bot.env = fun.env;
             try this.scan(fun.exp, fun.par, args, way, rev);
         },
 
         .mac => {
-            const mac = try this.ctx.row(.mac, funptr);
+            const mac = try this.heap.row(.mac, funptr);
             this.bot.env = mac.env;
             try this.scan(mac.exp, mac.par, args, way, rev);
         },
 
         .ktx => {
-            var vals = try scanListAlloc(this.ctx, args);
+            var vals = try scanListAlloc(this.heap, args);
             defer vals.deinit();
 
             if (vals.items.len != 1) {
-                try this.fail(&[_]u32{this.ctx.kwd.@"PROGRAM-ERROR"});
+                try this.fail(&[_]u32{this.heap.kwd.@"PROGRAM-ERROR"});
             } else {
                 this.bot.way = funptr;
                 try this.proceed(vals.items[0]);
@@ -311,12 +311,12 @@ pub fn call(
 
         .sys => {
             if (funptr == wisp.top) {
-                var vals = try scanListAlloc(this.ctx, args);
+                var vals = try scanListAlloc(this.heap, args);
                 defer vals.deinit();
 
                 if (vals.items.len != 1) {
                     try this.fail(
-                        &[_]u32{this.ctx.kwd.@"PROGRAM-ERROR"},
+                        &[_]u32{this.heap.kwd.@"PROGRAM-ERROR"},
                     );
                 } else {
                     this.bot.way = funptr;
@@ -328,19 +328,19 @@ pub fn call(
         },
 
         else => {
-            try dump.warn("oof", this.ctx, funptr);
+            try dump.warn("oof", this.heap, funptr);
             return Oof.Bug;
         },
     }
 }
 
 pub fn debug(this: *Eval, txt: []const u8, val: u32) !void {
-    try dump.warn(txt, this.ctx, val);
+    try dump.warn(txt, this.heap, val);
 }
 
 const Ktx = struct {
     fn call(this: *Eval, ktx: wisp.Row(.ktx)) !void {
-        const acc = try this.ctx.new(.duo, .{
+        const acc = try this.heap.new(.duo, .{
             .car = this.bot.val,
             .cdr = ktx.acc,
         });
@@ -348,8 +348,8 @@ const Ktx = struct {
         if (ktx.arg == nil) {
             try this.call(ktx.hop, ktx.fun, acc, true);
         } else {
-            const argduo = try this.ctx.row(.duo, ktx.arg);
-            const way = try this.ctx.new(.ktx, .{
+            const argduo = try this.heap.row(.duo, ktx.arg);
+            const way = try this.heap.new(.ktx, .{
                 .hop = ktx.hop,
                 .env = ktx.env,
                 .fun = ktx.fun,
@@ -367,8 +367,8 @@ const Ktx = struct {
             this.bot.way = ktx.hop;
             this.bot.env = ktx.env;
         } else {
-            const argduo = try this.ctx.row(.duo, ktx.arg);
-            const way = try this.ctx.new(.ktx, .{
+            const argduo = try this.heap.row(.duo, ktx.arg);
+            const way = try this.heap.new(.ktx, .{
                 .hop = ktx.hop,
                 .env = ktx.env,
                 .fun = ktx.fun,
@@ -394,21 +394,21 @@ const Ktx = struct {
             this.bot.env = env;
             this.give(.exp, exp);
         } else {
-            const valacc = try this.ctx.new(.duo, .{
+            const valacc = try this.heap.new(.duo, .{
                 .car = val,
                 .cdr = ktx.acc,
             });
 
-            const argduo = try this.ctx.row(.duo, ktx.arg);
-            const letduo = try this.ctx.row(.duo, argduo.car);
+            const argduo = try this.heap.row(.duo, ktx.arg);
+            const letduo = try this.heap.row(.duo, argduo.car);
             const letsym = letduo.car;
-            const letexp = try this.ctx.get(.duo, .car, letduo.cdr);
-            const symacc = try this.ctx.new(.duo, .{
+            const letexp = try this.heap.get(.duo, .car, letduo.cdr);
+            const symacc = try this.heap.new(.duo, .{
                 .car = letsym,
                 .cdr = valacc,
             });
 
-            const way = try this.ctx.new(.ktx, .{
+            const way = try this.heap.new(.ktx, .{
                 .hop = ktx.hop,
                 .env = ktx.env,
                 .fun = ktx.fun,
@@ -423,7 +423,7 @@ const Ktx = struct {
     }
 
     fn IF(this: *Eval, ktx: wisp.Row(.ktx)) !void {
-        const argduo = try this.ctx.row(.duo, ktx.arg);
+        const argduo = try this.heap.row(.duo, ktx.arg);
         const p = this.bot.val != nil;
 
         this.bot.way = ktx.hop;
@@ -442,62 +442,62 @@ fn scanLetAcc(
     // We have evaluated the final value of a LET form.  Now we
     // build up the scope from the accumulated bindings.
 
-    var scope = std.ArrayList(u32).init(this.ctx.orb);
+    var scope = std.ArrayList(u32).init(this.heap.orb);
     defer scope.deinit();
 
-    const accduo = try this.ctx.row(.duo, acc);
+    const accduo = try this.heap.row(.duo, acc);
     const letsym = accduo.car;
 
     try scope.append(letsym);
     try scope.append(val);
 
     {
-        var curduo = try this.ctx.row(.duo, accduo.cdr);
+        var curduo = try this.heap.row(.duo, accduo.cdr);
         while (curduo.cdr != nil) {
-            const cdrduo = try this.ctx.row(.duo, curduo.cdr);
+            const cdrduo = try this.heap.row(.duo, curduo.cdr);
             const curval = curduo.car;
             const cursym = cdrduo.car;
 
             try scope.append(cursym);
             try scope.append(curval);
 
-            curduo = try this.ctx.row(.duo, cdrduo.cdr);
+            curduo = try this.heap.row(.duo, cdrduo.cdr);
         }
 
         exp.* = curduo.car;
     }
 
-    return this.ctx.new(.duo, .{
-        .car = try this.ctx.newv32(scope.items),
+    return this.heap.new(.duo, .{
+        .car = try this.heap.newv32(scope.items),
         .cdr = env,
     });
 }
 
 pub fn execKtx(this: *Eval, ktx: wisp.Row(.ktx)) !void {
-    if (ktx.fun == this.ctx.kwd.PROGN)
+    if (ktx.fun == this.heap.kwd.PROGN)
         try Ktx.PROGN(this, ktx)
-    else if (ktx.fun == this.ctx.kwd.IF)
+    else if (ktx.fun == this.heap.kwd.IF)
         try Ktx.IF(this, ktx)
-    else if (ktx.fun == this.ctx.kwd.LET)
+    else if (ktx.fun == this.heap.kwd.LET)
         try Ktx.LET(this, ktx)
     else switch (wisp.tagOf(ktx.fun)) {
         .jet => return Ktx.call(this, ktx),
         .fun => return Ktx.call(this, ktx),
 
         else => {
-            try dump.warn("exec ktx", this.ctx, ktx.fun);
+            try dump.warn("exec ktx", this.heap, ktx.fun);
             unreachable;
         },
     }
 }
 
-fn scanListAlloc(ctx: *Ctx, list: u32) !std.ArrayList(u32) {
-    var xs = std.ArrayList(u32).init(ctx.orb);
+fn scanListAlloc(heap: *Heap, list: u32) !std.ArrayList(u32) {
+    var xs = std.ArrayList(u32).init(heap.orb);
     errdefer xs.deinit();
 
     var cur = list;
     while (cur != nil) {
-        const duo = try ctx.row(.duo, cur);
+        const duo = try heap.row(.duo, cur);
         try xs.append(duo.car);
         cur = duo.cdr;
     }
@@ -506,7 +506,7 @@ fn scanListAlloc(ctx: *Ctx, list: u32) !std.ArrayList(u32) {
 }
 
 pub fn scanList(
-    ctx: *Ctx,
+    heap: *Heap,
     buffer: []u32,
     reverse: bool,
     list: u32,
@@ -514,7 +514,7 @@ pub fn scanList(
     var i: usize = 0;
     var cur = list;
     while (cur != nil) {
-        const cons = try ctx.row(.duo, cur);
+        const cons = try heap.row(.duo, cur);
         buffer[i] = cons.car;
         cur = cons.cdr;
         i += 1;
@@ -544,12 +544,12 @@ fn cast(
     return tag.cast(xop.fun);
 }
 
-fn reverseList(ctx: *Ctx, list: u32) !u32 {
+fn reverseList(heap: *Heap, list: u32) !u32 {
     var cur = list;
     var rev = nil;
     while (cur != nil) {
-        const duo = try ctx.row(.duo, cur);
-        rev = try ctx.new(.duo, .{ .car = duo.car, .cdr = rev });
+        const duo = try heap.row(.duo, cur);
+        rev = try heap.new(.duo, .{ .car = duo.car, .cdr = rev });
         cur = duo.cdr;
     }
     return rev;
@@ -559,7 +559,7 @@ fn oper(job: *Eval, jet: u32, arg: u32, rev: bool) !void {
     const xop = xops.jets[wisp.Imm.from(jet).idx];
     switch (xop.tag) {
         .f0x => {
-            const args = try scanListAlloc(job.ctx, arg);
+            const args = try scanListAlloc(job.heap, arg);
             defer args.deinit();
             if (rev) std.mem.reverse(u32, args.items);
             const fun = cast(.f0x, xop);
@@ -567,14 +567,14 @@ fn oper(job: *Eval, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f0r => {
-            const rest = if (rev) try reverseList(job.ctx, arg) else arg;
+            const rest = if (rev) try reverseList(job.heap, arg) else arg;
             const fun = cast(.f0r, xop);
             try fun(job, .{ .arg = rest });
         },
 
         .f1r => {
-            const list = if (rev) try reverseList(job.ctx, arg) else arg;
-            const duo = try job.ctx.row(.duo, list);
+            const list = if (rev) try reverseList(job.heap, arg) else arg;
+            const duo = try job.heap.row(.duo, list);
             const rest = duo.cdr;
             const fun = cast(.f1r, xop);
             try fun(job, duo.car, .{ .arg = rest });
@@ -585,12 +585,12 @@ fn oper(job: *Eval, jet: u32, arg: u32, rev: bool) !void {
                 const fun = cast(.f0, xop);
                 try fun(job);
             } else {
-                try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
+                try job.fail(&[_]u32{job.heap.kwd.@"PROGRAM-ERROR"});
             }
         },
 
         .f1 => {
-            const list = try scanListAlloc(job.ctx, arg);
+            const list = try scanListAlloc(job.heap, arg);
             const args = list.items;
             defer list.deinit();
 
@@ -598,12 +598,12 @@ fn oper(job: *Eval, jet: u32, arg: u32, rev: bool) !void {
                 const fun = cast(.f1, xop);
                 try fun(job, args[0]);
             } else {
-                try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
+                try job.fail(&[_]u32{job.heap.kwd.@"PROGRAM-ERROR"});
             }
         },
 
         .f2 => {
-            const list = try scanListAlloc(job.ctx, arg);
+            const list = try scanListAlloc(job.heap, arg);
             const args = list.items;
             defer list.deinit();
 
@@ -612,12 +612,12 @@ fn oper(job: *Eval, jet: u32, arg: u32, rev: bool) !void {
                 const fun = cast(.f2, xop);
                 try fun(job, args[0], args[1]);
             } else {
-                try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
+                try job.fail(&[_]u32{job.heap.kwd.@"PROGRAM-ERROR"});
             }
         },
 
         .f3 => {
-            const list = try scanListAlloc(job.ctx, arg);
+            const list = try scanListAlloc(job.heap, arg);
             const args = list.items;
             defer list.deinit();
 
@@ -626,7 +626,7 @@ fn oper(job: *Eval, jet: u32, arg: u32, rev: bool) !void {
                 const fun = cast(.f3, xop);
                 try fun(job, args[0], args[1], args[2]);
             } else {
-                try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
+                try job.fail(&[_]u32{job.heap.kwd.@"PROGRAM-ERROR"});
             }
         },
     }
@@ -643,8 +643,8 @@ pub fn evaluate(this: *Eval, limit: u32, gc: bool) !u32 {
 
         if (this.step()) {} else |err| {
             if (this.bot.err == wisp.nil) {
-                this.bot.err = try this.ctx.newv32(
-                    &[_]u32{this.ctx.kwd.@"PROGRAM-ERROR"},
+                this.bot.err = try this.heap.newv32(
+                    &[_]u32{this.heap.kwd.@"PROGRAM-ERROR"},
                 );
             }
             return err;
@@ -653,32 +653,32 @@ pub fn evaluate(this: *Eval, limit: u32, gc: bool) !u32 {
         if (gc) try tidy.tidyEval(this);
     }
 
-    try this.fail(&[_]u32{this.ctx.kwd.EXHAUSTED});
+    try this.fail(&[_]u32{this.heap.kwd.EXHAUSTED});
 
     return Oof.Ugh;
 }
 
-pub fn newTestCtx() !Ctx {
-    var ctx = try Ctx.init(std.testing.allocator, .e0);
-    try xops.load(&ctx);
-    try ctx.cook();
-    return ctx;
+pub fn newTestHeap() !Heap {
+    var heap = try Heap.init(std.testing.allocator, .e0);
+    try xops.load(&heap);
+    try heap.cook();
+    return heap;
 }
 
-pub fn init(ctx: *Ctx, bot: *Bot) Eval {
+pub fn init(heap: *Heap, bot: *Bot) Eval {
     return Eval{
-        .ctx = ctx,
+        .heap = heap,
         .bot = bot,
     };
 }
 
 test "step evaluates string" {
-    var ctx = try newTestCtx();
-    defer ctx.deinit();
+    var heap = try newTestHeap();
+    defer heap.deinit();
 
-    const exp = try ctx.newv08("foo");
+    const exp = try heap.newv08("foo");
     var bot = initBot(exp);
-    var exe = init(&ctx, &bot);
+    var exe = init(&heap, &bot);
 
     try exe.step();
     try expectEqual(exp, exe.bot.val);
@@ -686,16 +686,16 @@ test "step evaluates string" {
 }
 
 test "step evaluates variable" {
-    var ctx = try newTestCtx();
-    defer ctx.deinit();
+    var heap = try newTestHeap();
+    defer heap.deinit();
 
-    const x = try ctx.intern("X", ctx.base);
-    const foo = try ctx.newv08("foo");
+    const x = try heap.intern("X", heap.base);
+    const foo = try heap.newv08("foo");
 
     var bot = initBot(x);
-    var exe = init(&ctx, &bot);
+    var exe = init(&heap, &bot);
 
-    try ctx.set(.sym, .val, x, foo);
+    try heap.set(.sym, .val, x, foo);
 
     try exe.step();
     try expectEqual(foo, exe.bot.val);
@@ -703,30 +703,30 @@ test "step evaluates variable" {
 }
 
 pub fn expectEval(want: []const u8, src: []const u8) !void {
-    var ctx = try newTestCtx();
-    defer ctx.deinit();
+    var heap = try newTestHeap();
+    defer heap.deinit();
 
-    const exp = try read(&ctx, src);
+    const exp = try read(&heap, src);
     var bot = initBot(exp);
-    var exe = init(&ctx, &bot);
+    var exe = init(&heap, &bot);
 
     if (exe.evaluate(1_000, true)) |val| {
-        const valueString = try dump.printAlloc(ctx.orb, &ctx, val);
+        const valueString = try dump.printAlloc(heap.orb, &heap, val);
 
-        defer ctx.orb.free(valueString);
+        defer heap.orb.free(valueString);
 
-        const wantValue = try read(&ctx, want);
+        const wantValue = try read(&heap, want);
         const wantString = try dump.printAlloc(
-            ctx.orb,
-            &ctx,
+            heap.orb,
+            &heap,
             wantValue,
         );
 
-        defer ctx.orb.free(wantString);
+        defer heap.orb.free(wantString);
 
         try expectEqualStrings(wantString, valueString);
     } else |e| {
-        try dump.warn("Error", &ctx, exe.bot.err);
+        try dump.warn("Error", &heap, exe.bot.err);
         return e;
     }
 }
@@ -847,8 +847,8 @@ test "defun with &rest" {
 // }
 
 test "prty.lisp" {
-    var ctx = try newTestCtx();
-    defer ctx.deinit();
+    var heap = try newTestHeap();
+    defer heap.deinit();
 
-    try ctx.load(@embedFile("./06a-prty.lisp"));
+    try heap.load(@embedFile("./06a-prty.lisp"));
 }

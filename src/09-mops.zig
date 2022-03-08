@@ -26,12 +26,12 @@ pub fn QUOTE(job: *Eval, x: u32) anyerror!void {
 }
 
 pub fn FUNCTION(job: *Eval, x: u32) anyerror!void {
-    const fun = try job.ctx.get(.sym, .fun, x);
+    const fun = try job.heap.get(.sym, .fun, x);
     job.give(.val, fun);
 }
 
 pub fn @"%MACRO-LAMBDA"(job: *Eval, par: u32, exp: u32) anyerror!void {
-    job.give(.val, try job.ctx.new(.mac, .{
+    job.give(.val, try job.heap.new(.mac, .{
         .env = job.bot.env,
         .par = par,
         .exp = exp,
@@ -43,24 +43,24 @@ pub fn @"LET"(job: *Eval, bs: u32, e: u32) anyerror!void {
         job.give(.exp, e);
     } else {
         // Find the first symbol and expression.
-        const duo = try job.ctx.row(.duo, bs);
+        const duo = try job.heap.row(.duo, bs);
         const let = duo.car;
-        const letduo = try job.ctx.row(.duo, let);
+        const letduo = try job.heap.row(.duo, let);
         const letsym = letduo.car;
-        const letexp = try job.ctx.get(.duo, .car, letduo.cdr);
+        const letexp = try job.heap.get(.duo, .car, letduo.cdr);
 
-        const acc = try job.ctx.new(.duo, .{
+        const acc = try job.heap.new(.duo, .{
             .car = letsym,
-            .cdr = try job.ctx.new(.duo, .{
+            .cdr = try job.heap.new(.duo, .{
                 .car = e,
                 .cdr = wisp.nil,
             }),
         });
 
-        job.bot.way = try job.ctx.new(.ktx, .{
+        job.bot.way = try job.heap.new(.ktx, .{
             .hop = job.bot.way,
             .env = job.bot.env,
-            .fun = job.ctx.kwd.LET,
+            .fun = job.heap.kwd.LET,
             .acc = acc,
             .arg = duo.cdr,
         });
@@ -70,7 +70,7 @@ pub fn @"LET"(job: *Eval, bs: u32, e: u32) anyerror!void {
 }
 
 pub fn @"LAMBDA"(job: *Eval, par: u32, exp: u32) anyerror!void {
-    job.give(.val, try job.ctx.new(.fun, .{
+    job.give(.val, try job.heap.new(.fun, .{
         .env = job.bot.env,
         .par = par,
         .exp = exp,
@@ -78,12 +78,12 @@ pub fn @"LAMBDA"(job: *Eval, par: u32, exp: u32) anyerror!void {
 }
 
 pub fn IF(job: *Eval, exp: u32, yay: u32, nay: u32) anyerror!void {
-    const ktx = try job.ctx.new(.ktx, .{
+    const ktx = try job.heap.new(.ktx, .{
         .hop = job.bot.way,
         .env = job.bot.env,
-        .fun = job.ctx.kwd.IF,
+        .fun = job.heap.kwd.IF,
         .acc = wisp.nil,
-        .arg = try job.ctx.new(.duo, .{
+        .arg = try job.heap.new(.duo, .{
             .car = yay,
             .cdr = nay,
         }),
@@ -97,11 +97,11 @@ pub fn PROGN(job: *Eval, rest: Rest) anyerror!void {
     if (rest.arg == wisp.nil) {
         job.give(.val, wisp.nil);
     } else {
-        const duo = try job.ctx.row(.duo, rest.arg);
-        const ktx = try job.ctx.new(.ktx, .{
+        const duo = try job.heap.row(.duo, rest.arg);
+        const ktx = try job.heap.new(.ktx, .{
             .hop = job.bot.way,
             .env = job.bot.env,
-            .fun = job.ctx.kwd.PROGN,
+            .fun = job.heap.kwd.PROGN,
             .acc = wisp.nil,
             .arg = duo.cdr,
         });
@@ -112,19 +112,19 @@ pub fn PROGN(job: *Eval, rest: Rest) anyerror!void {
 }
 
 pub fn DEFPACKAGE(job: *Eval, name: u32, conf: u32) anyerror!void {
-    const txt = try job.ctx.get(.sym, .str, name);
-    job.give(.val, try job.ctx.defpackage(txt, conf));
+    const txt = try job.heap.get(.sym, .str, name);
+    job.give(.val, try job.heap.defpackage(txt, conf));
 }
 
 pub fn @"IN-PACKAGE"(job: *Eval, pkgsym: u32) anyerror!void {
-    const v08 = try job.ctx.get(.sym, .str, pkgsym);
-    const str = try job.ctx.v08slice(v08);
+    const v08 = try job.heap.get(.sym, .str, pkgsym);
+    const str = try job.heap.v08slice(v08);
 
-    if (job.ctx.pkgmap.get(str)) |pkg| {
-        job.ctx.pkg = pkg;
+    if (job.heap.pkgmap.get(str)) |pkg| {
+        job.heap.pkg = pkg;
         job.give(.val, pkg);
     } else {
-        try job.fail(&[_]u32{ job.ctx.kwd.@"PACKAGE-ERROR", pkgsym });
+        try job.fail(&[_]u32{ job.heap.kwd.@"PACKAGE-ERROR", pkgsym });
     }
 }
 

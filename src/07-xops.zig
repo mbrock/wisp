@@ -122,9 +122,9 @@ test "ops" {
     );
 }
 
-pub fn load(ctx: *wisp.Ctx) !void {
+pub fn load(heap: *wisp.Heap) !void {
     inline for (jets) |jet, i| {
-        var sym = try ctx.intern(jet.txt, ctx.base);
-        ctx.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.jet, i).word();
+        var sym = try heap.intern(jet.txt, heap.base);
+        heap.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.jet, i).word();
     }
 }

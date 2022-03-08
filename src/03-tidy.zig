@@ -19,8 +19,8 @@
 
 const GC = @This();
 
-old: *wisp.Ctx,
-new: wisp.Ctx,
+old: *wisp.Heap,
+new: wisp.Heap,
 
 const std = @import("std");
 
@@ -29,28 +29,28 @@ const Eval = @import("./04-eval.zig");
 const read = @import("./05-read.zig").read;
 const dump = @import("./06-dump.zig");
 
+const Heap = wisp.Heap;
 const Col = wisp.Col;
-const Ctx = wisp.Ctx;
 const Era = wisp.Era;
 const Ptr = wisp.Ptr;
 const Row = wisp.Row;
 const Tab = wisp.Tab;
 const Tag = wisp.Tag;
 
-pub fn tidy(ctx: *Ctx) !void {
-    // const n1 = ctx.bytesize();
+pub fn tidy(heap: *Heap) !void {
+    // const n1 = heap.bytesize();
 
-    var gc = try init(ctx);
+    var gc = try init(heap);
     try gc.root();
     try gc.scan();
-    ctx.* = gc.done();
+    heap.* = gc.done();
 
-    // const n2 = ctx.bytesize();
+    // const n2 = heap.bytesize();
     // std.log.info("gc: before {d}, after {d}", .{ n1, n2 });
 }
 
 pub fn tidyEval(eval: *Eval) !void {
-    var gc = try init(eval.ctx);
+    var gc = try init(eval.heap);
     try gc.root();
 
     try gc.move(&eval.bot.err);
@@ -60,13 +60,13 @@ pub fn tidyEval(eval: *Eval) !void {
     try gc.move(&eval.bot.exp);
 
     try gc.scan();
-    eval.ctx.* = gc.done();
+    eval.heap.* = gc.done();
 }
 
-pub fn init(old: *Ctx) !GC {
+pub fn init(old: *Heap) !GC {
     return GC{
         .old = old,
-        .new = Ctx{
+        .new = Heap{
             .era = old.era.flip(),
             .orb = old.orb,
             .v08 = old.v08,
@@ -78,7 +78,7 @@ pub fn init(old: *Ctx) !GC {
     };
 }
 
-fn done(gc: *GC) Ctx {
+fn done(gc: *GC) Heap {
     gc.old.v08 = .{};
     gc.old.deinit();
     return gc.new;
@@ -190,59 +190,59 @@ fn drag(gc: *GC, comptime tag: Tag, tab: *Tab(tag), i: Ptr.Idx) !void {
 }
 
 test "garbage collection of conses" {
-    var ctx = try Ctx.init(std.testing.allocator, .e0);
+    var heap = try Heap.init(std.testing.allocator, .e0);
 
-    defer ctx.deinit();
+    defer heap.deinit();
 
-    _ = try ctx.new(.duo, .{ .car = 1, .cdr = 2 });
+    _ = try heap.new(.duo, .{ .car = 1, .cdr = 2 });
 
     const cons = Row(.duo){
         .car = 3,
         .cdr = 4,
     };
 
-    const cons1 = try ctx.new(.duo, cons);
+    const cons1 = try heap.new(.duo, cons);
 
-    var gc = try GC.init(&ctx);
+    var gc = try GC.init(&heap);
     const cons2 = try gc.copy(cons1);
     try gc.scan();
-    ctx = gc.done();
+    heap = gc.done();
 
-    try std.testing.expectEqual(ctx.vat.duo.list.len, 1);
-    try std.testing.expectEqual(cons, try ctx.row(.duo, cons2));
+    try std.testing.expectEqual(heap.vat.duo.list.len, 1);
+    try std.testing.expectEqual(cons, try heap.row(.duo, cons2));
 }
 
 test "read and gc" {
-    var ctx = try Ctx.init(std.testing.allocator, .e0);
-    defer ctx.deinit();
+    var heap = try Heap.init(std.testing.allocator, .e0);
+    defer heap.deinit();
 
-    const t1 = try read(&ctx, "(foo (bar (baz)))");
-    const v1 = try ctx.intern("X", ctx.base);
+    const t1 = try read(&heap, "(foo (bar (baz)))");
+    const v1 = try heap.intern("X", heap.base);
 
-    try ctx.set(.sym, .val, v1, t1);
-    try tidy(&ctx);
+    try heap.set(.sym, .val, v1, t1);
+    try tidy(&heap);
 
-    try std.testing.expectEqual(Era.e1, ctx.era);
+    try std.testing.expectEqual(Era.e1, heap.era);
 
-    const v2 = try ctx.intern("X", ctx.base);
-    const t2 = try ctx.get(.sym, .val, v2);
+    const v2 = try heap.intern("X", heap.base);
+    const t2 = try heap.get(.sym, .val, v2);
 
-    try dump.expect("(FOO (BAR (BAZ)))", &ctx, t2);
+    try dump.expect("(FOO (BAR (BAZ)))", &heap, t2);
 }
 
 test "gc ephemeral strings" {
-    var ctx = try Ctx.init(std.testing.allocator, .e0);
-    defer ctx.deinit();
+    var heap = try Heap.init(std.testing.allocator, .e0);
+    defer heap.deinit();
 
-    const x = try read(&ctx,
+    const x = try read(&heap,
         \\ ("foo" "bar" "baz")
     );
 
-    const foo = try ctx.get(.duo, .car, x);
-    try ctx.set(.sym, .val, try ctx.intern("X", ctx.base), foo);
+    const foo = try heap.get(.duo, .car, x);
+    try heap.set(.sym, .val, try heap.intern("X", heap.base), foo);
 
-    const n1 = ctx.vat.v08.list.len;
-    try tidy(&ctx);
-    const n2 = ctx.vat.v08.list.len;
+    const n1 = heap.vat.v08.list.len;
+    try tidy(&heap);
+    const n2 = heap.vat.v08.list.len;
     try std.testing.expectEqual(n1 - 2, n2);
 }

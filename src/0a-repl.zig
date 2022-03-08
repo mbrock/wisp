@@ -48,10 +48,10 @@ fn readLine(stream: anytype, orb: std.mem.Allocator) !?[]u8 {
 fn readSexp(
     stream: anytype,
     orb: std.mem.Allocator,
-    ctx: *wisp.Ctx,
+    heap: *wisp.Heap,
 ) !?u32 {
     if (try readLine(stream, orb)) |line| {
-        return try read(ctx, line);
+        return try read(heap, line);
     } else {
         return null;
     }
@@ -62,15 +62,15 @@ pub fn repl() anyerror!void {
     const stdout = std.io.getStdOut().writer();
     const allocator = std.heap.page_allocator;
 
-    var ctx = try wisp.Ctx.init(allocator, .e0);
-    defer ctx.deinit();
+    var heap = try wisp.Heap.init(allocator, .e0);
+    defer heap.deinit();
 
-    try xops.load(&ctx);
-    try ctx.cook();
+    try xops.load(&heap);
+    try heap.cook();
 
-    var baseTestBot = eval.initBot(try read(&ctx, "(base-test)"));
+    var baseTestBot = eval.initBot(try read(&heap, "(base-test)"));
 
-    _ = try eval.init(&ctx, &baseTestBot).evaluate(1_000_000, false);
+    _ = try eval.init(&heap, &baseTestBot).evaluate(1_000_000, false);
 
     repl: while (true) {
         try stdout.writeAll("> ");
@@ -79,27 +79,27 @@ pub fn repl() anyerror!void {
         var tmp = arena.allocator();
         defer arena.deinit();
 
-        if (try readSexp(stdin, tmp, &ctx)) |term| {
+        if (try readSexp(stdin, tmp, &heap)) |term| {
             var bot = eval.initBot(term);
-            var exe = eval.init(&ctx, &bot);
+            var exe = eval.init(&heap, &bot);
 
             term: while (true) {
                 if (exe.evaluate(100_000, false)) |val| {
-                    try dump.dump(&ctx, stdout, val);
+                    try dump.dump(&heap, stdout, val);
                     try stdout.writeByte('\n');
-                    try tidy.tidy(&ctx);
+                    try tidy.tidy(&heap);
                     continue :repl;
                 } else |e| {
                     if (exe.bot.err == wisp.nil) {
                         return e;
                     } else {
-                        try dump.warn("Condition", &ctx, exe.bot.err);
-                        try dump.warn("Term", &ctx, exe.bot.exp);
-                        try dump.warn("Value", &ctx, exe.bot.val);
-                        try dump.warn("Environment", &ctx, exe.bot.env);
+                        try dump.warn("Condition", &heap, exe.bot.err);
+                        try dump.warn("Term", &heap, exe.bot.exp);
+                        try dump.warn("Value", &heap, exe.bot.val);
+                        try dump.warn("Environment", &heap, exe.bot.env);
 
                         try stdout.writeAll("*> ");
-                        if (try readSexp(stdin, tmp, &ctx)) |restart| {
+                        if (try readSexp(stdin, tmp, &heap)) |restart| {
                             exe.bot.err = wisp.nil;
                             exe.give(.exp, restart);
                             continue :term;

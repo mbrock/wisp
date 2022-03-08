@@ -21,7 +21,7 @@ const std = @import("std");
 
 const wisp = @import("./ff-wisp.zig");
 const xops = @import("./07-xops.zig");
-const Ctx = wisp.Ctx;
+const Heap = wisp.Heap;
 
 test "print one" {
     var list = std.ArrayList(u8).init(std.testing.allocator);
@@ -32,36 +32,36 @@ test "print one" {
 
 pub fn expect(
     expected: []const u8,
-    ctx: *Ctx,
+    heap: *Heap,
     x: u32,
 ) !void {
-    var actual = try printAlloc(std.testing.allocator, ctx, x);
+    var actual = try printAlloc(std.testing.allocator, heap, x);
     defer std.testing.allocator.free(actual);
     try std.testing.expectEqualStrings(expected, actual);
 }
 
 pub fn printAlloc(
     allocator: std.mem.Allocator,
-    ctx: *Ctx,
+    heap: *Heap,
     word: u32,
 ) ![]const u8 {
     var list = std.ArrayList(u8).init(allocator);
-    try dump(ctx, list.writer(), word);
+    try dump(heap, list.writer(), word);
     return list.toOwnedSlice();
 }
 
-pub fn warn(prefix: []const u8, ctx: *Ctx, word: u32) !void {
-    var s = try printAlloc(ctx.orb, ctx, word);
+pub fn warn(prefix: []const u8, heap: *Heap, word: u32) !void {
+    var s = try printAlloc(heap.orb, heap, word);
     std.log.warn("{s} {s}", .{ prefix, s });
-    ctx.orb.free(s);
+    heap.orb.free(s);
 }
 
-pub fn dump(ctx: *Ctx, out: anytype, x: u32) anyerror!void {
-    return dump_(ctx, out, x);
+pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
+    return dump_(heap, out, x);
 }
 
 pub fn dump_(
-    ctx: *Ctx,
+    heap: *Heap,
     out: anytype,
     x: u32,
 ) anyerror!void {
@@ -79,8 +79,8 @@ pub fn dump_(
         },
 
         .sym => {
-            const sym = try ctx.row(.sym, x);
-            const name = ctx.v08slice(sym.str);
+            const sym = try heap.row(.sym, x);
+            const name = heap.v08slice(sym.str);
             if (sym.pkg == wisp.nil) {
                 try out.print("#:{s}", .{name});
             } else {
@@ -89,16 +89,16 @@ pub fn dump_(
         },
 
         .v08 => {
-            const s = ctx.v08slice(x);
+            const s = heap.v08slice(x);
             try out.print("\"{s}\"", .{s});
         },
 
         .v32 => {
             try out.print("#<", .{});
-            const xs = try ctx.v32slice(x);
+            const xs = try heap.v32slice(x);
             for (xs) |y, i| {
                 if (i > 0) try out.print(" ", .{});
-                try dump(ctx, out, y);
+                try dump(heap, out, y);
             }
             try out.print(">", .{});
         },
@@ -108,8 +108,8 @@ pub fn dump_(
             var cur = x;
 
             loop: while (cur != wisp.nil) {
-                var cons = try ctx.row(.duo, cur);
-                try dump(ctx, out, cons.car);
+                var cons = try heap.row(.duo, cur);
+                try dump(heap, out, cons.car);
                 switch (wisp.tagOf(cons.cdr)) {
                     .duo => {
                         try out.print(" ", .{});
@@ -118,7 +118,7 @@ pub fn dump_(
                     else => {
                         if (cons.cdr != wisp.nil) {
                             try out.print(" . ", .{});
-                            try dump(ctx, out, cons.cdr);
+                            try dump(heap, out, cons.cdr);
                         }
                         break :loop;
                     },
@@ -133,21 +133,21 @@ pub fn dump_(
         },
 
         .ktx => {
-            const ktx = try ctx.row(.ktx, x);
+            const ktx = try heap.row(.ktx, x);
             try out.print("<%ktx", .{});
             inline for (std.meta.fields(@TypeOf(ktx))) |field| {
                 try out.print(" {s}=", .{field.name});
-                try dump(ctx, out, @field(ktx, field.name));
+                try dump(heap, out, @field(ktx, field.name));
             }
             try out.print(">", .{});
         },
 
         .fun => {
-            // const fun = try ctx.row(.fun, x);
+            // const fun = try heap.row(.fun, x);
             try out.print("<fun", .{});
             // inline for (std.meta.fields(@TypeOf(fun))) |field| {
             //     try out.print(" {s}=", .{field.name});
-            //     try dump(ctx, out, @field(fun, field.name));
+            //     try dump(heap, out, @field(fun, field.name));
             // }
             try out.print(">", .{});
         },
@@ -158,11 +158,11 @@ pub fn dump_(
         },
 
         .bot => {
-            const bot = try ctx.row(.bot, x);
+            const bot = try heap.row(.bot, x);
             try out.print("<bot", .{});
             inline for (std.meta.fields(@TypeOf(bot))) |field| {
                 try out.print(" {s}=", .{field.name});
-                try dump(ctx, out, @field(bot, field.name));
+                try dump(heap, out, @field(bot, field.name));
             }
             try out.print(">", .{});
         },
@@ -171,87 +171,87 @@ pub fn dump_(
     }
 }
 
-fn expectPrintResult(ctx: *Ctx, expected: []const u8, x: u32) !void {
+fn expectPrintResult(heap: *Heap, expected: []const u8, x: u32) !void {
     var list = std.ArrayList(u8).init(std.testing.allocator);
     defer list.deinit();
     const writer = list.writer();
 
-    try dump(ctx, &writer, x);
+    try dump(heap, &writer, x);
     try std.testing.expectEqualStrings(expected, list.items);
 }
 
 test "print fixnum" {
-    var ctx = try Ctx.init(std.testing.allocator, .e0);
-    defer ctx.deinit();
+    var heap = try Heap.init(std.testing.allocator, .e0);
+    defer heap.deinit();
 
-    try expectPrintResult(&ctx, "1", 1);
+    try expectPrintResult(&heap, "1", 1);
 }
 
 test "print constants" {
-    var ctx = try Ctx.init(std.testing.allocator, .e0);
-    defer ctx.deinit();
+    var heap = try Heap.init(std.testing.allocator, .e0);
+    defer heap.deinit();
 
-    try expectPrintResult(&ctx, "NIL", wisp.nil);
-    try expectPrintResult(&ctx, "T", wisp.t);
+    try expectPrintResult(&heap, "NIL", wisp.nil);
+    try expectPrintResult(&heap, "T", wisp.t);
 }
 
 test "print lists" {
-    var ctx = try Ctx.init(std.testing.allocator, .e0);
-    defer ctx.deinit();
+    var heap = try Heap.init(std.testing.allocator, .e0);
+    defer heap.deinit();
 
     try expectPrintResult(
-        &ctx,
+        &heap,
         "(1 2 3)",
-        try wisp.list(&ctx, [_]u32{ 1, 2, 3 }),
+        try wisp.list(&heap, [_]u32{ 1, 2, 3 }),
     );
 
     try expectPrintResult(
-        &ctx,
+        &heap,
         "(1 . 2)",
-        try ctx.new(.duo, .{ .car = 1, .cdr = 2 }),
+        try heap.new(.duo, .{ .car = 1, .cdr = 2 }),
     );
 }
 
 test "print symbols" {
-    var ctx = try Ctx.init(std.testing.allocator, .e0);
-    defer ctx.deinit();
+    var heap = try Heap.init(std.testing.allocator, .e0);
+    defer heap.deinit();
 
     try expectPrintResult(
-        &ctx,
+        &heap,
         "FOO",
-        try ctx.intern("FOO", ctx.base),
+        try heap.intern("FOO", heap.base),
     );
 }
 
 test "print uninterned symbols" {
-    var ctx = try Ctx.init(std.testing.allocator, .e0);
-    defer ctx.deinit();
+    var heap = try Heap.init(std.testing.allocator, .e0);
+    defer heap.deinit();
 
     try expectPrintResult(
-        &ctx,
+        &heap,
         "#:FOO",
-        try ctx.newSymbol("FOO", wisp.nil),
+        try heap.newSymbol("FOO", wisp.nil),
     );
 }
 
 // test "print structs" {
-//     var ctx = try Ctx.init(std.testing.allocator);
-//     defer ctx.deinit();
+//     var heap = try Heap.init(std.testing.allocator);
+//     defer heap.deinit();
 
 //     try expectPrintResult(
-//         &ctx,
+//         &heap,
 //         "«instance PACKAGE \"WISP\"»",
 //         0,
 //     );
 // }
 
 test "print strings" {
-    var ctx = try Ctx.init(std.testing.allocator, .e1);
-    defer ctx.deinit();
+    var heap = try Heap.init(std.testing.allocator, .e1);
+    defer heap.deinit();
 
     try expectPrintResult(
-        &ctx,
+        &heap,
         "\"hello\"",
-        try ctx.newv08("hello"),
+        try heap.newv08("hello"),
     );
 }

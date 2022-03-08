@@ -49,18 +49,18 @@ pub fn @"+"(job: *Eval, xs: []u32) anyerror!void {
 }
 
 pub fn @"CONS"(job: *Eval, car: u32, cdr: u32) anyerror!void {
-    job.give(.val, try job.ctx.new(.duo, .{ .car = car, .cdr = cdr }));
+    job.give(.val, try job.heap.new(.duo, .{ .car = car, .cdr = cdr }));
 }
 
 pub fn @"CAR"(job: *Eval, x: u32) anyerror!void {
     if (x == wisp.nil) {
         job.give(.val, wisp.nil);
-    } else if (job.ctx.get(.duo, .car, x)) |car| {
+    } else if (job.heap.get(.duo, .car, x)) |car| {
         job.give(.val, car);
     } else |_| {
         try job.fail(&[_]u32{
-            job.ctx.kwd.@"TYPE-MISMATCH",
-            job.ctx.kwd.@"CONS",
+            job.heap.kwd.@"TYPE-MISMATCH",
+            job.heap.kwd.@"CONS",
             x,
         });
     }
@@ -69,12 +69,12 @@ pub fn @"CAR"(job: *Eval, x: u32) anyerror!void {
 pub fn @"CDR"(job: *Eval, x: u32) anyerror!void {
     if (x == wisp.nil) {
         job.give(.val, wisp.nil);
-    } else if (job.ctx.get(.duo, .cdr, x)) |cdr| {
+    } else if (job.heap.get(.duo, .cdr, x)) |cdr| {
         job.give(.val, cdr);
     } else |_| {
         try job.fail(&[_]u32{
-            job.ctx.kwd.@"TYPE-MISMATCH",
-            job.ctx.kwd.@"CONS",
+            job.heap.kwd.@"TYPE-MISMATCH",
+            job.heap.kwd.@"CONS",
             x,
         });
     }
@@ -85,7 +85,7 @@ pub fn @"SET-SYMBOL-FUNCTION"(
     sym: u32,
     fun: u32,
 ) anyerror!void {
-    try job.ctx.set(.sym, .fun, sym, fun);
+    try job.heap.set(.sym, .fun, sym, fun);
     job.give(.val, fun);
 }
 
@@ -94,7 +94,7 @@ pub fn @"SET-SYMBOL-VALUE"(
     sym: u32,
     val: u32,
 ) anyerror!void {
-    try job.ctx.set(.sym, .val, sym, val);
+    try job.heap.set(.sym, .val, sym, val);
     job.give(.val, val);
 }
 
@@ -103,7 +103,7 @@ pub fn @"LIST"(job: *Eval, xs: []u32) anyerror!void {
     var i = xs.len;
 
     while (i > 0) : (i -= 1) {
-        cur = try job.ctx.new(.duo, .{ .car = xs[i - 1], .cdr = cur });
+        cur = try job.heap.new(.duo, .{ .car = xs[i - 1], .cdr = cur });
     }
 
     job.give(.val, cur);
@@ -115,13 +115,13 @@ pub fn @"EQ"(job: *Eval, x: u32, y: u32) anyerror!void {
 
 pub fn @"PRINT"(job: *Eval, x: u32) anyerror!void {
     const out = std.io.getStdOut().writer();
-    try dump.dump(job.ctx, out, x);
+    try dump.dump(job.heap, out, x);
     try out.writeByte('\n');
     job.give(.val, x);
 }
 
 pub fn @"TYPE-OF"(job: *Eval, x: u32) anyerror!void {
-    const kwd = job.ctx.kwd;
+    const kwd = job.heap.kwd;
 
     if (x == wisp.nil) {
         job.give(.val, kwd.NULL);
@@ -159,7 +159,7 @@ pub fn SAVE(job: *Eval, @"CORE-NAME": u32) anyerror!void {
         .val,
         try wisp.core.save(
             job,
-            try job.ctx.v08slice(@"CORE-NAME"),
+            try job.heap.v08slice(@"CORE-NAME"),
         ),
     );
 }
@@ -187,8 +187,8 @@ pub fn APPLY(
 
 pub fn @"CALL/CC"(job: *Eval, function: u32) anyerror!void {
     // Take the parent continuation of the CALL/CC form.
-    const hop = try job.ctx.get(.ktx, .hop, job.bot.way);
-    try job.call(job.bot.way, function, try job.ctx.new(.duo, .{
+    const hop = try job.heap.get(.ktx, .hop, job.bot.way);
+    try job.call(job.bot.way, function, try job.heap.new(.duo, .{
         .car = hop,
         .cdr = wisp.nil,
     }), true);
@@ -201,29 +201,29 @@ pub fn WTF(job: *Eval, wtf: u32) anyerror!void {
 
 pub fn CONCATENATE(job: *Eval, typ: u32, rest: Rest) anyerror!void {
     _ = rest;
-    if (typ == job.ctx.kwd.STRING) {
-        try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
+    if (typ == job.heap.kwd.STRING) {
+        try job.fail(&[_]u32{job.heap.kwd.@"PROGRAM-ERROR"});
     } else {
-        try job.fail(&[_]u32{job.ctx.kwd.@"PROGRAM-ERROR"});
+        try job.fail(&[_]u32{job.heap.kwd.@"PROGRAM-ERROR"});
     }
 }
 
 pub fn LOAD(job: *Eval, src: u32) anyerror!void {
-    const path = try job.ctx.v08slice(src);
+    const path = try job.heap.v08slice(src);
 
-    const code = try disk.readFileAlloc(job.ctx.orb, path);
-    defer job.ctx.orb.free(code);
+    const code = try disk.readFileAlloc(job.heap.orb, path);
+    defer job.heap.orb.free(code);
 
-    const forms = try read.readMany(job.ctx, code);
+    const forms = try read.readMany(job.heap, code);
     defer forms.deinit();
 
     for (forms.items) |form| {
         var bot = Eval.initBot(form);
-        var exe = Eval.init(job.ctx, &bot);
-        try dump.warn("loading", job.ctx, form);
+        var exe = Eval.init(job.heap, &bot);
+        try dump.warn("loading", job.heap, form);
         if (exe.evaluate(1_000, false)) |_| {} else |err| {
-            try dump.warn("failed", job.ctx, form);
-            try dump.warn("condition", job.ctx, exe.bot.err);
+            try dump.warn("failed", job.heap, form);
+            try dump.warn("condition", job.heap, exe.bot.err);
             job.bot.err = exe.bot.err;
             return err;
         }
@@ -237,14 +237,14 @@ pub fn ENV(job: *Eval) anyerror!void {
 }
 
 pub fn BOT(job: *Eval, exp: u32) anyerror!void {
-    job.give(.val, try job.ctx.new(.bot, Eval.initBot(exp)));
+    job.give(.val, try job.heap.new(.bot, Eval.initBot(exp)));
 }
 
 pub fn STEP(job: *Eval, botptr: u32) anyerror!void {
-    var bot = try job.ctx.row(.bot, botptr);
-    var exe = Eval.init(job.ctx, &bot);
+    var bot = try job.heap.row(.bot, botptr);
+    var exe = Eval.init(job.heap, &bot);
 
     try exe.step();
-    try job.ctx.put(.bot, botptr, bot);
+    try job.heap.put(.bot, botptr, bot);
     job.give(.val, wisp.nil);
 }

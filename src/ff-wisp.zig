@@ -18,7 +18,7 @@
 //
 
 pub usingnamespace @import("./01-word.zig");
-pub usingnamespace @import("./02-base.zig");
+pub usingnamespace @import("./02-heap.zig");
 pub usingnamespace @import("./05-read.zig");
 
 pub const tidy = @import("./03-tidy.zig").tidy;

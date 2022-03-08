@@ -48,23 +48,23 @@ export interface WispAPI {
   wisp_sys_zap: WebAssembly.Global
   wisp_sys_top: WebAssembly.Global
 
-  wisp_alloc(ctx: number, n: number): number
-  wisp_free(ctx: number, x: number): void
-  wisp_destroy(ctx: number, x: number): void
+  wisp_alloc(heap: number, n: number): number
+  wisp_free(heap: number, x: number): void
+  wisp_destroy(heap: number, x: number): void
 
-  wisp_ctx_init(): number
+  wisp_heap_init(): number
 
-  wisp_ctx_v08_len(ctx: number): number
-  wisp_ctx_v08_ptr(ctx: number): number
-  wisp_ctx_v32_len(ctx: number): number
-  wisp_ctx_v32_ptr(ctx: number): number
+  wisp_heap_v08_len(heap: number): number
+  wisp_heap_v08_ptr(heap: number): number
+  wisp_heap_v32_len(heap: number): number
+  wisp_heap_v32_ptr(heap: number): number
 
-  wisp_dat_init(ctx: number): number
-  wisp_dat_read(ctx: number, dat: number): void
+  wisp_dat_init(heap: number): number
+  wisp_dat_read(heap: number, dat: number): void
 
-  wisp_read(ctx: number, buf: number): number
-  wisp_eval(ctx: number, exp: number, max: number): number
-  wisp_eval_step(ctx: number, bot: number): number
+  wisp_read(heap: number, buf: number): number
+  wisp_eval(heap: number, exp: number, max: number): number
+  wisp_eval_step(heap: number, bot: number): number
 }
 
 export class View {
@@ -97,8 +97,8 @@ export class View {
   }
 
   readTab() {
-    const datptr = this.api.wisp_dat_init(this.ctx.ctx)
-    this.api.wisp_dat_read(this.ctx.ctx, datptr)
+    const datptr = this.api.wisp_dat_init(this.ctx.heap)
+    this.api.wisp_dat_read(this.ctx.heap, datptr)
 
     const tabs = {
       duo: ["car", "cdr"],
@@ -169,7 +169,7 @@ export class View {
 export class Wisp {
   instance: WebAssembly.Instance
   api: WispAPI
-  ctx: number
+  heap: number
   tag: Record<Tag, number>
   sys: Record<Sys, number>
 
@@ -178,7 +178,7 @@ export class Wisp {
     this.api = this.instance.exports as unknown as WispAPI
     this.tag = this.loadTags()
     this.sys = this.loadSys()
-    this.ctx = this.api.wisp_ctx_init()
+    this.heap = this.api.wisp_heap_init()
   }
 
   loadTags(): Record<Tag, number> {
@@ -224,23 +224,23 @@ export class Wisp {
   }
 
   v08len(): number {
-    return this.api.wisp_ctx_v08_len(this.ctx)
+    return this.api.wisp_heap_v08_len(this.heap)
   }
 
   v08ptr(): number {
-    return this.api.wisp_ctx_v08_ptr(this.ctx)
+    return this.api.wisp_heap_v08_ptr(this.heap)
   }
 
   v32len(): number {
-    return this.api.wisp_ctx_v32_len(this.ctx)
+    return this.api.wisp_heap_v32_len(this.heap)
   }
 
   v32ptr(): number {
-    return this.api.wisp_ctx_v32_ptr(this.ctx)
+    return this.api.wisp_heap_v32_ptr(this.heap)
   }
 
   read(sexp: string): number {
-    const buf = this.api.wisp_alloc(this.ctx, sexp.length + 1)
+    const buf = this.api.wisp_alloc(this.heap, sexp.length + 1)
     const arr = new TextEncoder().encode(sexp)
     const mem = new DataView(this.api.memory.buffer, buf, arr.length + 1)
 
@@ -250,13 +250,13 @@ export class Wisp {
       mem.setUint8(i, arr[i])
     }
 
-    const x = this.api.wisp_read(this.ctx, buf)
-    this.api.wisp_free(this.ctx, buf)
+    const x = this.api.wisp_read(this.heap, buf)
+    this.api.wisp_free(this.heap, buf)
     return x
   }
 
   eval(exp: number): number {
-    return this.api.wisp_eval(this.ctx, exp, 10000)
+    return this.api.wisp_eval(this.heap, exp, 10000)
   }
  
   tagOf(x: number): Tag {

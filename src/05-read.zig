@@ -21,7 +21,7 @@ const std = @import("std");
 const ziglyph = @import("ziglyph");
 
 const wisp = @import("./ff-wisp.zig");
-const Ctx = wisp.Ctx;
+const Heap = wisp.Heap;
 
 const Error = error{
     ReadError,
@@ -31,7 +31,7 @@ const Error = error{
 const Reader = @This();
 
 utf8: std.unicode.Utf8Iterator,
-ctx: *Ctx,
+heap: *Heap,
 
 fn readValueOrEOF(self: *Reader) anyerror!?u32 {
     try self.skipSpace();
@@ -133,9 +133,9 @@ fn readWhile(
 fn readQuote(self: *Reader) !u32 {
     try self.skipOnly('\'');
     const x = try self.readValue();
-    return try self.ctx.new(.duo, .{
-        .car = self.ctx.kwd.QUOTE,
-        .cdr = try self.ctx.new(.duo, .{
+    return try self.heap.new(.duo, .{
+        .car = self.heap.kwd.QUOTE,
+        .cdr = try self.heap.new(.duo, .{
             .car = x,
             .cdr = wisp.nil,
         }),
@@ -145,9 +145,9 @@ fn readQuote(self: *Reader) !u32 {
 fn readQuasiquote(self: *Reader) !u32 {
     try self.skipOnly('`');
     const x = try self.readValue();
-    return try self.ctx.new(.duo, .{
-        .car = self.ctx.kwd.QUASIQUOTE,
-        .cdr = try self.ctx.new(.duo, .{
+    return try self.heap.new(.duo, .{
+        .car = self.heap.kwd.QUASIQUOTE,
+        .cdr = try self.heap.new(.duo, .{
             .car = x,
             .cdr = wisp.nil,
         }),
@@ -157,9 +157,9 @@ fn readQuasiquote(self: *Reader) !u32 {
 fn readUnquote(self: *Reader) !u32 {
     try self.skipOnly(',');
     const x = try self.readValue();
-    return try self.ctx.new(.duo, .{
-        .car = self.ctx.kwd.UNQUOTE,
-        .cdr = try self.ctx.new(.duo, .{
+    return try self.heap.new(.duo, .{
+        .car = self.heap.kwd.UNQUOTE,
+        .cdr = try self.heap.new(.duo, .{
             .car = x,
             .cdr = wisp.nil,
         }),
@@ -169,9 +169,9 @@ fn readUnquote(self: *Reader) !u32 {
 fn readFunctionQuote(self: *Reader) !u32 {
     try self.skipOnly('\'');
     const x = try self.readValue();
-    return try self.ctx.new(.duo, .{
-        .car = self.ctx.kwd.FUNCTION,
-        .cdr = try self.ctx.new(.duo, .{
+    return try self.heap.new(.duo, .{
+        .car = self.heap.kwd.FUNCTION,
+        .cdr = try self.heap.new(.duo, .{
             .car = x,
             .cdr = wisp.nil,
         }),
@@ -204,13 +204,13 @@ fn readUninternedSymbol(self: *Reader) !u32 {
 
     const text = try self.readWhile(isSymbolCharacterOrDigit);
     const uppercase = try ziglyph.toUpperStr(
-        self.ctx.orb,
+        self.heap.orb,
         text,
     );
 
-    defer self.ctx.orb.free(uppercase);
+    defer self.heap.orb.free(uppercase);
 
-    return self.ctx.newSymbol(uppercase, wisp.nil);
+    return self.heap.newSymbol(uppercase, wisp.nil);
 }
 
 fn readKeyword(self: *Reader) !u32 {
@@ -218,25 +218,25 @@ fn readKeyword(self: *Reader) !u32 {
 
     const text = try self.readWhile(isSymbolCharacterOrDigit);
     const uppercase = try ziglyph.toUpperStr(
-        self.ctx.orb,
+        self.heap.orb,
         text,
     );
 
-    defer self.ctx.orb.free(uppercase);
+    defer self.heap.orb.free(uppercase);
 
-    return try self.ctx.intern(uppercase, self.ctx.keywordPackage);
+    return try self.heap.intern(uppercase, self.heap.keywordPackage);
 }
 
 fn readSymbol(self: *Reader) !u32 {
     const text = try self.readWhile(isSymbolCharacterOrDigit);
     const uppercase = try ziglyph.toUpperStr(
-        self.ctx.orb,
+        self.heap.orb,
         text,
     );
 
-    defer self.ctx.orb.free(uppercase);
+    defer self.heap.orb.free(uppercase);
 
-    return try self.ctx.intern(uppercase, self.ctx.pkg);
+    return try self.heap.intern(uppercase, self.heap.pkg);
 }
 
 fn readNumber(self: *Reader) !u32 {
@@ -258,7 +258,7 @@ fn readString(self: *Reader) !u32 {
     try self.skipOnly('"');
     const text = try self.readWhile(isNotEndOfString);
     try self.skipOnly('"');
-    return try self.ctx.newv08(text);
+    return try self.heap.newv08(text);
 }
 
 fn readList(self: *Reader) !u32 {
@@ -287,7 +287,7 @@ fn readListTail(self: *Reader) anyerror!u32 {
             else => {
                 const car = try self.readValue();
                 const cdr = try self.readListTail();
-                return self.ctx.new(.duo, .{
+                return self.heap.new(.duo, .{
                     .car = car,
                     .cdr = cdr,
                 });
@@ -377,21 +377,21 @@ fn isSymbolCharacterOrDigit(c: u21) bool {
     return isSymbolCharacter(c) or ziglyph.isAsciiDigit(c);
 }
 
-pub fn read(ctx: *Ctx, stream: []const u8) !u32 {
+pub fn read(heap: *Heap, stream: []const u8) !u32 {
     var reader = Reader{
         .utf8 = (try std.unicode.Utf8View.init(stream)).iterator(),
-        .ctx = ctx,
+        .heap = heap,
     };
 
     return reader.readValue();
 }
 
-pub fn readMany(ctx: *Ctx, stream: []const u8) !std.ArrayList(u32) {
-    var list = std.ArrayList(u32).init(ctx.orb);
+pub fn readMany(heap: *Heap, stream: []const u8) !std.ArrayList(u32) {
+    var list = std.ArrayList(u32).init(heap.orb);
 
     var reader = Reader{
         .utf8 = (try std.unicode.Utf8View.init(stream)).iterator(),
-        .ctx = ctx,
+        .heap = heap,
     };
 
     while (true) {
@@ -404,12 +404,12 @@ pub fn readMany(ctx: *Ctx, stream: []const u8) !std.ArrayList(u32) {
 }
 
 test "read symbol uppercasing" {
-    var ctx = try Ctx.init(std.testing.allocator, .e0);
-    defer ctx.deinit();
+    var heap = try Heap.init(std.testing.allocator, .e0);
+    defer heap.deinit();
 
-    const symbol = try read(&ctx, "foobar");
-    const row = try ctx.row(.sym, symbol);
-    const name = try ctx.v08slice(row.str);
+    const symbol = try read(&heap, "foobar");
+    const row = try heap.row(.sym, symbol);
+    const name = try heap.v08slice(row.str);
 
     try std.testing.expectEqualStrings(
         "FOOBAR",
@@ -418,7 +418,7 @@ test "read symbol uppercasing" {
 }
 
 test "read nil" {
-    var ctx = try Ctx.init(std.testing.allocator, .e0);
-    defer ctx.deinit();
-    try std.testing.expectEqual(wisp.nil, try read(&ctx, "nil"));
+    var heap = try Heap.init(std.testing.allocator, .e0);
+    defer heap.deinit();
+    try std.testing.expectEqual(wisp.nil, try read(&heap, "nil"));
 }

@@ -76,7 +76,7 @@ fn tellvar(out: anytype, v: []const u8, x: u32) !void {
 }
 
 pub fn save(eval: *wisp.Eval, name: []const u8) !u32 {
-    var room = std.heap.ArenaAllocator.init(eval.ctx.orb);
+    var room = std.heap.ArenaAllocator.init(eval.heap.orb);
 
     defer room.deinit();
 
@@ -91,14 +91,14 @@ pub fn save(eval: *wisp.Eval, name: []const u8) !u32 {
 
     defer atom.destroy();
 
-    const ctx = eval.ctx;
+    const heap = eval.heap;
 
     try file.print("; -*- org -*-\n\n", .{});
     try file.print("* wisp\n", .{});
     try file.print("** ver 1\n\n", .{});
     try file.print("* eval\n", .{});
-    try tellvar(file, "** era", @intCast(u32, @enumToInt(ctx.era)));
-    try tellvar(file, "** bas", ctx.base);
+    try tellvar(file, "** era", @intCast(u32, @enumToInt(heap.era)));
+    try tellvar(file, "** bas", heap.base);
     try tellvar(file, "** env", eval.bot.env);
     try tellvar(file, "** way", eval.bot.way);
     try tellvar(file, "** exp", eval.bot.exp);
@@ -106,21 +106,21 @@ pub fn save(eval: *wisp.Eval, name: []const u8) !u32 {
     try tellvar(file, "** err", eval.bot.err);
 
     try file.print("\n", .{});
-    try file.print("* v08 #{d}\n", .{ctx.v08.items.len});
-    for (ctx.v08.items) |x| {
+    try file.print("* v08 #{d}\n", .{heap.v08.items.len});
+    for (heap.v08.items) |x| {
         try file.print("{d:0>2}", .{x});
     }
     try file.print("\n\n", .{});
 
-    try file.print("* v32 #{d}\n", .{ctx.v32.list.items.len});
-    for (ctx.v32.list.items) |x, i| {
+    try file.print("* v32 #{d}\n", .{heap.v32.list.items.len});
+    for (heap.v32.list.items) |x, i| {
         if (i > 0) try file.print(" ", .{});
         try tell(file, x);
     }
     try file.print("\n", .{});
 
     inline for (wisp.pointerTags) |tag| {
-        const tab = ctx.tab(tag);
+        const tab = heap.tab(tag);
         if (tab.list.len > 0) {
             try file.print("\n", .{});
             try file.print("* {s} #{d}\n", .{
@@ -130,7 +130,7 @@ pub fn save(eval: *wisp.Eval, name: []const u8) !u32 {
 
             inline for (std.meta.fields(wisp.Row(tag))) |_, j| {
                 const col = @intToEnum(wisp.Col(tag), j);
-                for (ctx.col(tag, col)) |x| {
+                for (heap.col(tag, col)) |x| {
                     try tell(file, x);
                     try file.print(" ", .{});
                 }
@@ -141,14 +141,14 @@ pub fn save(eval: *wisp.Eval, name: []const u8) !u32 {
 
     try atom.finish();
 
-    return try eval.ctx.newv08(
+    return try eval.heap.newv08(
         atom.atomic_file.dest_basename,
     );
 }
 
 test "save" {
-    var ctx = try wisp.Eval.newTestCtx();
-    defer ctx.deinit();
+    var heap = try wisp.Eval.newTestHeap();
+    defer heap.deinit();
 
     try wisp.Eval.expectEval("\"foo.core\"", (
         \\ (save "foo.core")

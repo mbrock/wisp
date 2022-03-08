@@ -177,7 +177,7 @@ fn S32(comptime t: type) type {
     return std.enums.EnumFieldStruct(t, u32, 0);
 }
 
-pub const Ctx = struct {
+pub const Heap = struct {
     orb: Orb,
     era: Era = .e0,
     vat: Vat = .{},
@@ -191,105 +191,105 @@ pub const Ctx = struct {
     pkg: u32 = nil,
     pkgmap: std.StringArrayHashMapUnmanaged(u32) = .{},
 
-    pub fn init(orb: Orb, era: Era) !Ctx {
-        var ctx = Ctx{ .orb = orb, .era = era };
+    pub fn init(orb: Orb, era: Era) !Heap {
+        var heap = Heap{ .orb = orb, .era = era };
 
-        ctx.base = try ctx.defpackage(try ctx.newv08("WISP"), nil);
-        ctx.keywordPackage = try ctx.defpackage(try ctx.newv08("KEYWORD"), nil);
-        ctx.pkg = ctx.base;
+        heap.base = try heap.defpackage(try heap.newv08("WISP"), nil);
+        heap.keywordPackage = try heap.defpackage(try heap.newv08("KEYWORD"), nil);
+        heap.pkg = heap.base;
 
         inline for (std.meta.fields(Kwd)) |s| {
-            @field(ctx.kwd, s.name) = try ctx.intern(s.name, ctx.base);
+            @field(heap.kwd, s.name) = try heap.intern(s.name, heap.base);
         }
 
-        return ctx;
+        return heap;
     }
 
-    pub fn defpackage(ctx: *Ctx, nam: u32, use: u32) !u32 {
-        const pkg = try ctx.new(.pkg, .{
+    pub fn defpackage(heap: *Heap, nam: u32, use: u32) !u32 {
+        const pkg = try heap.new(.pkg, .{
             .nam = nam,
             .sym = nil,
             .use = use,
         });
 
-        const str = try ctx.orb.dupe(u8, try ctx.v08slice(nam));
+        const str = try heap.orb.dupe(u8, try heap.v08slice(nam));
 
-        try ctx.pkgmap.putNoClobber(ctx.orb, str, pkg);
+        try heap.pkgmap.putNoClobber(heap.orb, str, pkg);
 
         return pkg;
     }
 
-    pub fn load(ctx: *Ctx, str: []const u8) !void {
-        const forms = try read.readMany(ctx, str);
+    pub fn load(heap: *Heap, str: []const u8) !void {
+        const forms = try read.readMany(heap, str);
         defer forms.deinit();
 
         for (forms.items) |form| {
             var bot = eval.initBot(form);
-            var exe = eval.init(ctx, &bot);
+            var exe = eval.init(heap, &bot);
             if (exe.evaluate(1_000, false)) |_| {} else |_| {
-                try dump.warn("failed", ctx, form);
-                try dump.warn("condition", ctx, exe.bot.err);
+                try dump.warn("failed", heap, form);
+                try dump.warn("condition", heap, exe.bot.err);
                 break;
             }
         }
 
-        try tidy.tidy(ctx);
+        try tidy.tidy(heap);
     }
 
-    pub fn cook(ctx: *Ctx) !void {
-        try ctx.load(@embedFile("./a0-base.lisp"));
-        // try ctx.load(@embedFile("./a1-backquote.lisp"));
+    pub fn cook(heap: *Heap) !void {
+        try heap.load(@embedFile("./a0-base.lisp"));
+        // try heap.load(@embedFile("./a1-backquote.lisp"));
     }
 
-    fn initvar(ctx: *Ctx, txt: []const u8, val: u32) !void {
-        var sym = try ctx.intern(txt, ctx.base);
-        try ctx.set(.sym, .val, sym, val);
+    fn initvar(heap: *Heap, txt: []const u8, val: u32) !void {
+        var sym = try heap.intern(txt, heap.base);
+        try heap.set(.sym, .val, sym, val);
     }
 
-    pub fn deinit(ctx: *Ctx) void {
-        ctx.v08.deinit(ctx.orb);
-        ctx.v32.list.deinit(ctx.orb);
+    pub fn deinit(heap: *Heap) void {
+        heap.v08.deinit(heap.orb);
+        heap.v32.list.deinit(heap.orb);
 
-        for (ctx.pkgmap.keys()) |key| {
-            ctx.orb.free(key);
+        for (heap.pkgmap.keys()) |key| {
+            heap.orb.free(key);
         }
 
-        ctx.pkgmap.deinit(ctx.orb);
+        heap.pkgmap.deinit(heap.orb);
 
         inline for (std.meta.fields(Vat)) |field| {
-            @field(ctx.vat, field.name).list.deinit(ctx.orb);
+            @field(heap.vat, field.name).list.deinit(heap.orb);
         }
     }
 
-    pub fn bytesize(ctx: Ctx) usize {
-        return ctx.v08.items.len + ctx.vat.bytesize();
+    pub fn bytesize(heap: Heap) usize {
+        return heap.v08.items.len + heap.vat.bytesize();
     }
 
-    pub fn tab(ctx: *Ctx, comptime tag: Tag) *Tab(tag) {
-        return &@field(ctx.vat, @tagName(tag));
+    pub fn tab(heap: *Heap, comptime tag: Tag) *Tab(tag) {
+        return &@field(heap.vat, @tagName(tag));
     }
 
-    pub fn new(ctx: *Ctx, comptime tag: Tag, data: Row(tag)) !u32 {
-        return ctx.tab(tag).new(ctx.orb, ctx.era, data);
+    pub fn new(heap: *Heap, comptime tag: Tag, data: Row(tag)) !u32 {
+        return heap.tab(tag).new(heap.orb, heap.era, data);
     }
 
-    pub fn row(ctx: *Ctx, comptime tag: Tag, ptr: u32) !Row(tag) {
+    pub fn row(heap: *Heap, comptime tag: Tag, ptr: u32) !Row(tag) {
         if (wisp.tagOf(ptr) != tag)
             return Oof.Bug;
 
-        return ctx.tab(tag).get(ctx.era, ptr);
+        return heap.tab(tag).get(heap.era, ptr);
     }
 
     pub fn col(
-        ctx: *Ctx,
+        heap: *Heap,
         comptime tag: Tag,
         comptime c: Col(tag),
     ) []u32 {
-        return ctx.tab(tag).col(c);
+        return heap.tab(tag).col(c);
     }
 
     pub fn get(
-        ctx: *Ctx,
+        heap: *Heap,
         comptime tag: Tag,
         comptime c: Col(tag),
         p: u32,
@@ -297,11 +297,11 @@ pub const Ctx = struct {
         if (wisp.tagOf(p) != tag)
             return Oof.Bug;
 
-        return ctx.col(tag, c)[ref(p)];
+        return heap.col(tag, c)[ref(p)];
     }
 
     pub fn set(
-        ctx: *Ctx,
+        heap: *Heap,
         comptime tag: Tag,
         comptime c: Col(tag),
         p: u32,
@@ -310,11 +310,11 @@ pub const Ctx = struct {
         if (wisp.tagOf(p) != tag)
             return Oof.Bug;
 
-        ctx.col(tag, c)[ref(p)] = v;
+        heap.col(tag, c)[ref(p)] = v;
     }
 
     pub fn put(
-        ctx: *Ctx,
+        heap: *Heap,
         comptime tag: Tag,
         ptr: u32,
         val: Row(tag),
@@ -322,46 +322,46 @@ pub const Ctx = struct {
         if (wisp.tagOf(ptr) != tag)
             return Oof.Bug;
 
-        ctx.tab(tag).list.set(ref(ptr), val);
+        heap.tab(tag).list.set(ref(ptr), val);
     }
 
-    pub fn newv08(ctx: *Ctx, dat: []const u8) !u32 {
-        try ctx.v08.appendSlice(ctx.orb, dat);
-        return ctx.new(.v08, .{
-            .idx = @intCast(u32, ctx.v08.items.len - dat.len),
+    pub fn newv08(heap: *Heap, dat: []const u8) !u32 {
+        try heap.v08.appendSlice(heap.orb, dat);
+        return heap.new(.v08, .{
+            .idx = @intCast(u32, heap.v08.items.len - dat.len),
             .len = @intCast(u32, dat.len),
         });
     }
 
-    pub fn newv32(ctx: *Ctx, dat: []const u32) !u32 {
-        try ctx.v32.list.appendSlice(ctx.orb, dat);
-        return ctx.new(.v32, .{
-            .idx = @intCast(u32, ctx.v32.list.items.len - dat.len),
+    pub fn newv32(heap: *Heap, dat: []const u32) !u32 {
+        try heap.v32.list.appendSlice(heap.orb, dat);
+        return heap.new(.v32, .{
+            .idx = @intCast(u32, heap.v32.list.items.len - dat.len),
             .len = @intCast(u32, dat.len),
         });
     }
 
-    pub fn v08slice(ctx: *Ctx, ptr: u32) ![]const u8 {
-        const str = try ctx.row(.v08, ptr);
-        return ctx.v08.items[str.idx .. str.idx + str.len];
+    pub fn v08slice(heap: *Heap, ptr: u32) ![]const u8 {
+        const str = try heap.row(.v08, ptr);
+        return heap.v08.items[str.idx .. str.idx + str.len];
     }
 
-    pub fn v32slice(ctx: *Ctx, ptr: u32) ![]const u32 {
-        const str = try ctx.row(.v32, ptr);
-        return ctx.v32.list.items[str.idx .. str.idx + str.len];
+    pub fn v32slice(heap: *Heap, ptr: u32) ![]const u32 {
+        const str = try heap.row(.v32, ptr);
+        return heap.v32.list.items[str.idx .. str.idx + str.len];
     }
 
-    pub fn newSymbol(ctx: *Ctx, txt: []const u8, pkg: u32) !u32 {
-        return try ctx.new(.sym, .{
-            .str = try ctx.newv08(txt),
+    pub fn newSymbol(heap: *Heap, txt: []const u8, pkg: u32) !u32 {
+        return try heap.new(.sym, .{
+            .str = try heap.newv08(txt),
             .val = nah,
             .pkg = pkg,
             .fun = nil,
         });
     }
 
-    pub fn intern(ctx: *Ctx, txt: []const u8, pkgptr: u32) !u32 {
-        if (pkgptr == ctx.base) {
+    pub fn intern(heap: *Heap, txt: []const u8, pkgptr: u32) !u32 {
+        if (pkgptr == heap.base) {
             if (std.mem.eql(u8, txt, "NIL")) {
                 return nil;
             } else if (std.mem.eql(u8, txt, "T")) {
@@ -369,23 +369,23 @@ pub const Ctx = struct {
             }
         }
 
-        const symstrs = ctx.vat.sym.list.items(.str);
-        const pkg = try ctx.row(.pkg, pkgptr);
+        const symstrs = heap.vat.sym.list.items(.str);
+        const pkg = try heap.row(.pkg, pkgptr);
         var duoptr = pkg.sym;
 
         while (duoptr != nil) {
-            const duo = try ctx.row(.duo, duoptr);
+            const duo = try heap.row(.duo, duoptr);
             const strptr = symstrs[Ptr.from(duo.car).idx];
-            if (std.mem.eql(u8, txt, try ctx.v08slice(strptr))) {
+            if (std.mem.eql(u8, txt, try heap.v08slice(strptr))) {
                 return duo.car;
             } else {
                 duoptr = duo.cdr;
             }
         }
 
-        const symptr = try ctx.newSymbol(txt, pkgptr);
+        const symptr = try heap.newSymbol(txt, pkgptr);
 
-        try ctx.set(.pkg, .sym, pkgptr, try ctx.new(.duo, .{
+        try heap.set(.pkg, .sym, pkgptr, try heap.new(.duo, .{
             .car = symptr,
             .cdr = pkg.sym,
         }));
@@ -394,37 +394,37 @@ pub const Ctx = struct {
     }
 };
 
-pub fn list(ctx: *Ctx, xs: anytype) !u32 {
+pub fn list(heap: *Heap, xs: anytype) !u32 {
     var cur = nil;
     var i: u32 = @intCast(u32, xs.len);
     while (i >= 1) : (i -= 1) {
         const x = xs[i - 1];
-        cur = try ctx.new(.duo, .{ .car = x, .cdr = cur });
+        cur = try heap.new(.duo, .{ .car = x, .cdr = cur });
     }
     return cur;
 }
 
-pub fn length(ctx: *Ctx, x: u32) !u32 {
+pub fn length(heap: *Heap, x: u32) !u32 {
     var cur = x;
     var i: u32 = 0;
     while (cur != nil) : (i += 1) {
-        cur = try ctx.get(.duo, .cdr, cur);
+        cur = try heap.get(.duo, .cdr, cur);
     }
 
     return i;
 }
 
-test "ctx" {
-    var ctx = try Ctx.init(std.testing.allocator, .e0);
-    defer ctx.deinit();
+test "heap" {
+    var heap = try Heap.init(std.testing.allocator, .e0);
+    defer heap.deinit();
 }
 
 test "list length" {
-    var ctx = try Ctx.init(std.testing.allocator, .e0);
-    defer ctx.deinit();
+    var heap = try Heap.init(std.testing.allocator, .e0);
+    defer heap.deinit();
 
     try same(
         @as(u32, 3),
-        try length(&ctx, try list(&ctx, [_]u32{ 1, 2, 3 })),
+        try length(&heap, try list(&heap, [_]u32{ 1, 2, 3 })),
     );
 }

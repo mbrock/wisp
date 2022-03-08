@@ -45,16 +45,16 @@ export const wisp_sys_nah: u32 = wisp.nah;
 export const wisp_sys_zap: u32 = wisp.zap;
 export const wisp_sys_top: u32 = wisp.top;
 
-export fn wisp_ctx_init() ?*wisp.Ctx {
+export fn wisp_heap_init() ?*wisp.Heap {
     var orb = std.heap.page_allocator;
 
-    if (orb.create(wisp.Ctx)) |ctxptr| {
-        if (wisp.Ctx.init(orb, .e0)) |ctx| {
-            var ctx2 = ctx;
-            xops.load(&ctx2) catch return null;
-            ctx2.cook() catch return null;
-            ctxptr.* = ctx2;
-            return ctxptr;
+    if (orb.create(wisp.Heap)) |heapptr| {
+        if (wisp.Heap.init(orb, .e0)) |heap| {
+            var heap2 = heap;
+            xops.load(&heap2) catch return null;
+            heap2.cook() catch return null;
+            heapptr.* = heap2;
+            return heapptr;
         } else |_| {
             return null;
         }
@@ -63,21 +63,21 @@ export fn wisp_ctx_init() ?*wisp.Ctx {
     }
 }
 
-export fn wisp_read(ctx: *wisp.Ctx, str: [*:0]const u8) u32 {
-    if (wisp.read(ctx, std.mem.span(str))) |x| {
+export fn wisp_read(heap: *wisp.Heap, str: [*:0]const u8) u32 {
+    if (wisp.read(heap, std.mem.span(str))) |x| {
         return x;
     } else |_| {
         return wisp.zap;
     }
 }
 
-export fn wisp_eval(ctx: *wisp.Ctx, exp: u32, max: u32) u32 {
+export fn wisp_eval(heap: *wisp.Heap, exp: u32, max: u32) u32 {
     var bot = eval.initBot(exp);
-    return eval.init(ctx, &bot).evaluate(max, false) catch wisp.zap;
+    return eval.init(heap, &bot).evaluate(max, false) catch wisp.zap;
 }
 
-export fn wisp_bot_init(ctx: *wisp.Ctx, exp: u32) u32 {
-    return ctx.new(.bot, .{
+export fn wisp_bot_init(heap: *wisp.Heap, exp: u32) u32 {
+    return heap.new(.bot, .{
         .way = wisp.top,
         .env = wisp.nil,
         .err = wisp.nil,
@@ -86,13 +86,13 @@ export fn wisp_bot_init(ctx: *wisp.Ctx, exp: u32) u32 {
     }) catch wisp.zap;
 }
 
-export fn wisp_eval_step(ctx: *wisp.Ctx, botptr: u32) u32 {
-    var bot = ctx.row(.bot, botptr) catch return wisp.zap;
-    var exe = eval.init(ctx, &bot);
+export fn wisp_eval_step(heap: *wisp.Heap, botptr: u32) u32 {
+    var bot = heap.row(.bot, botptr) catch return wisp.zap;
+    var exe = eval.init(heap, &bot);
 
     exe.step() catch return wisp.zap;
 
-    ctx.put(.bot, botptr, bot) catch return wisp.zap;
+    heap.put(.bot, botptr, bot) catch return wisp.zap;
 
     return if (bot.val != wisp.nah and bot.way == wisp.top)
         wisp.nil
@@ -144,14 +144,14 @@ const Dat = packed struct {
     bot: TabDat(.bot),
 };
 
-export fn wisp_dat_init(ctx: *wisp.Ctx) ?*Dat {
-    return ctx.orb.create(Dat) catch null;
+export fn wisp_dat_init(heap: *wisp.Heap) ?*Dat {
+    return heap.orb.create(Dat) catch null;
 }
 
-export fn wisp_dat_read(ctx: *wisp.Ctx, dat: *Dat) void {
+export fn wisp_dat_read(heap: *wisp.Heap, dat: *Dat) void {
     inline for (wisp.pointerTags) |tag| {
         const E = std.meta.FieldEnum(wisp.Row(tag));
-        const tab = ctx.tab(tag);
+        const tab = heap.tab(tag);
         var tagdat = &@field(dat, @tagName(tag));
         tagdat.n = @intCast(u32, tab.list.len);
         inline for (std.meta.fields(wisp.Row(tag))) |field, i| {
@@ -161,33 +161,33 @@ export fn wisp_dat_read(ctx: *wisp.Ctx, dat: *Dat) void {
     }
 }
 
-export fn wisp_ctx_v08_len(ctx: *wisp.Ctx) usize {
-    return ctx.v08.items.len;
+export fn wisp_heap_v08_len(heap: *wisp.Heap) usize {
+    return heap.v08.items.len;
 }
 
-export fn wisp_ctx_v08_ptr(ctx: *wisp.Ctx) [*]u8 {
-    return ctx.v08.items.ptr;
+export fn wisp_heap_v08_ptr(heap: *wisp.Heap) [*]u8 {
+    return heap.v08.items.ptr;
 }
 
-export fn wisp_ctx_v32_len(ctx: *wisp.Ctx) usize {
-    return ctx.v32.list.items.len;
+export fn wisp_heap_v32_len(heap: *wisp.Heap) usize {
+    return heap.v32.list.items.len;
 }
 
-export fn wisp_ctx_v32_ptr(ctx: *wisp.Ctx) [*]u32 {
-    return ctx.v32.list.items.ptr;
+export fn wisp_heap_v32_ptr(heap: *wisp.Heap) [*]u32 {
+    return heap.v32.list.items.ptr;
 }
 
-export fn wisp_alloc(ctx: *wisp.Ctx, n: u32) usize {
-    const buf = ctx.orb.alloc(u8, n) catch return 0;
+export fn wisp_alloc(heap: *wisp.Heap, n: u32) usize {
+    const buf = heap.orb.alloc(u8, n) catch return 0;
     return @ptrToInt(buf.ptr);
 }
 
-export fn wisp_free(ctx: *wisp.Ctx, x: [*:0]u8) void {
-    ctx.orb.free(std.mem.span(x));
+export fn wisp_free(heap: *wisp.Heap, x: [*:0]u8) void {
+    heap.orb.free(std.mem.span(x));
 }
 
-export fn wisp_destroy(ctx: *wisp.Ctx, x: [*]u8) void {
-    ctx.orb.destroy(x);
+export fn wisp_destroy(heap: *wisp.Heap, x: [*]u8) void {
+    heap.orb.destroy(x);
 }
 
 test "sanity" {
