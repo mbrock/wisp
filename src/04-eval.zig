@@ -92,7 +92,10 @@ fn findVariable(this: *Eval, sym: u32) !void {
 
     switch (try this.ctx.get(.sym, .val, sym)) {
         wisp.nah => {
-            const err = [2]u32{ this.ctx.kwd.@"UNBOUND-VARIABLE", sym };
+            const err = [2]u32{
+                this.ctx.kwd.@"UNBOUND-VARIABLE",
+                sym,
+            };
             this.err = try this.ctx.newv32(&err);
             return Oof.Err;
         },
@@ -115,7 +118,10 @@ fn intoPair(this: *Eval, p: u32) !void {
     const kwd = this.ctx.kwd;
 
     switch (try this.ctx.get(.sym, .fun, car)) {
-        nil => return this.fail(&[_]u32{ kwd.@"UNDEFINED-FUNCTION", car }),
+        nil => return this.fail(&[_]u32{
+            kwd.@"UNDEFINED-FUNCTION",
+            car,
+        }),
         else => |fun| try this.intoCall(fun, duo.cdr),
     }
 }
@@ -257,7 +263,12 @@ fn execCt3(this: *Eval, ct3: wisp.Row(.ct3)) !void {
         });
     } else {
         const binding = try this.ctx.row(.duo, bindings);
-        const e1 = try this.ctx.get(.duo, .car, try this.ctx.get(.duo, .cdr, binding.car));
+        const e1 = try this.ctx.get(.duo, .car, try this.ctx.get(
+            .duo,
+            .cdr,
+            binding.car,
+        ));
+
         this.job = .{ .exp = e1 };
         this.way = try this.ctx.new(.ct3, .{
             .hop = ct3.hop,
@@ -265,7 +276,10 @@ fn execCt3(this: *Eval, ct3: wisp.Row(.ct3)) !void {
             .exp = ct3.exp,
             .arg = bindings,
             .dew = try this.ctx.new(.duo, .{
-                .car = try this.ctx.new(.duo, .{ .car = sym, .cdr = val }),
+                .car = try this.ctx.new(.duo, .{
+                    .car = sym,
+                    .cdr = val,
+                }),
                 .cdr = ct3.dew,
             }),
         });
@@ -299,7 +313,14 @@ fn execCt1(this: *Eval, ct1: wisp.Row(.ct1)) !void {
     };
 }
 
-fn scan(this: *Eval, exp: u32, par: u32, arg: u32, way: u32, rev: bool) !void {
+fn scan(
+    this: *Eval,
+    exp: u32,
+    par: u32,
+    arg: u32,
+    way: u32,
+    rev: bool,
+) !void {
     var pars = try scanListAlloc(this.ctx, par);
     defer pars.deinit();
     var vals = try scanListAlloc(this.ctx, arg);
@@ -316,7 +337,10 @@ fn scan(this: *Eval, exp: u32, par: u32, arg: u32, way: u32, rev: bool) !void {
         const x = pars.items[i];
         if (x == this.ctx.kwd.@"&REST") {
             scope[i * 2 + 0] = pars.items[i + 1];
-            scope[i * 2 + 1] = try wisp.list(this.ctx, vals.items[i..vals.items.len]);
+            scope[i * 2 + 1] = try wisp.list(
+                this.ctx,
+                vals.items[i..vals.items.len],
+            );
         } else {
             scope[i * 2 + 0] = x;
             scope[i * 2 + 1] = vals.items[i];
@@ -332,8 +356,8 @@ fn scan(this: *Eval, exp: u32, par: u32, arg: u32, way: u32, rev: bool) !void {
     this.way = way;
 }
 
-/// Perform an application, either by directly calling a builtin or by
-/// entering a closure.
+/// Perform an application, either by directly calling a builtin
+/// or by entering a closure.
 pub fn call(
     this: *Eval,
     way: u32,
@@ -435,7 +459,12 @@ fn scanListAlloc(ctx: *Ctx, list: u32) !std.ArrayList(u32) {
     return xs;
 }
 
-pub fn scanList(ctx: *Ctx, buffer: []u32, reverse: bool, list: u32) ![]u32 {
+pub fn scanList(
+    ctx: *Ctx,
+    buffer: []u32,
+    reverse: bool,
+    list: u32,
+) ![]u32 {
     var i: usize = 0;
     var cur = list;
     while (cur != nil) {
