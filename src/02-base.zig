@@ -45,10 +45,10 @@ pub fn ColEnum(comptime t: Tag) type {
         .v08 => enum { idx, len },
         .v32 => enum { idx, len },
         .pkg => enum { nam, sym, use },
-        .ct0 => enum { env, fun, arg, exp, hop },
-        .ct1 => enum { env, yay, nay, hop },
-        .ct2 => enum { env, exp, hop },
-        .ct3 => enum { env, exp, dew, arg, hop },
+        .ct0 => enum { hop, env, fun, arg, exp },
+        .ct1 => enum { hop, env, yay, nay },
+        .ct2 => enum { hop, env, exp },
+        .ct3 => enum { hop, env, exp, dew, arg },
     };
 }
 
