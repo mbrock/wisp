@@ -105,8 +105,6 @@ fn findVariable(this: *Eval, sym: u32) !void {
     }
 }
 
-const kwds = struct {};
-
 pub fn fail(this: *Eval, xs: []const u32) !void {
     this.err = try this.ctx.newv32(xs);
     return Oof.Err;
@@ -163,12 +161,12 @@ fn iter(this: *Eval, fun: u32, arg: u32) !void {
     // continuation of the remaining arguments.
     const duo = try this.ctx.row(.duo, arg);
     this.job = .{ .exp = duo.car };
-    this.way = try this.ctx.new(.ct0, .{
+    this.way = try this.ctx.new(.ktx, .{
         .hop = this.way,
         .env = this.env,
         .fun = fun,
-        .arg = nil,
-        .exp = duo.cdr,
+        .acc = nil,
+        .arg = duo.cdr,
     });
 }
 
@@ -199,10 +197,7 @@ pub fn proceed(this: *Eval, x: u32) !void {
     }
 
     switch (wisp.tagOf(this.way)) {
-        .ct0 => try this.execCt0(try this.ctx.row(.ct0, this.way)),
-        .ct1 => try this.execCt1(try this.ctx.row(.ct1, this.way)),
-        .ct2 => try this.execCt2(try this.ctx.row(.ct2, this.way)),
-        .ct3 => try this.execCt3(try this.ctx.row(.ct3, this.way)),
+        .ktx => try this.execKtx(try this.ctx.row(.ktx, this.way)),
         .duo => try this.execDuo(try this.ctx.row(.duo, this.way)),
 
         else => unreachable,
@@ -223,93 +218,6 @@ fn execDuo(this: *Eval, duo: wisp.Row(.duo)) !void {
         .job = .{ .exp = val },
         .env = duo.car,
         .way = duo.cdr,
-    };
-}
-
-fn execCt3(this: *Eval, ct3: wisp.Row(.ct3)) !void {
-    const val = this.job.val;
-    const argduo = try this.ctx.row(.duo, ct3.arg);
-    const sym = try this.ctx.get(.duo, .car, argduo.car);
-    const bindings = argduo.cdr;
-
-    if (bindings == nil) {
-        const n = 1 + try wisp.length(this.ctx, ct3.dew);
-        var scope = try this.ctx.orb.alloc(u32, 2 * n);
-        defer this.ctx.orb.free(scope);
-
-        scope[0] = sym;
-        scope[1] = val;
-
-        var cur = ct3.dew;
-        var i: u32 = 2;
-
-        while (cur != nil) : (i += 2) {
-            const curduo = try this.ctx.row(.duo, cur);
-            const b1 = try this.ctx.row(.duo, curduo.car);
-            const s1 = b1.car;
-            const v1 = b1.cdr;
-
-            scope[i] = s1;
-            scope[i + 1] = v1;
-
-            cur = curduo.cdr;
-        }
-
-        this.way = ct3.hop;
-        this.job = .{ .exp = ct3.exp };
-        this.env = try this.ctx.new(.duo, .{
-            .car = try this.ctx.newv32(scope),
-            .cdr = this.env,
-        });
-    } else {
-        const binding = try this.ctx.row(.duo, bindings);
-        const e1 = try this.ctx.get(.duo, .car, try this.ctx.get(
-            .duo,
-            .cdr,
-            binding.car,
-        ));
-
-        this.job = .{ .exp = e1 };
-        this.way = try this.ctx.new(.ct3, .{
-            .hop = ct3.hop,
-            .env = ct3.env,
-            .exp = ct3.exp,
-            .arg = bindings,
-            .dew = try this.ctx.new(.duo, .{
-                .car = try this.ctx.new(.duo, .{
-                    .car = sym,
-                    .cdr = val,
-                }),
-                .cdr = ct3.dew,
-            }),
-        });
-    }
-}
-
-fn execCt2(this: *Eval, ct2: wisp.Row(.ct2)) !void {
-    if (ct2.exp == nil) {
-        this.way = ct2.hop;
-        this.env = ct2.env;
-        return;
-    }
-
-    const duo = try this.ctx.row(.duo, ct2.exp);
-
-    this.job = .{ .exp = duo.car };
-    this.way = try this.ctx.new(.ct2, .{
-        .hop = ct2.hop,
-        .env = ct2.env,
-        .exp = duo.cdr,
-    });
-}
-
-fn execCt1(this: *Eval, ct1: wisp.Row(.ct1)) !void {
-    const exp = if (this.job.val == nil) ct1.nay else ct1.yay;
-    this.* = .{
-        .ctx = this.ctx,
-        .way = ct1.hop,
-        .env = ct1.env,
-        .job = .{ .exp = exp },
     };
 }
 
@@ -383,7 +291,7 @@ pub fn call(
             try this.scan(mac.exp, mac.par, args, way, rev);
         },
 
-        .ct0, .ct1, .ct2, .ct3 => {
+        .ktx => {
             var vals = try scanListAlloc(this.ctx, args);
             defer vals.deinit();
 
@@ -420,28 +328,162 @@ pub fn call(
     }
 }
 
-pub fn execCt0(this: *Eval, ct0: wisp.Row(.ct0)) !void {
-    const values = try this.ctx.new(.duo, .{
-        .car = this.job.val,
-        .cdr = ct0.arg,
-    });
+pub fn debug(this: *Eval, txt: []const u8, val: u32) !void {
+    try dump.warn(txt, this.ctx, val);
+}
 
-    if (ct0.exp == nil) {
-        try this.call(ct0.hop, ct0.fun, values, true);
-    } else {
-        const duo = try this.ctx.row(.duo, ct0.exp);
-        this.* = .{
-            .ctx = this.ctx,
-            .job = .{ .exp = duo.car },
-            .env = this.env,
-            .way = try this.ctx.new(.ct0, .{
-                .hop = ct0.hop,
-                .env = ct0.env,
-                .fun = ct0.fun,
-                .exp = duo.cdr,
-                .arg = values,
-            }),
+const Ktx = struct {
+    fn call(this: *Eval, ktx: wisp.Row(.ktx)) !void {
+        const acc = try this.ctx.new(.duo, .{
+            .car = this.job.val,
+            .cdr = ktx.acc,
+        });
+
+        if (ktx.arg == nil) {
+            try this.call(ktx.hop, ktx.fun, acc, true);
+        } else {
+            const argduo = try this.ctx.row(.duo, ktx.arg);
+            const way = try this.ctx.new(.ktx, .{
+                .hop = ktx.hop,
+                .env = ktx.env,
+                .fun = ktx.fun,
+                .acc = acc,
+                .arg = argduo.cdr,
+            });
+
+            this.way = way;
+            this.give(.exp, argduo.car);
+        }
+    }
+
+    fn PROGN(this: *Eval, ktx: wisp.Row(.ktx)) !void {
+        if (ktx.arg == nil) {
+            this.way = ktx.hop;
+            this.env = ktx.env;
+        } else {
+            const argduo = try this.ctx.row(.duo, ktx.arg);
+            const way = try this.ctx.new(.ktx, .{
+                .hop = ktx.hop,
+                .env = ktx.env,
+                .fun = ktx.fun,
+                .acc = nil,
+                .arg = argduo.cdr,
+            });
+
+            this.way = way;
+            this.job = .{ .exp = argduo.car };
+        }
+    }
+
+    fn LET(this: *Eval, ktx: wisp.Row(.ktx)) !void {
+        // LET (k v1 k1 ... x) ((k e) ...)
+        const val = this.job.val;
+
+        if (ktx.arg == nil) {
+            var exp: u32 = undefined;
+
+            const env = try this.scanLetAcc(ktx.env, val, ktx.acc, &exp);
+
+            this.way = ktx.hop;
+            this.env = env;
+            this.job = .{ .exp = exp };
+        } else {
+            const valacc = try this.ctx.new(.duo, .{
+                .car = val,
+                .cdr = ktx.acc,
+            });
+
+            const argduo = try this.ctx.row(.duo, ktx.arg);
+            const letduo = try this.ctx.row(.duo, argduo.car);
+            const letsym = letduo.car;
+            const letexp = try this.ctx.get(.duo, .car, letduo.cdr);
+            const symacc = try this.ctx.new(.duo, .{
+                .car = letsym,
+                .cdr = valacc,
+            });
+
+            const way = try this.ctx.new(.ktx, .{
+                .hop = ktx.hop,
+                .env = ktx.env,
+                .fun = ktx.fun,
+                .acc = symacc,
+                .arg = argduo.cdr,
+            });
+
+            this.way = way;
+            this.env = ktx.env;
+            this.job = .{ .exp = letexp };
+        }
+    }
+
+    fn IF(this: *Eval, ktx: wisp.Row(.ktx)) !void {
+        const argduo = try this.ctx.row(.duo, ktx.arg);
+        const p = this.job.val != nil;
+
+        this.way = ktx.hop;
+        this.env = ktx.env;
+        this.job = .{
+            .exp = if (p) argduo.car else argduo.cdr,
         };
+    }
+};
+
+fn scanLetAcc(
+    this: *Eval,
+    env: u32,
+    val: u32,
+    acc: u32,
+    exp: *u32,
+) !u32 {
+    // We have evaluated the final value of a LET form.  Now we
+    // build up the scope from the accumulated bindings.
+
+    var scope = std.ArrayList(u32).init(this.ctx.orb);
+    defer scope.deinit();
+
+    const accduo = try this.ctx.row(.duo, acc);
+    const letsym = accduo.car;
+
+    try scope.append(letsym);
+    try scope.append(val);
+
+    {
+        var curduo = try this.ctx.row(.duo, accduo.cdr);
+        while (curduo.cdr != nil) {
+            const cdrduo = try this.ctx.row(.duo, curduo.cdr);
+            const curval = curduo.car;
+            const cursym = cdrduo.car;
+
+            try scope.append(cursym);
+            try scope.append(curval);
+
+            curduo = try this.ctx.row(.duo, cdrduo.cdr);
+        }
+
+        exp.* = curduo.car;
+    }
+
+    return this.ctx.new(.duo, .{
+        .car = try this.ctx.newv32(scope.items),
+        .cdr = env,
+    });
+}
+
+pub fn execKtx(this: *Eval, ktx: wisp.Row(.ktx)) !void {
+    if (ktx.fun == this.ctx.kwd.PROGN)
+        try Ktx.PROGN(this, ktx)
+    else if (ktx.fun == this.ctx.kwd.IF)
+        try Ktx.IF(this, ktx)
+    else if (ktx.fun == this.ctx.kwd.LET)
+        try Ktx.LET(this, ktx)
+    else switch (wisp.tagOf(ktx.fun)) {
+        .jet => return Ktx.call(this, ktx),
+        .fun => return Ktx.call(this, ktx),
+
+        else => {
+            try dump.warn("exec ktx", this.ctx, ktx.fun);
+            unreachable;
+        },
     }
 }
 
@@ -790,12 +832,12 @@ test "defun with &rest" {
     );
 }
 
-test "quasiquote" {
-    try expectEval("(foo 1)",
-        \\ (let ((x 1))
-        \\   `(foo ,x))
-    );
-}
+// test "quasiquote" {
+//     try expectEval("(foo 1)",
+//         \\ (let ((x 1))
+//         \\   `(foo ,x))
+//     );
+// }
 
 test "prty.lisp" {
     var ctx = try newTestCtx();

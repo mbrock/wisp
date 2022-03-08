@@ -42,23 +42,30 @@ pub fn @"LET"(job: *Eval, bs: u32, e: u32) anyerror!void {
     if (bs == wisp.nil) {
         job.give(.exp, e);
     } else {
-        // find the first expression
-        const b1 = try job.ctx.get(.duo, .car, bs);
-        const e1 = try job.ctx.get(
-            .duo,
-            .car,
-            try job.ctx.get(.duo, .cdr, b1),
-        );
+        // Find the first symbol and expression.
+        const duo = try job.ctx.row(.duo, bs);
+        const let = duo.car;
+        const letduo = try job.ctx.row(.duo, let);
+        const letsym = letduo.car;
+        const letexp = try job.ctx.get(.duo, .car, letduo.cdr);
 
-        job.way = try job.ctx.new(.ct3, .{
-            .hop = job.way,
-            .env = job.env,
-            .exp = e,
-            .arg = bs,
-            .dew = wisp.nil,
+        const acc = try job.ctx.new(.duo, .{
+            .car = letsym,
+            .cdr = try job.ctx.new(.duo, .{
+                .car = e,
+                .cdr = wisp.nil,
+            }),
         });
 
-        job.give(.exp, e1);
+        job.way = try job.ctx.new(.ktx, .{
+            .hop = job.way,
+            .env = job.env,
+            .fun = job.ctx.kwd.LET,
+            .acc = acc,
+            .arg = duo.cdr,
+        });
+
+        job.give(.exp, letexp);
     }
 }
 
@@ -71,13 +78,19 @@ pub fn @"LAMBDA"(job: *Eval, par: u32, exp: u32) anyerror!void {
 }
 
 pub fn IF(job: *Eval, exp: u32, yay: u32, nay: u32) anyerror!void {
-    job.give(.exp, exp);
-    job.way = try job.ctx.new(.ct1, .{
+    const ktx = try job.ctx.new(.ktx, .{
         .hop = job.way,
         .env = job.env,
-        .yay = yay,
-        .nay = nay,
+        .fun = job.ctx.kwd.IF,
+        .acc = wisp.nil,
+        .arg = try job.ctx.new(.duo, .{
+            .car = yay,
+            .cdr = nay,
+        }),
     });
+
+    job.way = ktx;
+    job.give(.exp, exp);
 }
 
 pub fn PROGN(job: *Eval, rest: Rest) anyerror!void {
@@ -85,13 +98,15 @@ pub fn PROGN(job: *Eval, rest: Rest) anyerror!void {
         job.give(.val, wisp.nil);
     } else {
         const duo = try job.ctx.row(.duo, rest.arg);
-
-        job.way = try job.ctx.new(.ct2, .{
+        const ktx = try job.ctx.new(.ktx, .{
             .hop = job.way,
             .env = job.env,
-            .exp = duo.cdr,
+            .fun = job.ctx.kwd.PROGN,
+            .acc = wisp.nil,
+            .arg = duo.cdr,
         });
 
+        job.way = ktx;
         job.give(.exp, duo.car);
     }
 }

@@ -36,10 +36,7 @@ export const wisp_tag_mac = wisp.Tag.mac;
 export const wisp_tag_v32 = wisp.Tag.v32;
 export const wisp_tag_v08 = wisp.Tag.v08;
 export const wisp_tag_pkg = wisp.Tag.pkg;
-export const wisp_tag_ct0 = wisp.Tag.ct0;
-export const wisp_tag_ct1 = wisp.Tag.ct1;
-export const wisp_tag_ct2 = wisp.Tag.ct2;
-export const wisp_tag_ct3 = wisp.Tag.ct3;
+export const wisp_tag_ktx = wisp.Tag.ktx;
 
 export const wisp_sys_t: u32 = wisp.t;
 export const wisp_sys_nil: u32 = wisp.nil;
@@ -117,10 +114,7 @@ const Dat = packed struct {
     v08: TabDat(.v08),
     v32: TabDat(.v32),
     pkg: TabDat(.pkg),
-    ct0: TabDat(.ct0),
-    ct1: TabDat(.ct1),
-    ct2: TabDat(.ct2),
-    ct3: TabDat(.ct3),
+    ktx: TabDat(.ktx),
 };
 
 export fn wisp_dat_init(ctx: *wisp.Ctx) ?*Dat {

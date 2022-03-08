@@ -45,10 +45,7 @@ pub fn ColEnum(comptime t: Tag) type {
         .v08 => enum { idx, len },
         .v32 => enum { idx, len },
         .pkg => enum { nam, sym, use },
-        .ct0 => enum { hop, env, fun, arg, exp },
-        .ct1 => enum { hop, env, yay, nay },
-        .ct2 => enum { hop, env, exp },
-        .ct3 => enum { hop, env, exp, dew, arg },
+        .ktx => enum { hop, env, fun, acc, arg },
     };
 }
 
@@ -60,6 +57,10 @@ pub const Kwd = enum {
     UNQUOTE,
 
     @"&REST",
+
+    PROGN,
+    LET,
+    IF,
 
     BOOLEAN,
     CHARACTER,
@@ -158,10 +159,7 @@ pub const Vat = struct {
     v32: Tab(.v32) = .{},
     v08: Tab(.v08) = .{},
     pkg: Tab(.pkg) = .{},
-    ct0: Tab(.ct0) = .{},
-    ct1: Tab(.ct1) = .{},
-    ct2: Tab(.ct2) = .{},
-    ct3: Tab(.ct3) = .{},
+    ktx: Tab(.ktx) = .{},
 
     pub fn bytesize(vat: Vat) usize {
         var n: usize = 0;
@@ -236,11 +234,7 @@ pub const Ctx = struct {
 
     pub fn cook(ctx: *Ctx) !void {
         try ctx.load(@embedFile("./a0-base.lisp"));
-        try ctx.load(@embedFile("./a1-backquote.lisp"));
-    }
-
-    pub fn special(ctx: *Ctx, s: Kwd) u32 {
-        return @field(ctx.specials, @tagName(s));
+        // try ctx.load(@embedFile("./a1-backquote.lisp"));
     }
 
     fn initvar(ctx: *Ctx, txt: []const u8, val: u32) !void {

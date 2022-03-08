@@ -19,8 +19,7 @@
 
 type Tag =
   "int" | "sys" | "chr" | "jet" |
-  "duo" | "sym" | "fun" | "mac" | "v32" | "v08" | "pkg" |
-  "ct0" | "ct1" | "ct2" | "ct3"
+  "duo" | "sym" | "fun" | "mac" | "v32" | "v08" | "pkg" | "ktx"
 
 type Sys = "t" | "nil" | "nah" | "zap" | "top"
 
@@ -38,10 +37,7 @@ export interface WispAPI {
   wisp_tag_v32: WebAssembly.Global
   wisp_tag_v08: WebAssembly.Global
   wisp_tag_pkg: WebAssembly.Global
-  wisp_tag_ct0: WebAssembly.Global
-  wisp_tag_ct1: WebAssembly.Global
-  wisp_tag_ct2: WebAssembly.Global
-  wisp_tag_ct3: WebAssembly.Global
+  wisp_tag_ktx: WebAssembly.Global
 
   wisp_sys_t: WebAssembly.Global
   wisp_sys_nil: WebAssembly.Global
@@ -108,10 +104,7 @@ export class View {
       v08: ["idx", "len"],
       v32: ["idx", "len"],
       pkg: ["nam", "sym", "use"],
-      ct0: ["hop", "env", "fun", "arg", "exp"],
-      ct1: ["hop", "env", "yay", "nay"],
-      ct2: ["hop", "env", "exp"],
-      ct3: ["hop", "env", "exp", "dew", "arg"],
+      ktx: ["hop", "env", "fun", "acc", "arg"],
     }
 
     const n = Object.values(tabs).length
@@ -195,10 +188,7 @@ export class Wisp {
       v08: tag("v08"),
       v32: tag("v32"),
       pkg: tag("pkg"),
-      ct0: tag("ct0"),
-      ct1: tag("ct1"),
-      ct2: tag("ct2"),
-      ct3: tag("ct3"),
+      ktx: tag("ktx"),
     }
   }
 

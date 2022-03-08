@@ -38,10 +38,7 @@ pub const Tag = enum(u5) {
     v08 = 0x1a, // byte vector pointer
     pkg = 0x1b, // package pointer
 
-    ct0 = 0x1c, // funarg continuation
-    ct1 = 0x1d, // conditional continuation
-    ct2 = 0x1e, // progn continuation
-    ct3 = 0x1f, // let continuation
+    ktx = 0x1c, // evaluation context
 };
 
 pub const pointerTags = .{
@@ -52,10 +49,7 @@ pub const pointerTags = .{
     .v08,
     .v32,
     .pkg,
-    .ct0,
-    .ct1,
-    .ct2,
-    .ct3,
+    .ktx,
 };
 
 pub const Era = enum(u1) {

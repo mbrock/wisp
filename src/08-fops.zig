@@ -139,7 +139,7 @@ pub fn @"TYPE-OF"(job: *Eval, x: u32) anyerror!void {
             .v32 => kwd.VECTOR,
             .v08 => kwd.STRING,
             .pkg => kwd.PACKAGE,
-            .ct0, .ct1, .ct2, .ct3 => kwd.CONTINUATION,
+            .ktx => kwd.CONTINUATION,
             .sys => unreachable,
         });
     }
@@ -169,11 +169,7 @@ pub fn FUNCALL(
     arguments: Rest,
 ) anyerror!void {
     try job.call(
-        try job.ctx.new(.ct2, .{
-            .env = job.env,
-            .exp = wisp.nil,
-            .hop = job.way,
-        }),
+        job.way,
         function,
         arguments.arg,
         false,
@@ -190,9 +186,9 @@ pub fn APPLY(
 
 pub fn @"CALL/CC"(job: *Eval, function: u32) anyerror!void {
     // Take the parent continuation of the CALL/CC form.
-    const ct0 = try job.ctx.row(.ct0, job.way);
+    const hop = try job.ctx.get(.ktx, .hop, job.way);
     try job.call(job.way, function, try job.ctx.new(.duo, .{
-        .car = ct0.hop,
+        .car = hop,
         .cdr = wisp.nil,
     }), true);
 }

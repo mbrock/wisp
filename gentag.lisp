@@ -12,10 +12,7 @@
     (v32 #x19 (idx len))
     (v08 #x1a (idx len))
     (pkg #x1b (nam sym use))
-    (ct0 #x1c (hop env fun arg exp))
-    (ct1 #x1d (hop env yay nay))
-    (ct2 #x1e (hop env exp))
-    (ct3 #x1f (hop env exp dew arg))))
+    (ktx #x1c (hop env fun acc arg))))
 
 (defun zig-tag-enum ()
   (format t
