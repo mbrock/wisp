@@ -21,6 +21,5 @@ pub usingnamespace @import("./01-word.zig");
 pub usingnamespace @import("./02-heap.zig");
 pub usingnamespace @import("./05-read.zig");
 
-pub const tidy = @import("./03-tidy.zig").tidy;
-pub const core = @import("./0b-disk.zig");
-pub const Eval = @import("./04-eval.zig");
+pub const Tidy = @import("./03-tidy.zig").tidy;
+pub const Step = @import("./04-step.zig");

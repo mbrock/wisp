@@ -75,8 +75,8 @@ fn tellvar(out: anytype, v: []const u8, x: u32) !void {
     try out.print("\n", .{});
 }
 
-pub fn save(eval: *wisp.Eval, name: []const u8) !u32 {
-    var room = std.heap.ArenaAllocator.init(eval.heap.orb);
+pub fn save(step: *wisp.Step, name: []const u8) !u32 {
+    var room = std.heap.ArenaAllocator.init(step.heap.orb);
 
     defer room.deinit();
 
@@ -91,19 +91,19 @@ pub fn save(eval: *wisp.Eval, name: []const u8) !u32 {
 
     defer atom.destroy();
 
-    const heap = eval.heap;
+    const heap = step.heap;
 
     try file.print("; -*- org -*-\n\n", .{});
     try file.print("* wisp\n", .{});
     try file.print("** ver 1\n\n", .{});
-    try file.print("* eval\n", .{});
+    try file.print("* step\n", .{});
     try tellvar(file, "** era", @intCast(u32, @enumToInt(heap.era)));
     try tellvar(file, "** bas", heap.base);
-    try tellvar(file, "** env", eval.bot.env);
-    try tellvar(file, "** way", eval.bot.way);
-    try tellvar(file, "** exp", eval.bot.exp);
-    try tellvar(file, "** val", eval.bot.val);
-    try tellvar(file, "** err", eval.bot.err);
+    try tellvar(file, "** env", step.run.env);
+    try tellvar(file, "** way", step.run.way);
+    try tellvar(file, "** exp", step.run.exp);
+    try tellvar(file, "** val", step.run.val);
+    try tellvar(file, "** err", step.run.err);
 
     try file.print("\n", .{});
     try file.print("* v08 #{d}\n", .{heap.v08.items.len});
@@ -141,16 +141,16 @@ pub fn save(eval: *wisp.Eval, name: []const u8) !u32 {
 
     try atom.finish();
 
-    return try eval.heap.newv08(
+    return try step.heap.newv08(
         atom.atomic_file.dest_basename,
     );
 }
 
 test "save" {
-    var heap = try wisp.Eval.newTestHeap();
+    var heap = try wisp.Step.newTestHeap();
     defer heap.deinit();
 
-    try wisp.Eval.expectEval("\"foo.core\"", (
+    try wisp.Step.expectEval("\"foo.core\"", (
         \\ (save "foo.core")
     ));
 }

@@ -157,12 +157,12 @@ pub fn dump_(
             try out.print("<jet {s}>", .{jet.txt});
         },
 
-        .bot => {
-            const bot = try heap.row(.bot, x);
-            try out.print("<bot", .{});
-            inline for (std.meta.fields(@TypeOf(bot))) |field| {
+        .run => {
+            const run = try heap.row(.run, x);
+            try out.print("<run", .{});
+            inline for (std.meta.fields(@TypeOf(run))) |field| {
                 try out.print(" {s}=", .{field.name});
-                try dump(heap, out, @field(bot, field.name));
+                try dump(heap, out, @field(run, field.name));
             }
             try out.print(">", .{});
         },

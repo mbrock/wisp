@@ -19,39 +19,39 @@
 
 const std = @import("std");
 
-const eval = @import("./04-eval.zig");
-const xops = @import("./07-xops.zig");
-const wisp = @import("./ff-wisp.zig");
+const Step = @import("./04-step.zig");
+const Xops = @import("./07-xops.zig");
+const Wisp = @import("./ff-wisp.zig");
 
 pub fn main() void {}
 
-export const wisp_tag_int = wisp.Tag.int;
-export const wisp_tag_sys = wisp.Tag.sys;
-export const wisp_tag_chr = wisp.Tag.chr;
-export const wisp_tag_jet = wisp.Tag.jet;
-export const wisp_tag_duo = wisp.Tag.duo;
-export const wisp_tag_sym = wisp.Tag.sym;
-export const wisp_tag_fun = wisp.Tag.fun;
-export const wisp_tag_mac = wisp.Tag.mac;
-export const wisp_tag_v32 = wisp.Tag.v32;
-export const wisp_tag_v08 = wisp.Tag.v08;
-export const wisp_tag_pkg = wisp.Tag.pkg;
-export const wisp_tag_ktx = wisp.Tag.ktx;
-export const wisp_tag_bot = wisp.Tag.bot;
+export const wisp_tag_int = Wisp.Tag.int;
+export const wisp_tag_sys = Wisp.Tag.sys;
+export const wisp_tag_chr = Wisp.Tag.chr;
+export const wisp_tag_jet = Wisp.Tag.jet;
+export const wisp_tag_duo = Wisp.Tag.duo;
+export const wisp_tag_sym = Wisp.Tag.sym;
+export const wisp_tag_fun = Wisp.Tag.fun;
+export const wisp_tag_mac = Wisp.Tag.mac;
+export const wisp_tag_v32 = Wisp.Tag.v32;
+export const wisp_tag_v08 = Wisp.Tag.v08;
+export const wisp_tag_pkg = Wisp.Tag.pkg;
+export const wisp_tag_ktx = Wisp.Tag.ktx;
+export const wisp_tag_run = Wisp.Tag.run;
 
-export const wisp_sys_t: u32 = wisp.t;
-export const wisp_sys_nil: u32 = wisp.nil;
-export const wisp_sys_nah: u32 = wisp.nah;
-export const wisp_sys_zap: u32 = wisp.zap;
-export const wisp_sys_top: u32 = wisp.top;
+export const wisp_sys_t: u32 = Wisp.t;
+export const wisp_sys_nil: u32 = Wisp.nil;
+export const wisp_sys_nah: u32 = Wisp.nah;
+export const wisp_sys_zap: u32 = Wisp.zap;
+export const wisp_sys_top: u32 = Wisp.top;
 
-export fn wisp_heap_init() ?*wisp.Heap {
+export fn wisp_heap_init() ?*Wisp.Heap {
     var orb = std.heap.page_allocator;
 
-    if (orb.create(wisp.Heap)) |heapptr| {
-        if (wisp.Heap.init(orb, .e0)) |heap| {
+    if (orb.create(Wisp.Heap)) |heapptr| {
+        if (Wisp.Heap.init(orb, .e0)) |heap| {
             var heap2 = heap;
-            xops.load(&heap2) catch return null;
+            Xops.load(&heap2) catch return null;
             heap2.cook() catch return null;
             heapptr.* = heap2;
             return heapptr;
@@ -63,41 +63,40 @@ export fn wisp_heap_init() ?*wisp.Heap {
     }
 }
 
-export fn wisp_read(heap: *wisp.Heap, str: [*:0]const u8) u32 {
-    if (wisp.read(heap, std.mem.span(str))) |x| {
+export fn wisp_read(heap: *Wisp.Heap, str: [*:0]const u8) u32 {
+    if (Wisp.read(heap, std.mem.span(str))) |x| {
         return x;
     } else |_| {
-        return wisp.zap;
+        return Wisp.zap;
     }
 }
 
-export fn wisp_eval(heap: *wisp.Heap, exp: u32, max: u32) u32 {
-    var bot = eval.initBot(exp);
-    return eval.init(heap, &bot).evaluate(max, false) catch wisp.zap;
+export fn wisp_eval(heap: *Wisp.Heap, exp: u32, max: u32) u32 {
+    var run = Step.initRun(exp);
+    return Step.evaluate(heap, &run, max, false) catch Wisp.zap;
 }
 
-export fn wisp_bot_init(heap: *wisp.Heap, exp: u32) u32 {
-    return heap.new(.bot, .{
-        .way = wisp.top,
-        .env = wisp.nil,
-        .err = wisp.nil,
-        .val = wisp.nah,
+export fn wisp_run_init(heap: *Wisp.Heap, exp: u32) u32 {
+    return heap.new(.run, .{
+        .way = Wisp.top,
+        .env = Wisp.nil,
+        .err = Wisp.nil,
+        .val = Wisp.nah,
         .exp = exp,
-    }) catch wisp.zap;
+    }) catch Wisp.zap;
 }
 
-export fn wisp_eval_step(heap: *wisp.Heap, botptr: u32) u32 {
-    var bot = heap.row(.bot, botptr) catch return wisp.zap;
-    var exe = eval.init(heap, &bot);
+export fn wisp_eval_step(heap: *Wisp.Heap, runptr: u32) u32 {
+    var run = heap.row(.run, runptr) catch return Wisp.zap;
 
-    exe.step() catch return wisp.zap;
+    Step.once(heap, &run) catch return Wisp.zap;
 
-    heap.put(.bot, botptr, bot) catch return wisp.zap;
+    heap.put(.run, runptr, run) catch return Wisp.zap;
 
-    return if (bot.val != wisp.nah and bot.way == wisp.top)
-        wisp.nil
+    return if (run.val != Wisp.nah and run.way == Wisp.top)
+        Wisp.nil
     else
-        wisp.t;
+        Wisp.t;
 }
 
 fn Field(comptime name: []const u8, t: type) std.builtin.TypeInfo.StructField {
@@ -110,13 +109,13 @@ fn Field(comptime name: []const u8, t: type) std.builtin.TypeInfo.StructField {
     };
 }
 
-fn TabDat(tag: wisp.Tag) type {
-    const n = std.meta.fields(wisp.Row(tag)).len;
+fn TabDat(tag: Wisp.Tag) type {
+    const n = std.meta.fields(Wisp.Row(tag)).len;
     var fields: [1 + n]std.builtin.TypeInfo.StructField = undefined;
 
     fields[0] = Field("n", u32);
 
-    for (std.meta.fields(wisp.Row(tag))) |field, i| {
+    for (std.meta.fields(Wisp.Row(tag))) |field, i| {
         fields[1 + i] = Field(field.name, usize);
     }
 
@@ -141,52 +140,52 @@ const Dat = packed struct {
     v32: TabDat(.v32),
     pkg: TabDat(.pkg),
     ktx: TabDat(.ktx),
-    bot: TabDat(.bot),
+    run: TabDat(.run),
 };
 
-export fn wisp_dat_init(heap: *wisp.Heap) ?*Dat {
+export fn wisp_dat_init(heap: *Wisp.Heap) ?*Dat {
     return heap.orb.create(Dat) catch null;
 }
 
-export fn wisp_dat_read(heap: *wisp.Heap, dat: *Dat) void {
-    inline for (wisp.pointerTags) |tag| {
-        const E = std.meta.FieldEnum(wisp.Row(tag));
+export fn wisp_dat_read(heap: *Wisp.Heap, dat: *Dat) void {
+    inline for (Wisp.pointerTags) |tag| {
+        const E = std.meta.FieldEnum(Wisp.Row(tag));
         const tab = heap.tab(tag);
         var tagdat = &@field(dat, @tagName(tag));
         tagdat.n = @intCast(u32, tab.list.len);
-        inline for (std.meta.fields(wisp.Row(tag))) |field, i| {
+        inline for (std.meta.fields(Wisp.Row(tag))) |field, i| {
             const slice = tab.list.slice();
             @field(tagdat, field.name) = @ptrToInt(slice.items(@intToEnum(E, i)).ptr);
         }
     }
 }
 
-export fn wisp_heap_v08_len(heap: *wisp.Heap) usize {
+export fn wisp_heap_v08_len(heap: *Wisp.Heap) usize {
     return heap.v08.items.len;
 }
 
-export fn wisp_heap_v08_ptr(heap: *wisp.Heap) [*]u8 {
+export fn wisp_heap_v08_ptr(heap: *Wisp.Heap) [*]u8 {
     return heap.v08.items.ptr;
 }
 
-export fn wisp_heap_v32_len(heap: *wisp.Heap) usize {
+export fn wisp_heap_v32_len(heap: *Wisp.Heap) usize {
     return heap.v32.list.items.len;
 }
 
-export fn wisp_heap_v32_ptr(heap: *wisp.Heap) [*]u32 {
+export fn wisp_heap_v32_ptr(heap: *Wisp.Heap) [*]u32 {
     return heap.v32.list.items.ptr;
 }
 
-export fn wisp_alloc(heap: *wisp.Heap, n: u32) usize {
+export fn wisp_alloc(heap: *Wisp.Heap, n: u32) usize {
     const buf = heap.orb.alloc(u8, n) catch return 0;
     return @ptrToInt(buf.ptr);
 }
 
-export fn wisp_free(heap: *wisp.Heap, x: [*:0]u8) void {
+export fn wisp_free(heap: *Wisp.Heap, x: [*:0]u8) void {
     heap.orb.free(std.mem.span(x));
 }
 
-export fn wisp_destroy(heap: *wisp.Heap, x: [*]u8) void {
+export fn wisp_destroy(heap: *Wisp.Heap, x: [*]u8) void {
     heap.orb.destroy(x);
 }
 

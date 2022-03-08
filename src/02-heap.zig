@@ -22,7 +22,7 @@ const assert = std.debug.assert;
 const same = std.testing.expectEqual;
 
 const tidy = @import("./03-tidy.zig");
-const eval = @import("./04-eval.zig");
+const Step = @import("./04-step.zig");
 const read = @import("./05-read.zig");
 const dump = @import("./06-dump.zig");
 const wisp = @import("./ff-wisp.zig");
@@ -46,7 +46,7 @@ pub fn ColEnum(comptime t: Tag) type {
         .v32 => enum { idx, len },
         .pkg => enum { nam, sym, use },
         .ktx => enum { hop, env, fun, acc, arg },
-        .bot => enum { exp, val, err, env, way },
+        .run => enum { exp, val, err, env, way },
     };
 }
 
@@ -162,7 +162,7 @@ pub const Vat = struct {
     v08: Tab(.v08) = .{},
     pkg: Tab(.pkg) = .{},
     ktx: Tab(.ktx) = .{},
-    bot: Tab(.bot) = .{},
+    run: Tab(.run) = .{},
 
     pub fn bytesize(vat: Vat) usize {
         var n: usize = 0;
@@ -224,16 +224,15 @@ pub const Heap = struct {
         defer forms.deinit();
 
         for (forms.items) |form| {
-            var bot = eval.initBot(form);
-            var exe = eval.init(heap, &bot);
-            if (exe.evaluate(1_000, false)) |_| {} else |_| {
+            var run = Step.initRun(form);
+            _ = Step.evaluate(heap, &run, 1_000, false) catch {
                 try dump.warn("failed", heap, form);
-                try dump.warn("condition", heap, exe.bot.err);
+                try dump.warn("condition", heap, run.err);
                 break;
-            }
+            };
         }
 
-        try tidy.tidy(heap);
+        try tidy.gc(heap);
     }
 
     pub fn cook(heap: *Heap) !void {

@@ -20,7 +20,7 @@
 type Tag =
   "int" | "chr" | "sys" | "jet" |
   "duo" | "sym" | "pkg" |
-  "fun" | "mac" | "ktx" | "bot" |
+  "fun" | "mac" | "ktx" | "run" |
   "v32" | "v08"
 
 type Sys = "t" | "nil" | "nah" | "zap" | "top"
@@ -40,7 +40,7 @@ export interface WispAPI {
   wisp_tag_v08: WebAssembly.Global
   wisp_tag_pkg: WebAssembly.Global
   wisp_tag_ktx: WebAssembly.Global
-  wisp_tag_bot: WebAssembly.Global
+  wisp_tag_run: WebAssembly.Global
 
   wisp_sys_t: WebAssembly.Global
   wisp_sys_nil: WebAssembly.Global
@@ -64,7 +64,7 @@ export interface WispAPI {
 
   wisp_read(heap: number, buf: number): number
   wisp_eval(heap: number, exp: number, max: number): number
-  wisp_eval_step(heap: number, bot: number): number
+  wisp_eval_step(heap: number, run: number): number
 }
 
 export class View {
@@ -109,7 +109,7 @@ export class View {
       v32: ["idx", "len"],
       pkg: ["nam", "sym", "use"],
       ktx: ["hop", "env", "fun", "acc", "arg"],
-      bot: ["exp", "val", "err", "env", "way"],
+      run: ["exp", "val", "err", "env", "way"],
     }
 
     const n = Object.values(tabs).length
@@ -199,7 +199,7 @@ export class Wisp {
       v32: tag("v32"),
       pkg: tag("pkg"),
       ktx: tag("ktx"),
-      bot: tag("bot"),
+      run: tag("run"),
     }
   }
 

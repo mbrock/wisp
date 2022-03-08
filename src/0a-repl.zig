@@ -23,7 +23,7 @@ const builtin = @import("builtin");
 const wisp = @import("./ff-wisp.zig");
 const read = @import("./05-read.zig").read;
 const dump = @import("./06-dump.zig");
-const eval = @import("./04-eval.zig");
+const Step = @import("./04-step.zig");
 const xops = @import("./07-xops.zig");
 const tidy = @import("./03-tidy.zig");
 
@@ -68,9 +68,9 @@ pub fn repl() anyerror!void {
     try xops.load(&heap);
     try heap.cook();
 
-    var baseTestBot = eval.initBot(try read(&heap, "(base-test)"));
+    var baseTestRun = Step.initRun(try read(&heap, "(base-test)"));
 
-    _ = try eval.init(&heap, &baseTestBot).evaluate(1_000_000, false);
+    _ = try Step.evaluate(&heap, &baseTestRun, 1_000_000, false);
 
     repl: while (true) {
         try stdout.writeAll("> ");
@@ -80,28 +80,28 @@ pub fn repl() anyerror!void {
         defer arena.deinit();
 
         if (try readSexp(stdin, tmp, &heap)) |term| {
-            var bot = eval.initBot(term);
-            var exe = eval.init(&heap, &bot);
+            var run = Step.initRun(term);
+            var step = Step{ .heap = &heap, .run = &run };
 
             term: while (true) {
-                if (exe.evaluate(100_000, false)) |val| {
+                if (Step.evaluate(&heap, &run, 100_000, false)) |val| {
                     try dump.dump(&heap, stdout, val);
                     try stdout.writeByte('\n');
-                    try tidy.tidy(&heap);
+                    try tidy.gc(&heap);
                     continue :repl;
                 } else |e| {
-                    if (exe.bot.err == wisp.nil) {
+                    if (run.err == wisp.nil) {
                         return e;
                     } else {
-                        try dump.warn("Condition", &heap, exe.bot.err);
-                        try dump.warn("Term", &heap, exe.bot.exp);
-                        try dump.warn("Value", &heap, exe.bot.val);
-                        try dump.warn("Environment", &heap, exe.bot.env);
+                        try dump.warn("Condition", &heap, run.err);
+                        try dump.warn("Term", &heap, run.exp);
+                        try dump.warn("Value", &heap, run.val);
+                        try dump.warn("Environment", &heap, run.env);
 
                         try stdout.writeAll("*> ");
                         if (try readSexp(stdin, tmp, &heap)) |restart| {
-                            exe.bot.err = wisp.nil;
-                            exe.give(.exp, restart);
+                            run.err = wisp.nil;
+                            step.give(.exp, restart);
                             continue :term;
                         } else {
                             return error.Nope;

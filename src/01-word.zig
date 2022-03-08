@@ -39,7 +39,7 @@ pub const Tag = enum(u5) {
     pkg = 0x1b, // package pointer
 
     ktx = 0x1c, // evaluation context
-    bot = 0x1d, // evaluation state
+    run = 0x1d, // evaluation state
 };
 
 pub const pointerTags = .{
@@ -51,7 +51,7 @@ pub const pointerTags = .{
     .v32,
     .pkg,
     .ktx,
-    .bot,
+    .run,
 };
 
 pub const Era = enum(u1) {

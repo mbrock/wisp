@@ -30,11 +30,10 @@ const expectEqualStrings = std.testing.expectEqualStrings;
 const EnumArray = std.enums.EnumArray;
 
 const wisp = @import("./ff-wisp.zig");
-const Eval = @import("./04-eval.zig");
+const Step = @import("./04-step.zig");
 const util = @import("./00-util.zig");
 
 const ref = wisp.ref;
-const Job = Eval;
 const Ptr = wisp.Ptr;
 const DeclEnum = util.DeclEnum;
 
@@ -51,14 +50,14 @@ pub const FnTag = enum {
 
     pub fn from(comptime T: type) FnTag {
         return switch (T) {
-            fn (*Job) anyerror!void => .f0,
-            fn (*Job, u32) anyerror!void => .f1,
-            fn (*Job, u32, u32) anyerror!void => .f2,
-            fn (*Job, u32, u32, u32) anyerror!void => .f3,
+            fn (*Step) anyerror!void => .f0,
+            fn (*Step, u32) anyerror!void => .f1,
+            fn (*Step, u32, u32) anyerror!void => .f2,
+            fn (*Step, u32, u32, u32) anyerror!void => .f3,
 
-            fn (*Job, Rest) anyerror!void => .f0r,
-            fn (*Job, u32, Rest) anyerror!void => .f1r,
-            fn (*Job, []u32) anyerror!void => .f0x,
+            fn (*Step, Rest) anyerror!void => .f0r,
+            fn (*Step, u32, Rest) anyerror!void => .f1r,
+            fn (*Step, []u32) anyerror!void => .f0x,
 
             else => @compileLog("unhandled op type", T),
         };
@@ -66,14 +65,14 @@ pub const FnTag = enum {
 
     pub fn functionType(comptime self: FnTag) type {
         return switch (self) {
-            .f0 => fn (*Job) anyerror!void,
-            .f1 => fn (*Job, u32) anyerror!void,
-            .f2 => fn (*Job, u32, u32) anyerror!void,
-            .f3 => fn (*Job, u32, u32, u32) anyerror!void,
+            .f0 => fn (*Step) anyerror!void,
+            .f1 => fn (*Step, u32) anyerror!void,
+            .f2 => fn (*Step, u32, u32) anyerror!void,
+            .f3 => fn (*Step, u32, u32, u32) anyerror!void,
 
-            .f0r => fn (*Job, Rest) anyerror!void,
-            .f1r => fn (*Job, u32, Rest) anyerror!void,
-            .f0x => fn (*Job, []u32) anyerror!void,
+            .f0r => fn (*Step, Rest) anyerror!void,
+            .f1r => fn (*Step, u32, Rest) anyerror!void,
+            .f0x => fn (*Step, []u32) anyerror!void,
         };
     }
 
