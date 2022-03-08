@@ -17,7 +17,8 @@
   "scripts": {
     "build": "make",
     "test": "NODE_OPTIONS=--experimental-wasi-unstable-preview1 jest",
-    "watch": "NODE_OPTIONS=--experimental-wasi-unstable-preview1 jest --watchAll"
+    "watch": "NODE_OPTIONS=--experimental-wasi-unstable-preview1 jest --watchAll",
+    "repl": "ts-node ts/repl.tsx"
   },
   "devDependencies": {
     "@types/jest": "^27.4.1",
@@ -25,6 +26,7 @@
     "@types/react-dom": "^17.0.11",
     "jest": "^27.5.1",
     "ts-jest": "^27.1.3",
+    "ts-node": "^10.7.0",
     "typescript": "^4.6.2"
   }
 }
