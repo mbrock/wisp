@@ -90,20 +90,18 @@ pub fn repl() anyerror!void {
                     try tidy.tidy(&ctx);
                     continue :repl;
                 } else |e| {
-                    if (exe.err == wisp.nil) {
+                    if (exe.bot.err == wisp.nil) {
                         return e;
                     } else {
-                        try dump.warn("Condition", &ctx, exe.err);
-                        switch (exe.job) {
-                            .exp => try dump.warn("Term", &ctx, exe.job.exp),
-                            .val => try dump.warn("Value", &ctx, exe.job.val),
-                        }
-                        try dump.warn("Environment", &ctx, exe.env);
+                        try dump.warn("Condition", &ctx, exe.bot.err);
+                        try dump.warn("Term", &ctx, exe.bot.exp);
+                        try dump.warn("Value", &ctx, exe.bot.val);
+                        try dump.warn("Environment", &ctx, exe.bot.env);
 
                         try stdout.writeAll("*> ");
                         if (try readSexp(stdin, tmp, &ctx)) |restart| {
-                            exe.err = wisp.nil;
-                            exe.job = .{ .exp = restart };
+                            exe.bot.err = wisp.nil;
+                            exe.give(.exp, restart);
                             continue :term;
                         } else {
                             return error.Nope;

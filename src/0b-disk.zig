@@ -99,15 +99,11 @@ pub fn save(eval: *wisp.Eval, name: []const u8) !u32 {
     try file.print("* eval\n", .{});
     try tellvar(file, "** era", @intCast(u32, @enumToInt(ctx.era)));
     try tellvar(file, "** bas", ctx.base);
-    try tellvar(file, "** env", eval.env);
-    try tellvar(file, "** way", eval.way);
-
-    switch (eval.job) {
-        .val => |x| try tellvar(file, "** val", x),
-        .exp => |x| try tellvar(file, "** exp", x),
-    }
-
-    try tellvar(file, "** err", eval.err);
+    try tellvar(file, "** env", eval.bot.env);
+    try tellvar(file, "** way", eval.bot.way);
+    try tellvar(file, "** exp", eval.bot.exp);
+    try tellvar(file, "** val", eval.bot.val);
+    try tellvar(file, "** err", eval.bot.err);
 
     try file.print("\n", .{});
     try file.print("* v08 #{d}\n", .{ctx.v08.items.len});

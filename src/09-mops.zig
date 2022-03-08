@@ -32,7 +32,7 @@ pub fn FUNCTION(job: *Eval, x: u32) anyerror!void {
 
 pub fn @"%MACRO-LAMBDA"(job: *Eval, par: u32, exp: u32) anyerror!void {
     job.give(.val, try job.ctx.new(.mac, .{
-        .env = job.env,
+        .env = job.bot.env,
         .par = par,
         .exp = exp,
     }));
@@ -57,9 +57,9 @@ pub fn @"LET"(job: *Eval, bs: u32, e: u32) anyerror!void {
             }),
         });
 
-        job.way = try job.ctx.new(.ktx, .{
-            .hop = job.way,
-            .env = job.env,
+        job.bot.way = try job.ctx.new(.ktx, .{
+            .hop = job.bot.way,
+            .env = job.bot.env,
             .fun = job.ctx.kwd.LET,
             .acc = acc,
             .arg = duo.cdr,
@@ -71,7 +71,7 @@ pub fn @"LET"(job: *Eval, bs: u32, e: u32) anyerror!void {
 
 pub fn @"LAMBDA"(job: *Eval, par: u32, exp: u32) anyerror!void {
     job.give(.val, try job.ctx.new(.fun, .{
-        .env = job.env,
+        .env = job.bot.env,
         .par = par,
         .exp = exp,
     }));
@@ -79,8 +79,8 @@ pub fn @"LAMBDA"(job: *Eval, par: u32, exp: u32) anyerror!void {
 
 pub fn IF(job: *Eval, exp: u32, yay: u32, nay: u32) anyerror!void {
     const ktx = try job.ctx.new(.ktx, .{
-        .hop = job.way,
-        .env = job.env,
+        .hop = job.bot.way,
+        .env = job.bot.env,
         .fun = job.ctx.kwd.IF,
         .acc = wisp.nil,
         .arg = try job.ctx.new(.duo, .{
@@ -89,7 +89,7 @@ pub fn IF(job: *Eval, exp: u32, yay: u32, nay: u32) anyerror!void {
         }),
     });
 
-    job.way = ktx;
+    job.bot.way = ktx;
     job.give(.exp, exp);
 }
 
@@ -99,14 +99,14 @@ pub fn PROGN(job: *Eval, rest: Rest) anyerror!void {
     } else {
         const duo = try job.ctx.row(.duo, rest.arg);
         const ktx = try job.ctx.new(.ktx, .{
-            .hop = job.way,
-            .env = job.env,
+            .hop = job.bot.way,
+            .env = job.bot.env,
             .fun = job.ctx.kwd.PROGN,
             .acc = wisp.nil,
             .arg = duo.cdr,
         });
 
-        job.way = ktx;
+        job.bot.way = ktx;
         job.give(.exp, duo.car);
     }
 }

@@ -19,11 +19,18 @@
 
 pub var wtf = false;
 
+const Status = enum { val, exp };
+
+pub const Bot = packed struct {
+    err: u32 = nil,
+    env: u32,
+    way: u32,
+    exp: u32,
+    val: u32,
+};
+
 ctx: *Ctx,
-env: u32,
-way: u32,
-job: Job,
-err: u32 = nil,
+bot: Bot,
 
 const std = @import("std");
 
@@ -38,6 +45,7 @@ const Ctx = wisp.Ctx;
 const Ptr = wisp.Ptr;
 const ref = wisp.ref;
 const nil = wisp.nil;
+const nah = wisp.nah;
 
 const tidy = @import("./03-tidy.zig");
 const read = @import("./05-read.zig").read;
@@ -46,39 +54,32 @@ const xops = @import("./07-xops.zig");
 
 const Eval = @This();
 
-const Status = enum { val, exp };
-
-const Job = union(Status) {
-    val: u32,
-    exp: u32,
-};
-
 pub fn step(this: *Eval) !void {
     if (wtf) {
         std.log.warn("\n", .{});
-        // try dump.warn("way", this.ctx, this.way);
-        try dump.warn("env", this.ctx, this.env);
+        // try dump.warn("way", this.ctx, this.bot.way);
+        try dump.warn("env", this.ctx, this.bot.env);
     }
-    switch (this.job) {
-        .val => |x| {
-            if (wtf) try dump.warn("val", this.ctx, x);
-            return this.proceed(x);
-        },
 
-        .exp => |t| {
-            if (wtf) try dump.warn("exp", this.ctx, t);
-            switch (wisp.tagOf(t)) {
-                .int, .v08, .sys => this.give(.val, t),
-                .sym => return this.findVariable(t),
-                .duo => return this.intoPair(t),
-                else => return Oof.Bug,
-            }
-        },
+    const exp = this.bot.exp;
+    const val = this.bot.val;
+
+    if (val == nah) {
+        if (wtf) try dump.warn("exp", this.ctx, exp);
+        switch (wisp.tagOf(exp)) {
+            .int, .v08, .sys => this.give(.val, exp),
+            .sym => return this.findVariable(exp),
+            .duo => return this.intoPair(exp),
+            else => return Oof.Bug,
+        }
+    } else {
+        if (wtf) try dump.warn("val", this.ctx, val);
+        return this.proceed(val);
     }
 }
 
 fn findVariable(this: *Eval, sym: u32) !void {
-    var cur = this.env;
+    var cur = this.bot.env;
     while (cur != nil) {
         var curduo = try this.ctx.row(.duo, cur);
         var v32 = try this.ctx.v32slice(curduo.car);
@@ -96,7 +97,7 @@ fn findVariable(this: *Eval, sym: u32) !void {
                 this.ctx.kwd.@"UNBOUND-VARIABLE",
                 sym,
             };
-            this.err = try this.ctx.newv32(&err);
+            this.bot.err = try this.ctx.newv32(&err);
             return Oof.Err;
         },
         else => |x| {
@@ -106,7 +107,7 @@ fn findVariable(this: *Eval, sym: u32) !void {
 }
 
 pub fn fail(this: *Eval, xs: []const u32) !void {
-    this.err = try this.ctx.newv32(xs);
+    this.bot.err = try this.ctx.newv32(xs);
     return Oof.Err;
 }
 
@@ -160,10 +161,10 @@ fn iter(this: *Eval, fun: u32, arg: u32) !void {
     // Start evaluating the first argument with a
     // continuation of the remaining arguments.
     const duo = try this.ctx.row(.duo, arg);
-    this.job = .{ .exp = duo.car };
-    this.way = try this.ctx.new(.ktx, .{
-        .hop = this.way,
-        .env = this.env,
+    this.give(.exp, duo.car);
+    this.bot.way = try this.ctx.new(.ktx, .{
+        .hop = this.bot.way,
+        .env = this.bot.env,
         .fun = fun,
         .acc = nil,
         .arg = duo.cdr,
@@ -176,7 +177,7 @@ fn intoFunction(
     arg: u32,
 ) !void {
     if (arg == nil) {
-        try this.call(this.way, fun, nil, false);
+        try this.call(this.bot.way, fun, nil, false);
     } else {
         try this.iter(fun, arg);
     }
@@ -184,40 +185,40 @@ fn intoFunction(
 
 fn intoMacro(this: *Eval, fun: u32, arg: u32) !void {
     const way = try this.ctx.new(.duo, .{
-        .car = this.env,
-        .cdr = this.way,
+        .car = this.bot.env,
+        .cdr = this.bot.way,
     });
     try this.call(way, fun, arg, false);
 }
 
 pub fn proceed(this: *Eval, x: u32) !void {
-    if (this.way == wisp.top) {
-        this.job = .{ .val = x };
+    if (this.bot.way == wisp.top) {
+        this.give(.val, x);
         return;
     }
 
-    switch (wisp.tagOf(this.way)) {
-        .ktx => try this.execKtx(try this.ctx.row(.ktx, this.way)),
-        .duo => try this.execDuo(try this.ctx.row(.duo, this.way)),
+    switch (wisp.tagOf(this.bot.way)) {
+        .ktx => try this.execKtx(try this.ctx.row(.ktx, this.bot.way)),
+        .duo => try this.execDuo(try this.ctx.row(.duo, this.bot.way)),
 
         else => unreachable,
     }
 }
 
 fn execDuo(this: *Eval, duo: wisp.Row(.duo)) !void {
-    const val = this.job.val;
+    const val = this.bot.val;
 
     if (wtf) {
         try dump.warn("macroexpansion", this.ctx, val);
-        try dump.warn("old env", this.ctx, this.env);
+        try dump.warn("old env", this.ctx, this.bot.env);
         try dump.warn("new env", this.ctx, duo.car);
     }
 
-    this.* = .{
-        .ctx = this.ctx,
-        .job = .{ .exp = val },
+    this.bot = .{
         .env = duo.car,
         .way = duo.cdr,
+        .exp = val,
+        .val = nah,
     };
 }
 
@@ -255,13 +256,13 @@ fn scan(
         }
     }
 
-    this.env = try this.ctx.new(.duo, .{
+    this.bot.env = try this.ctx.new(.duo, .{
         .car = try this.ctx.newv32(scope),
-        .cdr = this.env,
+        .cdr = this.bot.env,
     });
 
-    this.job = .{ .exp = exp };
-    this.way = way;
+    this.give(.exp, exp);
+    this.bot.way = way;
 }
 
 /// Perform an application, either by directly calling a builtin
@@ -276,18 +277,18 @@ pub fn call(
     switch (wisp.tagOf(funptr)) {
         .jet => {
             try this.oper(funptr, args, rev);
-            this.way = way;
+            this.bot.way = way;
         },
 
         .fun => {
             const fun = try this.ctx.row(.fun, funptr);
-            this.env = fun.env;
+            this.bot.env = fun.env;
             try this.scan(fun.exp, fun.par, args, way, rev);
         },
 
         .mac => {
             const mac = try this.ctx.row(.mac, funptr);
-            this.env = mac.env;
+            this.bot.env = mac.env;
             try this.scan(mac.exp, mac.par, args, way, rev);
         },
 
@@ -298,7 +299,7 @@ pub fn call(
             if (vals.items.len != 1) {
                 try this.fail(&[_]u32{this.ctx.kwd.@"PROGRAM-ERROR"});
             } else {
-                this.way = funptr;
+                this.bot.way = funptr;
                 try this.proceed(vals.items[0]);
             }
         },
@@ -313,7 +314,7 @@ pub fn call(
                         &[_]u32{this.ctx.kwd.@"PROGRAM-ERROR"},
                     );
                 } else {
-                    this.way = funptr;
+                    this.bot.way = funptr;
                     try this.proceed(vals.items[0]);
                 }
             } else {
@@ -335,7 +336,7 @@ pub fn debug(this: *Eval, txt: []const u8, val: u32) !void {
 const Ktx = struct {
     fn call(this: *Eval, ktx: wisp.Row(.ktx)) !void {
         const acc = try this.ctx.new(.duo, .{
-            .car = this.job.val,
+            .car = this.bot.val,
             .cdr = ktx.acc,
         });
 
@@ -351,15 +352,15 @@ const Ktx = struct {
                 .arg = argduo.cdr,
             });
 
-            this.way = way;
+            this.bot.way = way;
             this.give(.exp, argduo.car);
         }
     }
 
     fn PROGN(this: *Eval, ktx: wisp.Row(.ktx)) !void {
         if (ktx.arg == nil) {
-            this.way = ktx.hop;
-            this.env = ktx.env;
+            this.bot.way = ktx.hop;
+            this.bot.env = ktx.env;
         } else {
             const argduo = try this.ctx.row(.duo, ktx.arg);
             const way = try this.ctx.new(.ktx, .{
@@ -370,23 +371,23 @@ const Ktx = struct {
                 .arg = argduo.cdr,
             });
 
-            this.way = way;
-            this.job = .{ .exp = argduo.car };
+            this.bot.way = way;
+            this.give(.exp, argduo.car);
         }
     }
 
     fn LET(this: *Eval, ktx: wisp.Row(.ktx)) !void {
         // LET (k v1 k1 ... x) ((k e) ...)
-        const val = this.job.val;
+        const val = this.bot.val;
 
         if (ktx.arg == nil) {
             var exp: u32 = undefined;
 
             const env = try this.scanLetAcc(ktx.env, val, ktx.acc, &exp);
 
-            this.way = ktx.hop;
-            this.env = env;
-            this.job = .{ .exp = exp };
+            this.bot.way = ktx.hop;
+            this.bot.env = env;
+            this.give(.exp, exp);
         } else {
             const valacc = try this.ctx.new(.duo, .{
                 .car = val,
@@ -410,21 +411,19 @@ const Ktx = struct {
                 .arg = argduo.cdr,
             });
 
-            this.way = way;
-            this.env = ktx.env;
-            this.job = .{ .exp = letexp };
+            this.bot.way = way;
+            this.bot.env = ktx.env;
+            this.give(.exp, letexp);
         }
     }
 
     fn IF(this: *Eval, ktx: wisp.Row(.ktx)) !void {
         const argduo = try this.ctx.row(.duo, ktx.arg);
-        const p = this.job.val != nil;
+        const p = this.bot.val != nil;
 
-        this.way = ktx.hop;
-        this.env = ktx.env;
-        this.job = .{
-            .exp = if (p) argduo.car else argduo.cdr,
-        };
+        this.bot.way = ktx.hop;
+        this.bot.env = ktx.env;
+        this.give(.exp, if (p) argduo.car else argduo.cdr);
     }
 };
 
@@ -524,10 +523,13 @@ pub fn scanList(
 }
 
 pub fn give(job: *Eval, status: Status, x: u32) void {
-    job.job = switch (status) {
-        .val => .{ .val = x },
-        .exp => .{ .exp = x },
-    };
+    job.bot.val = nah;
+    job.bot.exp = nah;
+
+    switch (status) {
+        .val => job.bot.val = x,
+        .exp => job.bot.exp = x,
+    }
 }
 
 fn cast(
@@ -626,20 +628,17 @@ fn oper(job: *Eval, jet: u32, arg: u32, rev: bool) !void {
 }
 
 pub fn evaluate(this: *Eval, limit: u32, gc: bool) !u32 {
-    if (this.err != nil) return wisp.Oof.Bug;
+    if (this.bot.err != nil) return wisp.Oof.Bug;
 
     var i: u32 = 0;
     while (i < limit) : (i += 1) {
-        if (this.way == wisp.top) {
-            switch (this.job) {
-                .val => |x| return x,
-                else => {},
-            }
+        if (this.bot.way == wisp.top and this.bot.val != wisp.nah) {
+            return this.bot.val;
         }
 
         if (this.step()) {} else |err| {
-            if (this.err == wisp.nil) {
-                this.err = try this.ctx.newv32(
+            if (this.bot.err == wisp.nil) {
+                this.bot.err = try this.ctx.newv32(
                     &[_]u32{this.ctx.kwd.@"PROGRAM-ERROR"},
                 );
             }
@@ -661,12 +660,15 @@ pub fn newTestCtx() !Ctx {
     return ctx;
 }
 
-pub fn init(ctx: *Ctx, job: u32) Eval {
+pub fn init(ctx: *Ctx, exp: u32) Eval {
     return Eval{
         .ctx = ctx,
-        .way = wisp.top,
-        .env = nil,
-        .job = Job{ .exp = job },
+        .bot = .{
+            .way = wisp.top,
+            .env = nil,
+            .val = nah,
+            .exp = exp,
+        },
     };
 }
 
@@ -678,7 +680,8 @@ test "step evaluates string" {
     var exe = init(&ctx, exp);
 
     try exe.step();
-    try expectEqual(Job{ .val = exp }, exe.job);
+    try expectEqual(exp, exe.bot.val);
+    try expectEqual(nah, exe.bot.exp);
 }
 
 test "step evaluates variable" {
@@ -693,7 +696,8 @@ test "step evaluates variable" {
     try ctx.set(.sym, .val, x, foo);
 
     try exe.step();
-    try expectEqual(Job{ .val = foo }, exe.job);
+    try expectEqual(foo, exe.bot.val);
+    try expectEqual(nah, exe.bot.exp);
 }
 
 pub fn expectEval(want: []const u8, src: []const u8) !void {
@@ -719,7 +723,7 @@ pub fn expectEval(want: []const u8, src: []const u8) !void {
 
         try expectEqualStrings(wantString, valueString);
     } else |e| {
-        try dump.warn("Error", &ctx, exe.err);
+        try dump.warn("Error", &ctx, exe.bot.err);
         return e;
     }
 }

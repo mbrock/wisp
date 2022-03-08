@@ -150,7 +150,7 @@ pub fn @"ERROR"(job: *Eval, xs: []u32) anyerror!void {
 }
 
 pub fn @"GET/CC"(job: *Eval) anyerror!void {
-    job.give(.val, job.way);
+    job.give(.val, job.bot.way);
 }
 
 pub fn SAVE(job: *Eval, @"CORE-NAME": u32) anyerror!void {
@@ -169,7 +169,7 @@ pub fn FUNCALL(
     arguments: Rest,
 ) anyerror!void {
     try job.call(
-        job.way,
+        job.bot.way,
         function,
         arguments.arg,
         false,
@@ -181,13 +181,13 @@ pub fn APPLY(
     function: u32,
     list: u32,
 ) anyerror!void {
-    try job.call(job.way, function, list, false);
+    try job.call(job.bot.way, function, list, false);
 }
 
 pub fn @"CALL/CC"(job: *Eval, function: u32) anyerror!void {
     // Take the parent continuation of the CALL/CC form.
-    const hop = try job.ctx.get(.ktx, .hop, job.way);
-    try job.call(job.way, function, try job.ctx.new(.duo, .{
+    const hop = try job.ctx.get(.ktx, .hop, job.bot.way);
+    try job.call(job.bot.way, function, try job.ctx.new(.duo, .{
         .car = hop,
         .cdr = wisp.nil,
     }), true);
@@ -221,8 +221,8 @@ pub fn LOAD(job: *Eval, src: u32) anyerror!void {
         try dump.warn("loading", job.ctx, form);
         if (exe.evaluate(1_000, false)) |_| {} else |err| {
             try dump.warn("failed", job.ctx, form);
-            try dump.warn("condition", job.ctx, exe.err);
-            job.err = exe.err;
+            try dump.warn("condition", job.ctx, exe.bot.err);
+            job.bot.err = exe.bot.err;
             return err;
         }
     }
@@ -231,5 +231,5 @@ pub fn LOAD(job: *Eval, src: u32) anyerror!void {
 }
 
 pub fn ENV(job: *Eval) anyerror!void {
-    job.give(.val, job.env);
+    job.give(.val, job.bot.env);
 }

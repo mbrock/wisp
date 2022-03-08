@@ -224,7 +224,7 @@ pub const Ctx = struct {
             var exe = eval.init(ctx, form);
             if (exe.evaluate(1_000, false)) |_| {} else |_| {
                 try dump.warn("failed", ctx, form);
-                try dump.warn("condition", ctx, exe.err);
+                try dump.warn("condition", ctx, exe.bot.err);
                 break;
             }
         }

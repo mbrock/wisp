@@ -53,12 +53,11 @@ pub fn tidyEval(eval: *Eval) !void {
     var gc = try init(eval.ctx);
     try gc.root();
 
-    try gc.move(&eval.env);
-    try gc.move(&eval.way);
-    switch (eval.job) {
-        .val => |*x| try gc.move(x),
-        .exp => |*x| try gc.move(x),
-    }
+    try gc.move(&eval.bot.err);
+    try gc.move(&eval.bot.env);
+    try gc.move(&eval.bot.way);
+    try gc.move(&eval.bot.val);
+    try gc.move(&eval.bot.exp);
 
     try gc.scan();
     eval.ctx.* = gc.done();
@@ -95,7 +94,9 @@ fn root(gc: *GC) !void {
     }
 }
 
-fn move(gc: *GC, x: *u32) !void {
+/// We use an `anytype` because the pointer might have some
+/// specific alignment.
+fn move(gc: *GC, x: anytype) !void {
     x.* = try gc.copy(x.*);
 }
 
