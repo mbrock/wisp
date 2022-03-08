@@ -27,6 +27,7 @@ import { render, Text, Box } from "ink"
 
 import TextInput from "ink-text-input"
 import useStdoutDimensions from "ink-use-stdout-dimensions"
+import { WASI } from "./wasi"
 
 const Repl = ({ ctx, data }: {
   ctx: wisp.Wisp,
@@ -75,8 +76,15 @@ const Repl = ({ ctx, data }: {
 }
 
 async function main() {
+  const wasi = new WASI
   const source = await fs.readFile("zig-out/lib/wisp.wasm")
-  const instance = await WebAssembly.instantiate(source)
+  const { instance } = await WebAssembly.instantiate(source, {
+    wasi_snapshot_preview1: wasi.exports(),
+  })
+
+  const exports = instance.exports as unknown as wisp.WispAPI
+  wasi.setMemory(exports.memory)
+
   const ctx = new wisp.Wisp(instance)
 
   render(<Repl ctx={ctx} data={ctx.view()}/>)
