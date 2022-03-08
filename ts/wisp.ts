@@ -108,10 +108,10 @@ export class View {
       v08: ["idx", "len"],
       v32: ["idx", "len"],
       pkg: ["nam", "sym", "use"],
-      ct0: ["env", "fun", "arg", "exp", "hop"],
-      ct1: ["env", "yay", "nay", "hop"],
-      ct2: ["env", "exp", "hop"],
-      ct3: ["env", "exp", "dew", "arg", "hop"],
+      ct0: ["hop", "env", "fun", "arg", "exp"],
+      ct1: ["hop", "env", "yay", "nay"],
+      ct2: ["hop", "env", "exp"],
+      ct3: ["hop", "env", "exp", "dew", "arg"],
     }
 
     const n = Object.values(tabs).length
