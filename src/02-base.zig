@@ -221,7 +221,8 @@ pub const Ctx = struct {
         defer forms.deinit();
 
         for (forms.items) |form| {
-            var exe = eval.init(ctx, form);
+            var bot = eval.Bot.init(form);
+            var exe = eval.init(ctx, &bot);
             if (exe.evaluate(1_000, false)) |_| {} else |_| {
                 try dump.warn("failed", ctx, form);
                 try dump.warn("condition", ctx, exe.bot.err);

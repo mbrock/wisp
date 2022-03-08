@@ -217,7 +217,8 @@ pub fn LOAD(job: *Eval, src: u32) anyerror!void {
     defer forms.deinit();
 
     for (forms.items) |form| {
-        var exe = Eval.init(job.ctx, form);
+        var bot = Eval.Bot.init(form);
+        var exe = Eval.init(job.ctx, &bot);
         try dump.warn("loading", job.ctx, form);
         if (exe.evaluate(1_000, false)) |_| {} else |err| {
             try dump.warn("failed", job.ctx, form);

@@ -71,7 +71,20 @@ export fn wisp_read(ctx: *wisp.Ctx, str: [*:0]const u8) u32 {
 }
 
 export fn wisp_eval(ctx: *wisp.Ctx, exp: u32, max: u32) u32 {
-    return eval.init(ctx, exp).evaluate(max, false) catch wisp.zap;
+    var bot = eval.Bot.init(exp);
+    return eval.init(ctx, &bot).evaluate(max, false) catch wisp.zap;
+}
+
+export fn wisp_eval_init(ctx: *wisp.Ctx, exp: u32) ?*eval {
+    var exec = ctx.orb.create(eval) catch return null;
+    var bot = eval.Bot.init(exp);
+    exec.* = eval.init(ctx, &bot);
+    return exec;
+}
+
+export fn wisp_eval_step(job: *eval) bool {
+    job.step() catch return false;
+    return true;
 }
 
 fn Field(comptime name: []const u8, t: type) std.builtin.TypeInfo.StructField {

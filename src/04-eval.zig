@@ -27,10 +27,19 @@ pub const Bot = packed struct {
     way: u32,
     exp: u32,
     val: u32,
+
+    pub fn init(exp: u32) Bot {
+        return .{
+            .way = wisp.top,
+            .env = nil,
+            .val = nah,
+            .exp = exp,
+        };
+    }
 };
 
 ctx: *Ctx,
-bot: Bot,
+bot: *Bot,
 
 const std = @import("std");
 
@@ -214,7 +223,7 @@ fn execDuo(this: *Eval, duo: wisp.Row(.duo)) !void {
         try dump.warn("new env", this.ctx, duo.car);
     }
 
-    this.bot = .{
+    this.bot.* = .{
         .env = duo.car,
         .way = duo.cdr,
         .exp = val,
@@ -660,15 +669,10 @@ pub fn newTestCtx() !Ctx {
     return ctx;
 }
 
-pub fn init(ctx: *Ctx, exp: u32) Eval {
+pub fn init(ctx: *Ctx, bot: *Bot) Eval {
     return Eval{
         .ctx = ctx,
-        .bot = .{
-            .way = wisp.top,
-            .env = nil,
-            .val = nah,
-            .exp = exp,
-        },
+        .bot = bot,
     };
 }
 
@@ -677,7 +681,8 @@ test "step evaluates string" {
     defer ctx.deinit();
 
     const exp = try ctx.newv08("foo");
-    var exe = init(&ctx, exp);
+    var bot = Bot.init(exp);
+    var exe = init(&ctx, &bot);
 
     try exe.step();
     try expectEqual(exp, exe.bot.val);
@@ -691,7 +696,8 @@ test "step evaluates variable" {
     const x = try ctx.intern("X", ctx.base);
     const foo = try ctx.newv08("foo");
 
-    var exe = init(&ctx, x);
+    var bot = Bot.init(x);
+    var exe = init(&ctx, &bot);
 
     try ctx.set(.sym, .val, x, foo);
 
@@ -705,7 +711,8 @@ pub fn expectEval(want: []const u8, src: []const u8) !void {
     defer ctx.deinit();
 
     const exp = try read(&ctx, src);
-    var exe = init(&ctx, exp);
+    var bot = Bot.init(exp);
+    var exe = init(&ctx, &bot);
 
     if (exe.evaluate(1_000, true)) |val| {
         const valueString = try dump.printAlloc(ctx.orb, &ctx, val);
