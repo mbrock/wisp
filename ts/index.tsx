@@ -37,7 +37,7 @@ const Val = ({ data, val }: { data: View, val: number }) => {
 
     case "v08": {
       const str = data.str(val)
-      return <div class="string">"{str}"</div>
+      return <div className="string">"{str}"</div>
     }
 
     case "duo": {
