@@ -23,28 +23,80 @@ import { WASI } from "./wasi"
 import * as ReactDOM from "react-dom"
 import * as React from "react"
 
-const Val = ({ data, val }: { data: View, val: number }) => {
-  switch (data.ctx.tagOf(val)) {
+const buttonStyle = {
+  border: "1px solid #ccc",
+  borderTopWidth: 0,
+  borderRightWidth: 0,
+  background: "#eef",
+  padding: "0 5px",
+  fontSize: "inherit",
+}
+
+const Val = ({ data, v }: { data: View, v: number }) => {
+  function table(row: Record<string, number>) {
+    const tableStyle = {
+      padding: "5px 10px",
+    }
+    
+    return (
+      <table style={tableStyle}>
+        <tbody>
+          {
+            Object.keys(row).map((k, i) =>
+              <tr key={i}>
+                <td>{k}</td>
+                <td><Val data={data} v={row[k]} /></td>
+              </tr>
+            )
+          }
+        </tbody>
+      </table>
+    )
+  }
+
+  function doStep() {
+    ctx.api.wisp_eval_step(ctx.ctx, v)
+    render()
+  }
+
+  const vtag = data.ctx.tagOf(v)
+  switch (vtag) {
     case "int":
-      return <span>{val}</span>
+      return <span>{v}</span>
+
+    case "jet":
+      return <span>{`《${vtag}: ${v}》`}</span>
 
     case "sys": {
-      if (val === data.ctx.sys.nil) {
+      if (v === data.ctx.sys.nil) {
         return <span>NIL</span>
-      } else if (val === data.ctx.sys.t) {
+      } else if (v === data.ctx.sys.t) {
         return <span>T</span>
+      } else if (v === data.ctx.sys.top) {
+        return <span>TOP</span>
+      } else if (v === data.ctx.sys.nah) {
+        return <span>NAH</span>
+      } else {
+        return <span>{v}</span>
       }
     }
 
     case "v08": {
-      const str = data.str(val)
+      const str = data.str(v)
       return <div className="string">"{str}"</div>
+    }
+
+    case "v32": {
+      const v32 = Array.from(data.getV32(v))
+      return <div className="list v32">
+        {v32.map((x, i) => <Val data={data} v={x} key={i} />)}
+      </div>
     }
 
     case "duo": {
       const list = []
       let dotted = false
-      let cur = val
+      let cur = v
       while (cur != data.ctx.sys.nil) {
         const { car, cdr } = data.row("duo", cur)
         list.push(car)
@@ -63,36 +115,38 @@ const Val = ({ data, val }: { data: View, val: number }) => {
         <div className={`list ${dotted ? "dotted" : ""}`}>
           {
             list.map((x, i) =>
-              <Val data={data} val={x} key={i} />)
+              <Val data={data} v={x} key={i} />)
           }
         </div>
       )
     }
 
     case "fun": {
-      const { env, par, exp } = data.row("fun", val)
+      return table(data.row("fun", v))
+    }
+
+    case "bot": {
       return (
-        <table style={{ border: "1px solid #ccc", padding: "0.25rem" }}>
-          <tbody>
-            <tr>
-              <td>env</td>
-              <td><Val data={data} val={env} /></td>
-            </tr>
-            <tr>
-              <td>par</td>
-              <td><Val data={data} val={par} /></td>
-            </tr>
-            <tr>
-              <td>exp</td>
-              <td><Val data={data} val={exp} /></td>
-            </tr>
-          </tbody>
-        </table>
+        <div style={{ border: "1px solid #ccc", background: "#fffa" }}>
+          <header style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ fontFamily: "var(--sans)", padding: "2px 10px" }}>
+              Evaluation
+            </span>
+            <button onClick={doStep} style={buttonStyle}>
+              Step
+            </button>
+          </header>
+          {table(data.row("bot", v))}
+        </div>
       )
     }
 
+    case "ktx": {
+      return table(data.row("ktx", v))
+    }
+
     case "sym": {
-      const { str, pkg, fun } = data.row("sym", val)
+      const { str, pkg, fun } = data.row("sym", v)
       const funtag = data.ctx.tagOf(fun)
       const symstr = data.str(str)
       const pkgstr = pkg == data.ctx.sys.nil
@@ -110,7 +164,7 @@ const Val = ({ data, val }: { data: View, val: number }) => {
     }
 
     default:
-      return <span style={{ color: "red" }}>{val}</span>
+      return <span style={{ color: "red" }}>{`${vtag}: ${v}`}</span>
   }
 }
 
@@ -120,11 +174,11 @@ const Line = ({ data, turn, i }: {
   i: number,
 }) => {
   return (
-    <div style={{ marginBottom: "0.5rem" }}>
+    <div style={{ marginBottom: "0.5rem", display: "flex", alignItems: "start" }}>
       <span style={{ opacity: 0.4, padding: "0 1.5rem 0 0" }}>#{i}</span>
-      <Val data={data} val={turn.exp} />
+      <Val data={data} v={turn.exp} />
       <span style={{ padding: "0 1rem" }}>↦</span>
-      <Val data={data} val={turn.val} />
+      <Val data={data} v={turn.val} />
     </div>
   )
 }
@@ -183,6 +237,15 @@ declare global {
   }
 }
 
+let ctx = null
+
+function render() {
+  ReactDOM.render(
+    <Home ctx={ctx} />,
+    document.querySelector("#app")
+  )
+}
+
 onload = async () => {
   const wasi = new WASI
   const { instance } = await WebAssembly.instantiateStreaming(
@@ -194,10 +257,7 @@ onload = async () => {
   
   wasi.setMemory(exports.memory)
 
-  const ctx = new Wisp(instance)
+  ctx = new Wisp(instance)
 
-  ReactDOM.render(
-    <Home ctx={ctx} />,
-    document.querySelector("#app")
-  )
+  render()
 }

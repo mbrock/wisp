@@ -90,3 +90,6 @@
 
 (defmacro quasiquote (x)
   (bq-completely-process x))
+
+(defmacro foobar (x)
+  x)

@@ -18,8 +18,10 @@
 //
 
 type Tag =
-  "int" | "sys" | "chr" | "jet" |
-  "duo" | "sym" | "fun" | "mac" | "v32" | "v08" | "pkg" | "ktx"
+  "int" | "chr" | "sys" | "jet" |
+  "duo" | "sym" | "pkg" |
+  "fun" | "mac" | "ktx" | "bot" |
+  "v32" | "v08"
 
 type Sys = "t" | "nil" | "nah" | "zap" | "top"
 
@@ -38,6 +40,7 @@ export interface WispAPI {
   wisp_tag_v08: WebAssembly.Global
   wisp_tag_pkg: WebAssembly.Global
   wisp_tag_ktx: WebAssembly.Global
+  wisp_tag_bot: WebAssembly.Global
 
   wisp_sys_t: WebAssembly.Global
   wisp_sys_nil: WebAssembly.Global
@@ -61,6 +64,7 @@ export interface WispAPI {
 
   wisp_read(ctx: number, buf: number): number
   wisp_eval(ctx: number, exp: number, max: number): number
+  wisp_eval_step(ctx: number, bot: number): number
 }
 
 export class View {
@@ -105,6 +109,7 @@ export class View {
       v32: ["idx", "len"],
       pkg: ["nam", "sym", "use"],
       ktx: ["hop", "env", "fun", "acc", "arg"],
+      bot: ["exp", "val", "err", "env", "way"],
     }
 
     const n = Object.values(tabs).length
@@ -154,6 +159,11 @@ export class View {
     const buf = new Uint8Array(this.v08, idx, len)
     return new TextDecoder().decode(buf)
   }
+
+  getV32(x: number): Uint32Array {
+    const { idx, len } = this.row("v32", x)
+    return new Uint32Array(this.v32, 4 * idx, len)
+  }
 }
 
 export class Wisp {
@@ -189,6 +199,7 @@ export class Wisp {
       v32: tag("v32"),
       pkg: tag("pkg"),
       ktx: tag("ktx"),
+      bot: tag("bot"),
     }
   }
 

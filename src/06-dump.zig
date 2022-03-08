@@ -72,7 +72,8 @@ pub fn dump_(
             switch (x) {
                 wisp.nil => try out.print("NIL", .{}),
                 wisp.t => try out.print("T", .{}),
-                wisp.top => try out.print("%TOP", .{}),
+                wisp.top => try out.print("#<TOP>", .{}),
+                wisp.nah => try out.print("#<NAH>", .{}),
                 else => unreachable,
             }
         },
@@ -154,6 +155,16 @@ pub fn dump_(
         .jet => {
             const jet = xops.jets[wisp.Imm.from(x).idx];
             try out.print("<jet {s}>", .{jet.txt});
+        },
+
+        .bot => {
+            const bot = try ctx.row(.bot, x);
+            try out.print("<bot", .{});
+            inline for (std.meta.fields(@TypeOf(bot))) |field| {
+                try out.print(" {s}=", .{field.name});
+                try dump(ctx, out, @field(bot, field.name));
+            }
+            try out.print(">", .{});
         },
 
         else => |t| try out.print("<{any}>", .{t}),

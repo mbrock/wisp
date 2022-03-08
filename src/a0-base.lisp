@@ -175,6 +175,9 @@
 (defun snoc (x y)
   (cons y x))
 
+(defun reverse (list)
+  (reduce #'snoc list nil))
+
 (defun revappend (list tail)
   (reduce #'snoc list tail))
 

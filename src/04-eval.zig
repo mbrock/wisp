@@ -21,22 +21,17 @@ pub var wtf = false;
 
 const Status = enum { val, exp };
 
-pub const Bot = packed struct {
-    err: u32 = nil,
-    env: u32,
-    way: u32,
-    exp: u32,
-    val: u32,
+pub const Bot = wisp.Row(.bot);
 
-    pub fn init(exp: u32) Bot {
-        return .{
-            .way = wisp.top,
-            .env = nil,
-            .val = nah,
-            .exp = exp,
-        };
-    }
-};
+pub fn initBot(exp: u32) Bot {
+    return .{
+        .way = wisp.top,
+        .env = wisp.nil,
+        .err = wisp.nil,
+        .val = wisp.nah,
+        .exp = exp,
+    };
+}
 
 ctx: *Ctx,
 bot: *Bot,
@@ -224,6 +219,7 @@ fn execDuo(this: *Eval, duo: wisp.Row(.duo)) !void {
     }
 
     this.bot.* = .{
+        .err = nil,
         .env = duo.car,
         .way = duo.cdr,
         .exp = val,
@@ -681,7 +677,7 @@ test "step evaluates string" {
     defer ctx.deinit();
 
     const exp = try ctx.newv08("foo");
-    var bot = Bot.init(exp);
+    var bot = initBot(exp);
     var exe = init(&ctx, &bot);
 
     try exe.step();
@@ -696,7 +692,7 @@ test "step evaluates variable" {
     const x = try ctx.intern("X", ctx.base);
     const foo = try ctx.newv08("foo");
 
-    var bot = Bot.init(x);
+    var bot = initBot(x);
     var exe = init(&ctx, &bot);
 
     try ctx.set(.sym, .val, x, foo);
@@ -711,7 +707,7 @@ pub fn expectEval(want: []const u8, src: []const u8) !void {
     defer ctx.deinit();
 
     const exp = try read(&ctx, src);
-    var bot = Bot.init(exp);
+    var bot = initBot(exp);
     var exe = init(&ctx, &bot);
 
     if (exe.evaluate(1_000, true)) |val| {

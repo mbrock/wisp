@@ -46,6 +46,7 @@ pub fn ColEnum(comptime t: Tag) type {
         .v32 => enum { idx, len },
         .pkg => enum { nam, sym, use },
         .ktx => enum { hop, env, fun, acc, arg },
+        .bot => enum { exp, val, err, env, way },
     };
 }
 
@@ -66,6 +67,7 @@ pub const Kwd = enum {
     CHARACTER,
     CONS,
     CONTINUATION,
+    EVALUATOR,
     FUNCTION,
     INTEGER,
     MACRO,
@@ -160,6 +162,7 @@ pub const Vat = struct {
     v08: Tab(.v08) = .{},
     pkg: Tab(.pkg) = .{},
     ktx: Tab(.ktx) = .{},
+    bot: Tab(.bot) = .{},
 
     pub fn bytesize(vat: Vat) usize {
         var n: usize = 0;
@@ -221,7 +224,7 @@ pub const Ctx = struct {
         defer forms.deinit();
 
         for (forms.items) |form| {
-            var bot = eval.Bot.init(form);
+            var bot = eval.initBot(form);
             var exe = eval.init(ctx, &bot);
             if (exe.evaluate(1_000, false)) |_| {} else |_| {
                 try dump.warn("failed", ctx, form);
@@ -315,7 +318,7 @@ pub const Ctx = struct {
         comptime tag: Tag,
         ptr: u32,
         val: Row(tag),
-    ) void {
+    ) !void {
         if (wisp.tagOf(ptr) != tag)
             return Oof.Bug;
 

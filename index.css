@@ -120,11 +120,17 @@ td:first-child {
   display: none;
 }
 
-
 .list > .sym[data-funtag=jet]:first-child .str {
   color: navy;
 }
 
 .list > .sym[data-funtag=mac]:first-child .str {
   color: mediumblue;
+}
+
+.list.v32 {
+  border-radius: 4px;
+  border-width: 1px 2px;
+  border-color: cadetblue;
+  background: #aabbcc3e;
 }

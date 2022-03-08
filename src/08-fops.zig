@@ -140,6 +140,7 @@ pub fn @"TYPE-OF"(job: *Eval, x: u32) anyerror!void {
             .v08 => kwd.STRING,
             .pkg => kwd.PACKAGE,
             .ktx => kwd.CONTINUATION,
+            .bot => kwd.EVALUATOR,
             .sys => unreachable,
         });
     }
@@ -217,7 +218,7 @@ pub fn LOAD(job: *Eval, src: u32) anyerror!void {
     defer forms.deinit();
 
     for (forms.items) |form| {
-        var bot = Eval.Bot.init(form);
+        var bot = Eval.initBot(form);
         var exe = Eval.init(job.ctx, &bot);
         try dump.warn("loading", job.ctx, form);
         if (exe.evaluate(1_000, false)) |_| {} else |err| {
@@ -233,4 +234,17 @@ pub fn LOAD(job: *Eval, src: u32) anyerror!void {
 
 pub fn ENV(job: *Eval) anyerror!void {
     job.give(.val, job.bot.env);
+}
+
+pub fn BOT(job: *Eval, exp: u32) anyerror!void {
+    job.give(.val, try job.ctx.new(.bot, Eval.initBot(exp)));
+}
+
+pub fn STEP(job: *Eval, botptr: u32) anyerror!void {
+    var bot = try job.ctx.row(.bot, botptr);
+    var exe = Eval.init(job.ctx, &bot);
+
+    try exe.step();
+    try job.ctx.put(.bot, botptr, bot);
+    job.give(.val, wisp.nil);
 }

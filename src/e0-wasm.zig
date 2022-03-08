@@ -37,6 +37,7 @@ export const wisp_tag_v32 = wisp.Tag.v32;
 export const wisp_tag_v08 = wisp.Tag.v08;
 export const wisp_tag_pkg = wisp.Tag.pkg;
 export const wisp_tag_ktx = wisp.Tag.ktx;
+export const wisp_tag_bot = wisp.Tag.bot;
 
 export const wisp_sys_t: u32 = wisp.t;
 export const wisp_sys_nil: u32 = wisp.nil;
@@ -71,20 +72,32 @@ export fn wisp_read(ctx: *wisp.Ctx, str: [*:0]const u8) u32 {
 }
 
 export fn wisp_eval(ctx: *wisp.Ctx, exp: u32, max: u32) u32 {
-    var bot = eval.Bot.init(exp);
+    var bot = eval.initBot(exp);
     return eval.init(ctx, &bot).evaluate(max, false) catch wisp.zap;
 }
 
-export fn wisp_eval_init(ctx: *wisp.Ctx, exp: u32) ?*eval {
-    var exec = ctx.orb.create(eval) catch return null;
-    var bot = eval.Bot.init(exp);
-    exec.* = eval.init(ctx, &bot);
-    return exec;
+export fn wisp_bot_init(ctx: *wisp.Ctx, exp: u32) u32 {
+    return ctx.new(.bot, .{
+        .way = wisp.top,
+        .env = wisp.nil,
+        .err = wisp.nil,
+        .val = wisp.nah,
+        .exp = exp,
+    }) catch wisp.zap;
 }
 
-export fn wisp_eval_step(job: *eval) bool {
-    job.step() catch return false;
-    return true;
+export fn wisp_eval_step(ctx: *wisp.Ctx, botptr: u32) u32 {
+    var bot = ctx.row(.bot, botptr) catch return wisp.zap;
+    var exe = eval.init(ctx, &bot);
+
+    exe.step() catch return wisp.zap;
+
+    ctx.put(.bot, botptr, bot) catch return wisp.zap;
+
+    return if (bot.val != wisp.nah and bot.way == wisp.top)
+        wisp.nil
+    else
+        wisp.t;
 }
 
 fn Field(comptime name: []const u8, t: type) std.builtin.TypeInfo.StructField {
@@ -128,6 +141,7 @@ const Dat = packed struct {
     v32: TabDat(.v32),
     pkg: TabDat(.pkg),
     ktx: TabDat(.ktx),
+    bot: TabDat(.bot),
 };
 
 export fn wisp_dat_init(ctx: *wisp.Ctx) ?*Dat {

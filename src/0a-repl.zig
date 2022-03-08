@@ -68,7 +68,7 @@ pub fn repl() anyerror!void {
     try xops.load(&ctx);
     try ctx.cook();
 
-    var baseTestBot = eval.Bot.init(try read(&ctx, "(base-test)"));
+    var baseTestBot = eval.initBot(try read(&ctx, "(base-test)"));
 
     _ = try eval.init(&ctx, &baseTestBot).evaluate(1_000_000, false);
 
@@ -80,7 +80,7 @@ pub fn repl() anyerror!void {
         defer arena.deinit();
 
         if (try readSexp(stdin, tmp, &ctx)) |term| {
-            var bot = eval.Bot.init(term);
+            var bot = eval.initBot(term);
             var exe = eval.init(&ctx, &bot);
 
             term: while (true) {

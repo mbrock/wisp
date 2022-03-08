@@ -111,6 +111,7 @@ fn copy(gc: *GC, x: u32) !u32 {
         .v08 => gc.push(.v08, x),
         .pkg => gc.push(.pkg, x),
         .ktx => gc.push(.ktx, x),
+        .bot => gc.push(.bot, x),
     };
 }
 
