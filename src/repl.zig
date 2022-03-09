@@ -68,7 +68,7 @@ pub fn repl() anyerror!void {
 
     var baseTestRun = Step.initRun(try Sexp.read(&heap, "(base-test)"));
 
-    _ = try Step.evaluate(&heap, &baseTestRun, 1_000_000, false);
+    _ = try Step.evaluate(&heap, &baseTestRun, 1_000_000);
 
     repl: while (true) {
         try stdout.writeAll("> ");
@@ -82,7 +82,7 @@ pub fn repl() anyerror!void {
             var step = Step{ .heap = &heap, .run = &run };
 
             term: while (true) {
-                if (Step.evaluate(&heap, &run, 100_000, false)) |val| {
+                if (Step.evaluate(&heap, &run, 100_000)) |val| {
                     const pretty = try Sexp.prettyPrint(&heap, val, 62);
                     defer heap.orb.free(pretty);
                     try stdout.print("{s}\n", .{pretty});

@@ -37,6 +37,7 @@ pub fn @"%MACRO-LAMBDA"(step: *Step, par: u32, exp: u32) anyerror!void {
         .env = step.run.env,
         .par = par,
         .exp = exp,
+        .sym = Wisp.nil,
     }));
 }
 
@@ -76,6 +77,7 @@ pub fn @"LAMBDA"(step: *Step, par: u32, exp: u32) anyerror!void {
         .env = step.run.env,
         .par = par,
         .exp = exp,
+        .sym = Wisp.nil,
     }));
 }
 

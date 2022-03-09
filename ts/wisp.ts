@@ -65,6 +65,9 @@ export interface WispAPI {
   wisp_read(heap: number, buf: number): number
   wisp_eval(heap: number, exp: number, max: number): number
   wisp_eval_step(heap: number, run: number): number
+
+  wisp_jet_name(jet: number): number
+  wisp_jet_name_len(jet: number): number
 }
 
 export class View {
@@ -103,8 +106,8 @@ export class View {
     const tabs = {
       duo: ["car", "cdr"],
       sym: ["str", "pkg", "val", "fun"],
-      fun: ["env", "par", "exp"],
-      mac: ["env", "par", "exp"],
+      fun: ["env", "par", "exp", "sym"],
+      mac: ["env", "par", "exp", "sym"],
       v08: ["idx", "len"],
       v32: ["idx", "len"],
       pkg: ["nam", "sym", "use"],
@@ -163,6 +166,13 @@ export class View {
   getV32(x: number): Uint32Array {
     const { idx, len } = this.row("v32", x)
     return new Uint32Array(this.v32, 4 * idx, len)
+  }
+
+  jetName(x: number): string {
+    const ptr = this.api.wisp_jet_name(x)
+    const len = this.api.wisp_jet_name_len(x)
+    const buf = this.api.memory.buffer.slice(ptr, ptr + len)
+    return new TextDecoder().decode(buf)
   }
 }
 

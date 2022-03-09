@@ -188,6 +188,7 @@ fn intoMacro(step: *Step, fun: u32, arg: u32) !void {
 
 pub fn proceed(step: *Step, x: u32) !void {
     if (step.run.way == Wisp.top) {
+        step.run.env = Wisp.nil;
         step.give(.val, x);
         return;
     }
@@ -368,6 +369,7 @@ const Ktx = struct {
             });
 
             step.run.way = way;
+            step.run.env = ktx.env;
             step.give(.exp, argduo.car);
         }
     }
@@ -629,14 +631,65 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
     }
 }
 
-pub fn evaluate(heap: *Heap, run: *Run, limit: u32, gc: bool) !u32 {
+pub fn macroexpand(heap: *Heap, run: *Run, limit: u32) !void {
+    std.log.warn("macroexpansion", .{});
+
+    // Are we at a compound form?
+    if (Wisp.tagOf(run.exp) != .duo)
+        return;
+
+    const sym = try heap.get(.duo, .car, run.exp);
+
+    // We should have a symbol as the first subform.
+    if (Wisp.tagOf(sym) != .sym)
+        return;
+
+    const fun = try heap.get(.sym, .fun, sym);
+
+    // Is the symbol function a macro?
+    if (Wisp.tagOf(fun) != .mac)
+        return;
+
+    // Step into the macro invocation.
+    try once(heap, run);
+
+    // The continuation is now an (env . hop) pair.
+    assert(Wisp.tagOf(run.way) == .duo);
+
+    // Remember this continuation to use it as a breakpoint.
+    const breakpoint = run.way;
+
+    std.log.warn("macroexpansion step 2", .{});
+
+    // Take one more step to avoid triggering the breakpoint.
+    try once(heap, run);
+
+    std.log.warn("macroexpanding", .{});
+
+    // Evaluate until the breakpoint.
+    _ = try evaluateUntilSpecificContinuation(
+        heap,
+        run,
+        limit,
+        breakpoint,
+    );
+
+    std.log.warn("macroexpansion done", .{});
+}
+
+pub fn evaluateUntilSpecificContinuation(
+    heap: *Heap,
+    run: *Run,
+    limit: u32,
+    breakpoint: u32,
+) !u32 {
     if (run.err != nil) return Wisp.Oof.Bug;
 
     var step = Step{ .heap = heap, .run = run };
 
     var i: u32 = 0;
     while (i < limit) : (i += 1) {
-        if (run.way == Wisp.top and run.val != Wisp.nah) {
+        if (run.way == breakpoint and run.val != Wisp.nah) {
             return run.val;
         }
 
@@ -648,13 +701,20 @@ pub fn evaluate(heap: *Heap, run: *Run, limit: u32, gc: bool) !u32 {
             }
             return err;
         }
-
-        if (gc) try step.gcWithRunRoots();
     }
 
     try step.fail(&[_]u32{step.heap.kwd.EXHAUSTED});
 
     return Oof.Ugh;
+}
+
+pub fn evaluate(heap: *Heap, run: *Run, limit: u32) !u32 {
+    return evaluateUntilSpecificContinuation(
+        heap,
+        run,
+        limit,
+        Wisp.top,
+    );
 }
 
 pub fn gcWithRunRoots(step: *Step) !void {
@@ -714,7 +774,7 @@ pub fn expectEval(want: []const u8, src: []const u8) !void {
     const exp = try Sexp.read(&heap, src);
     var run = initRun(exp);
 
-    if (evaluate(&heap, &run, 1_000, true)) |val| {
+    if (evaluate(&heap, &run, 1_000)) |val| {
         const valueString = try Sexp.printAlloc(heap.orb, &heap, val);
 
         defer heap.orb.free(valueString);

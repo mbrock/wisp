@@ -87,6 +87,13 @@ pub fn @"SET-SYMBOL-FUNCTION"(
     fun: u32,
 ) anyerror!void {
     try step.heap.set(.sym, .fun, sym, fun);
+
+    if (Wisp.tagOf(fun) == .fun) {
+        try step.heap.set(.fun, .sym, fun, sym);
+    } else if (Wisp.tagOf(fun) == .mac) {
+        try step.heap.set(.mac, .sym, fun, sym);
+    }
+
     step.give(.val, fun);
 }
 
@@ -221,7 +228,7 @@ pub fn LOAD(step: *Step, src: u32) anyerror!void {
     for (forms.items) |form| {
         var run = Step.initRun(form);
         try Sexp.warn("loading", step.heap, form);
-        if (Step.evaluate(step.heap, &run, 1_000, false)) |_| {} else |err| {
+        if (Step.evaluate(step.heap, &run, 1_000)) |_| {} else |err| {
             try Sexp.warn("failed", step.heap, form);
             try Sexp.warn("condition", step.heap, run.err);
             step.run.err = run.err;

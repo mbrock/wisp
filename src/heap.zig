@@ -40,8 +40,8 @@ pub fn ColEnum(comptime t: Tag) type {
         .int, .sys, .chr, .jet => void,
         .duo => enum { car, cdr },
         .sym => enum { str, pkg, val, fun },
-        .fun => enum { env, par, exp },
-        .mac => enum { env, par, exp },
+        .fun => enum { env, par, exp, sym },
+        .mac => enum { env, par, exp, sym },
         .v08 => enum { idx, len },
         .v32 => enum { idx, len },
         .pkg => enum { nam, sym, use },
@@ -229,7 +229,7 @@ pub const Heap = struct {
 
         for (forms.items) |form| {
             var run = Step.initRun(form);
-            _ = Step.evaluate(heap, &run, 1_000, false) catch {
+            _ = Step.evaluate(heap, &run, 1_000) catch {
                 try Sexp.warn("failed", heap, form);
                 try Sexp.warn("condition", heap, run.err);
                 break;

@@ -74,7 +74,7 @@ export fn wisp_read(heap: *Wisp.Heap, str: [*:0]const u8) u32 {
 
 export fn wisp_eval(heap: *Wisp.Heap, exp: u32, max: u32) u32 {
     var run = Step.initRun(exp);
-    return Step.evaluate(heap, &run, max, false) catch Wisp.zap;
+    return Step.evaluate(heap, &run, max) catch Wisp.zap;
 }
 
 export fn wisp_run_init(heap: *Wisp.Heap, exp: u32) u32 {
@@ -90,6 +90,7 @@ export fn wisp_run_init(heap: *Wisp.Heap, exp: u32) u32 {
 export fn wisp_eval_step(heap: *Wisp.Heap, runptr: u32) u32 {
     var run = heap.row(.run, runptr) catch return Wisp.zap;
 
+    Step.macroexpand(heap, &run, 10_000) catch return Wisp.zap;
     Step.once(heap, &run) catch return Wisp.zap;
 
     heap.put(.run, runptr, run) catch return Wisp.zap;
@@ -188,6 +189,14 @@ export fn wisp_free(heap: *Wisp.Heap, x: [*:0]u8) void {
 
 export fn wisp_destroy(heap: *Wisp.Heap, x: [*]u8) void {
     heap.orb.destroy(x);
+}
+
+export fn wisp_jet_name(x: u32) usize {
+    return @ptrToInt(Jets.jets[Wisp.Imm.from(x).idx].txt.ptr);
+}
+
+export fn wisp_jet_name_len(x: u32) usize {
+    return Jets.jets[Wisp.Imm.from(x).idx].txt.len;
 }
 
 test "sanity" {

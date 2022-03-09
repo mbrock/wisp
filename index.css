@@ -134,3 +134,5 @@ td:first-child {
   border-color: cadetblue;
   background: #aabbcc3e;
 }
+
+.nil { height: 1em; }
