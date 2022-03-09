@@ -246,3 +246,26 @@ pub fn STEP(step: *Step, runptr: u32) anyerror!void {
     try step.heap.put(.run, runptr, run);
     step.give(.val, Wisp.nil);
 }
+
+pub fn CODE(step: *Step, fun: u32) anyerror!void {
+    return switch (Wisp.tagOf(fun)) {
+        .fun => step.give(.val, try step.heap.get(.fun, .exp, fun)),
+        .mac => step.give(.val, try step.heap.get(.mac, .exp, fun)),
+        else => step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"}),
+    };
+}
+
+pub fn AREF(step: *Step, vec: u32, idx: u32) anyerror!void {
+    switch (Wisp.tagOf(vec)) {
+        .v32 => {
+            const xs = try step.heap.v32slice(vec);
+            if (Wisp.tagOf(idx) == .int and idx < xs.len) {
+                step.give(.val, xs[idx]);
+            } else {
+                try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"});
+            }
+        },
+
+        else => try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"}),
+    }
+}
