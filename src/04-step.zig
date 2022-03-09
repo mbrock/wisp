@@ -857,5 +857,5 @@ test "prty.lisp" {
     var heap = try newTestHeap();
     defer heap.deinit();
 
-    try heap.load(@embedFile("./06a-prty.lisp"));
+    try heap.load(@embedFile("../lisp/pretty.lisp"));
 }
