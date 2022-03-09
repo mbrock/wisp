@@ -65,6 +65,15 @@ html {
   flex-grow: 1;
   padding: 5px 10px;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+#output > * {
+  border: 1px solid #ccc;
+  padding: 5px;
+  background: #fafafa;
 }
 
 form {

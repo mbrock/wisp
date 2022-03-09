@@ -272,8 +272,7 @@ const Line = ({ data, turn, i }: {
   const run = data.row("run", turn.run) as unknown as Run
 
   return (
-    <div style={{ marginBottom: "0.5rem",
-                  display: "flex",
+    <div style={{ display: "flex",
                   alignItems: "start",
                   flexDirection: "column",
                   gap: "5px",

@@ -172,7 +172,7 @@ fn iter(step: *Step, fun: u32, arg: u32) !void {
 
 fn intoFunction(step: *Step, fun: u32, arg: u32) !void {
     if (arg == nil) {
-        try step.call(step.run.way, fun, nil, false);
+        try step.call(fun, nil, false);
     } else {
         try step.iter(fun, arg);
     }
@@ -183,7 +183,10 @@ fn intoMacro(step: *Step, fun: u32, arg: u32) !void {
         .car = step.run.env,
         .cdr = step.run.way,
     });
-    try step.call(way, fun, arg, false);
+
+    try step.call(fun, arg, false);
+
+    step.run.way = way;
 }
 
 pub fn proceed(step: *Step, x: u32) !void {
@@ -221,10 +224,10 @@ fn execDuo(step: *Step, duo: Wisp.Row(.duo)) !void {
 
 fn scan(
     step: *Step,
+    fun: u32,
     exp: u32,
     par: u32,
     arg: u32,
-    way: u32,
     rev: bool,
 ) !void {
     var pars = try scanListAlloc(step.heap, par);
@@ -240,16 +243,25 @@ fn scan(
 
     var i: usize = 0;
     while (i < pars.items.len) : (i += 1) {
-        const x = pars.items[i];
-        if (x == step.heap.kwd.@"&REST") {
-            scope[i * 2 + 0] = pars.items[i + 1];
-            scope[i * 2 + 1] = try Wisp.list(
-                step.heap,
-                vals.items[i..vals.items.len],
-            );
+        if (i < vals.items.len) {
+            const x = pars.items[i];
+            if (x == step.heap.kwd.@"&REST") {
+                scope[i * 2 + 0] = pars.items[i + 1];
+                scope[i * 2 + 1] = try Wisp.list(
+                    step.heap,
+                    vals.items[i..vals.items.len],
+                );
+            } else {
+                scope[i * 2 + 0] = x;
+                scope[i * 2 + 1] = vals.items[i];
+            }
         } else {
-            scope[i * 2 + 0] = x;
-            scope[i * 2 + 1] = vals.items[i];
+            try step.fail(&[_]u32{
+                step.heap.kwd.@"PROGRAM-ERROR",
+                step.heap.kwd.@"INVALID-ARGUMENT-COUNT",
+                @intCast(u32, vals.items.len),
+                fun,
+            });
         }
     }
 
@@ -259,14 +271,12 @@ fn scan(
     });
 
     step.give(.exp, exp);
-    step.run.way = way;
 }
 
 /// Perform an application, either by directly calling a builtin
 /// or by entering a closure.
 pub fn call(
     step: *Step,
-    way: u32,
     funptr: u32,
     args: u32,
     rev: bool,
@@ -274,19 +284,18 @@ pub fn call(
     switch (Wisp.tagOf(funptr)) {
         .jet => {
             try step.oper(funptr, args, rev);
-            step.run.way = way;
         },
 
         .fun => {
             const fun = try step.heap.row(.fun, funptr);
             step.run.env = fun.env;
-            try step.scan(fun.exp, fun.par, args, way, rev);
+            try step.scan(funptr, fun.exp, fun.par, args, rev);
         },
 
         .mac => {
             const mac = try step.heap.row(.mac, funptr);
             step.run.env = mac.env;
-            try step.scan(mac.exp, mac.par, args, way, rev);
+            try step.scan(funptr, mac.exp, mac.par, args, rev);
         },
 
         .ktx => {
@@ -338,7 +347,8 @@ const Ktx = struct {
         });
 
         if (ktx.arg == nil) {
-            try call(step, ktx.hop, ktx.fun, acc, true);
+            step.run.way = ktx.hop;
+            try call(step, ktx.fun, acc, true);
         } else {
             const argduo = try step.heap.row(.duo, ktx.arg);
             const way = try step.heap.new(.ktx, .{

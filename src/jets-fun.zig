@@ -178,7 +178,6 @@ pub fn FUNCALL(
     arguments: Rest,
 ) anyerror!void {
     try step.call(
-        step.run.way,
         function,
         arguments.arg,
         false,
@@ -190,13 +189,13 @@ pub fn APPLY(
     function: u32,
     list: u32,
 ) anyerror!void {
-    try step.call(step.run.way, function, list, false);
+    try step.call(function, list, false);
 }
 
 pub fn @"CALL/CC"(step: *Step, function: u32) anyerror!void {
     // Take the parent continuation of the CALL/CC form.
     const hop = try step.heap.get(.ktx, .hop, step.run.way);
-    try step.call(step.run.way, function, try step.heap.new(.duo, .{
+    try step.call(function, try step.heap.new(.duo, .{
         .car = hop,
         .cdr = Wisp.nil,
     }), true);
@@ -244,12 +243,8 @@ pub fn ENV(step: *Step) anyerror!void {
 }
 
 pub fn RUN(step: *Step, exp: u32) anyerror!void {
-    // The current continuation is the call to RUN, so we take
-    // the parent continuation of that.
-    const hop = try step.heap.get(.ktx, .hop, step.run.way);
-
     const run = Wisp.Row(.run){
-        .way = hop,
+        .way = step.run.way,
         .env = step.run.env,
         .err = Wisp.nil,
         .val = Wisp.nah,

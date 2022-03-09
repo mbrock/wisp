@@ -83,11 +83,12 @@ pub const Kwd = enum {
 
     @"BUG",
     @"EXHAUSTED",
+    @"INVALID-ARGUMENT-COUNT",
     @"PACKAGE-ERROR",
     @"PROGRAM-ERROR",
+    @"TYPE-MISMATCH",
     @"UNBOUND-VARIABLE",
     @"UNDEFINED-FUNCTION",
-    @"TYPE-MISMATCH",
 };
 
 /// The orb is the vat's allocator.  All Lisp values reside in memory
