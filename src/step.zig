@@ -17,46 +17,45 @@
 // <https://www.gnu.org/licenses/>.
 //
 
-pub var wtf = false;
+const std = @import("std");
+
+const Wisp = @import("./wisp.zig");
+const Tidy = @import("./tidy.zig");
+const Read = @import("./read.zig");
+const Dump = @import("./dump.zig");
+const Jets = @import("./jets.zig");
+
+const Step = @This();
+const Heap = Wisp.Heap;
+
+pub const Run = Wisp.Row(.run);
 
 const Status = enum { val, exp };
-
-pub const Run = wisp.Row(.run);
 
 heap: *Heap,
 run: *Run,
 
+pub var wtf = false;
+
 pub fn initRun(exp: u32) Run {
     return .{
-        .way = wisp.top,
-        .env = wisp.nil,
-        .err = wisp.nil,
-        .val = wisp.nah,
+        .way = Wisp.top,
+        .env = Wisp.nil,
+        .err = Wisp.nil,
+        .val = Wisp.nah,
         .exp = exp,
     };
 }
-
-const std = @import("std");
 
 const assert = std.debug.assert;
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 
-const wisp = @import("./ff-wisp.zig");
-
-const Oof = wisp.Oof;
-const Heap = wisp.Heap;
-const Ptr = wisp.Ptr;
-const ref = wisp.ref;
-const nil = wisp.nil;
-const nah = wisp.nah;
-
-const tidy = @import("./03-tidy.zig");
-const read = @import("./05-read.zig").read;
-const dump = @import("./06-dump.zig");
-const xops = @import("./07-xops.zig");
-
-const Step = @This();
+const Oof = Wisp.Oof;
+const Ptr = Wisp.Ptr;
+const ref = Wisp.ref;
+const nil = Wisp.nil;
+const nah = Wisp.nah;
 
 pub fn once(heap: *Heap, run: *Run) !void {
     var step = Step{ .heap = heap, .run = run };
@@ -64,22 +63,22 @@ pub fn once(heap: *Heap, run: *Run) !void {
     if (wtf) {
         std.log.warn("\n", .{});
         // try dump.warn("way", heap, run.way);
-        try dump.warn("env", heap, run.env);
+        try Dump.warn("env", heap, run.env);
     }
 
     const exp = run.exp;
     const val = run.val;
 
     if (val == nah) {
-        if (wtf) try dump.warn("exp", heap, exp);
-        switch (wisp.tagOf(exp)) {
+        if (wtf) try Dump.warn("exp", heap, exp);
+        switch (Wisp.tagOf(exp)) {
             .int, .v08, .sys => step.give(.val, exp),
             .sym => return step.findVariable(exp),
             .duo => return step.intoPair(exp),
             else => return Oof.Bug,
         }
     } else {
-        if (wtf) try dump.warn("val", heap, val);
+        if (wtf) try Dump.warn("val", heap, val);
         return step.proceed(val);
     }
 }
@@ -98,7 +97,7 @@ fn findVariable(step: *Step, sym: u32) !void {
     }
 
     switch (try step.heap.get(.sym, .val, sym)) {
-        wisp.nah => {
+        Wisp.nah => {
             const err = [2]u32{
                 step.heap.kwd.@"UNBOUND-VARIABLE",
                 sym,
@@ -132,7 +131,7 @@ fn intoPair(step: *Step, p: u32) !void {
 }
 
 fn intoCall(step: *Step, fun: u32, arg: u32) !void {
-    return switch (wisp.tagOf(fun)) {
+    return switch (Wisp.tagOf(fun)) {
         .jet => intoJet(step, fun, arg),
         .fun => intoFunction(step, fun, arg),
         .mac => intoMacro(step, fun, arg),
@@ -141,8 +140,8 @@ fn intoCall(step: *Step, fun: u32, arg: u32) !void {
 }
 
 fn intoJet(step: *Step, fun: u32, arg: u32) !void {
-    const idx = wisp.Imm.from(fun).idx;
-    const jet = xops.jets[idx];
+    const idx = Wisp.Imm.from(fun).idx;
+    const jet = Jets.jets[idx];
 
     switch (jet.ilk) {
         .fun => {
@@ -190,12 +189,12 @@ fn intoMacro(step: *Step, fun: u32, arg: u32) !void {
 }
 
 pub fn proceed(step: *Step, x: u32) !void {
-    if (step.run.way == wisp.top) {
+    if (step.run.way == Wisp.top) {
         step.give(.val, x);
         return;
     }
 
-    switch (wisp.tagOf(step.run.way)) {
+    switch (Wisp.tagOf(step.run.way)) {
         .ktx => try step.execKtx(try step.heap.row(.ktx, step.run.way)),
         .duo => try step.execDuo(try step.heap.row(.duo, step.run.way)),
 
@@ -203,13 +202,13 @@ pub fn proceed(step: *Step, x: u32) !void {
     }
 }
 
-fn execDuo(step: *Step, duo: wisp.Row(.duo)) !void {
+fn execDuo(step: *Step, duo: Wisp.Row(.duo)) !void {
     const val = step.run.val;
 
     if (wtf) {
-        try dump.warn("macroexpansion", step.heap, val);
-        try dump.warn("old env", step.heap, step.run.env);
-        try dump.warn("new env", step.heap, duo.car);
+        try Dump.warn("macroexpansion", step.heap, val);
+        try Dump.warn("old env", step.heap, step.run.env);
+        try Dump.warn("new env", step.heap, duo.car);
     }
 
     step.run.* = .{
@@ -245,7 +244,7 @@ fn scan(
         const x = pars.items[i];
         if (x == step.heap.kwd.@"&REST") {
             scope[i * 2 + 0] = pars.items[i + 1];
-            scope[i * 2 + 1] = try wisp.list(
+            scope[i * 2 + 1] = try Wisp.list(
                 step.heap,
                 vals.items[i..vals.items.len],
             );
@@ -273,7 +272,7 @@ pub fn call(
     args: u32,
     rev: bool,
 ) anyerror!void {
-    switch (wisp.tagOf(funptr)) {
+    switch (Wisp.tagOf(funptr)) {
         .jet => {
             try step.oper(funptr, args, rev);
             step.run.way = way;
@@ -304,7 +303,7 @@ pub fn call(
         },
 
         .sys => {
-            if (funptr == wisp.top) {
+            if (funptr == Wisp.top) {
                 var vals = try scanListAlloc(step.heap, args);
                 defer vals.deinit();
 
@@ -322,18 +321,18 @@ pub fn call(
         },
 
         else => {
-            try dump.warn("oof", step.heap, funptr);
+            try Dump.warn("oof", step.heap, funptr);
             return Oof.Bug;
         },
     }
 }
 
 pub fn debug(heap: *Heap, txt: []const u8, val: u32) !void {
-    try dump.warn(txt, heap, val);
+    try Dump.warn(txt, heap, val);
 }
 
 const Ktx = struct {
-    fn funargs(step: *Step, ktx: wisp.Row(.ktx)) !void {
+    fn funargs(step: *Step, ktx: Wisp.Row(.ktx)) !void {
         const acc = try step.heap.new(.duo, .{
             .car = step.run.val,
             .cdr = ktx.acc,
@@ -356,7 +355,7 @@ const Ktx = struct {
         }
     }
 
-    fn PROGN(step: *Step, ktx: wisp.Row(.ktx)) !void {
+    fn PROGN(step: *Step, ktx: Wisp.Row(.ktx)) !void {
         if (ktx.arg == nil) {
             step.run.way = ktx.hop;
             step.run.env = ktx.env;
@@ -375,7 +374,7 @@ const Ktx = struct {
         }
     }
 
-    fn LET(step: *Step, ktx: wisp.Row(.ktx)) !void {
+    fn LET(step: *Step, ktx: Wisp.Row(.ktx)) !void {
         // LET (k v1 k1 ... x) ((k e) ...)
         const val = step.run.val;
 
@@ -422,7 +421,7 @@ const Ktx = struct {
         }
     }
 
-    fn IF(step: *Step, ktx: wisp.Row(.ktx)) !void {
+    fn IF(step: *Step, ktx: Wisp.Row(.ktx)) !void {
         const argduo = try step.heap.row(.duo, ktx.arg);
         const p = step.run.val != nil;
 
@@ -473,19 +472,19 @@ fn scanLetAcc(
     });
 }
 
-pub fn execKtx(step: *Step, ktx: wisp.Row(.ktx)) !void {
+pub fn execKtx(step: *Step, ktx: Wisp.Row(.ktx)) !void {
     if (ktx.fun == step.heap.kwd.PROGN)
         try Ktx.PROGN(step, ktx)
     else if (ktx.fun == step.heap.kwd.IF)
         try Ktx.IF(step, ktx)
     else if (ktx.fun == step.heap.kwd.LET)
         try Ktx.LET(step, ktx)
-    else switch (wisp.tagOf(ktx.fun)) {
+    else switch (Wisp.tagOf(ktx.fun)) {
         .jet => return Ktx.funargs(step, ktx),
         .fun => return Ktx.funargs(step, ktx),
 
         else => {
-            try dump.warn("exec ktx", step.heap, ktx.fun);
+            try Dump.warn("exec ktx", step.heap, ktx.fun);
             unreachable;
         },
     }
@@ -538,10 +537,10 @@ pub fn give(step: *Step, status: Status, x: u32) void {
 }
 
 fn cast(
-    comptime tag: xops.FnTag,
-    xop: xops.Op,
+    comptime tag: Jets.FnTag,
+    jet: Jets.Op,
 ) tag.functionType() {
-    return tag.cast(xop.fun);
+    return tag.cast(jet.fun);
 }
 
 fn reverseList(heap: *Heap, list: u32) !u32 {
@@ -556,19 +555,19 @@ fn reverseList(heap: *Heap, list: u32) !u32 {
 }
 
 fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
-    const xop = xops.jets[wisp.Imm.from(jet).idx];
-    switch (xop.tag) {
+    const def = Jets.jets[Wisp.Imm.from(jet).idx];
+    switch (def.tag) {
         .f0x => {
             const args = try scanListAlloc(step.heap, arg);
             defer args.deinit();
             if (rev) std.mem.reverse(u32, args.items);
-            const fun = cast(.f0x, xop);
+            const fun = cast(.f0x, def);
             try fun(step, args.items);
         },
 
         .f0r => {
             const rest = if (rev) try reverseList(step.heap, arg) else arg;
-            const fun = cast(.f0r, xop);
+            const fun = cast(.f0r, def);
             try fun(step, .{ .arg = rest });
         },
 
@@ -576,13 +575,13 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
             const list = if (rev) try reverseList(step.heap, arg) else arg;
             const duo = try step.heap.row(.duo, list);
             const rest = duo.cdr;
-            const fun = cast(.f1r, xop);
+            const fun = cast(.f1r, def);
             try fun(step, duo.car, .{ .arg = rest });
         },
 
         .f0 => {
             if (arg == nil) {
-                const fun = cast(.f0, xop);
+                const fun = cast(.f0, def);
                 try fun(step);
             } else {
                 try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"});
@@ -595,7 +594,7 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
             defer list.deinit();
 
             if (args.len == 1) {
-                const fun = cast(.f1, xop);
+                const fun = cast(.f1, def);
                 try fun(step, args[0]);
             } else {
                 try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"});
@@ -609,7 +608,7 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
 
             if (args.len == 2) {
                 if (rev) std.mem.reverse(u32, args);
-                const fun = cast(.f2, xop);
+                const fun = cast(.f2, def);
                 try fun(step, args[0], args[1]);
             } else {
                 try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"});
@@ -623,7 +622,7 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
 
             if (args.len == 3) {
                 if (rev) std.mem.reverse(u32, args);
-                const fun = cast(.f3, xop);
+                const fun = cast(.f3, def);
                 try fun(step, args[0], args[1], args[2]);
             } else {
                 try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"});
@@ -633,18 +632,18 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
 }
 
 pub fn evaluate(heap: *Heap, run: *Run, limit: u32, gc: bool) !u32 {
-    if (run.err != nil) return wisp.Oof.Bug;
+    if (run.err != nil) return Wisp.Oof.Bug;
 
     var step = Step{ .heap = heap, .run = run };
 
     var i: u32 = 0;
     while (i < limit) : (i += 1) {
-        if (run.way == wisp.top and run.val != wisp.nah) {
+        if (run.way == Wisp.top and run.val != Wisp.nah) {
             return run.val;
         }
 
         if (once(heap, run)) {} else |err| {
-            if (run.err == wisp.nil) {
+            if (run.err == Wisp.nil) {
                 run.err = try heap.newv32(
                     &[_]u32{heap.kwd.@"PROGRAM-ERROR"},
                 );
@@ -661,7 +660,7 @@ pub fn evaluate(heap: *Heap, run: *Run, limit: u32, gc: bool) !u32 {
 }
 
 pub fn gcWithRunRoots(step: *Step) !void {
-    var gc = try tidy.init(step.heap);
+    var gc = try Tidy.init(step.heap);
     try gc.root();
 
     try gc.move(&step.run.err);
@@ -676,7 +675,7 @@ pub fn gcWithRunRoots(step: *Step) !void {
 
 pub fn newTestHeap() !Heap {
     var heap = try Heap.init(std.testing.allocator, .e0);
-    try xops.load(&heap);
+    try Jets.load(&heap);
     try heap.cook();
     return heap;
 }
@@ -714,16 +713,16 @@ pub fn expectEval(want: []const u8, src: []const u8) !void {
     var heap = try newTestHeap();
     defer heap.deinit();
 
-    const exp = try read(&heap, src);
+    const exp = try Read.read(&heap, src);
     var run = initRun(exp);
 
     if (evaluate(&heap, &run, 1_000, true)) |val| {
-        const valueString = try dump.printAlloc(heap.orb, &heap, val);
+        const valueString = try Dump.printAlloc(heap.orb, &heap, val);
 
         defer heap.orb.free(valueString);
 
-        const wantValue = try read(&heap, want);
-        const wantString = try dump.printAlloc(
+        const wantValue = try Read.read(&heap, want);
+        const wantString = try Dump.printAlloc(
             heap.orb,
             &heap,
             wantValue,
@@ -733,7 +732,7 @@ pub fn expectEval(want: []const u8, src: []const u8) !void {
 
         try expectEqualStrings(wantString, valueString);
     } else |e| {
-        try dump.warn("Error", &heap, run.err);
+        try Dump.warn("Error", &heap, run.err);
         return e;
     }
 }

@@ -21,27 +21,27 @@ pub fn build(b: *std.build.Builder) void {
 
     const exe = wispStep(mode, standardTarget, b.addExecutable(
         "wisp",
-        "src/0a-repl.zig",
+        "src/repl.zig",
     ));
 
     const wasmExe = wispStep(mode, wasiTarget, b.addExecutable(
         "wisp",
-        "src/0a-repl.zig",
+        "src/repl.zig",
     ));
 
     const wasmLib = wispStep(mode, wasiTarget, b.addSharedLibrary(
         "wisp",
-        "src/e0-wasm.zig",
+        "src/wasm.zig",
         .unversioned,
+    ));
+
+    const tests = wispStep(mode, standardTarget, b.addTest(
+        "src/repl.zig",
     ));
 
     exe.install();
     wasmExe.install();
     wasmLib.install();
-
-    const tests = wispStep(mode, standardTarget, b.addTest(
-        "src/0a-repl.zig",
-    ));
 
     const testStep = b.step("test", "Run unit tests");
     testStep.dependOn(&tests.step);

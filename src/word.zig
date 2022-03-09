@@ -21,8 +21,6 @@ const std = @import("std");
 const assert = std.debug.assert;
 const same = std.testing.expectEqual;
 
-const util = @import("./00-util.zig");
-
 pub const Tag = enum(u5) {
     int = 0x00, // 31-bit fixnum
 

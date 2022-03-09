@@ -20,8 +20,8 @@
 const std = @import("std");
 const ziglyph = @import("ziglyph");
 
-const wisp = @import("./ff-wisp.zig");
-const Heap = wisp.Heap;
+const Wisp = @import("./wisp.zig");
+const Heap = Wisp.Heap;
 
 const Error = error{
     ReadError,
@@ -137,7 +137,7 @@ fn readQuote(self: *Reader) !u32 {
         .car = self.heap.kwd.QUOTE,
         .cdr = try self.heap.new(.duo, .{
             .car = x,
-            .cdr = wisp.nil,
+            .cdr = Wisp.nil,
         }),
     });
 }
@@ -149,7 +149,7 @@ fn readQuasiquote(self: *Reader) !u32 {
         .car = self.heap.kwd.QUASIQUOTE,
         .cdr = try self.heap.new(.duo, .{
             .car = x,
-            .cdr = wisp.nil,
+            .cdr = Wisp.nil,
         }),
     });
 }
@@ -161,7 +161,7 @@ fn readUnquote(self: *Reader) !u32 {
         .car = self.heap.kwd.UNQUOTE,
         .cdr = try self.heap.new(.duo, .{
             .car = x,
-            .cdr = wisp.nil,
+            .cdr = Wisp.nil,
         }),
     });
 }
@@ -173,7 +173,7 @@ fn readFunctionQuote(self: *Reader) !u32 {
         .car = self.heap.kwd.FUNCTION,
         .cdr = try self.heap.new(.duo, .{
             .car = x,
-            .cdr = wisp.nil,
+            .cdr = Wisp.nil,
         }),
     });
 }
@@ -196,7 +196,7 @@ fn readHash(self: *Reader) !u32 {
 fn readChar(self: *Reader) !u32 {
     try self.skipOnly('\\');
     const c = try self.skip();
-    return wisp.Imm.make(.chr, c).word();
+    return Wisp.Imm.make(.chr, c).word();
 }
 
 fn readUninternedSymbol(self: *Reader) !u32 {
@@ -210,7 +210,7 @@ fn readUninternedSymbol(self: *Reader) !u32 {
 
     defer self.heap.orb.free(uppercase);
 
-    return self.heap.newSymbol(uppercase, wisp.nil);
+    return self.heap.newSymbol(uppercase, Wisp.nil);
 }
 
 fn readKeyword(self: *Reader) !u32 {
@@ -273,7 +273,7 @@ fn readListTail(self: *Reader) anyerror!u32 {
         switch (c) {
             ')' => {
                 try self.skipOnly(')');
-                return wisp.nil;
+                return Wisp.nil;
             },
 
             '.' => {
@@ -420,5 +420,5 @@ test "read symbol uppercasing" {
 test "read nil" {
     var heap = try Heap.init(std.testing.allocator, .e0);
     defer heap.deinit();
-    try std.testing.expectEqual(wisp.nil, try read(&heap, "nil"));
+    try std.testing.expectEqual(Wisp.nil, try read(&heap, "nil"));
 }

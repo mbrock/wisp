@@ -19,9 +19,10 @@
 
 const std = @import("std");
 
-const Step = @import("./04-step.zig");
-const Xops = @import("./07-xops.zig");
-const Wisp = @import("./ff-wisp.zig");
+const Wisp = @import("./wisp.zig");
+const Read = @import("./read.zig");
+const Step = @import("./step.zig");
+const Jets = @import("./jets.zig");
 
 pub fn main() void {}
 
@@ -51,7 +52,7 @@ export fn wisp_heap_init() ?*Wisp.Heap {
     if (orb.create(Wisp.Heap)) |heapptr| {
         if (Wisp.Heap.init(orb, .e0)) |heap| {
             var heap2 = heap;
-            Xops.load(&heap2) catch return null;
+            Jets.load(&heap2) catch return null;
             heap2.cook() catch return null;
             heapptr.* = heap2;
             return heapptr;
@@ -64,7 +65,7 @@ export fn wisp_heap_init() ?*Wisp.Heap {
 }
 
 export fn wisp_read(heap: *Wisp.Heap, str: [*:0]const u8) u32 {
-    if (Wisp.read(heap, std.mem.span(str))) |x| {
+    if (Read.read(heap, std.mem.span(str))) |x| {
         return x;
     } else |_| {
         return Wisp.zap;

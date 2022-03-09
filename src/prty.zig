@@ -17,9 +17,18 @@
 // <https://www.gnu.org/licenses/>.
 //
 
-pub usingnamespace @import("./01-word.zig");
-pub usingnamespace @import("./02-heap.zig");
-pub usingnamespace @import("./05-read.zig");
+const Wisp = @import("./wisp.zig");
 
-pub const Tidy = @import("./03-tidy.zig").tidy;
-pub const Step = @import("./04-step.zig");
+pub const Box = struct {
+    ptr: u32,
+
+    pub fn make(
+        ctx: *Wisp.Ctx,
+        len: u32,
+        fin: u32,
+        max: u32,
+        txt: u32,
+    ) !Box {
+        return try ctx.newv32(.{ len, fin, max, txt });
+    }
+};

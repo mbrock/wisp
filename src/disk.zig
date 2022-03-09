@@ -17,8 +17,10 @@
 // <https://www.gnu.org/licenses/>.
 //
 
-const wisp = @import("./ff-wisp.zig");
 const std = @import("std");
+
+const Wisp = @import("./wisp.zig");
+const Step = @import("./step.zig");
 
 pub fn cwd(allocator: std.mem.Allocator) !std.fs.Dir {
     if (@import("builtin").os.tag == .wasi) {
@@ -29,7 +31,7 @@ pub fn cwd(allocator: std.mem.Allocator) !std.fs.Dir {
         if (preopens.find(.{ .Dir = "." })) |x| {
             return std.fs.Dir{ .fd = x.fd };
         } else {
-            return wisp.Oof.Err;
+            return Wisp.Oof.Err;
         }
     } else {
         return std.fs.cwd();
@@ -45,24 +47,24 @@ pub fn readFileAlloc(
 }
 
 fn tell(out: anytype, x: u32) !void {
-    if (x == wisp.nil)
+    if (x == Wisp.nil)
         try out.print("nil", .{})
-    else if (x == wisp.t)
+    else if (x == Wisp.t)
         try out.print("t", .{})
-    else if (x == wisp.nah)
+    else if (x == Wisp.nah)
         try out.print("nah", .{})
     else {
-        const tag = wisp.tagOf(x);
+        const tag = Wisp.tagOf(x);
         try out.print("{s}:", .{@tagName(tag)});
         switch (tag) {
             .int => {
                 try out.print("{d}", .{x});
             },
             .sys, .chr, .jet => {
-                try out.print("{d}", .{wisp.Imm.from(x).idx});
+                try out.print("{d}", .{Wisp.Imm.from(x).idx});
             },
             else => {
-                const ptr = wisp.Ptr.from(x);
+                const ptr = Wisp.Ptr.from(x);
                 try out.print("{d}", .{ptr.idx});
             },
         }
@@ -75,7 +77,7 @@ fn tellvar(out: anytype, v: []const u8, x: u32) !void {
     try out.print("\n", .{});
 }
 
-pub fn save(step: *wisp.Step, name: []const u8) !u32 {
+pub fn save(step: *Step, name: []const u8) !u32 {
     var room = std.heap.ArenaAllocator.init(step.heap.orb);
 
     defer room.deinit();
@@ -119,7 +121,7 @@ pub fn save(step: *wisp.Step, name: []const u8) !u32 {
     }
     try file.print("\n", .{});
 
-    inline for (wisp.pointerTags) |tag| {
+    inline for (Wisp.pointerTags) |tag| {
         const tab = heap.tab(tag);
         if (tab.list.len > 0) {
             try file.print("\n", .{});
@@ -128,8 +130,8 @@ pub fn save(step: *wisp.Step, name: []const u8) !u32 {
                 tab.list.len,
             });
 
-            inline for (std.meta.fields(wisp.Row(tag))) |_, j| {
-                const col = @intToEnum(wisp.Col(tag), j);
+            inline for (std.meta.fields(Wisp.Row(tag))) |_, j| {
+                const col = @intToEnum(Wisp.Col(tag), j);
                 for (heap.col(tag, col)) |x| {
                     try tell(file, x);
                     try file.print(" ", .{});
@@ -147,10 +149,10 @@ pub fn save(step: *wisp.Step, name: []const u8) !u32 {
 }
 
 test "save" {
-    var heap = try wisp.Step.newTestHeap();
+    var heap = try Step.newTestHeap();
     defer heap.deinit();
 
-    try wisp.Step.expectEval("\"foo.core\"", (
+    try Step.expectEval("\"foo.core\"", (
         \\ (save "foo.core")
     ));
 }

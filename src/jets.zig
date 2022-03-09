@@ -17,8 +17,8 @@
 // <https://www.gnu.org/licenses/>.
 //
 
-pub const Funs = @import("./08-fops.zig");
-pub const Ctls = @import("./09-mops.zig");
+pub const Funs = @import("./fops.zig");
+pub const Ctls = @import("./mops.zig");
 
 pub const jets = makeOpArray(Ctls, .ctl) ++ makeOpArray(Funs, .fun);
 
@@ -29,12 +29,12 @@ const expectEqualStrings = std.testing.expectEqualStrings;
 
 const EnumArray = std.enums.EnumArray;
 
-const wisp = @import("./ff-wisp.zig");
-const Step = @import("./04-step.zig");
-const util = @import("./00-util.zig");
+const Wisp = @import("./wisp.zig");
+const Step = @import("./step.zig");
+const util = @import("./util.zig");
 
-const ref = wisp.ref;
-const Ptr = wisp.Ptr;
+const ref = Wisp.ref;
+const Ptr = Wisp.Ptr;
 const DeclEnum = util.DeclEnum;
 
 pub const Rest = struct { arg: u32 };
@@ -121,9 +121,9 @@ test "ops" {
     );
 }
 
-pub fn load(heap: *wisp.Heap) !void {
+pub fn load(heap: *Wisp.Heap) !void {
     inline for (jets) |jet, i| {
         var sym = try heap.intern(jet.txt, heap.base);
-        heap.col(.sym, .fun)[ref(sym)] = wisp.Imm.make(.jet, i).word();
+        heap.col(.sym, .fun)[ref(sym)] = Wisp.Imm.make(.jet, i).word();
     }
 }

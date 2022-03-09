@@ -17,9 +17,11 @@
 // <https://www.gnu.org/licenses/>.
 //
 
-const Wisp = @import("./ff-wisp.zig");
-const Step = @import("./04-step.zig");
-const Rest = @import("./07-xops.zig").Rest;
+const Wisp = @import("./wisp.zig");
+const Step = @import("./step.zig");
+const Jets = @import("./jets.zig");
+
+const Rest = Jets.Rest;
 
 pub fn QUOTE(step: *Step, x: u32) anyerror!void {
     step.give(.val, x);

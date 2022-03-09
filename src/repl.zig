@@ -20,14 +20,13 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const wisp = @import("./ff-wisp.zig");
-const read = @import("./05-read.zig").read;
-const dump = @import("./06-dump.zig");
-const Step = @import("./04-step.zig");
-const xops = @import("./07-xops.zig");
-const tidy = @import("./03-tidy.zig");
-
-const wasm = @import("./e0-wasm.zig");
+const Wisp = @import("./wisp.zig");
+const Tidy = @import("./tidy.zig");
+const Step = @import("./step.zig");
+const Read = @import("./read.zig");
+const Dump = @import("./dump.zig");
+const Jets = @import("./jets.zig");
+const Wasm = @import("./wasm.zig");
 
 test {
     std.testing.refAllDecls(@This());
@@ -48,10 +47,10 @@ fn readLine(stream: anytype, orb: std.mem.Allocator) !?[]u8 {
 fn readSexp(
     stream: anytype,
     orb: std.mem.Allocator,
-    heap: *wisp.Heap,
+    heap: *Wisp.Heap,
 ) !?u32 {
     if (try readLine(stream, orb)) |line| {
-        return try read(heap, line);
+        return try Read.read(heap, line);
     } else {
         return null;
     }
@@ -62,13 +61,13 @@ pub fn repl() anyerror!void {
     const stdout = std.io.getStdOut().writer();
     const allocator = std.heap.page_allocator;
 
-    var heap = try wisp.Heap.init(allocator, .e0);
+    var heap = try Wisp.Heap.init(allocator, .e0);
     defer heap.deinit();
 
-    try xops.load(&heap);
+    try Jets.load(&heap);
     try heap.cook();
 
-    var baseTestRun = Step.initRun(try read(&heap, "(base-test)"));
+    var baseTestRun = Step.initRun(try Read.read(&heap, "(base-test)"));
 
     _ = try Step.evaluate(&heap, &baseTestRun, 1_000_000, false);
 
@@ -85,22 +84,22 @@ pub fn repl() anyerror!void {
 
             term: while (true) {
                 if (Step.evaluate(&heap, &run, 100_000, false)) |val| {
-                    try dump.dump(&heap, stdout, val);
+                    try Dump.dump(&heap, stdout, val);
                     try stdout.writeByte('\n');
-                    try tidy.gc(&heap);
+                    try Tidy.gc(&heap);
                     continue :repl;
                 } else |e| {
-                    if (run.err == wisp.nil) {
+                    if (run.err == Wisp.nil) {
                         return e;
                     } else {
-                        try dump.warn("Condition", &heap, run.err);
-                        try dump.warn("Term", &heap, run.exp);
-                        try dump.warn("Value", &heap, run.val);
-                        try dump.warn("Environment", &heap, run.env);
+                        try Dump.warn("Condition", &heap, run.err);
+                        try Dump.warn("Term", &heap, run.exp);
+                        try Dump.warn("Value", &heap, run.val);
+                        try Dump.warn("Environment", &heap, run.env);
 
                         try stdout.writeAll("*> ");
                         if (try readSexp(stdin, tmp, &heap)) |restart| {
-                            run.err = wisp.nil;
+                            run.err = Wisp.nil;
                             step.give(.exp, restart);
                             continue :term;
                         } else {

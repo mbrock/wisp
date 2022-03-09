@@ -21,18 +21,19 @@ const std = @import("std");
 const assert = std.debug.assert;
 const same = std.testing.expectEqual;
 
-const tidy = @import("./03-tidy.zig");
-const Step = @import("./04-step.zig");
-const read = @import("./05-read.zig");
-const dump = @import("./06-dump.zig");
-const wisp = @import("./ff-wisp.zig");
+const Wisp = @import("./wisp.zig");
+const Tidy = @import("./tidy.zig");
+const Step = @import("./step.zig");
+const Read = @import("./read.zig");
+const Dump = @import("./dump.zig");
 
-const ref = wisp.ref;
-const nil = wisp.nil;
-const nah = wisp.nah;
-const Tag = wisp.Tag;
-const Era = wisp.Era;
-const Ptr = wisp.Ptr;
+const Tag = Wisp.Tag;
+const Era = Wisp.Era;
+const Ptr = Wisp.Ptr;
+
+const ref = Wisp.ref;
+const nil = Wisp.nil;
+const nah = Wisp.nah;
 
 /// Each pointer type has a set of columns.
 pub fn ColEnum(comptime t: Tag) type {
@@ -220,19 +221,19 @@ pub const Heap = struct {
     }
 
     pub fn load(heap: *Heap, str: []const u8) !void {
-        const forms = try read.readMany(heap, str);
+        const forms = try Read.readMany(heap, str);
         defer forms.deinit();
 
         for (forms.items) |form| {
             var run = Step.initRun(form);
             _ = Step.evaluate(heap, &run, 1_000, false) catch {
-                try dump.warn("failed", heap, form);
-                try dump.warn("condition", heap, run.err);
+                try Dump.warn("failed", heap, form);
+                try Dump.warn("condition", heap, run.err);
                 break;
             };
         }
 
-        try tidy.gc(heap);
+        try Tidy.gc(heap);
     }
 
     pub fn cook(heap: *Heap) !void {
@@ -273,7 +274,7 @@ pub const Heap = struct {
     }
 
     pub fn row(heap: *Heap, comptime tag: Tag, ptr: u32) !Row(tag) {
-        if (wisp.tagOf(ptr) != tag)
+        if (Wisp.tagOf(ptr) != tag)
             return Oof.Bug;
 
         return heap.tab(tag).get(heap.era, ptr);
@@ -293,7 +294,7 @@ pub const Heap = struct {
         comptime c: Col(tag),
         p: u32,
     ) !u32 {
-        if (wisp.tagOf(p) != tag)
+        if (Wisp.tagOf(p) != tag)
             return Oof.Bug;
 
         return heap.col(tag, c)[ref(p)];
@@ -306,7 +307,7 @@ pub const Heap = struct {
         p: u32,
         v: u32,
     ) !void {
-        if (wisp.tagOf(p) != tag)
+        if (Wisp.tagOf(p) != tag)
             return Oof.Bug;
 
         heap.col(tag, c)[ref(p)] = v;
@@ -318,7 +319,7 @@ pub const Heap = struct {
         ptr: u32,
         val: Row(tag),
     ) !void {
-        if (wisp.tagOf(ptr) != tag)
+        if (Wisp.tagOf(ptr) != tag)
             return Oof.Bug;
 
         heap.tab(tag).list.set(ref(ptr), val);
@@ -364,7 +365,7 @@ pub const Heap = struct {
             if (std.mem.eql(u8, txt, "NIL")) {
                 return nil;
             } else if (std.mem.eql(u8, txt, "T")) {
-                return wisp.t;
+                return Wisp.t;
             }
         }
 

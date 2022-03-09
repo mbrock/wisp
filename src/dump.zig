@@ -19,9 +19,9 @@
 
 const std = @import("std");
 
-const wisp = @import("./ff-wisp.zig");
-const xops = @import("./07-xops.zig");
-const Heap = wisp.Heap;
+const Wisp = @import("./wisp.zig");
+const Jets = @import("./jets.zig");
+const Heap = Wisp.Heap;
 
 test "print one" {
     var list = std.ArrayList(u8).init(std.testing.allocator);
@@ -65,15 +65,15 @@ pub fn dump_(
     out: anytype,
     x: u32,
 ) anyerror!void {
-    switch (wisp.tagOf(x)) {
+    switch (Wisp.tagOf(x)) {
         .int => try out.print("{d}", .{x}),
 
         .sys => {
             switch (x) {
-                wisp.nil => try out.print("NIL", .{}),
-                wisp.t => try out.print("T", .{}),
-                wisp.top => try out.print("#<TOP>", .{}),
-                wisp.nah => try out.print("#<NAH>", .{}),
+                Wisp.nil => try out.print("NIL", .{}),
+                Wisp.t => try out.print("T", .{}),
+                Wisp.top => try out.print("#<TOP>", .{}),
+                Wisp.nah => try out.print("#<NAH>", .{}),
                 else => unreachable,
             }
         },
@@ -81,7 +81,7 @@ pub fn dump_(
         .sym => {
             const sym = try heap.row(.sym, x);
             const name = heap.v08slice(sym.str);
-            if (sym.pkg == wisp.nil) {
+            if (sym.pkg == Wisp.nil) {
                 try out.print("#:{s}", .{name});
             } else {
                 try out.print("{s}", .{name});
@@ -107,16 +107,16 @@ pub fn dump_(
             try out.print("(", .{});
             var cur = x;
 
-            loop: while (cur != wisp.nil) {
+            loop: while (cur != Wisp.nil) {
                 var cons = try heap.row(.duo, cur);
                 try dump(heap, out, cons.car);
-                switch (wisp.tagOf(cons.cdr)) {
+                switch (Wisp.tagOf(cons.cdr)) {
                     .duo => {
                         try out.print(" ", .{});
                         cur = cons.cdr;
                     },
                     else => {
-                        if (cons.cdr != wisp.nil) {
+                        if (cons.cdr != Wisp.nil) {
                             try out.print(" . ", .{});
                             try dump(heap, out, cons.cdr);
                         }
@@ -153,7 +153,7 @@ pub fn dump_(
         },
 
         .jet => {
-            const jet = xops.jets[wisp.Imm.from(x).idx];
+            const jet = Jets.jets[Wisp.Imm.from(x).idx];
             try out.print("<jet {s}>", .{jet.txt});
         },
 
@@ -191,8 +191,8 @@ test "print constants" {
     var heap = try Heap.init(std.testing.allocator, .e0);
     defer heap.deinit();
 
-    try expectPrintResult(&heap, "NIL", wisp.nil);
-    try expectPrintResult(&heap, "T", wisp.t);
+    try expectPrintResult(&heap, "NIL", Wisp.nil);
+    try expectPrintResult(&heap, "T", Wisp.t);
 }
 
 test "print lists" {
@@ -202,7 +202,7 @@ test "print lists" {
     try expectPrintResult(
         &heap,
         "(1 2 3)",
-        try wisp.list(&heap, [_]u32{ 1, 2, 3 }),
+        try Wisp.list(&heap, [_]u32{ 1, 2, 3 }),
     );
 
     try expectPrintResult(
@@ -230,7 +230,7 @@ test "print uninterned symbols" {
     try expectPrintResult(
         &heap,
         "#:FOO",
-        try heap.newSymbol("FOO", wisp.nil),
+        try heap.newSymbol("FOO", Wisp.nil),
     );
 }
 

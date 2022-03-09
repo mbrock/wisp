@@ -19,16 +19,18 @@
 
 const std = @import("std");
 
-const wisp = @import("./ff-wisp.zig");
+const Wisp = @import("./wisp.zig");
 
-const Step = @import("./04-step.zig");
-const read = @import("./05-read.zig");
-const dump = @import("./06-dump.zig");
-const Disk = @import("./0b-disk.zig");
-const Rest = @import("./07-xops.zig").Rest;
+const Step = @import("./step.zig");
+const Read = @import("./read.zig");
+const Dump = @import("./dump.zig");
+const Disk = @import("./disk.zig");
+const Jets = @import("./jets.zig");
+
+const Rest = Jets.Rest;
 
 fn int(x: u32) !i31 {
-    if (wisp.tagOf(x) != .int) return wisp.Oof.Err;
+    if (Wisp.tagOf(x) != .int) return Wisp.Oof.Err;
     return @intCast(i31, x);
 }
 
@@ -53,8 +55,8 @@ pub fn @"CONS"(step: *Step, car: u32, cdr: u32) anyerror!void {
 }
 
 pub fn @"CAR"(step: *Step, x: u32) anyerror!void {
-    if (x == wisp.nil) {
-        step.give(.val, wisp.nil);
+    if (x == Wisp.nil) {
+        step.give(.val, Wisp.nil);
     } else if (step.heap.get(.duo, .car, x)) |car| {
         step.give(.val, car);
     } else |_| {
@@ -67,8 +69,8 @@ pub fn @"CAR"(step: *Step, x: u32) anyerror!void {
 }
 
 pub fn @"CDR"(step: *Step, x: u32) anyerror!void {
-    if (x == wisp.nil) {
-        step.give(.val, wisp.nil);
+    if (x == Wisp.nil) {
+        step.give(.val, Wisp.nil);
     } else if (step.heap.get(.duo, .cdr, x)) |cdr| {
         step.give(.val, cdr);
     } else |_| {
@@ -99,7 +101,7 @@ pub fn @"SET-SYMBOL-VALUE"(
 }
 
 pub fn @"LIST"(step: *Step, xs: []u32) anyerror!void {
-    var cur = wisp.nil;
+    var cur = Wisp.nil;
     var i = xs.len;
 
     while (i > 0) : (i -= 1) {
@@ -110,12 +112,12 @@ pub fn @"LIST"(step: *Step, xs: []u32) anyerror!void {
 }
 
 pub fn @"EQ"(step: *Step, x: u32, y: u32) anyerror!void {
-    step.give(.val, if (x == y) wisp.t else wisp.nil);
+    step.give(.val, if (x == y) Wisp.t else Wisp.nil);
 }
 
 pub fn @"PRINT"(step: *Step, x: u32) anyerror!void {
     const out = std.io.getStdOut().writer();
-    try dump.dump(step.heap, out, x);
+    try Dump.dump(step.heap, out, x);
     try out.writeByte('\n');
     step.give(.val, x);
 }
@@ -123,12 +125,12 @@ pub fn @"PRINT"(step: *Step, x: u32) anyerror!void {
 pub fn @"TYPE-OF"(step: *Step, x: u32) anyerror!void {
     const kwd = step.heap.kwd;
 
-    if (x == wisp.nil) {
+    if (x == Wisp.nil) {
         step.give(.val, kwd.NULL);
-    } else if (x == wisp.t) {
+    } else if (x == Wisp.t) {
         step.give(.val, kwd.BOOLEAN);
     } else {
-        step.give(.val, switch (wisp.tagOf(x)) {
+        step.give(.val, switch (Wisp.tagOf(x)) {
             .int => kwd.INTEGER,
             .chr => kwd.CHARACTER,
             .duo => kwd.CONS,
@@ -190,7 +192,7 @@ pub fn @"CALL/CC"(step: *Step, function: u32) anyerror!void {
     const hop = try step.heap.get(.ktx, .hop, step.run.way);
     try step.call(step.run.way, function, try step.heap.new(.duo, .{
         .car = hop,
-        .cdr = wisp.nil,
+        .cdr = Wisp.nil,
     }), true);
 }
 
@@ -214,21 +216,21 @@ pub fn LOAD(step: *Step, src: u32) anyerror!void {
     const code = try Disk.readFileAlloc(step.heap.orb, path);
     defer step.heap.orb.free(code);
 
-    const forms = try read.readMany(step.heap, code);
+    const forms = try Read.readMany(step.heap, code);
     defer forms.deinit();
 
     for (forms.items) |form| {
         var run = Step.initRun(form);
-        try dump.warn("loading", step.heap, form);
+        try Dump.warn("loading", step.heap, form);
         if (Step.evaluate(step.heap, &run, 1_000, false)) |_| {} else |err| {
-            try dump.warn("failed", step.heap, form);
-            try dump.warn("condition", step.heap, run.err);
+            try Dump.warn("failed", step.heap, form);
+            try Dump.warn("condition", step.heap, run.err);
             step.run.err = run.err;
             return err;
         }
     }
 
-    step.give(.val, wisp.t);
+    step.give(.val, Wisp.t);
 }
 
 pub fn ENV(step: *Step) anyerror!void {
@@ -243,5 +245,5 @@ pub fn STEP(step: *Step, runptr: u32) anyerror!void {
     var run = try step.heap.row(.run, runptr);
     try Step.once(step.heap, &run);
     try step.heap.put(.run, runptr, run);
-    step.give(.val, wisp.nil);
+    step.give(.val, Wisp.nil);
 }

@@ -24,10 +24,10 @@ new: Wisp.Heap,
 
 const std = @import("std");
 
-const Wisp = @import("./ff-wisp.zig");
-const Step = @import("./04-step.zig");
-const Read = @import("./05-read.zig");
-const Dump = @import("./06-dump.zig");
+const Wisp = @import("./wisp.zig");
+const Step = @import("./step.zig");
+const Read = @import("./read.zig");
+const Dump = @import("./dump.zig");
 
 const Heap = Wisp.Heap;
 const Col = Wisp.Col;
