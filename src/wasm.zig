@@ -20,7 +20,7 @@
 const std = @import("std");
 
 const Wisp = @import("./wisp.zig");
-const Read = @import("./read.zig");
+const Read = @import("./sexp-read.zig");
 const Step = @import("./step.zig");
 const Jets = @import("./jets.zig");
 

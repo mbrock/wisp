@@ -21,8 +21,7 @@ const std = @import("std");
 
 const Wisp = @import("./wisp.zig");
 const Tidy = @import("./tidy.zig");
-const Read = @import("./read.zig");
-const Dump = @import("./dump.zig");
+const Sexp = @import("./sexp.zig");
 const Jets = @import("./jets.zig");
 
 const Step = @This();
@@ -62,15 +61,14 @@ pub fn once(heap: *Heap, run: *Run) !void {
 
     if (wtf) {
         std.log.warn("\n", .{});
-        // try dump.warn("way", heap, run.way);
-        try Dump.warn("env", heap, run.env);
+        try Sexp.warn("env", heap, run.env);
     }
 
     const exp = run.exp;
     const val = run.val;
 
     if (val == nah) {
-        if (wtf) try Dump.warn("exp", heap, exp);
+        if (wtf) try Sexp.warn("exp", heap, exp);
         switch (Wisp.tagOf(exp)) {
             .int, .v08, .sys => step.give(.val, exp),
             .sym => return step.findVariable(exp),
@@ -78,7 +76,7 @@ pub fn once(heap: *Heap, run: *Run) !void {
             else => return Oof.Bug,
         }
     } else {
-        if (wtf) try Dump.warn("val", heap, val);
+        if (wtf) try Sexp.warn("val", heap, val);
         return step.proceed(val);
     }
 }
@@ -206,9 +204,9 @@ fn execDuo(step: *Step, duo: Wisp.Row(.duo)) !void {
     const val = step.run.val;
 
     if (wtf) {
-        try Dump.warn("macroexpansion", step.heap, val);
-        try Dump.warn("old env", step.heap, step.run.env);
-        try Dump.warn("new env", step.heap, duo.car);
+        try Sexp.warn("macroexpansion", step.heap, val);
+        try Sexp.warn("old env", step.heap, step.run.env);
+        try Sexp.warn("new env", step.heap, duo.car);
     }
 
     step.run.* = .{
@@ -321,14 +319,14 @@ pub fn call(
         },
 
         else => {
-            try Dump.warn("oof", step.heap, funptr);
+            try Sexp.warn("oof", step.heap, funptr);
             return Oof.Bug;
         },
     }
 }
 
 pub fn debug(heap: *Heap, txt: []const u8, val: u32) !void {
-    try Dump.warn(txt, heap, val);
+    try Sexp.warn(txt, heap, val);
 }
 
 const Ktx = struct {
@@ -484,7 +482,7 @@ pub fn execKtx(step: *Step, ktx: Wisp.Row(.ktx)) !void {
         .fun => return Ktx.funargs(step, ktx),
 
         else => {
-            try Dump.warn("exec ktx", step.heap, ktx.fun);
+            try Sexp.warn("exec ktx", step.heap, ktx.fun);
             unreachable;
         },
     }
@@ -713,16 +711,16 @@ pub fn expectEval(want: []const u8, src: []const u8) !void {
     var heap = try newTestHeap();
     defer heap.deinit();
 
-    const exp = try Read.read(&heap, src);
+    const exp = try Sexp.read(&heap, src);
     var run = initRun(exp);
 
     if (evaluate(&heap, &run, 1_000, true)) |val| {
-        const valueString = try Dump.printAlloc(heap.orb, &heap, val);
+        const valueString = try Sexp.printAlloc(heap.orb, &heap, val);
 
         defer heap.orb.free(valueString);
 
-        const wantValue = try Read.read(&heap, want);
-        const wantString = try Dump.printAlloc(
+        const wantValue = try Sexp.read(&heap, want);
+        const wantString = try Sexp.printAlloc(
             heap.orb,
             &heap,
             wantValue,
@@ -732,7 +730,7 @@ pub fn expectEval(want: []const u8, src: []const u8) !void {
 
         try expectEqualStrings(wantString, valueString);
     } else |e| {
-        try Dump.warn("Error", &heap, run.err);
+        try Sexp.warn("Error", &heap, run.err);
         return e;
     }
 }

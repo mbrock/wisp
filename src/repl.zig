@@ -23,8 +23,8 @@ const builtin = @import("builtin");
 const Wisp = @import("./wisp.zig");
 const Tidy = @import("./tidy.zig");
 const Step = @import("./step.zig");
-const Read = @import("./read.zig");
-const Dump = @import("./dump.zig");
+const Read = @import("./sexp-read.zig");
+const Dump = @import("./sexp-dump.zig");
 const Jets = @import("./jets.zig");
 const Wasm = @import("./wasm.zig");
 

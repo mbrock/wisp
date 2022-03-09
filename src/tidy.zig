@@ -26,8 +26,7 @@ const std = @import("std");
 
 const Wisp = @import("./wisp.zig");
 const Step = @import("./step.zig");
-const Read = @import("./read.zig");
-const Dump = @import("./dump.zig");
+const Sexp = @import("./sexp.zig");
 
 const Heap = Wisp.Heap;
 const Col = Wisp.Col;
@@ -197,7 +196,7 @@ test "read and tidy" {
     var heap = try Heap.init(std.testing.allocator, .e0);
     defer heap.deinit();
 
-    const t1 = try Read.read(&heap, "(foo (bar (baz)))");
+    const t1 = try Sexp.read(&heap, "(foo (bar (baz)))");
     const v1 = try heap.intern("X", heap.base);
 
     try heap.set(.sym, .val, v1, t1);
@@ -208,14 +207,14 @@ test "read and tidy" {
     const v2 = try heap.intern("X", heap.base);
     const t2 = try heap.get(.sym, .val, v2);
 
-    try Dump.expect("(FOO (BAR (BAZ)))", &heap, t2);
+    try Sexp.expectDump("(FOO (BAR (BAZ)))", &heap, t2);
 }
 
 test "tidy ephemeral strings" {
     var heap = try Heap.init(std.testing.allocator, .e0);
     defer heap.deinit();
 
-    const x = try Read.read(&heap,
+    const x = try Sexp.read(&heap,
         \\ ("foo" "bar" "baz")
     );
 

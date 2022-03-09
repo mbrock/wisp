@@ -22,8 +22,7 @@ const std = @import("std");
 const Wisp = @import("./wisp.zig");
 
 const Step = @import("./step.zig");
-const Read = @import("./read.zig");
-const Dump = @import("./dump.zig");
+const Sexp = @import("./sexp.zig");
 const Disk = @import("./disk.zig");
 const Jets = @import("./jets.zig");
 
@@ -117,7 +116,7 @@ pub fn @"EQ"(step: *Step, x: u32, y: u32) anyerror!void {
 
 pub fn @"PRINT"(step: *Step, x: u32) anyerror!void {
     const out = std.io.getStdOut().writer();
-    try Dump.dump(step.heap, out, x);
+    try Sexp.dump(step.heap, out, x);
     try out.writeByte('\n');
     step.give(.val, x);
 }
@@ -216,15 +215,15 @@ pub fn LOAD(step: *Step, src: u32) anyerror!void {
     const code = try Disk.readFileAlloc(step.heap.orb, path);
     defer step.heap.orb.free(code);
 
-    const forms = try Read.readMany(step.heap, code);
+    const forms = try Sexp.readMany(step.heap, code);
     defer forms.deinit();
 
     for (forms.items) |form| {
         var run = Step.initRun(form);
-        try Dump.warn("loading", step.heap, form);
+        try Sexp.warn("loading", step.heap, form);
         if (Step.evaluate(step.heap, &run, 1_000, false)) |_| {} else |err| {
-            try Dump.warn("failed", step.heap, form);
-            try Dump.warn("condition", step.heap, run.err);
+            try Sexp.warn("failed", step.heap, form);
+            try Sexp.warn("condition", step.heap, run.err);
             step.run.err = run.err;
             return err;
         }

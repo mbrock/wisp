@@ -24,8 +24,7 @@ const same = std.testing.expectEqual;
 const Wisp = @import("./wisp.zig");
 const Tidy = @import("./tidy.zig");
 const Step = @import("./step.zig");
-const Read = @import("./read.zig");
-const Dump = @import("./dump.zig");
+const Sexp = @import("./sexp.zig");
 
 const Tag = Wisp.Tag;
 const Era = Wisp.Era;
@@ -221,14 +220,14 @@ pub const Heap = struct {
     }
 
     pub fn load(heap: *Heap, str: []const u8) !void {
-        const forms = try Read.readMany(heap, str);
+        const forms = try Sexp.readMany(heap, str);
         defer forms.deinit();
 
         for (forms.items) |form| {
             var run = Step.initRun(form);
             _ = Step.evaluate(heap, &run, 1_000, false) catch {
-                try Dump.warn("failed", heap, form);
-                try Dump.warn("condition", heap, run.err);
+                try Sexp.warn("failed", heap, form);
+                try Sexp.warn("condition", heap, run.err);
                 break;
             };
         }

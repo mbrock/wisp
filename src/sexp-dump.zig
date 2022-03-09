@@ -30,7 +30,7 @@ test "print one" {
     try std.testing.expectEqualStrings("1", list.items);
 }
 
-pub fn expect(
+pub fn expectDump(
     expected: []const u8,
     heap: *Heap,
     x: u32,
@@ -57,14 +57,6 @@ pub fn warn(prefix: []const u8, heap: *Heap, word: u32) !void {
 }
 
 pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
-    return dump_(heap, out, x);
-}
-
-pub fn dump_(
-    heap: *Heap,
-    out: anytype,
-    x: u32,
-) anyerror!void {
     switch (Wisp.tagOf(x)) {
         .int => try out.print("{d}", .{x}),
 

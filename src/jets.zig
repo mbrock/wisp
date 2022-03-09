@@ -17,8 +17,8 @@
 // <https://www.gnu.org/licenses/>.
 //
 
-pub const Funs = @import("./fops.zig");
-pub const Ctls = @import("./mops.zig");
+pub const Funs = @import("./jets-fun.zig");
+pub const Ctls = @import("./jets-ctl.zig");
 
 pub const jets = makeOpArray(Ctls, .ctl) ++ makeOpArray(Funs, .fun);
 
