@@ -33,7 +33,7 @@ const buttonStyle = {
 function renderWay(data: View, way: number, child: JSX.Element): JSX.Element {
   if (way == data.ctx.sys.top)
     return child
-  
+
   const { hop, fun, acc, arg } = data.row("ktx", way)
 
   const accs = listItems(data, acc)
@@ -42,7 +42,7 @@ function renderWay(data: View, way: number, child: JSX.Element): JSX.Element {
   function show(x: number, i: number): JSX.Element {
     return <Val data={data} v={x} key={i} />
   }
-  
+
   const me = (
     <div className="list">
       {show(fun, 0)}
@@ -67,7 +67,7 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
 
   const row = data.row("run", run)
   const { way, exp, val, env } = row
-  
+
   const cur = exp == data.ctx.sys.nah ? val : exp
 
   const disabled =
@@ -76,7 +76,7 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
     env == data.ctx.sys.nil
 
   const color = exp == data.ctx.sys.nah ? "#aaf5" : "#ffa5"
-  
+
   return (
     <div style={{
       border: "1px solid #ccc",
@@ -86,7 +86,7 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
       display: "flex",
       flexDirection: "column",
     }}>
-      <header style={{           
+      <header style={{
         display: "flex",
         justifyContent: "space-between",
       }}>
@@ -110,7 +110,7 @@ function table(data: View, row: Record<string, number>) {
   const tableStyle = {
     padding: "5px 10px",
   }
-  
+
   return (
     <table style={tableStyle}>
       <tbody>
@@ -220,7 +220,7 @@ const Val = ({ data, v }: { data: View, v: number }) => {
     }
 
     case "run": {
-      return <Debugger data={data} run={v} /> 
+      return <Debugger data={data} run={v} />
     }
 
     case "ktx": {
@@ -281,14 +281,49 @@ interface Turn {
 
 const Home = ({ ctx }: { ctx: Wisp }) => {
   const [lines, setLines] = React.useState([] as Turn[])
-  const [input, setInput] = React.useState("")
+  const [history, setHistory] = React.useState([""])
+  const [historyCursor, setHistoryCursor] = React.useState(0)
 
   function exec(s: string) {
     const exp = ctx.read(s)
     const val = ctx.eval(exp)
     setLines(xs => [...xs, {
       exp, val
-    }])    
+    }])
+  }
+
+  function onSubmit(e) {
+    e.preventDefault()
+
+    exec(history[historyCursor])
+
+    if (historyCursor > 0) {
+      setHistory(xs => ["", history[historyCursor], ...xs])
+    } else {
+      setHistory(xs => ["", ...xs])
+    }
+
+    return false
+  }
+
+  function onKeyDown(e) {
+    console.log(e.key)
+    if (e.key === "ArrowUp") {
+      e.preventDefault()
+      if (historyCursor + 1 < history.length) {
+        setHistoryCursor(historyCursor + 1)
+      }
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault()
+      if (historyCursor > 0) {
+        setHistoryCursor(historyCursor - 1)
+      }
+    }
+  }
+
+  function onChange(e) {
+    setHistory(xs => [e.target.value, ...xs.slice(1)])
+    setHistoryCursor(0)
   }
 
   React.useEffect(() => {
@@ -314,22 +349,11 @@ const Home = ({ ctx }: { ctx: Wisp }) => {
           )
         }
       </div>
-      <form id="form"
-        onSubmit={e => {
-            e.preventDefault()
-            const exp = ctx.read(input)
-            const val = ctx.eval(exp)
-            setLines(xs => [...xs, {
-              exp, val
-            }])
-            setInput("")
-            return false
-        }}>
-        <input
-          id="input" autoFocus autoComplete="off"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-        />
+      <form id="form" onSubmit={onSubmit}>
+        <input id="input" autoFocus autoComplete="off"
+          value={history[historyCursor]}
+          onKeyDown={onKeyDown}
+          onChange={onChange} />
       </form>
     </div>
   )
@@ -358,7 +382,7 @@ onload = async () => {
   })
 
   const exports = instance.exports as unknown as WispAPI
-  
+
   wasi.setMemory(exports.memory)
 
   ctx = new Wisp(instance)
