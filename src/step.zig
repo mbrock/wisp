@@ -346,6 +346,9 @@ const Ktx = struct {
             .cdr = ktx.acc,
         });
 
+        // Come back to the environment of the call form.
+        step.run.env = ktx.env;
+
         if (ktx.arg == nil) {
             step.run.way = ktx.hop;
             try call(step, ktx.fun, acc, true);
@@ -910,6 +913,12 @@ test "defun with &rest" {
         \\ (progn
         \\   (defun foo (x &rest xs) (cons x xs))
         \\   (foo 'x 1 2 3))
+    );
+}
+
+test "MAPCAR with LAMBDA" {
+    try expectEval("(2 3 4)",
+        \\ (mapcar (lambda (x) (+ x 1)) '(1 2 3))
     );
 }
 
