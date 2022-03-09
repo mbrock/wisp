@@ -193,7 +193,7 @@
   (list 'progn
         (list 'defun f args body)
         (list 'setf
-              (list 'get f (list 'quote body))
+              (list 'get (list 'quote f) (list 'quote 'code))
               (list 'quote (list 'defun f args body)))))
 
 (defun-save-code pretty (x)

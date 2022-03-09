@@ -23,8 +23,7 @@ const builtin = @import("builtin");
 const Wisp = @import("./wisp.zig");
 const Tidy = @import("./tidy.zig");
 const Step = @import("./step.zig");
-const Read = @import("./sexp-read.zig");
-const Dump = @import("./sexp-dump.zig");
+const Sexp = @import("./sexp.zig");
 const Jets = @import("./jets.zig");
 const Wasm = @import("./wasm.zig");
 
@@ -50,7 +49,7 @@ fn readSexp(
     heap: *Wisp.Heap,
 ) !?u32 {
     if (try readLine(stream, orb)) |line| {
-        return try Read.read(heap, line);
+        return try Sexp.read(heap, line);
     } else {
         return null;
     }
@@ -67,7 +66,7 @@ pub fn repl() anyerror!void {
     try Jets.load(&heap);
     try heap.cook();
 
-    var baseTestRun = Step.initRun(try Read.read(&heap, "(base-test)"));
+    var baseTestRun = Step.initRun(try Sexp.read(&heap, "(base-test)"));
 
     _ = try Step.evaluate(&heap, &baseTestRun, 1_000_000, false);
 
@@ -84,18 +83,19 @@ pub fn repl() anyerror!void {
 
             term: while (true) {
                 if (Step.evaluate(&heap, &run, 100_000, false)) |val| {
-                    try Dump.dump(&heap, stdout, val);
-                    try stdout.writeByte('\n');
+                    const pretty = try Sexp.prettyPrint(&heap, val, 62);
+                    defer heap.orb.free(pretty);
+                    try stdout.print("{s}\n", .{pretty});
                     try Tidy.gc(&heap);
                     continue :repl;
                 } else |e| {
                     if (run.err == Wisp.nil) {
                         return e;
                     } else {
-                        try Dump.warn("Condition", &heap, run.err);
-                        try Dump.warn("Term", &heap, run.exp);
-                        try Dump.warn("Value", &heap, run.val);
-                        try Dump.warn("Environment", &heap, run.env);
+                        try Sexp.warn("Condition", &heap, run.err);
+                        try Sexp.warn("Term", &heap, run.exp);
+                        try Sexp.warn("Value", &heap, run.val);
+                        try Sexp.warn("Environment", &heap, run.env);
 
                         try stdout.writeAll("*> ");
                         if (try readSexp(stdin, tmp, &heap)) |restart| {

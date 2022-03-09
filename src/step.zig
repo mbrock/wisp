@@ -488,7 +488,7 @@ pub fn execKtx(step: *Step, ktx: Wisp.Row(.ktx)) !void {
     }
 }
 
-fn scanListAlloc(heap: *Heap, list: u32) !std.ArrayList(u32) {
+pub fn scanListAlloc(heap: *Heap, list: u32) !std.ArrayList(u32) {
     var xs = std.ArrayList(u32).init(heap.orb);
     errdefer xs.deinit();
 

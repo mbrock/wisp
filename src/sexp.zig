@@ -19,3 +19,4 @@
 
 pub usingnamespace @import("./sexp-read.zig");
 pub usingnamespace @import("./sexp-dump.zig");
+pub usingnamespace @import("./sexp-prty.zig");

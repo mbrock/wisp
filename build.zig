@@ -5,7 +5,7 @@ fn wispStep(
     target: std.zig.CrossTarget,
     step: *std.build.LibExeObjStep,
 ) *std.build.LibExeObjStep {
-    step.addPackagePath("ziglyph", "vendor/ziglyph/src/ziglyph.zig");
+    step.addPackagePath("ziglyph", "lib/ziglyph/src/ziglyph.zig");
     step.setTarget(target);
     step.setBuildMode(mode);
     return step;
@@ -39,12 +39,19 @@ pub fn build(b: *std.build.Builder) void {
         "src/repl.zig",
     ));
 
+    const testsPrty = wispStep(mode, standardTarget, b.addTest(
+        "src/sexp-prty.zig",
+    ));
+
     exe.install();
     wasmExe.install();
     wasmLib.install();
 
     const testStep = b.step("test", "Run unit tests");
     testStep.dependOn(&tests.step);
+
+    const testPrtyStep = b.step("test-prty", "Run tests for Prty");
+    testPrtyStep.dependOn(&testsPrty.step);
 
     const runCmd = exe.run();
     runCmd.step.dependOn(b.getInstallStep());

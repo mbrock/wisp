@@ -59,9 +59,13 @@ pub const Kwd = enum {
 
     @"&REST",
 
-    PROGN,
-    LET,
+    COND,
+    DEFUN,
     IF,
+    LAMBDA,
+    LET,
+    PROGN,
+    @"CALL/CC",
 
     BOOLEAN,
     CHARACTER,
