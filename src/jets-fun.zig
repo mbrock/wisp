@@ -244,7 +244,19 @@ pub fn ENV(step: *Step) anyerror!void {
 }
 
 pub fn RUN(step: *Step, exp: u32) anyerror!void {
-    step.give(.val, try step.heap.new(.run, Step.initRun(exp)));
+    // The current continuation is the call to RUN, so we take
+    // the parent continuation of that.
+    const hop = try step.heap.get(.ktx, .hop, step.run.way);
+
+    const run = Wisp.Row(.run){
+        .way = hop,
+        .env = step.run.env,
+        .err = Wisp.nil,
+        .val = Wisp.nah,
+        .exp = exp,
+    };
+
+    step.give(.val, try step.heap.new(.run, run));
 }
 
 pub fn STEP(step: *Step, runptr: u32) anyerror!void {
