@@ -71,9 +71,11 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
   const cur = exp == data.ctx.sys.nah ? val : exp
 
   const disabled =
-    exp == data.ctx.sys.nah &&
-    way == data.ctx.sys.top &&
-    env == data.ctx.sys.nil
+    err != data.ctx.sys.nil || (
+      exp == data.ctx.sys.nah
+      && way == data.ctx.sys.top
+      && env == data.ctx.sys.nil
+    )
 
   let color = "#ffa5"
 
