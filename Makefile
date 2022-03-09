@@ -15,6 +15,7 @@ zig-out/lib/wisp.wasm: build.zig $(ZIGSOURCES)
 	zig build
 
 web:
+	zig build test
 	zig build
 	./build
 

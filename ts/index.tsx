@@ -110,6 +110,7 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
         <Val data={data} v={env} />}
       {err == data.ctx.sys.nil ? null :
         <Val data={data} v={err} />}
+      <Val data={data} v={way} />
     </div>
   )
 }
@@ -168,7 +169,7 @@ const Val = ({ data, v }: { data: View, v: number }) => {
 
     case "jet": {
       const name = data.jetName(v)
-      return <span>{name}</span>
+      return <span>《{name}》</span>
     }
 
     case "sys": {
@@ -228,7 +229,7 @@ const Val = ({ data, v }: { data: View, v: number }) => {
     case "fun": {
       const row = data.row("fun", v)
       if (row.sym != data.ctx.sys.nil)
-        return <Val data={data} v={row.sym} />
+        return <span>《<Val data={data} v={row.sym} />》</span>
       else
         return table(data, data.row("fun", v))
     }
@@ -355,8 +356,8 @@ const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
   }
 
   React.useEffect(() => {
-    exec("(run '(let ((x (+ 1 2)) (y 3)) (+ x y)))")
     exec("(run '(append '(1 2 3) '(a b c)))")
+    exec("(run '(mapcar (lambda (x) (+ x 1)) '(1 2 3)))")
   }, [])
 
   return (
