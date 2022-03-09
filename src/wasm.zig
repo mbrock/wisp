@@ -87,6 +87,17 @@ export fn wisp_run_init(heap: *Wisp.Heap, exp: u32) u32 {
     }) catch Wisp.zap;
 }
 
+export fn wisp_run_eval(
+    heap: *Wisp.Heap,
+    runptr: u32,
+    max: u32,
+) u32 {
+    var run = heap.row(.run, runptr) catch return Wisp.zap;
+    const val = Step.evaluate(heap, &run, max) catch Wisp.zap;
+    heap.put(.run, runptr, run) catch return Wisp.zap;
+    return val;
+}
+
 export fn wisp_eval_step(heap: *Wisp.Heap, runptr: u32) u32 {
     var run = heap.row(.run, runptr) catch return Wisp.zap;
 

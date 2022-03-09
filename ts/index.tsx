@@ -66,7 +66,7 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
   }
 
   const row = data.row("run", run)
-  const { way, exp, val, env } = row
+  const { way, exp, val, env, err } = row
 
   const cur = exp == data.ctx.sys.nah ? val : exp
 
@@ -75,7 +75,12 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
     way == data.ctx.sys.top &&
     env == data.ctx.sys.nil
 
-  const color = exp == data.ctx.sys.nah ? "#aaf5" : "#ffa5"
+  let color = "#ffa5"
+
+  if (exp == data.ctx.sys.nah)
+    color = "#aaf5"
+  else if (err != data.ctx.sys.nil)
+    color = "#faa5"
 
   return (
     <div style={{
@@ -94,14 +99,15 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
           Step
         </button>
       </header>
-      <div>
-        {renderWay(data, way,
-          <div style={{ background: color, borderRadius: 6, padding: "0 2.5px" }}>
-            <Val data={data} v={cur} />
-          </div>)}
-      </div>
+      {renderWay(data, way,
+        <div style={{ background: color, borderRadius: 6, padding: "0 2.5px" }}>
+          <Val data={data} v={cur} />
+        </div>
+      )}
       {env == data.ctx.sys.nil ? null :
         <Val data={data} v={env} />}
+      {err == data.ctx.sys.nil ? null :
+        <Val data={data} v={err} />}
     </div>
   )
 }
@@ -144,6 +150,12 @@ function listItems(data: View, v: number): number[] {
   }
 
   return list
+}
+
+const Err = ({ data, run }: { data: View, run: number }) => {
+  return (
+    <Debugger data={data} run={run} />
+  )
 }
 
 const Val = ({ data, v }: { data: View, v: number }) => {
@@ -255,6 +267,8 @@ const Line = ({ data, turn, i }: {
   turn: Turn,
   i: number,
 }) => {
+  const run = data.row("run", turn.run) as unknown as Run
+
   return (
     <div style={{ marginBottom: "0.5rem",
                   display: "flex",
@@ -264,35 +278,48 @@ const Line = ({ data, turn, i }: {
                 }}>
       <span>
         <span style={{ opacity: 0.4, padding: "0 1.5rem 0 0" }}>Exp #{i}</span>
-        <Val data={data} v={turn.exp} />
+        <Val data={data} v={turn.src} />
       </span>
       <span style={{ display: "flex" }}>
         <span style={{ opacity: 0.4, padding: "0 1.5rem 0 0" }}>Val #{i}</span>
-        <Val data={data} v={turn.val} />
+        { run.err == data.ctx.sys.nil
+            ? <Val data={data} v={run.val} />
+            : <Err data={data} run={turn.run} /> }
       </span>
     </div>
   )
 }
 
-interface Turn {
+interface Run {
   exp: number
   val: number
+  err: number
+  way: number
+  env: number
 }
 
-const Home = ({ ctx }: { ctx: Wisp }) => {
+interface Turn {
+  src: number
+  run: number
+}
+
+const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
   const [lines, setLines] = React.useState([] as Turn[])
   const [history, setHistory] = React.useState([""])
   const [historyCursor, setHistoryCursor] = React.useState(0)
 
   function exec(s: string) {
-    const exp = ctx.read(s)
-    const val = ctx.eval(exp)
-    setLines(xs => [...xs, {
-      exp, val
-    }])
+    const src = ctx.read(s)
+    const run = ctx.api.wisp_run_init(ctx.heap, src)
+
+    ctx.api.wisp_run_eval(ctx.heap, run, 10_000)
+
+    render()
+
+    setLines(xs => [...xs, { src, run }])
   }
 
-  function onSubmit(e) {
+  function onSubmit(e: React.FormEvent) {
     e.preventDefault()
 
     exec(history[historyCursor])
@@ -306,7 +333,7 @@ const Home = ({ ctx }: { ctx: Wisp }) => {
     return false
   }
 
-  function onKeyDown(e) {
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     console.log(e.key)
     if (e.key === "ArrowUp") {
       e.preventDefault()
@@ -321,7 +348,7 @@ const Home = ({ ctx }: { ctx: Wisp }) => {
     }
   }
 
-  function onChange(e) {
+  function onChange(e: React.ChangeEvent<HTMLInputElement>) {
     setHistory(xs => [e.target.value, ...xs.slice(1)])
     setHistoryCursor(0)
   }
@@ -345,7 +372,7 @@ const Home = ({ ctx }: { ctx: Wisp }) => {
         {
           lines.map(
             (turn, i) =>
-              <Line data={ctx.view()} turn={turn} i={i} key={i} />
+              <Line data={data} turn={turn} i={i} key={i} />
           )
         }
       </div>
@@ -368,8 +395,10 @@ declare global {
 let ctx: Wisp = null
 
 function render() {
+  const data = ctx.view()
+
   ReactDOM.render(
-    <Home ctx={ctx} />,
+    <Home ctx={ctx} data={data} />,
     document.querySelector("#app")
   )
 }

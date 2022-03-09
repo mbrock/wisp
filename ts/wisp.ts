@@ -63,8 +63,12 @@ export interface WispAPI {
   wisp_dat_read(heap: number, dat: number): void
 
   wisp_read(heap: number, buf: number): number
+  
   wisp_eval(heap: number, exp: number, max: number): number
   wisp_eval_step(heap: number, run: number): number
+
+  wisp_run_init(heap: number, exp: number): number
+  wisp_run_eval(heap: number, run: number, max: number): number
 
   wisp_jet_name(jet: number): number
   wisp_jet_name_len(jet: number): number
