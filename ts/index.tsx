@@ -23,11 +23,19 @@ import { WASI } from "./wasi"
 import * as ReactDOM from "react-dom"
 import * as React from "react"
 
-const buttonStyle = {
-  border: "1.5px outset #ddd",
-  background: "#f0f0f0",
-  fontSize: "inherit",
-  flexGrow: 1,
+import { VscDebugStepInto, VscDebugStepOut, VscDebugStepOver, VscGithub } from "react-icons/vsc"
+
+import "./index.css"
+
+import wispWasmPath from "../zig-out/lib/wisp.wasm"
+
+const css = {
+
+  sexp: {
+    list: `border-x-2 border-gray-400 rounded-lg px-1 inline-flex flex-row flex-wrap gap-x-2 items-center hover:border-cyan-600 cursor-pointer w-fit max-w-sm`,
+
+    v32: `border-x-4 border-gray-400 border-y rounded-md px-1 py-1 inline-flex flex-row flex-wrap gap-x-2 items-center hover:border-cyan-600 cursor-pointer w-fit max-w-sm`,
+  }
 }
 
 function renderWay(data: View, way: number, child: JSX.Element): JSX.Element {
@@ -44,7 +52,7 @@ function renderWay(data: View, way: number, child: JSX.Element): JSX.Element {
   }
 
   const me = (
-    <div className="list">
+    <div className={css.sexp.list}>
       {show(fun, 0)}
       {accs.reverse().map(show)}
       {child}
@@ -77,12 +85,19 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
       && env == data.ctx.sys.nil
     )
 
-  let color = "#ffa5"
+  let color = "ring-1 ring-gray-300 py-px px-1 rounded-md "
+  let title = ""
 
-  if (err != data.ctx.sys.nil)
-    color = "#faa5"
-  else if (exp == data.ctx.sys.nah)
-    color = "#aaf5"
+  if (err != data.ctx.sys.nil) {
+    color += "bg-red-100"
+    title = "error"
+  } else if (exp == data.ctx.sys.nah) {
+    color += "bg-blue-100"
+    title = ""
+  } else {
+    color += "bg-yellow-50"
+    title = ""
+  }
 
   function restart(s: string): void {
     const src = ctx.read(s)
@@ -90,48 +105,112 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
     render()
   }
 
+  const IconButton: React.FC<{
+    action: () => void,
+    left?: boolean,
+    right?: boolean,
+  }> = ({
+    action, left, right, children,
+  }) => {
+    const classes = `
+      inline-flex items-center py-1 px-2 border border-gray-300
+      bg-white font-medium text-gray-700 hover:bg-gray-50
+      focus:ring-1 focus:ring-indigo-500
+      ${left ? "rounded-l-md" : (right ? "rounded-r-md" : "")}
+    `
+    
+    return (
+      <button className={classes}
+        disabled={disabled}
+        onClick={action}>
+        {children}
+      </button>
+    )
+  }
+
+  const envs: number[][][] = listItems(data, env).map((env, i) => {
+    const v32 = Array.from(data.getV32(env))
+    const vars = []
+    
+    while (v32.length > 0) {
+      vars.push([v32.shift(), v32.shift()])
+    }
+    
+    return vars
+  })
+
+  const renderRow = ([k, v]: number[], i: number) => (
+    <tr key={i}>
+      <td className="px-1 font-medium text-right"><Val data={data} v={k}/></td>
+      <td className="px-1 text-left"><Val data={data} v={v}/></td>
+    </tr>
+  )
+
+  const renderScope = (scope: number[][], i: number) => (
+    <tbody key={i}>
+      {scope.map(renderRow)}
+    </tbody>
+  )
+  
+  const scopes = envs.length > 0 ? (
+    <table className="table-auto divide-y bg-white border mb-1 text-sm">
+      {envs.map(renderScope)}
+    </table>
+  ) : null
+
+  const condition = (
+    err === data.ctx.sys.nil
+     ? <></>
+     : (
+       <div className="flex flex-col gap">
+         <Val data={data} v={err} />
+         <Form done={restart} placeholder="Restart" />
+       </div>
+     )
+  )
+
   return (
-    <div style={{
-      border: "1px solid #ccc",
-      background: "#fffa",
-      padding: 5,
-      gap: 5,
-      display: "flex",
-      flexDirection: "column",
-      flexGrow: 1,
-    }}>
-      <header style={{
-        display: "flex",
-        justifyContent: "space-between",
-      }}>
-        <button disabled={disabled} onClick={doStep} style={buttonStyle}>
-          Step
-        </button>
-      </header>
-      {renderWay(data, way,
-        <div style={{ background: color, borderRadius: 6, padding: "0 2.5px" }}>
-          <Val data={data} v={cur} />
+    <div className="border-gray-300 bg-white border rounded-lg flex flex-row gap-2 divide-x-2">
+      <div className="w-2/3 flex flex-col gap-1 p-1 px-2">
+         <span className="font-medium text-sm text-gray-500">Evaluation</span>
+         {renderWay(data, way,
+            <Val data={data} v={cur} style={color} />
+          )}
+      </div>
+  
+      <aside className="w-1/3 bg-gray-50 flex flex-col divide-y rounded-r-lg">
+        <div className="flex p-1">
+          <IconButton action={doStep} left>
+            <VscDebugStepInto />
+          </IconButton>
+          <IconButton action={doStep}>
+            <VscDebugStepOver />
+          </IconButton>
+          <IconButton action={doStep} right>
+            <VscDebugStepOut />
+          </IconButton>
         </div>
-      )}
-      {env == data.ctx.sys.nil ? null :
-        <Val data={data} v={env} />}
-      {err == data.ctx.sys.nil ? null :
-        <div>
-          <Val data={data} v={err} />
-          <Form done={restart} placeholder="Restart" />
+        <div className="flex flex-col gap px-1">
+          <span className="font-medium text-sm text-gray-500">
+            Scopes
+          </span>
+          {scopes}
         </div>
-        }
+        <div className="px-1">
+          <span className="font-medium text-sm text-gray-500">
+            Condition
+          </span>
+          {condition}
+        </div>
+      </aside>
+
     </div>
   )
 }
 
 function table(data: View, row: Record<string, number>) {
-  const tableStyle = {
-    padding: "5px 10px",
-  }
-
   return (
-    <table style={tableStyle}>
+    <table>
       <tbody>
         {
           Object.keys(row).map((k, i) =>
@@ -171,43 +250,43 @@ const Err = ({ data, run }: { data: View, run: number }) => {
   )
 }
 
-const Val = ({ data, v }: { data: View, v: number }) => {
+const Val = ({ data, v, style }: { data: View, v: number, style?: string }) => {
   const vtag = data.ctx.tagOf(v)
   switch (vtag) {
     case "int": {
       const i = v & (1 << 30) ? ((-(~v << 1) >> 1) - 1): v
-      return <span>{i}</span>
+      return <span className={style}>{i}</span>
     }
 
     case "jet": {
       const name = data.jetName(v)
-      return <span>{name}</span>
+      return symbolSpan("WISP", name, "jet", style)
     }
 
     case "sys": {
       if (v === data.ctx.sys.nil) {
-        return <div className="list nil"></div>
+        return symbolSpan("WISP", "NIL", "nil", style)
       } else if (v === data.ctx.sys.t) {
-        return <span>T</span>
+        return symbolSpan("WISP", "T", "nil", style)
       } else if (v === data.ctx.sys.top) {
-        return <span>TOP</span>
+        return symbolSpan("WISP", "TOP", "nil", style)
       } else if (v === data.ctx.sys.nah) {
-        return <span>NAH</span>
+        return symbolSpan("WISP", "NAH", "nil", style)
       } else {
-        return <span>{v}</span>
+        return <span className={style}>{v}</span>
       }
     }
 
     case "v08": {
       const str = data.str(v)
-      return <div className="string">"{str}"</div>
+      return <span className={style}>"{str}"</span>
     }
 
     case "v32": {
       const v32 = Array.from(data.getV32(v))
-      return <div className="list v32">
+      return <span className={`${css.sexp.v32} ${style}`}>
         {v32.map((x, i) => <Val data={data} v={x} key={i} />)}
-      </div>
+      </span>
     }
 
     case "duo": {
@@ -229,29 +308,41 @@ const Val = ({ data, v }: { data: View, v: number }) => {
       }
 
       return (
-        <div className={`list ${dotted ? "dotted" : ""}`}>
+        <span className={`${css.sexp.list} ${style}`}>
           {
             list.map((x, i) =>
               <Val data={data} v={x} key={i} />)
           }
-        </div>
+        </span>
       )
     }
 
     case "fun": {
       const row = data.row("fun", v)
       if (row.sym != data.ctx.sys.nil)
-        return <span><Val data={data} v={row.sym} /></span>
+        return <Val data={data} v={row.sym} style={style} />
       else
-        return table(data, data.row("fun", v))
+        return (
+          <span className={`${css.sexp.list} ${style}`}>
+            {symbolSpan("WISP", "FN", "jet")}
+            <Val data={data} v={row.par} />
+            <Val data={data} v={row.exp} />
+          </span>
+        )
     }
 
     case "run": {
-      return <Debugger data={data} run={v} />
+      return (
+        <Debugger data={data} run={v} />
+     )
     }
 
     case "ktx": {
-      return table(data, data.row("ktx", v))
+      return (
+        <div className={style}>
+          {table(data, data.row("ktx", v))}
+        </div>
+      )
     }
 
     case "sym": {
@@ -261,20 +352,44 @@ const Val = ({ data, v }: { data: View, v: number }) => {
       const pkgstr = pkg == data.ctx.sys.nil
         ? "#" : data.str(data.row("pkg", pkg).nam)
 
-      return (
-        <span className="sym"
-              data-package={pkgstr}
-              data-name={symstr}
-              data-funtag={funtag} >
-          <span className="pkg">{pkgstr}:</span>
-          <span className="str">{data.str(str)}</span>
-        </span>
-      )
+      return symbolSpan(pkgstr, symstr, funtag, style)
     }
 
     default:
-      return <span style={{ color: "red" }}>{`${vtag}: ${v}`}</span>
+      return <span className={style}>{`${vtag}: ${v}`}</span>
   }
+}
+
+function symbolSpan(
+  pkgstr: string, symstr: string, funtag: string, style?: string
+) {
+  const extra = extraStyleForSymbol(funtag)
+
+  const classes = `
+    sym lowercase tracking-tighter text-gray-800 hover:text-blue-600
+    ${extra}
+    ${style || ""}
+  `
+
+  return (
+    <span className={classes}
+          data-package={pkgstr}
+          data-name={symstr}
+          data-funtag={funtag} >
+      <span className="pkg">{pkgstr}:</span>
+      <span className="str">{symstr}</span>
+    </span>
+  )
+}
+
+function extraStyleForSymbol(funtag: string): string {
+  switch (funtag) {
+    case "jet": return "font-medium"
+    case "fun": return "text-slate-600"
+    case "mac": return "text-cyan-600"
+  }
+
+  return ""
 }
 
 const Line = ({ data, turn, i }: {
@@ -284,41 +399,12 @@ const Line = ({ data, turn, i }: {
 }) => {
   const run = data.row("run", turn.run) as unknown as Run
 
-  const spanStyle: React.CSSProperties = {
-    fontFamily: "var(--sans)",
-    fontSize: "14px",
-    color: "#444",
-  }
-
-  const divStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "start",
-    flexDirection: "column",
-    alignContent: "center",
-    gap: "5px",
-    width: "100%",
-  }
-  
   return (
-    <div style={divStyle}>
-      <div style={divStyle}>
-        <span style={spanStyle}>
-          Expression:
-        </span>
-        <span style={{ marginLeft: 5 }}>
-          <Val data={data} v={turn.src} />
-        </span>
-      </div>
-      <div style={divStyle}>
-        <span style={spanStyle}>
-          Result:
-        </span>
-        <span style={{ display: "flex", marginLeft: 5, width: "100%" }}>
-          { run.err == data.ctx.sys.nil
-              ? <Val data={data} v={run.val} />
-              : <Err data={data} run={turn.run} /> }
-        </span>
-      </div>
+    <div className="block hover:bg-gray-50 p-2 px-3 flex flex-col justify-between gap-2">
+      <Val data={data} v={turn.src} style="" />
+      { run.err == data.ctx.sys.nil
+          ? <Val data={data} v={run.val} />
+          : <Err data={data} run={turn.run} /> }
     </div>
   )
 }
@@ -377,8 +463,10 @@ const Form = ({ done, placeholder }: {
   }
 
   return (
-    <form onSubmit={onSubmit}>
-      <input autoFocus autoComplete="off"
+    <form onSubmit={onSubmit} >
+      <input type="text"
+        className="w-full bg-white"
+        autoFocus autoComplete="off"
         placeholder={placeholder}
         value={history[historyCursor]}
         onKeyDown={onKeyDown}
@@ -388,7 +476,7 @@ const Form = ({ done, placeholder }: {
 }
 
 const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
-  const [lines, setLines] = React.useState([] as Turn[])
+  const [turns, setTurns] = React.useState([] as Turn[])
 
   function exec(s: string) {
     const src = ctx.read(s)
@@ -398,45 +486,69 @@ const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
 
     render()
 
-    setLines(xs => [...xs, { src, run }])
+    setTurns(xs => [...xs, { src, run }])
   }
 
   React.useEffect(() => {
     exec("(run '(append (list 1 x 3) '(a b c)))")
     exec("(run '(mapcar (lambda (x) (+ x 1)) '(1 2 3)))")
+    exec("(+ 1 2 3)")
+    exec(`
+      (run '(let ((x-velocity 1)
+                  (y-velocity 2))
+              (let ((mass 3))
+                (* mass (+ x-velocity y-velocity)))))
+    `)
   }, [])
 
   return (
-    <div id="repl">
-      <header className="titlebar">
-        <span>
-          <b>Wisp Notebook</b>
-        </span>
-        <span>
-          <a href="https://github.com/mbrock/wisp"
-             target="_blank"
-             style={{ opacity: 0.7 }}>
-            mbrock/wisp
-          </a>
-        </span>
-      </header>
-      <div id="output">
-        {
-          lines.map(
-            (turn, i) =>
-              <Line data={data} turn={turn} i={i} key={i} />
-          )
-        }
-      </div>
+    <div className="absolute inset-0 flex flex-col bg-gray-100">
+      <Titlebar />
+      <Notebook data={data} turns={turns} />
       <Form done={exec} placeholder="Wisp expression" />
     </div>
   )
 }
 
-declare global {
-  interface Window {
-    wispWasmUrl: string
-  }
+const Notebook = ({ data, turns }: {
+  data: View,
+  turns: Turn[],
+}) => {
+  const ref = React.useRef<HTMLUListElement>()
+  
+  React.useEffect(() => {
+    if (ref.current) {
+      ref.current.scrollTop = ref.current.scrollHeight
+    }
+  }, [turns.length]);
+  
+  const lines = turns.map((turn, i) =>
+    <ol key={i}>
+      <Line data={data} turn={turn} i={i + 1}/>
+    </ol>
+  )
+  
+  return (
+    <ul role="list" ref={ref} className="divide-y-2 border-b-2 flex flex-col flex-grow overflow-y-auto">
+      {lines}
+    </ul>
+  )
+}
+
+const Titlebar = () => {
+  return (
+    <header className="flex justify-between border-b-2 px-3 py-1 mb-1 bg-slate-50">
+      <span className="font-semibold tracking-tight text-gray-800 flex gap-1">
+        Wisp
+        <span className="text-gray-500">v0.5</span>
+      </span>
+      <a href="https://github.com/mbrock/wisp"
+         className="tracking-tight text-blue-800 flex column items-center"
+         target="_blank">
+        <VscGithub />
+      </a>
+    </header>
+  )
 }
 
 let ctx: Wisp = null
@@ -453,7 +565,7 @@ function render() {
 onload = async () => {
   const wasi = new WASI
   const { instance } = await WebAssembly.instantiateStreaming(
-    fetch(window.wispWasmUrl), {
+    fetch(wispWasmPath), {
     wasi_snapshot_preview1: wasi.exports()
   })
 

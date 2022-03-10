@@ -1,14 +1,9 @@
 #!/usr/bin/env bash
 set -ex
 rm -rf dist/*
-
-esbuild ts/index.tsx --outdir=dist --bundle --sourcemap \
-  --entry-names=[dir]/[name]-[hash]
-
+node ./build.js
 cd dist
-
 cp ../index.html .
-cp ../index.css .
 
 mvhash() {
   hash=$(sha256sum "$1")
@@ -17,15 +12,10 @@ mvhash() {
   mv "$1" "$name"
 }
 
-cp ../zig-out/lib/wisp.wasm .
-mvhash wisp.wasm
+subhash() {
+  result=$(ls $2*.$3)
+  sed -i.bak -e "s|$2.$3|$result|" $1
+}
 
-mvhash index.css
-result=$(ls index*.css)
-sed -i.bak -e "s|index.css|$result|" index.html
-
-result=$(ls wisp*.wasm)
-sed -i.bak -e "s|wisp.wasm|$result|" index.html
-
-result=$(ls index*.js)
-sed -i.bak -e "s|index.js|$result|" index.html
+subhash index.html index js
+subhash index.html index css
