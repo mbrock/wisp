@@ -244,10 +244,8 @@ pub fn APPLY(
 }
 
 pub fn @"CALL/CC"(step: *Step, function: u32) anyerror!void {
-    // Take the parent continuation of the CALL/CC form.
-    const hop = try step.heap.get(.ktx, .hop, step.run.way);
     try step.call(function, try step.heap.new(.duo, .{
-        .car = hop,
+        .car = step.run.way,
         .cdr = Wisp.nil,
     }), true);
 }
