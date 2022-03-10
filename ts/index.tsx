@@ -98,6 +98,7 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
       gap: 5,
       display: "flex",
       flexDirection: "column",
+      flexGrow: 1,
     }}>
       <header style={{
         display: "flex",
@@ -180,7 +181,7 @@ const Val = ({ data, v }: { data: View, v: number }) => {
 
     case "jet": {
       const name = data.jetName(v)
-      return <span>《{name}》</span>
+      return <span>{name}</span>
     }
 
     case "sys": {
@@ -240,7 +241,7 @@ const Val = ({ data, v }: { data: View, v: number }) => {
     case "fun": {
       const row = data.row("fun", v)
       if (row.sym != data.ctx.sys.nil)
-        return <span>《<Val data={data} v={row.sym} />》</span>
+        return <span><Val data={data} v={row.sym} /></span>
       else
         return table(data, data.row("fun", v))
     }
@@ -283,22 +284,41 @@ const Line = ({ data, turn, i }: {
 }) => {
   const run = data.row("run", turn.run) as unknown as Run
 
+  const spanStyle: React.CSSProperties = {
+    fontFamily: "var(--sans)",
+    fontSize: "14px",
+    color: "#444",
+  }
+
+  const divStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "start",
+    flexDirection: "column",
+    alignContent: "center",
+    gap: "5px",
+    width: "100%",
+  }
+  
   return (
-    <div style={{ display: "flex",
-                  alignItems: "start",
-                  flexDirection: "column",
-                  gap: "5px",
-                }}>
-      <span>
-        <span style={{ opacity: 0.4, padding: "0 1.5rem 0 0" }}>Exp #{i}</span>
-        <Val data={data} v={turn.src} />
-      </span>
-      <span style={{ display: "flex" }}>
-        <span style={{ opacity: 0.4, padding: "0 1.5rem 0 0" }}>Val #{i}</span>
-        { run.err == data.ctx.sys.nil
-            ? <Val data={data} v={run.val} />
-            : <Err data={data} run={turn.run} /> }
-      </span>
+    <div style={divStyle}>
+      <div style={divStyle}>
+        <span style={spanStyle}>
+          Expression:
+        </span>
+        <span style={{ marginLeft: 5 }}>
+          <Val data={data} v={turn.src} />
+        </span>
+      </div>
+      <div style={divStyle}>
+        <span style={spanStyle}>
+          Result:
+        </span>
+        <span style={{ display: "flex", marginLeft: 5, width: "100%" }}>
+          { run.err == data.ctx.sys.nil
+              ? <Val data={data} v={run.val} />
+              : <Err data={data} run={turn.run} /> }
+        </span>
+      </div>
     </div>
   )
 }
@@ -390,10 +410,14 @@ const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
     <div id="repl">
       <header className="titlebar">
         <span>
-          <b>Notebook</b>
+          <b>Wisp Notebook</b>
         </span>
         <span>
-          Package: <em>WISP</em>
+          <a href="https://github.com/mbrock/wisp"
+             target="_blank"
+             style={{ opacity: 0.7 }}>
+            mbrock/wisp
+          </a>
         </span>
       </header>
       <div id="output">
@@ -404,7 +428,7 @@ const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
           )
         }
       </div>
-      <Form done={exec} />
+      <Form done={exec} placeholder="Wisp expression" />
     </div>
   )
 }

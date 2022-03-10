@@ -37,7 +37,7 @@ html {
 }
 
 html {
-  --mono: Berkeley Mono, DM Mono, Source Code Pro, Inconsolata, Menlo,
+  --mono: DM Mono, Source Code Pro, Inconsolata, Menlo,
           Consolas, Monaco, Liberation Mono, Lucida Console,
           monospace;
 }
@@ -72,7 +72,7 @@ html {
 
 #output > * {
   border: 1px solid #ccc;
-  padding: 5px;
+  padding: 7px;
   background: #fafafa;
 }
 
@@ -150,3 +150,7 @@ td:first-child {
 }
 
 .nil { height: 1em; }
+
+a {
+  text-decoration: none;
+}
