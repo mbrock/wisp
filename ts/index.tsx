@@ -33,8 +33,8 @@ import wispWasmPath from "../zig-out/lib/wisp.wasm"
 
 const css = {
   sexp: {
-    list: `border-x-2 border-gray-400 rounded-lg px-1 inline-flex flex-row flex-wrap gap-x-2 items-center hover:border-cyan-600 cursor-pointer w-fit max-w-sm`,
-    v32: `border-x-4 border-gray-400 border-y rounded-md px-1 py-1 inline-flex flex-row flex-wrap gap-x-2 items-center hover:border-cyan-600 cursor-pointer w-fit max-w-sm`,
+    list: `border-x-2 dark:border-x dark:rounded-md border-gray-400 dark:border-neutral-400 rounded-lg px-1 inline-flex flex-row flex-wrap gap-x-2 items-center hover:border-cyan-600 dark:hover:border-amber-600 cursor-pointer w-fit max-w-sm`,
+    v32: `border-x-4 border-gray-400 dark:border-neutral-600 border-y rounded-md px-1 py-1 inline-flex flex-row flex-wrap gap-x-2 items-center hover:border-cyan-600 dark:hover:border-amber-600 cursor-pointer w-fit max-w-sm`,
   }
 }
 
@@ -85,18 +85,14 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
       && env == data.ctx.sys.nil
     )
 
-  let color = "ring-1 ring-gray-300 py-px px-1 rounded-md "
-  let title = ""
+  let color = "ring-1 ring-gray-300 dark:ring-amber-600 py-px px-1 rounded-sm "
 
   if (err != data.ctx.sys.nil) {
-    color += "bg-red-100"
-    title = "error"
+    color += "bg-red-100 dark:bg-red-600/50"
   } else if (exp == data.ctx.sys.nah) {
-    color += "bg-blue-100"
-    title = ""
+    color += "bg-blue-100 dark:bg-green-600/50"
   } else {
-    color += "bg-yellow-50"
-    title = ""
+    color += "bg-yellow-50 dark:bg-amber-600/50"
   }
 
   function restart(s: string): void {
@@ -114,11 +110,14 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
     action, left, right, disabled, children,
   }) => {
     const classes = `
-      inline-flex items-center py-1 px-2 border border-gray-300
-      bg-white font-medium text-gray-700 hover:bg-gray-50
+      inline-flex items-center py-1 px-2 border border-gray-300 dark:border-neutral-600
+      bg-white dark:bg-neutral-700
+      text-gray-700 dark:text-neutral-300
+      hover:bg-gray-50 dark:hover:bg-neutral-500
+      font-medium
       focus:ring-1 focus:ring-indigo-500
       ${left ? "rounded-l-md" : (right ? "rounded-r-md" : "")}
-      ${disabled ? "text-gray-400" : ""}
+      ${disabled ? "text-gray-400 dark:text-neutral-500" : ""}
     `
     
     return (
@@ -155,7 +154,8 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
   )
   
   const scopes = envs.length > 0 ? (
-    <table className="table-auto divide-y bg-white border mb-1 text-sm">
+    <table className="table-auto divide-y dark:divide-neutral-600 bg-white dark:bg-neutral-800 dark:text-neutral-100
+                      border mb-1 text-sm">
       {envs.map(renderScope)}
     </table>
   ) : null
@@ -172,15 +172,15 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
   )
 
   return (
-    <div className="border-gray-300 bg-white border rounded-lg flex flex-row gap-2 divide-x-2 mb-1">
+    <div className="border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 dark:text-neutral-50 border rounded-lg flex flex-row gap-2 divide-x-2 dark:divide-neutral-600 mb-1">
       <div className="flex flex-grow flex-col gap-1 p-1 px-2">
-         <span className="font-medium text-sm text-gray-500">Evaluation</span>
+         <span className="font-medium text-sm text-gray-500 dark:text-neutral-400">Evaluation</span>
          {renderWay(data, way,
             <Val data={data} v={cur} style={color} />
           )}
       </div>
   
-      <aside className="bg-gray-50 flex flex-col divide-y rounded-r-lg">
+      <aside className="bg-gray-50 dark:bg-neutral-800 flex flex-col divide-y dark:divide-neutral-600 rounded-r-lg">
         <div className="flex p-1">
           <IconButton action={doStep} left>
             <VscDebugStepInto />
@@ -257,7 +257,7 @@ const Val = ({ data, v, style }: { data: View, v: number, style?: string }) => {
   switch (vtag) {
     case "int": {
       const i = v & (1 << 30) ? ((-(~v << 1) >> 1) - 1): v
-      return <span className={style}>{i}</span>
+      return <span className={`dark:text-neutral-300 font-mono ${style}`}>{i}</span>
     }
 
     case "jet": {
@@ -368,7 +368,8 @@ function symbolSpan(
   const extra = extraStyleForSymbol(funtag)
 
   const classes = `
-    sym lowercase tracking-tighter text-gray-800 hover:text-blue-600
+    sym lowercase tracking-tighter text-gray-800 hover:text-blue-600 dark:hover:text-amber-600
+    dark:text-neutral-300
     ${extra}
     ${style || ""}
   `
@@ -387,8 +388,8 @@ function symbolSpan(
 function extraStyleForSymbol(funtag: string): string {
   switch (funtag) {
     case "jet": return "font-medium"
-    case "fun": return "text-slate-600"
-    case "mac": return "text-cyan-600"
+    case "fun": return "text-slate-600 dark:text-slate-300"
+    case "mac": return "text-cyan-600 dark:text-cyan-300"
   }
 
   return ""
@@ -402,7 +403,7 @@ const Line = ({ data, turn, i }: {
   const run = data.row("run", turn.run) as unknown as Run
 
   return (
-    <div className="block hover:bg-gray-50 p-2 px-3 flex flex-col justify-between gap-2">
+    <div className="block p-2 px-3 flex flex-col justify-between gap-2 lg:flex-row items-baseline">
       <Val data={data} v={turn.src} style="" />
       { run.err == data.ctx.sys.nil
           ? <Val data={data} v={run.val} />
@@ -467,7 +468,7 @@ const Form = ({ done, placeholder }: {
   return (
     <form onSubmit={onSubmit} >
       <input type="text"
-        className="w-full bg-white py-1"
+        className="w-full bg-white dark:bg-neutral-800 dark:text-neutral-100 py-1 focus:ring-0 focus:outline-0 focus:border-gray-600 border"
         autoFocus autoComplete="off"
         placeholder={placeholder}
         value={history[historyCursor]}
@@ -504,7 +505,7 @@ const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
   }, [])
 
   return (
-    <div className="absolute inset-0 flex flex-col bg-gray-100">
+    <div className="absolute inset-0 flex flex-col bg-gray-100 dark:bg-neutral-900">
       <Titlebar />
       <Notebook data={data} turns={turns} />
       <Form done={exec} placeholder="Wisp expression" />
@@ -516,6 +517,9 @@ const Notebook = ({ data, turns }: {
   data: View,
   turns: Turn[],
 }) => {
+  const classes =
+    "divide-y-2 dark:divide-neutral-600 flex flex-col flex-grow overflow-y-auto"
+
   const ref = React.useRef<HTMLUListElement>()
   
   React.useEffect(() => {
@@ -531,7 +535,7 @@ const Notebook = ({ data, turns }: {
   )
   
   return (
-    <ul role="list" ref={ref} className="divide-y-2 border-b-2 flex flex-col flex-grow overflow-y-auto">
+    <ul role="list" ref={ref} className={classes}>
       {lines}
     </ul>
   )
@@ -539,13 +543,13 @@ const Notebook = ({ data, turns }: {
 
 const Titlebar = () => {
   return (
-    <header className="flex justify-between border-b-2 px-3 py-1 mb-1 bg-slate-50">
-      <span className="font-semibold tracking-tight text-gray-800 flex gap-1">
+    <header className="flex justify-between border-b-2 px-3 py-1 bg-slate-50 dark:bg-stone-900 dark:border-neutral-600">
+      <span className="font-semibold tracking-tight text-gray-800 dark:text-neutral-400 flex gap-1">
         Wisp
         <span className="text-gray-500">v0.5</span>
       </span>
       <a href="https://github.com/mbrock/wisp"
-         className="tracking-tight text-blue-800 flex column items-center"
+         className="tracking-tight text-blue-800 dark:text-blue-200 flex column items-center"
          target="_blank">
         <VscGithub />
       </a>
