@@ -54,6 +54,7 @@ export interface WispAPI {
 
   wisp_heap_init(): number
 
+  wisp_heap_v08_new(heap: number, x: number, n: number): number
   wisp_heap_v08_len(heap: number): number
   wisp_heap_v08_ptr(heap: number): number
   wisp_heap_v32_len(heap: number): number
@@ -252,6 +253,19 @@ export class Wisp {
 
   v32ptr(): number {
     return this.api.wisp_heap_v32_ptr(this.heap)
+  }
+
+  newstr(txt: string): number {
+    const buf = this.api.wisp_alloc(this.heap, txt.length + 1)
+    const arr = new TextEncoder().encode(txt)
+    const mem = new DataView(this.api.memory.buffer, buf, arr.length + 1)
+    mem.setUint8(arr.length, 0)
+
+    for (let i = 0; i < arr.length; i++) {
+      mem.setUint8(i, arr[i])
+    }
+
+    return buf
   }
 
   read(sexp: string): number {

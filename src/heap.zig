@@ -67,6 +67,8 @@ pub const Kwd = enum {
     PROGN,
     @"CALL/CC",
 
+    REQUEST,
+
     BOOLEAN,
     CHARACTER,
     CONS,

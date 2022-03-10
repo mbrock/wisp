@@ -332,3 +332,7 @@ pub fn AREF(step: *Step, vec: u32, idx: u32) anyerror!void {
         else => try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"}),
     }
 }
+
+pub fn REQUEST(step: *Step, req: u32, rest: Rest) anyerror!void {
+    try step.fail(&[_]u32{ step.heap.kwd.@"REQUEST", req, rest.arg });
+}

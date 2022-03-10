@@ -67,6 +67,74 @@ function renderWay(data: View, way: number, child: JSX.Element): JSX.Element {
   }
 }
 
+const RestartButton: React.FC<{
+  action: () => void,
+}> = ({ action, children }) => {
+  return (
+    <button onClick={action}
+      className="border rounded dark:border-neutral-500 dark:bg-neutral-700 text-sm">
+      {children}
+    </button>
+  )
+}
+
+const Fetch = ({ data, run, ask }: {
+  data: View, run: number, ask: number[]
+}) => {
+  const [url] = listItems(data, ask[2])
+  const urlstr = data.str(url)
+
+  async function doFetch() {
+    const x = await fetch(urlstr).then(x => x.text())
+    const txtstr = data.ctx.newstr(x)
+    const txtv08 = data.api.wisp_heap_v08_new(ctx.heap, txtstr, x.length)
+    data.ctx.api.wisp_run_restart(ctx.heap, run, txtv08)
+    render()
+  }
+  
+  return (
+    <div className="flex flex-col gap-1">
+      <RestartButton action={doFetch}>
+        Download <Val data={data} v={url} />
+      </RestartButton>
+      <RestartButton action={() => {}}>
+        Abort evaluation
+      </RestartButton>
+    </div>
+  )
+}
+
+const Restarts = ({ data, run }: { data: View, run: number }) => {
+  function restart(s: string): void {
+    const src = ctx.read(s)
+    data.ctx.api.wisp_run_restart(ctx.heap, run, src)
+    render()
+  }
+
+  const row = data.row("run", run)
+  const { err } = row
+
+  const v32 = Array.from(data.getV32(err))
+
+  const errsym = data.row("sym", v32[0])
+  const errstr = data.str(errsym.str)
+
+  const isRequest = errstr === "REQUEST"
+  const asksym = data.row("sym", v32[1]) 
+  const askstr = data.str(asksym.str)
+  const isFetch = askstr === "FETCH"
+
+  return (
+    <div className="flex flex-col gap-1 mb-1">
+      <div className="flex flex-col gap-1">
+        { isFetch ? <Fetch data={data} run={run} ask={v32} /> : null }
+         
+        <Form done={restart} placeholder="Provide another value" />
+      </div>
+    </div>
+  )
+}
+
 const Debugger = ({ data, run }: { data: View, run: number }) => {
   function doStep() {
     ctx.api.wisp_eval_step(ctx.heap, run)
@@ -93,12 +161,6 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
     color += "bg-blue-100 dark:bg-green-600/50"
   } else {
     color += "bg-yellow-50 dark:bg-amber-600/50"
-  }
-
-  function restart(s: string): void {
-    const src = ctx.read(s)
-    data.ctx.api.wisp_run_restart(ctx.heap, run, src)
-    render()
   }
 
   const IconButton: React.FC<{
@@ -163,12 +225,13 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
   const condition = (
     err === data.ctx.sys.nil
      ? <></>
-     : (
-       <div className="flex flex-col gap-1 mb-1">
-         <Val data={data} v={err} />
-         <Form done={restart} placeholder="Provide another value" />
-       </div>
-     )
+     : <Val data={data} v={err} style="mb-1 bg-red-700/30" />
+  )
+
+  const restarts = (
+    err === data.ctx.sys.nil
+     ? <></>
+     : <Restarts data={data} run={run} />
   )
 
   return (
@@ -198,11 +261,17 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
           </span>
           {scopes}
         </div>
-        <div className="px-1">
+        <div className="px-1 flex flex-col">
           <span className="font-medium text-sm text-gray-500">
             Condition
           </span>
           {condition}
+        </div>
+        <div className="px-1 flex flex-col">
+          <span className="font-medium text-sm text-gray-500">
+            Restarts
+          </span>
+          {restarts}
         </div>
       </aside>
 
@@ -281,7 +350,7 @@ const Val = ({ data, v, style }: { data: View, v: number, style?: string }) => {
 
     case "v08": {
       const str = data.str(v)
-      return <span className={style}>"{str}"</span>
+      return <span className={`font-mono text-green-800 dark:text-green-200 ${style}`}>"{str}"</span>
     }
 
     case "v32": {
@@ -425,9 +494,10 @@ interface Turn {
   run: number
 }
 
-const Form = ({ done, placeholder }: {
+const Form = ({ done, placeholder, autoFocus }: {
   done: (x: string) => void,
   placeholder?: string,
+  autoFocus?: bool,
 }) => {
   const [history, setHistory] = React.useState([""])
   const [historyCursor, setHistoryCursor] = React.useState(0)
@@ -468,8 +538,8 @@ const Form = ({ done, placeholder }: {
   return (
     <form onSubmit={onSubmit} >
       <input type="text"
-        className="w-full bg-white dark:bg-neutral-800 dark:text-neutral-100 py-1 focus:ring-0 focus:outline-0 focus:border-gray-600 border"
-        autoFocus autoComplete="off"
+        className="w-full bg-white dark:bg-neutral-800 dark:text-neutral-100 py-0 focus:ring-0 focus:outline-0 focus:border-gray-600 border rounded"
+        autoFocus={autoFocus} autoComplete="off"
         placeholder={placeholder}
         value={history[historyCursor]}
         onKeyDown={onKeyDown}
@@ -496,19 +566,14 @@ const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
     exec("(run '(append (list 1 x 3) '(a b c)))")
     exec("(run '(mapcar (lambda (x) (+ x 1)) '(1 2 3)))")
     exec("(+ 1 2 3)")
-    exec(`
-      (run '(let ((x-velocity 1)
-                  (y-velocity 2))
-              (let ((mass 3))
-                (* mass (+ x-velocity y-velocity)))))
-    `)
+    exec("(run '(request 'fetch \"https://httpbin.org/uuid\"))");
   }, [])
 
   return (
     <div className="absolute inset-0 flex flex-col bg-gray-100 dark:bg-neutral-900">
       <Titlebar />
       <Notebook data={data} turns={turns} />
-      <Form done={exec} placeholder="Wisp expression" />
+      <Form done={exec} placeholder="Wisp expression" autoFocus />
     </div>
   )
 }

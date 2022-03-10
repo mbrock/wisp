@@ -182,6 +182,11 @@ export fn wisp_dat_read(heap: *Wisp.Heap, dat: *Dat) void {
     }
 }
 
+export fn wisp_heap_v08_new(heap: *Wisp.Heap, x: [*]u8, n: usize) u32 {
+    std.log.warn("heap v08 new {s} {d}", .{ x[0..n], n });
+    return heap.newv08(x[0..n]) catch Wisp.zap;
+}
+
 export fn wisp_heap_v08_len(heap: *Wisp.Heap) usize {
     return heap.v08.items.len;
 }
