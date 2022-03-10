@@ -23,17 +23,17 @@ import { WASI } from "./wasi"
 import * as ReactDOM from "react-dom"
 import * as React from "react"
 
-import { VscDebugStepInto, VscDebugStepOut, VscDebugStepOver, VscGithub } from "react-icons/vsc"
+import {
+  VscDebugStepInto, VscDebugStepOut, VscDebugStepOver, VscGithub
+} from "react-icons/vsc"
 
 import "./index.css"
 
 import wispWasmPath from "../zig-out/lib/wisp.wasm"
 
 const css = {
-
   sexp: {
     list: `border-x-2 border-gray-400 rounded-lg px-1 inline-flex flex-row flex-wrap gap-x-2 items-center hover:border-cyan-600 cursor-pointer w-fit max-w-sm`,
-
     v32: `border-x-4 border-gray-400 border-y rounded-md px-1 py-1 inline-flex flex-row flex-wrap gap-x-2 items-center hover:border-cyan-600 cursor-pointer w-fit max-w-sm`,
   }
 }
@@ -109,14 +109,16 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
     action: () => void,
     left?: boolean,
     right?: boolean,
+    disabled?: boolean,
   }> = ({
-    action, left, right, children,
+    action, left, right, disabled, children,
   }) => {
     const classes = `
       inline-flex items-center py-1 px-2 border border-gray-300
       bg-white font-medium text-gray-700 hover:bg-gray-50
       focus:ring-1 focus:ring-indigo-500
       ${left ? "rounded-l-md" : (right ? "rounded-r-md" : "")}
+      ${disabled ? "text-gray-400" : ""}
     `
     
     return (
@@ -162,31 +164,31 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
     err === data.ctx.sys.nil
      ? <></>
      : (
-       <div className="flex flex-col gap">
+       <div className="flex flex-col gap-1 mb-1">
          <Val data={data} v={err} />
-         <Form done={restart} placeholder="Restart" />
+         <Form done={restart} placeholder="Provide another value" />
        </div>
      )
   )
 
   return (
-    <div className="border-gray-300 bg-white border rounded-lg flex flex-row gap-2 divide-x-2">
-      <div className="w-2/3 flex flex-col gap-1 p-1 px-2">
+    <div className="border-gray-300 bg-white border rounded-lg flex flex-row gap-2 divide-x-2 mb-1">
+      <div className="flex flex-grow flex-col gap-1 p-1 px-2">
          <span className="font-medium text-sm text-gray-500">Evaluation</span>
          {renderWay(data, way,
             <Val data={data} v={cur} style={color} />
           )}
       </div>
   
-      <aside className="w-1/3 bg-gray-50 flex flex-col divide-y rounded-r-lg">
+      <aside className="bg-gray-50 flex flex-col divide-y rounded-r-lg">
         <div className="flex p-1">
           <IconButton action={doStep} left>
             <VscDebugStepInto />
           </IconButton>
-          <IconButton action={doStep}>
+          <IconButton action={() => alert("not implemented")} disabled>
             <VscDebugStepOver />
           </IconButton>
-          <IconButton action={doStep} right>
+          <IconButton action={() => alert("not implemented")} right disabled>
             <VscDebugStepOut />
           </IconButton>
         </div>
@@ -465,7 +467,7 @@ const Form = ({ done, placeholder }: {
   return (
     <form onSubmit={onSubmit} >
       <input type="text"
-        className="w-full bg-white"
+        className="w-full bg-white py-1"
         autoFocus autoComplete="off"
         placeholder={placeholder}
         value={history[historyCursor]}

@@ -295,7 +295,7 @@ pub fn ENV(step: *Step) anyerror!void {
 
 pub fn RUN(step: *Step, exp: u32) anyerror!void {
     const run = Wisp.Row(.run){
-        .way = step.run.way,
+        .way = Wisp.top,
         .env = step.run.env,
         .err = Wisp.nil,
         .val = Wisp.nah,

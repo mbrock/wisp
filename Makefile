@@ -19,3 +19,5 @@ web:
 	./build
 
 clean:; rm -rf dist/* wasm/* zig-cache zig-out src/zig-cache
+
+deploy:; cp dist/* /restless/www/wisp/
