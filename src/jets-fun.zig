@@ -28,9 +28,13 @@ const Jets = @import("./jets.zig");
 
 const Rest = Jets.Rest;
 
-fn int(x: u32) !i31 {
+fn wordint(x: u32) !i31 {
     if (Wisp.tagOf(x) != .int) return Wisp.Oof.Err;
-    return @intCast(i31, x);
+    return @bitCast(i31, @intCast(u31, x));
+}
+
+fn intword(x: i31) u32 {
+    return @intCast(u32, @bitCast(u31, x));
 }
 
 pub fn @"PROG1"(step: *Step, xs: []u32) anyerror!void {
@@ -43,10 +47,57 @@ pub fn @"+"(step: *Step, xs: []u32) anyerror!void {
 
     var result: i31 = 0;
     for (xs) |x| {
-        result += try int(x);
+        if (@addWithOverflow(i31, result, try wordint(x), &result)) {
+            return step.fail(&[_]u32{step.heap.kwd.@"FIXNUM-OVERFLOW"});
+        }
     }
 
-    step.give(.val, @intCast(u32, result));
+    step.give(.val, intword(result));
+}
+
+pub fn @"*"(step: *Step, xs: []u32) anyerror!void {
+    _ = step;
+
+    var result: i31 = 1;
+    for (xs) |x| {
+        if (@mulWithOverflow(i31, result, try wordint(x), &result)) {
+            return step.fail(&[_]u32{step.heap.kwd.@"FIXNUM-OVERFLOW"});
+        }
+    }
+
+    step.give(.val, intword(result));
+}
+
+pub fn @"/"(step: *Step, xs: []u32) anyerror!void {
+    if (xs.len == 1) {
+        return @"/"(step, &[_]u32{ 1, xs[0] });
+    } else {
+        var result: i31 = try wordint(xs[0]);
+        for (xs[1..xs.len]) |x| {
+            result = std.math.divExact(i31, result, try wordint(x)) catch {
+                return step.fail(&[_]u32{
+                    step.heap.kwd.@"INEXACT-FIXNUM-DIVISION",
+                    intword(result),
+                    x,
+                });
+            };
+        }
+
+        step.give(.val, intword(result));
+    }
+}
+
+pub fn @"-"(step: *Step, a: u32, xs: []u32) anyerror!void {
+    _ = step;
+
+    var result: i31 = try wordint(a);
+    for (xs) |x| {
+        if (@subWithOverflow(i31, result, try wordint(x), &result)) {
+            return step.fail(&[_]u32{step.heap.kwd.@"FIXNUM-OVERFLOW"});
+        }
+    }
+
+    step.give(.val, intword(result));
 }
 
 pub fn @"CONS"(step: *Step, car: u32, cdr: u32) anyerror!void {

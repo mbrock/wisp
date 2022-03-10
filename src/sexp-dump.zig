@@ -58,7 +58,7 @@ pub fn warn(prefix: []const u8, heap: *Heap, word: u32) !void {
 
 pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
     switch (Wisp.tagOf(x)) {
-        .int => try out.print("{d}", .{x}),
+        .int => try out.print("{d}", .{@bitCast(i31, @intCast(u31, x))}),
 
         .sys => {
             switch (x) {

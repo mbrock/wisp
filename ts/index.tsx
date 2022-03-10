@@ -79,10 +79,10 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
 
   let color = "#ffa5"
 
-  if (exp == data.ctx.sys.nah)
-    color = "#aaf5"
-  else if (err != data.ctx.sys.nil)
+  if (err != data.ctx.sys.nil)
     color = "#faa5"
+  else if (exp == data.ctx.sys.nah)
+    color = "#aaf5"
 
   return (
     <div style={{
@@ -110,7 +110,6 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
         <Val data={data} v={env} />}
       {err == data.ctx.sys.nil ? null :
         <Val data={data} v={err} />}
-      <Val data={data} v={way} />
     </div>
   )
 }
@@ -164,8 +163,10 @@ const Err = ({ data, run }: { data: View, run: number }) => {
 const Val = ({ data, v }: { data: View, v: number }) => {
   const vtag = data.ctx.tagOf(v)
   switch (vtag) {
-    case "int":
-      return <span>{v}</span>
+    case "int": {
+      const i = v & (1 << 30) ? ((-(~v << 1) >> 1) - 1): v
+      return <span>{i}</span>
+    }
 
     case "jet": {
       const name = data.jetName(v)

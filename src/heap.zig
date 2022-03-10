@@ -83,6 +83,8 @@ pub const Kwd = enum {
 
     @"BUG",
     @"EXHAUSTED",
+    @"FIXNUM-OVERFLOW",
+    @"INEXACT-FIXNUM-DIVISION",
     @"INVALID-ARGUMENT-COUNT",
     @"PACKAGE-ERROR",
     @"PROGRAM-ERROR",

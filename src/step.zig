@@ -592,6 +592,14 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
             try fun(step, duo.car, .{ .arg = rest });
         },
 
+        .f1x => {
+            const args = try scanListAlloc(step.heap, arg);
+            defer args.deinit();
+            if (rev) std.mem.reverse(u32, args.items);
+            const fun = cast(.f1x, def);
+            try fun(step, args.items[0], args.items[1..args.items.len]);
+        },
+
         .f0 => {
             if (arg == nil) {
                 const fun = cast(.f0, def);
