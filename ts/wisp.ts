@@ -69,6 +69,7 @@ export interface WispAPI {
 
   wisp_run_init(heap: number, exp: number): number
   wisp_run_eval(heap: number, run: number, max: number): number
+  wisp_run_restart(heap: number, run: number, exp: number): number
 
   wisp_jet_name(jet: number): number
   wisp_jet_name_len(jet: number): number

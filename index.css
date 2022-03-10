@@ -90,6 +90,11 @@ input {
   color: inherit;
 }
 
+#output input {
+  border: 1px solid #aaa;
+  margin-top: 5px;
+}
+
 input:focus {
   outline: 0;
 }

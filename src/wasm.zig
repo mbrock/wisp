@@ -113,6 +113,14 @@ export fn wisp_eval_step(heap: *Wisp.Heap, runptr: u32) u32 {
         Wisp.t;
 }
 
+export fn wisp_run_restart(heap: *Wisp.Heap, run: u32, exp: u32) u32 {
+    std.log.warn("run restart {any} {any}", .{ run, exp });
+    heap.set(.run, .exp, run, exp) catch return Wisp.zap;
+    heap.set(.run, .val, run, Wisp.nah) catch return Wisp.zap;
+    heap.set(.run, .err, run, Wisp.nil) catch return Wisp.zap;
+    return Wisp.nil;
+}
+
 fn Field(comptime name: []const u8, t: type) std.builtin.TypeInfo.StructField {
     return .{
         .name = name,

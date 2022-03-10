@@ -46,7 +46,7 @@ function renderWay(data: View, way: number, child: JSX.Element): JSX.Element {
   const me = (
     <div className="list">
       {show(fun, 0)}
-      {accs.map(show)}
+      {accs.reverse().map(show)}
       {child}
       {args.map(show)}
     </div>
@@ -84,6 +84,12 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
   else if (exp == data.ctx.sys.nah)
     color = "#aaf5"
 
+  function restart(s: string): void {
+    const src = ctx.read(s)
+    data.ctx.api.wisp_run_restart(ctx.heap, run, src)
+    render()
+  }
+
   return (
     <div style={{
       border: "1px solid #ccc",
@@ -109,7 +115,11 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
       {env == data.ctx.sys.nil ? null :
         <Val data={data} v={env} />}
       {err == data.ctx.sys.nil ? null :
-        <Val data={data} v={err} />}
+        <div>
+          <Val data={data} v={err} />
+          <Form done={restart} placeholder="Restart" />
+        </div>
+        }
     </div>
   )
 }
@@ -306,26 +316,17 @@ interface Turn {
   run: number
 }
 
-const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
-  const [lines, setLines] = React.useState([] as Turn[])
+const Form = ({ done, placeholder }: {
+  done: (x: string) => void,
+  placeholder?: string,
+}) => {
   const [history, setHistory] = React.useState([""])
   const [historyCursor, setHistoryCursor] = React.useState(0)
-
-  function exec(s: string) {
-    const src = ctx.read(s)
-    const run = ctx.api.wisp_run_init(ctx.heap, src)
-
-    ctx.api.wisp_run_eval(ctx.heap, run, 10_000)
-
-    render()
-
-    setLines(xs => [...xs, { src, run }])
-  }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    exec(history[historyCursor])
+    done(history[historyCursor])
 
     if (historyCursor > 0) {
       setHistory(xs => ["", history[historyCursor], ...xs])
@@ -337,7 +338,6 @@ const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    console.log(e.key)
     if (e.key === "ArrowUp") {
       e.preventDefault()
       if (historyCursor + 1 < history.length) {
@@ -356,8 +356,33 @@ const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
     setHistoryCursor(0)
   }
 
+  return (
+    <form onSubmit={onSubmit}>
+      <input autoFocus autoComplete="off"
+        placeholder={placeholder}
+        value={history[historyCursor]}
+        onKeyDown={onKeyDown}
+        onChange={onChange} />
+    </form>
+  )
+}
+
+const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
+  const [lines, setLines] = React.useState([] as Turn[])
+
+  function exec(s: string) {
+    const src = ctx.read(s)
+    const run = ctx.api.wisp_run_init(ctx.heap, src)
+
+    ctx.api.wisp_run_eval(ctx.heap, run, 10_000)
+
+    render()
+
+    setLines(xs => [...xs, { src, run }])
+  }
+
   React.useEffect(() => {
-    exec("(run '(append '(1 2 3) '(a b c)))")
+    exec("(run '(append (list 1 x 3) '(a b c)))")
     exec("(run '(mapcar (lambda (x) (+ x 1)) '(1 2 3)))")
   }, [])
 
@@ -379,12 +404,7 @@ const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
           )
         }
       </div>
-      <form id="form" onSubmit={onSubmit}>
-        <input id="input" autoFocus autoComplete="off"
-          value={history[historyCursor]}
-          onKeyDown={onKeyDown}
-          onChange={onChange} />
-      </form>
+      <Form done={exec} />
     </div>
   )
 }
