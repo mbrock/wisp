@@ -65,6 +65,10 @@ export const wispLanguage = LRLanguage.define({
   languageData: {
     commentTokens: { line: ";" },
     indentOnInput: /^\s*\)$/,
+    closeBrackets: {
+      brackets: ["("],
+      before: `");`,
+    },
   },
 })
 

@@ -6,7 +6,7 @@ form[@isGroup=Form] {
   Symbol |
   String |
   Integer |
-
+  Quote |
   Defun | Let | Lambda |
   Compound
 }
@@ -18,6 +18,8 @@ kw<term> {
 Defun { "(" kw<"defun"> Symbol form form* ")" }
 Let { "(" kw<"let"> form* ")" }
 Lambda { "(" kw<"lambda"> form* ")" }
+
+Quote { "'" form }
 
 Compound { "(" form* ")" }
 
@@ -34,13 +36,12 @@ Compound { "(" form* ")" }
   @precedence { spaces, newline, Symbol }
 
   String {
-    '"' (![\\\n"] | "\\" _)* '"'? |
-    "'" (![\\\n'] | "\\" _)* "'"?
+    '"' (![\\\n"] | "\\" _)* '"'?
   }
 
   Integer { std.digit+ }
 
-  "(" ")"
+  "(" ")" "'"
 }
 
 @detectDelim
