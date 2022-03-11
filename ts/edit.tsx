@@ -67,8 +67,9 @@ export const Editor: React.FC<{
                 fontSize: 16,
               },
 
-              ".cm-scroller, .cm-tooltip.cm-tooltip-autocomplete > ul": {
-                fontFamily: "DM Mono",
+              ".cm-scroller, .cm-content, .cm-tooltip.cm-tooltip-autocomplete > ul": {
+                fontFamily: "dm mono, ui-monospace, SFMono-Regular, Menlo, monospace",
+                fontWeight: "normal",
               }
             }),
             lineNumbers(),

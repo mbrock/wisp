@@ -20,13 +20,15 @@
 @font-face {
   font-family: "DM Mono";
   font-weight: normal;
-  src: url("./lib/dm-mono/exports/DMMono-Regular.ttf") format("ttf");
+  font-style: normal;
+  src: url(./lib/dm-mono/exports/DMMono-Regular.ttf) format("ttf");
 }
 
 @font-face {
   font-family: "DM Mono";
   font-weight: medium;
-  src: url("./lib/dm-mono/exports/DMMono-Medium.ttf") format("ttf");
+  font-style: normal;
+  src: url(./lib/dm-mono/exports/DMMono-Medium.ttf) format("ttf");
 }
 
 @tailwind base;
