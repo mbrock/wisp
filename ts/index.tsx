@@ -612,7 +612,7 @@ const Note = ({ note, data }: {
   }
   
   return (
-    <div className="flex gap-2 m-2">
+    <div className="flex gap-2 m-2 flex-col md:flex-row">
       <div className="w-full bg-white border-gray-300">
         <Editor exec={exec} initialCode={note.initialCode} />
       </div>
