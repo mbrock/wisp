@@ -36,8 +36,15 @@ import { indentOnInput } from "@codemirror/language";
 import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { commentKeymap } from "@codemirror/comment";
 import { showPanel } from "@codemirror/panel";
+import { IconButton } from "./button";
+import { VscDebug, VscDebugContinue } from "react-icons/vsc";
 
-export function Editor({ exec }: { exec: (code: string) => void }) {
+export const Editor: React.FC<{
+  exec: (code: string, how: "run" | "debug") => void,
+  initialCode: string | undefined,
+}> = ({
+  exec, initialCode,
+}) => {
   let [editorView, setEditorView] = React.useState<EditorView>(null)
 
   const install = (ref?: HTMLDivElement) => {
@@ -45,12 +52,24 @@ export function Editor({ exec }: { exec: (code: string) => void }) {
       const view = new EditorView({
         parent: ref,
         state: EditorState.create({
-          doc: "",
+          doc: initialCode,
           extensions: [
             EditorView.theme({
               ".cm-completionIcon": {
                 width: "1.5em",
               },
+
+              ".cm-focused": {
+                outline: "none !important",
+              },
+
+              "&": {
+                fontSize: 16,
+              },
+
+              ".cm-scroller, .cm-tooltip.cm-tooltip-autocomplete > ul": {
+                fontFamily: "DM Mono",
+              }
             }),
             lineNumbers(),
             highlightActiveLineGutter(),
@@ -71,9 +90,16 @@ export function Editor({ exec }: { exec: (code: string) => void }) {
               {
                 key: "Ctrl-Enter",
                 run(view) {
-                  runCode(view)
+                  runCode(view, "run")
                   return true
                 }
+              },
+              {
+                key: "Ctrl-Shift-Enter",
+                run(view) {
+                  runCode(view, "debug")
+                  return true
+                },
               },
               ...closeBracketsKeymap,
               ...defaultKeymap,
@@ -86,17 +112,18 @@ export function Editor({ exec }: { exec: (code: string) => void }) {
 
             wisp(),
 
-            showPanel.of(view => {
-              const panel = (
-                <div className="p-1 bg-yellow-50 border-t">
-                  <button className={buttonClasses} onClick={() => runCode(view)}>
-                    Run
-                  </button>
-                </div>
-              )
-
+            showPanel.of(() => {
               let dom = document.createElement("div")
-              ReactDOM.render(panel, dom)
+              ReactDOM.render(
+                <div className="p-1 bg-gray-50 flex">
+                  <IconButton action={() => runCode(view, "run")} left>
+                    <VscDebugContinue title="Run code" />
+                  </IconButton>
+                  <IconButton action={() => runCode(view, "debug")} right>
+                    <VscDebug title="Debug code" />
+                  </IconButton>
+                  </div>,
+                dom)
 
               return {
                 dom,
@@ -113,22 +140,11 @@ export function Editor({ exec }: { exec: (code: string) => void }) {
     }
   }
 
-  const buttonClasses = `
-    inline-flex items-center py-1 px-2 border border-gray-300 dark:border-neutral-600
-    bg-white dark:bg-neutral-700
-    text-gray-700 dark:text-neutral-300
-    hover:bg-gray-50 dark:hover:bg-neutral-500
-    font-medium
-    focus:ring-1 focus:ring-indigo-500
-    rounded-md
-    text-xs
-  `
-
-  function runCode(view: EditorView) {
-    exec(`(progn ${view.state.doc.sliceString(0)})`)
+  function runCode(view: EditorView, how: "run" | "debug") {
+    exec(view.state.doc.sliceString(0), how)
   }
 
   return (
-    <div ref={install} />
+    <div className="border h-full border-gray-300" ref={install} />
   )
 }

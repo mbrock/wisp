@@ -11,7 +11,10 @@ esbuild.build({
   bundle: true,
   sourcemap: true,
   entryNames: "[dir]/[name]-[hash]",
-  loader: { ".wasm": "file" },
+  loader: {
+    ".wasm": "file",
+    ".ttf": "file",
+  },
   plugins: [
     style({
       postcss: [

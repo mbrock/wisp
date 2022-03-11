@@ -17,9 +17,23 @@
  * <https://www.gnu.org/licenses/>.
  */
 
+@font-face {
+  font-family: "DM Mono";
+  font-weight: normal;
+  src: url("./lib/dm-mono/exports/DMMono-Regular.ttf") format("ttf");
+}
+
+@font-face {
+  font-family: "DM Mono";
+  font-weight: medium;
+  src: url("./lib/dm-mono/exports/DMMono-Medium.ttf") format("ttf");
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 .sym[data-package="WISP"] .pkg {
   display: none;
 }
+
+.cm-focused { outline: none !important; }

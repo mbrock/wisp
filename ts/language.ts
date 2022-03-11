@@ -52,7 +52,7 @@ export const wispLanguage = LRLanguage.define({
         Lambda: hang(1),
       }),
       styleTags({
-        "defun let lambda": tags.keyword,
+        "defun let lambda run": tags.keyword,
         Symbol: tags.variableName,
         String: tags.string,
         Integer: tags.number,
@@ -74,10 +74,16 @@ export const wispLanguage = LRLanguage.define({
 
 export const wispCompletion = wispLanguage.data.of({
   autocomplete: completeFromList([
+    {label: "run", type: "keyword"},
+
     {label: "defun", type: "keyword"},
     {label: "defvar", type: "keyword"},
     {label: "let", type: "keyword"},
+    {label: "call/cc", type: "keyword"},
     {label: "lambda", type: "keyword"},
+
+    {label: "list", type: "function"},
+    {label: "append", type: "function"},
     {label: "cons", type: "function"},
     {label: "car", type: "function"},
     {label: "cdr", type: "function"}

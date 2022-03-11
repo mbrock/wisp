@@ -30,8 +30,14 @@ import { WASI } from "./wasi"
 import { Editor } from "./edit"
 
 import {
+  VscAdd,
   VscDebugStepInto, VscDebugStepOut, VscDebugStepOver, VscGithub
 } from "react-icons/vsc"
+
+import { IoAddCircleOutline } from "react-icons/io5"
+
+import ShortUniqueId from "short-unique-id"
+import { IconButton } from "./button"
 
 const css = {
   sexp: {
@@ -137,6 +143,17 @@ const Restarts = ({ data, run }: { data: View, run: number }) => {
   )
 }
 
+const Result = ({ data, val }: { data: View, val: number }) => {
+  return (
+    <div className="border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 dark:text-neutral-50 border flex flex-row divide-x-2 dark:divide-neutral-600 w-full">
+      <div className="flex flex-grow flex-col gap-1 p-1 px-2">
+         <span className="font-medium text-sm text-gray-500 dark:text-neutral-400">Result</span>
+         <Val data={data} v={val} />
+      </div>
+    </div>
+  )
+}
+
 const Debugger = ({ data, run }: { data: View, run: number }) => {
   function doStep() {
     ctx.api.wisp_eval_step(ctx.heap, run)
@@ -155,7 +172,7 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
       && env == data.ctx.sys.nil
     )
 
-  let color = "ring-1 ring-gray-300 dark:ring-amber-600 py-px px-1 rounded-sm "
+  let color = "ring-1 ring-gray-300 dark:ring-amber-600 py-px px-1 font-mono "
 
   if (err != data.ctx.sys.nil) {
     color += "bg-red-100 dark:bg-red-600/50"
@@ -163,34 +180,6 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
     color += "bg-blue-100 dark:bg-green-600/50"
   } else {
     color += "bg-yellow-50 dark:bg-amber-600/50"
-  }
-
-  const IconButton: React.FC<{
-    action: () => void,
-    left?: boolean,
-    right?: boolean,
-    disabled?: boolean,
-  }> = ({
-    action, left, right, disabled, children,
-  }) => {
-    const classes = `
-      inline-flex items-center py-1 px-2 border border-gray-300 dark:border-neutral-600
-      bg-white dark:bg-neutral-700
-      text-gray-700 dark:text-neutral-300
-      hover:bg-gray-50 dark:hover:bg-neutral-500
-      font-medium
-      focus:ring-1 focus:ring-indigo-500
-      ${left ? "rounded-l-md" : (right ? "rounded-r-md" : "")}
-      ${disabled ? "text-gray-400 dark:text-neutral-500" : ""}
-    `
-    
-    return (
-      <button className={classes}
-        disabled={disabled}
-        onClick={action}>
-        {children}
-      </button>
-    )
   }
 
   const envs: number[][][] = listItems(data, env).map((env, i) => {
@@ -237,7 +226,7 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
   )
 
   return (
-    <div className="border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 dark:text-neutral-50 border rounded-lg flex flex-row gap-2 divide-x-2 dark:divide-neutral-600 mb-1">
+    <div className="border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 dark:text-neutral-50 flex flex-row gap-2 divide-x-2 dark:divide-neutral-600 w-full">
       <div className="flex flex-grow flex-col gap-1 p-1 px-2">
          <span className="font-medium text-sm text-gray-500 dark:text-neutral-400">Evaluation</span>
          {renderWay(data, way,
@@ -412,10 +401,15 @@ const Val = ({ data, v, style }: { data: View, v: number, style?: string }) => {
 
     case "ktx": {
       return (
-        <div className={style}>
-          {table(data, data.row("ktx", v))}
+        <div className="font-semibold">
+          《continuation》
         </div>
       )
+      // return (
+      //   <div className={style}>
+      //     {table(data, data.row("ktx", v))}
+      //   </div>
+      // )
     }
 
     case "sym": {
@@ -499,7 +493,7 @@ interface Turn {
 const Form = ({ done, placeholder, autoFocus }: {
   done: (x: string) => void,
   placeholder?: string,
-  autoFocus?: bool,
+  autoFocus?: boolean,
 }) => {
   const [history, setHistory] = React.useState([""])
   const [historyCursor, setHistoryCursor] = React.useState(0)
@@ -550,73 +544,93 @@ const Form = ({ done, placeholder, autoFocus }: {
   )
 }
 
+  // React.useEffect(() => {
+  //   exec("(run '(append (list 1 x 3) '(a b c)))")
+  //   exec("(run '(mapcar (lambda (x) (+ x 1)) '(1 2 3)))")
+  //   exec("(+ 1 2 3)")
+  //   exec("(run '(request 'fetch \"https://httpbin.org/uuid\"))");
+  // }, [])
+
+const uuid = new ShortUniqueId({ length: 8 })
+
 const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
-  const [turns, setTurns] = React.useState([] as Turn[])
+  const [notes, setNotes] = React.useState(() => [{
+    id: uuid(),
+    initialCode: `(defun foo (x)
+  (append (list 1 x 3) '(a b c)))
 
-  function exec(s: string) {
-    const src = ctx.read(s)
-    const run = ctx.api.wisp_run_init(ctx.heap, src)
+(foo 2)`
+  }])
 
-    ctx.api.wisp_run_eval(ctx.heap, run, 10_000)
+  const noteViews = notes.map(note =>
+    <Note note={note} key={note.id} data={data} />
+  )
 
-    render()
-
-    setTurns(xs => [...xs, { src, run }])
-  }
-
-  React.useEffect(() => {
-    exec("(run '(append (list 1 x 3) '(a b c)))")
-    exec("(run '(mapcar (lambda (x) (+ x 1)) '(1 2 3)))")
-    exec("(+ 1 2 3)")
-    exec("(run '(request 'fetch \"https://httpbin.org/uuid\"))");
-  }, [])
-
+  const addNote = () => setNotes(xs => [...xs, {
+    id: uuid(),
+    initialCode: "",
+  }])
+  
   return (
     <div className="absolute inset-0 flex flex-col bg-gray-100 dark:bg-neutral-900">
       <Titlebar />
-      <Notebook data={data} turns={turns} />
-      <Editor exec={exec} />
+      <div className="flex flex-col gap-2">
+        {noteViews}
+        <button onClick={addNote} className="mx-auto text-gray-400 hover:text-gray-500">
+          <IoAddCircleOutline size={30} title="Add new code block" />
+        </button>
+      </div>
     </div>
   )
 }
 
-const Notebook = ({ data, turns }: {
+const Note = ({ note, data }: {
+  node: { id: string, initialCode: string },
   data: View,
-  turns: Turn[],
 }) => {
-  const classes =
-    "divide-y-2 dark:divide-neutral-600 flex flex-col flex-grow overflow-y-auto"
+  let [run, setRun] = React.useState(null)
 
-  const ref = React.useRef<HTMLUListElement>()
-  
-  React.useEffect(() => {
-    if (ref.current) {
-      ref.current.scrollTop = ref.current.scrollHeight
+  const exec = (code: string, how: "run" | "debug") => {
+    const src = ctx.read(`(progn\n${code}\n)`)
+    const run = ctx.api.wisp_run_init(ctx.heap, src)
+    
+    if (how == "run")
+      ctx.api.wisp_run_eval(ctx.heap, run, 10_000)
+    
+    render()
+    setRun(run)
+  }
+
+  function evaluation() {
+    if (run) {
+      const { err, val, way } = data.row("run", run) as unknown as Run
+      if (val != ctx.sys.nah && err == ctx.sys.nil && way == ctx.sys.top) {
+        return <Result data={data} val={val} />
+      } else {
+        return <Debugger data={data} run={run} />
+      }
     }
-  }, [turns.length]);
-  
-  const lines = turns.map((turn, i) =>
-    <ol key={i}>
-      <Line data={data} turn={turn} i={i + 1}/>
-    </ol>
-  )
+  }
   
   return (
-    <ul role="list" ref={ref} className={classes}>
-      {lines}
-    </ul>
+    <div className="flex gap-2 m-2">
+      <div className="w-full bg-white border-gray-300">
+        <Editor exec={exec} initialCode={note.initialCode} />
+      </div>
+      {evaluation()}
+    </div>
   )
 }
 
 const Titlebar = () => {
   return (
-    <header className="flex justify-between border-b-2 px-3 py-1 bg-slate-50 dark:bg-stone-900 dark:border-neutral-600">
-      <span className="font-semibold tracking-tight text-gray-800 dark:text-neutral-400 flex gap-1">
-        Wisp
+    <header className="flex justify-between border-b-2 px-3 py-1 bg-slate-50 dark:bg-stone-900 dark:border-neutral-600 font-mono">
+      <span className="tracking-tight text-gray-800 dark:text-neutral-400 flex gap-2">
+        <span className="font-medium">wisp</span>
         <span className="text-gray-500">v0.5</span>
       </span>
       <a href="https://github.com/mbrock/wisp"
-         className="tracking-tight text-blue-800 dark:text-blue-200 flex column items-center"
+         className="tracking-tight text-blue-900 dark:text-blue-200 flex column items-center"
          target="_blank">
         <VscGithub />
       </a>

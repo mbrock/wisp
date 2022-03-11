@@ -1,3 +1,6 @@
 [submodule "vendor/ziglyph"]
 	path = lib/ziglyph
 	url = https://github.com/jecolon/ziglyph
+[submodule "lib/dm-mono"]
+	path = lib/dm-mono
+	url = https://github.com/googlefonts/dm-mono
