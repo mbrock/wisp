@@ -227,8 +227,7 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
 
   return (
     <div className="border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 dark:text-neutral-50 flex flex-row gap-2 divide-x-2 dark:divide-neutral-600 w-full">
-      <div className="flex flex-grow flex-col gap-1 p-1 px-2">
-         <span className="font-medium text-sm text-gray-500 dark:text-neutral-400">Evaluation</span>
+      <div className="flex flex-grow flex-col gap-1 p-2">
          {renderWay(data, way,
             <Val data={data} v={cur} style={color} />
           )}
