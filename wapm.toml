@@ -1,6 +1,6 @@
 [package]
 name = "mbrock/wisp"
-version = "0.5.0"
+version = "0.6"
 description = "Lisp for WebAssembly"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/mbrock/wisp"

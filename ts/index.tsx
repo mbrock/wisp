@@ -627,7 +627,7 @@ const Titlebar = () => {
     <header className="flex justify-between border-b-2 px-3 py-1 bg-slate-50 dark:bg-stone-900 dark:border-neutral-600 font-mono">
       <span className="tracking-tight text-gray-800 dark:text-neutral-400 flex gap-2">
         <span className="font-medium">wisp</span>
-        <span className="text-gray-500">v0.5</span>
+        <span className="text-gray-500">v0.6</span>
       </span>
       <a href="https://github.com/mbrock/wisp"
          className="tracking-tight text-blue-900 dark:text-blue-200 flex column items-center"
