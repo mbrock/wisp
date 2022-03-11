@@ -17,19 +17,21 @@
 // <https://www.gnu.org/licenses/>.
 //
 
-import { Wisp, View, WispAPI } from "./wisp"
-import { WASI } from "./wasi"
-
 import * as ReactDOM from "react-dom"
 import * as React from "react"
-
-import {
-  VscDebugStepInto, VscDebugStepOut, VscDebugStepOver, VscGithub
-} from "react-icons/vsc"
 
 import "./index.css"
 
 import wispWasmPath from "../zig-out/lib/wisp.wasm"
+
+import { Wisp, View, WispAPI } from "./wisp"
+import { WASI } from "./wasi"
+
+import { Editor } from "./edit"
+
+import {
+  VscDebugStepInto, VscDebugStepOut, VscDebugStepOver, VscGithub
+} from "react-icons/vsc"
 
 const css = {
   sexp: {
@@ -326,7 +328,7 @@ const Val = ({ data, v, style }: { data: View, v: number, style?: string }) => {
   switch (vtag) {
     case "int": {
       const i = v & (1 << 30) ? ((-(~v << 1) >> 1) - 1): v
-      return <span className={`dark:text-neutral-300 font-mono ${style}`}>{i}</span>
+      return <span className={`dark:text-neutral-300 ${style}`}>{i}</span>
     }
 
     case "jet": {
@@ -573,7 +575,7 @@ const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
     <div className="absolute inset-0 flex flex-col bg-gray-100 dark:bg-neutral-900">
       <Titlebar />
       <Notebook data={data} turns={turns} />
-      <Form done={exec} placeholder="Wisp expression" autoFocus />
+      <Editor exec={exec} />
     </div>
   )
 }

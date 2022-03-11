@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -ex
 rm -rf dist/*
-node ./build.js
+node ./build.mjs
 cd dist
 cp ../index.html .
 

@@ -1,0 +1,34 @@
+@top Program { form* }
+
+@skip { spaces | newline | Comment }
+
+form {
+  Symbol |
+  String |
+  Integer |
+  Compound { "(" form* ")" }
+}
+
+@tokens {
+  spaces { $[\u0009 \u000b\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000\ufeff]+ }
+  newline { $[\r\n\u2028\u2029] }
+
+  Comment { ";" ![\n]* }
+
+  identifierChar { std.asciiLetter | $[_$\u{a1}-\u{10ffff}] }
+
+  Symbol { identifierChar (identifierChar | std.digit)* }
+
+  @precedence { spaces, newline, Symbol }
+
+  String {
+    '"' (![\\\n"] | "\\" _)* '"'? |
+    "'" (![\\\n'] | "\\" _)* "'"?
+  }
+
+  Integer { std.digit+ }
+
+  "(" ")"
+}
+
+@detectDelim
