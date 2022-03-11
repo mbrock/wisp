@@ -47,6 +47,11 @@ export function Editor({ exec }: { exec: (code: string) => void }) {
         state: EditorState.create({
           doc: "",
           extensions: [
+            EditorView.theme({
+              ".cm-completionIcon": {
+                width: "1.5em",
+              },
+            }),
             lineNumbers(),
             highlightActiveLineGutter(),
             highlightSpecialChars(),
