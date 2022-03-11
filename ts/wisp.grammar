@@ -2,16 +2,28 @@
 
 @skip { spaces | newline | Comment }
 
-form {
+form[@isGroup=Form] {
   Symbol |
   String |
   Integer |
-  Compound { "(" form* ")" }
+
+  Defun | Let | Lambda |
+  Compound
 }
 
+kw<term> {
+  @specialize[@name={term}]<Symbol, term>
+}
+
+Defun { "(" kw<"defun"> Symbol form form* ")" }
+Let { "(" kw<"let"> form* ")" }
+Lambda { "(" kw<"lambda"> form* ")" }
+
+Compound { "(" form* ")" }
+
 @tokens {
-  spaces { $[\u0009 \u000b\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000\ufeff]+ }
-  newline { $[\r\n\u2028\u2029] }
+  spaces { $[ ]+ }
+  newline { $[\n] }
 
   Comment { ";" ![\n]* }
 
