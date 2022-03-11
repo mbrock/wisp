@@ -21,3 +21,4 @@ web:
 clean:; rm -rf dist/* wasm/* zig-cache zig-out src/zig-cache
 
 deploy:; cp dist/* /restless/www/wisp/
+deploy-nodetown: web; scp dist/* node.town:/restless/www/wisp/
