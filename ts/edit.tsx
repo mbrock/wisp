@@ -17,6 +17,7 @@
 // <https://www.gnu.org/licenses/>.
 //
 
+import * as ReactDOM from "react-dom"
 import * as React from "react"
 
 import { wisp } from "./language"
@@ -34,6 +35,7 @@ import { foldGutter, foldKeymap } from "@codemirror/fold";
 import { indentOnInput } from "@codemirror/language";
 import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { commentKeymap } from "@codemirror/comment";
+import { showPanel } from "@codemirror/panel";
 
 export function Editor({ exec }: { exec: (code: string) => void }) {
   let [editorView, setEditorView] = React.useState<EditorView>(null)
@@ -64,7 +66,7 @@ export function Editor({ exec }: { exec: (code: string) => void }) {
               {
                 key: "Ctrl-Enter",
                 run(view) {
-                  exec(view.state.doc.sliceString(0))
+                  runCode(view)
                   return true
                 }
               },
@@ -78,6 +80,24 @@ export function Editor({ exec }: { exec: (code: string) => void }) {
             ]),
 
             wisp(),
+
+            showPanel.of(view => {
+              const panel = (
+                <div className="p-1 bg-yellow-50 border-t">
+                  <button className={buttonClasses} onClick={() => runCode(view)}>
+                    Run
+                  </button>
+                </div>
+              )
+
+              let dom = document.createElement("div")
+              ReactDOM.render(panel, dom)
+
+              return {
+                dom,
+                top: true,
+              }
+            }),
           ],
         }),
       })
@@ -88,9 +108,22 @@ export function Editor({ exec }: { exec: (code: string) => void }) {
     }
   }
 
+  const buttonClasses = `
+    inline-flex items-center py-1 px-2 border border-gray-300 dark:border-neutral-600
+    bg-white dark:bg-neutral-700
+    text-gray-700 dark:text-neutral-300
+    hover:bg-gray-50 dark:hover:bg-neutral-500
+    font-medium
+    focus:ring-1 focus:ring-indigo-500
+    rounded-md
+    text-xs
+  `
+
+  function runCode(view: EditorView) {
+    exec(`(progn ${view.state.doc.sliceString(0)})`)
+  }
+
   return (
-    <div ref={install}
-      className="border-t"
-      />
+    <div ref={install} />
   )
 }

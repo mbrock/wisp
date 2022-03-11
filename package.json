@@ -16,6 +16,7 @@
     "@codemirror/history": "^0.19.2",
     "@codemirror/language": "^0.19.8",
     "@codemirror/matchbrackets": "^0.19.4",
+    "@codemirror/panel": "^0.19.1",
     "@codemirror/rectangular-selection": "^0.19.1",
     "@codemirror/state": "^0.19.9",
     "@codemirror/view": "^0.19.47",
