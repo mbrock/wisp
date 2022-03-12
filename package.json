@@ -1,6 +1,6 @@
 {
   "name": "wisp",
-  "version": "0.6",
+  "version": "0.7",
   "description": "WebAssembly Lisp Machine",
   "author": "Mikael Brockman",
   "license": "AGPL-3.0",

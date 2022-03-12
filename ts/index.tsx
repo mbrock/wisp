@@ -719,7 +719,7 @@ const Titlebar = ({ saveTape, loadTape }) => {
       </div>
       <span className="tracking-tight text-gray-800 dark:text-neutral-400 flex gap-2">
         <span className="font-medium">wisp</span>
-        <span className="text-gray-500">0.6</span>
+        <span className="text-gray-500">0.7</span>
       </span>
       <a href="https://github.com/mbrock/wisp"
          className="tracking-tight text-blue-900 dark:text-blue-200 flex column items-center"
