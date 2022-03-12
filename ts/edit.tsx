@@ -50,6 +50,7 @@ export const Editor: React.FC<{
 
   const install = (ref?: HTMLDivElement) => {
     if (ref && !editorView) {
+      console.log("new editor view", { initialState })
       const view = new EditorView({
         parent: ref,
         dispatch: tx => {

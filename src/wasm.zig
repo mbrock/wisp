@@ -194,10 +194,12 @@ fn loadColumn(
 ) !?[*]u8 {
     var tab = &@field(params.heap.vat, @tagName(tag));
 
-    try tab.list.ensureTotalCapacity(
-        params.heap.orb,
-        params.len,
-    );
+    if (params.len > 0) {
+        try tab.list.ensureTotalCapacity(
+            params.heap.orb,
+            params.len,
+        );
+    }
 
     tab.list.shrinkRetainingCapacity(params.len);
 

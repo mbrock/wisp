@@ -53,6 +53,7 @@ export type Note = {
 interface Store {
   ctx: Wisp
   data: Data
+  tape: number
   notes: Record<string, Note>
   noteOrder: string[]
 
@@ -70,6 +71,8 @@ const { Provider, useStore } = zustandContext()
 const createStore = (ctx: Wisp) => () => zustand<Store>(set => ({
   ctx,
   data: ctx.loadData(),
+  tape: 0,
+  
   noteOrder: [initialNoteKey],
   notes: {
     [initialNoteKey]: {
@@ -114,7 +117,12 @@ const createStore = (ctx: Wisp) => () => zustand<Store>(set => ({
       notes[note.key] = note
     }
 
-    set(_state => ({ noteOrder, notes }))
+    set(state => ({
+      tape: state.tape + 1,
+      noteOrder,
+      notes,
+      data: state.ctx.loadData(),
+    }))
   },
 
   setNoteRun(key: string, run: number) {
@@ -610,28 +618,36 @@ const Form = ({ done, placeholder, autoFocus }: {
   // }, [])
 
 const Home: React.FC = () => {
-  const { data, refresh, ctx, noteOrder, notes, loadNotes } = useStore()
+  const { data, refresh, ctx, tape, noteOrder, notes, loadNotes, newEmptyNote } = useStore()
 
   const noteViews = noteOrder.map((key: string) => {
     const note = notes[key]
-    return <Note note={note} key={note.key} />
+    return <Note note={note} key={`${tape}-${note.key}`} />
   })
 
   const saveTape = async () => {
     const book = noteOrder.map((key: string) => {
       const { run, editorState } = notes[key]
-      return { key, run, editorState }
+      return {
+        key,
+        run,
+        editorState: {
+          doc: editorState.doc,
+        },
+      }
     })
     
     await Tape.save(Tape.make(ctx, book), "save")
   }
 
   const loadTape = async () => {
-    const tape = await Tape.load("save")
-    console.log("playing tape", tape)
-    Tape.play(ctx, tape)
-    refresh()
-    loadNotes(tape.book)
+    const result = await Tape.load("save")
+    if (result) {
+      const { tape } = result
+      console.log("playing tape", tape)
+      Tape.play(ctx, tape)
+      loadNotes(tape.book)
+    }
   }
   
   return (
@@ -640,7 +656,7 @@ const Home: React.FC = () => {
       <div className="flex flex-col gap-2">
         {noteViews}
         <button
-          onClick={() => state.newEmptyNote()}
+          onClick={() => newEmptyNote()}
           className="mx-auto text-gray-400 hover:text-gray-500 mt-1"
         >
           <IoAddCircleOutline size={30} title="Add new code block" />

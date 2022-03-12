@@ -35,7 +35,7 @@ type Tape = {
 }
 
 async function openTapeDB(): Promise<IDBPDatabase> {
-  return await openDB("wisp-v0.6", version, {
+  return await openDB("wisp-v0.7", version, {
     upgrade(db) {
       db.createObjectStore("tape", { keyPath: "name" })
     },
@@ -47,9 +47,9 @@ export async function save(tape: Tape, name: string): Promise<any> {
   return await db.put("tape", { tape, name })
 }
 
-export async function load(name: string): Promise<Tape> {
+export async function load(name: string): Promise<Tape | null> {
   const db = await openTapeDB()
-  return (await db.get("tape", name)).tape
+  return (await db.get("tape", name))
 }
 
 function transfer(ctx: Wisp, src: ArrayBuffer, dst: number): void {
@@ -75,7 +75,7 @@ export function play(ctx: Wisp, tape: Tape): void {
         ctx.heap, ctx.tag[tag], j++, len / 4
       )
 
-      if (!ptr) {
+      if (len > 0 && !ptr) {
         throw new Error("wisp_heap_load_tab_col")
       }
 
