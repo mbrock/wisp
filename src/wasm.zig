@@ -182,6 +182,71 @@ export fn wisp_dat_read(heap: *Wisp.Heap, dat: *Dat) void {
     }
 }
 
+const ColumnLoadParams = struct {
+    heap: *Wisp.Heap,
+    col: usize,
+    len: usize,
+};
+
+fn loadColumn(
+    comptime tag: Wisp.Tag,
+    params: ColumnLoadParams,
+) !?[*]u8 {
+    var tab = &@field(params.heap.vat, @tagName(tag));
+
+    try tab.list.ensureTotalCapacity(
+        params.heap.orb,
+        params.len,
+    );
+
+    tab.list.shrinkRetainingCapacity(params.len);
+
+    return tab.list.slice().ptrs[params.col];
+}
+
+export fn wisp_heap_load_v08(
+    heap: *Wisp.Heap,
+    len: usize,
+) ?[*]u8 {
+    heap.v08.resize(heap.orb, len) catch return null;
+    return heap.v08.items.ptr;
+}
+
+export fn wisp_heap_load_v32(
+    heap: *Wisp.Heap,
+    len: usize,
+) ?[*]u32 {
+    heap.v32.list.resize(heap.orb, len * 4) catch return null;
+    return heap.v32.list.items.ptr;
+}
+
+export fn wisp_heap_load_tab_col(
+    heap: *Wisp.Heap,
+    tag: usize,
+    col: usize,
+    len: usize,
+) ?[*]u8 {
+    const params = ColumnLoadParams{
+        .heap = heap,
+        .col = col,
+        .len = len,
+    };
+
+    return switch (@intToEnum(Wisp.Tag, tag)) {
+        .duo => loadColumn(.duo, params),
+        .sym => loadColumn(.sym, params),
+        .fun => loadColumn(.fun, params),
+        .mac => loadColumn(.mac, params),
+        .v32 => loadColumn(.v32, params),
+        .v08 => loadColumn(.v08, params),
+        .pkg => loadColumn(.pkg, params),
+        .ktx => loadColumn(.ktx, params),
+        .run => loadColumn(.run, params),
+
+        .int, .sys, .chr, .jet => null,
+    } catch null;
+}
+
 export fn wisp_heap_v08_new(heap: *Wisp.Heap, x: [*]u8, n: usize) u32 {
     std.log.warn("heap v08 new {s} {d}", .{ x[0..n], n });
     return heap.newv08(x[0..n]) catch Wisp.zap;

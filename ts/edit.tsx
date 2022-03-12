@@ -41,9 +41,10 @@ import { VscDebug, VscDebugContinue } from "react-icons/vsc";
 
 export const Editor: React.FC<{
   exec: (code: string, how: "run" | "debug") => void,
-  initialCode: string | undefined,
+  initialState: any | null,
+  onChange: (state: any) => void,
 }> = ({
-  exec, initialCode,
+  exec, initialState, onChange,
 }) => {
   let [editorView, setEditorView] = React.useState<EditorView>(null)
 
@@ -51,8 +52,12 @@ export const Editor: React.FC<{
     if (ref && !editorView) {
       const view = new EditorView({
         parent: ref,
+        dispatch: tx => {
+          view.update([tx])
+          onChange(view.state.toJSON())
+        },
         state: EditorState.create({
-          doc: initialCode,
+          ...(initialState || {}),
           extensions: [
             EditorView.theme({
               ".cm-completionIcon": {
@@ -71,6 +76,8 @@ export const Editor: React.FC<{
                 fontFamily: "dm mono, ui-monospace, SFMono-Regular, Menlo, monospace",
                 fontWeight: "normal",
               }
+            }, {
+              dark: window.matchMedia('(prefers-color-scheme: dark)').matches
             }),
             lineNumbers(),
             highlightActiveLineGutter(),
@@ -116,7 +123,7 @@ export const Editor: React.FC<{
             showPanel.of(() => {
               let dom = document.createElement("div")
               ReactDOM.render(
-                <div className="p-1 bg-gray-50 flex">
+                <div className="p-1 bg-gray-50 dark:bg-neutral-800 dark:text-neutral-200 flex">
                   <IconButton action={() => runCode(view, "run")} left>
                     <VscDebugContinue title="Run code" />
                   </IconButton>
@@ -146,6 +153,6 @@ export const Editor: React.FC<{
   }
 
   return (
-    <div className="border h-full border-gray-300" ref={install} />
+    <div className="border h-full border-gray-300 dark:border-neutral-600" ref={install} />
   )
 }

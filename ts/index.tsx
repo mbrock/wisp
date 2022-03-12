@@ -20,24 +20,127 @@
 import * as ReactDOM from "react-dom"
 import * as React from "react"
 
+import zustand from "zustand"
+import zustandContext from "zustand/context"
+
 import "./index.css"
 
 import wispWasmPath from "../zig-out/lib/wisp.wasm"
 
-import { Wisp, View, WispAPI } from "./wisp"
 import { WASI } from "./wasi"
+import { Wisp, WispAPI, Data, tagOf, getRow, getUtf8String, getV32 } from "./wisp"
+import * as Tape from "./tape"
 
 import { Editor } from "./edit"
 
 import {
-  VscAdd,
-  VscDebugStepInto, VscDebugStepOut, VscDebugStepOver, VscGithub
+  VscDebugStepInto, VscDebugStepOut, VscDebugStepOver, VscFolderOpened, VscGithub, VscSave
 } from "react-icons/vsc"
 
 import { IoAddCircleOutline } from "react-icons/io5"
 
 import ShortUniqueId from "short-unique-id"
 import { IconButton } from "./button"
+
+const uuid = new ShortUniqueId({ length: 8 })
+
+export type Note = {
+  key: string,
+  run?: number,
+  editorState?: any,
+}
+
+interface Store {
+  ctx: Wisp
+  data: Data
+  notes: Record<string, Note>
+  noteOrder: string[]
+
+  refresh(): void
+  newEmptyNote(): void
+  loadNotes(notes: [Note]): void
+  setNoteRun(key: string, run: number): void
+  setNoteEditorState(key: string, editorState: any): void
+}
+
+const initialNoteKey = uuid()
+
+const { Provider, useStore } = zustandContext()
+
+const createStore = (ctx: Wisp) => () => zustand<Store>(set => ({
+  ctx,
+  data: ctx.loadData(),
+  noteOrder: [initialNoteKey],
+  notes: {
+    [initialNoteKey]: {
+      key: initialNoteKey,
+      editorState: {
+        doc: `(defun foo (x)
+  (append '(1 2 x) '(a b c)))
+
+(foo 3)`
+      },
+    }
+  },
+
+  setCtx(ctx: Wisp) {
+    set(() => ({ ctx }))
+  },
+
+  refresh() {
+    set(state => {
+      const data = state.ctx.loadData()
+      console.log({ data })
+      return { data }
+    })
+  },
+  
+  newEmptyNote() {
+    const key = uuid()
+    console.log(`new ${key}`)
+    set(state => ({
+      noteOrder: [...state.noteOrder, key],
+      notes: {
+        ...state.notes,
+        [key]: { key, src: "" }
+      },
+    }))
+  },
+
+  loadNotes(noteList: [Note]) {
+    const noteOrder = noteList.map((x: Note) => x.key)
+    const notes = {}
+    for (let note of noteList) {
+      notes[note.key] = note
+    }
+
+    set(_state => ({ noteOrder, notes }))
+  },
+
+  setNoteRun(key: string, run: number) {
+    set(state => ({
+      notes: {
+        ...state.notes,
+        [key]: {
+          ...state.notes[key],
+          run,
+        }
+      }
+    }))
+  },
+  
+  setNoteEditorState(key: string, editorState: any) {
+    set(state => ({
+      notes: {
+        ...state.notes,
+        [key]: {
+          ...state.notes[key],
+          editorState,
+        }
+      }
+    }))
+  },
+}))
 
 const css = {
   sexp: {
@@ -46,32 +149,34 @@ const css = {
   }
 }
 
-function renderWay(data: View, way: number, child: JSX.Element): JSX.Element {
-  if (way == data.ctx.sys.top)
-    return child
+const Way: React.FC<{ way: number }> = ({ way, children }) => {
+  const { data } = useStore()
+  
+  if (way == data.sys.top)
+    return children
 
-  const { hop, fun, acc, arg } = data.row("ktx", way)
+  const { hop, fun, acc, arg } = getRow(data, "ktx", way)
 
   const accs = listItems(data, acc)
   const args = listItems(data, arg)
 
   function show(x: number, i: number): JSX.Element {
-    return <Val data={data} v={x} key={i} />
+    return <Val v={x} key={i} />
   }
 
   const me = (
     <div className={css.sexp.list}>
       {show(fun, 0)}
       {accs.reverse().map(show)}
-      {child}
+      {children}
       {args.map(show)}
     </div>
   )
 
-  if (hop == data.ctx.sys.top) {
+  if (hop == data.sys.top) {
     return me
   } else {
-    return renderWay(data, hop, me)
+    return <Way way={hop}>{me}</Way>
   }
 }
 
@@ -86,24 +191,26 @@ const RestartButton: React.FC<{
   )
 }
 
-const Fetch = ({ data, run, ask }: {
-  data: View, run: number, ask: number[]
+const Fetch = ({ run, ask }: {
+  run: number, ask: number[]
 }) => {
+  const { ctx, data, refresh } = useStore()
+  
   const [url] = listItems(data, ask[2])
-  const urlstr = data.str(url)
+  const urlstr = getUtf8String(data, url)
 
   async function doFetch() {
     const x = await fetch(urlstr).then(x => x.text())
-    const txtstr = data.ctx.newstr(x)
-    const txtv08 = data.api.wisp_heap_v08_new(ctx.heap, txtstr, x.length)
-    data.ctx.api.wisp_run_restart(ctx.heap, run, txtv08)
-    render()
+    const txtstr = ctx.newstr(x)
+    const txtv08 = ctx.api.wisp_heap_v08_new(ctx.heap, txtstr, x.length)
+    ctx.api.wisp_run_restart(ctx.heap, run, txtv08)
+    refresh()
   }
   
   return (
     <div className="flex flex-col gap-1">
       <RestartButton action={doFetch}>
-        Download <Val data={data} v={url} />
+        Download <Val v={url} />
       </RestartButton>
       <RestartButton action={() => {}}>
         Abort evaluation
@@ -112,30 +219,28 @@ const Fetch = ({ data, run, ask }: {
   )
 }
 
-const Restarts = ({ data, run }: { data: View, run: number }) => {
+const Restarts: React.FC<{ run: number }> = ({ run }) => {
+  const { ctx, data, refresh } = useStore()
+  
   function restart(s: string): void {
     const src = ctx.read(s)
-    data.ctx.api.wisp_run_restart(ctx.heap, run, src)
-    render()
+    ctx.api.wisp_run_restart(ctx.heap, run, src)
+    refresh()
   }
 
-  const row = data.row("run", run)
+  const row = getRow(data, "run", run)
   const { err } = row
 
-  const v32 = Array.from(data.getV32(err))
+  const v32 = Array.from(getV32(data, err))
 
-  const errsym = data.row("sym", v32[0])
-  const errstr = data.str(errsym.str)
-
-  const isRequest = errstr === "REQUEST"
-  const asksym = data.row("sym", v32[1]) 
-  const askstr = data.str(asksym.str)
+  const asksym = getRow(data, "sym", v32[1]) 
+  const askstr = getUtf8String(data, asksym.str)
   const isFetch = askstr === "FETCH"
 
   return (
     <div className="flex flex-col gap-1 mb-1">
       <div className="flex flex-col gap-1">
-        { isFetch ? <Fetch data={data} run={run} ask={v32} /> : null }
+        { isFetch ? <Fetch ctx={ctx} run={run} ask={v32} /> : null }
          
         <Form done={restart} placeholder="Provide another value" />
       </div>
@@ -143,47 +248,49 @@ const Restarts = ({ data, run }: { data: View, run: number }) => {
   )
 }
 
-const Result = ({ data, val }: { data: View, val: number }) => {
+const Result = ({ data, val }: { data: Data, val: number }) => {
   return (
     <div className="border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 dark:text-neutral-50 border flex flex-row divide-x-2 dark:divide-neutral-600 w-full">
       <div className="flex flex-grow flex-col gap-1 p-1 px-2">
          <span className="font-medium text-sm text-gray-500 dark:text-neutral-400">Result</span>
-         <Val data={data} v={val} />
+         <Val v={val} />
       </div>
     </div>
   )
 }
 
-const Debugger = ({ data, run }: { data: View, run: number }) => {
+const Debugger: React.FC<{ run: number }> = ({ run }) => {
+  const { data, ctx, refresh } = useStore()
+  
   function doStep() {
     ctx.api.wisp_eval_step(ctx.heap, run)
-    render()
+    refresh()
   }
 
-  const row = data.row("run", run)
+  const row = getRow(data, "run", run)
   const { way, exp, val, env, err } = row
 
-  const cur = exp == data.ctx.sys.nah ? val : exp
+  const cur = exp == data.sys.nah ? val : exp
 
   const disabled =
-    err != data.ctx.sys.nil || (
-      exp == data.ctx.sys.nah
-      && way == data.ctx.sys.top
-      && env == data.ctx.sys.nil
+    err != data.sys.nil || (
+      exp == data.sys.nah
+      && way == data.sys.top
+      && env == data.sys.nil
     )
 
   let color = "ring-1 ring-gray-300 dark:ring-amber-600 py-px px-1 font-mono "
 
-  if (err != data.ctx.sys.nil) {
+  if (err != data.sys.nil) {
     color += "bg-red-100 dark:bg-red-600/50"
-  } else if (exp == data.ctx.sys.nah) {
+  } else if (exp == data.sys.nah) {
     color += "bg-blue-100 dark:bg-green-600/50"
   } else {
     color += "bg-yellow-50 dark:bg-amber-600/50"
   }
 
   const envs: number[][][] = listItems(data, env).map((env, i) => {
-    const v32 = Array.from(data.getV32(env))
+    const v32 = Array.from(getV32(data, env))
     const vars = []
     
     while (v32.length > 0) {
@@ -195,8 +302,12 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
 
   const renderRow = ([k, v]: number[], i: number) => (
     <tr key={i}>
-      <td className="px-1 font-medium text-right"><Val data={data} v={k}/></td>
-      <td className="px-1 text-left"><Val data={data} v={v}/></td>
+      <td className="px-1 font-medium text-right">
+        <Val v={k}/>
+      </td>
+      <td className="px-1 text-left">
+        <Val v={v}/>
+      </td>
     </tr>
   )
 
@@ -214,23 +325,23 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
   ) : null
 
   const condition = (
-    err === data.ctx.sys.nil
+    err === data.sys.nil
      ? <></>
-     : <Val data={data} v={err} style="mb-1 bg-red-700/30" />
+     : <Val v={err} style="mb-1 bg-red-700/30" />
   )
 
   const restarts = (
-    err === data.ctx.sys.nil
+    err === data.sys.nil
      ? <></>
-     : <Restarts data={data} run={run} />
+     : <Restarts run={run} />
   )
 
   return (
     <div className="border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 dark:text-neutral-50 flex flex-row gap-2 divide-x-2 dark:divide-neutral-600 w-full">
       <div className="flex flex-grow flex-col gap-1 p-2">
-         {renderWay(data, way,
-            <Val data={data} v={cur} style={color} />
-          )}
+        <Way way={way}>
+          <Val data={data} v={cur} style={color} />
+        </Way>
       </div>
   
       <aside className="bg-gray-50 dark:bg-neutral-800 flex flex-col divide-y dark:divide-neutral-600 rounded-r-lg">
@@ -269,32 +380,15 @@ const Debugger = ({ data, run }: { data: View, run: number }) => {
   )
 }
 
-function table(data: View, row: Record<string, number>) {
-  return (
-    <table>
-      <tbody>
-        {
-          Object.keys(row).map((k, i) =>
-            <tr key={i}>
-              <td>{k}</td>
-              <td><Val data={data} v={row[k]} /></td>
-            </tr>
-          )
-        }
-      </tbody>
-    </table>
-  )
-}
-
-function listItems(data: View, v: number): number[] {
+function listItems(data: Data, v: number): number[] {
   const list = []
   let cur = v
-  while (cur != data.ctx.sys.nil) {
-    const { car, cdr } = data.row("duo", cur)
+  while (cur != data.sys.nil) {
+    const { car, cdr } = getRow(data, "duo", cur)
     list.push(car)
-    if (data.ctx.tagOf(cdr) == "duo") {
+    if (tagOf(data, cdr) == "duo") {
       cur = cdr
-    } else if (cdr == data.ctx.sys.nil) {
+    } else if (cdr == data.sys.nil) {
       break
     } else {
       list.push(cdr)
@@ -305,14 +399,10 @@ function listItems(data: View, v: number): number[] {
   return list
 }
 
-const Err = ({ data, run }: { data: View, run: number }) => {
-  return (
-    <Debugger data={data} run={run} />
-  )
-}
-
-const Val = ({ data, v, style }: { data: View, v: number, style?: string }) => {
-  const vtag = data.ctx.tagOf(v)
+const Val: React.FC<{ v: number, style?: string }> = ({ v, style }) => {
+  const { data, ctx } = useStore()
+  
+  const vtag = tagOf(data, v)
   switch (vtag) {
     case "int": {
       const i = v & (1 << 30) ? ((-(~v << 1) >> 1) - 1): v
@@ -320,18 +410,18 @@ const Val = ({ data, v, style }: { data: View, v: number, style?: string }) => {
     }
 
     case "jet": {
-      const name = data.jetName(v)
+      const name = ctx.jetName(v)
       return symbolSpan("WISP", name, "jet", style)
     }
 
     case "sys": {
-      if (v === data.ctx.sys.nil) {
+      if (v === data.sys.nil) {
         return symbolSpan("WISP", "NIL", "nil", style)
-      } else if (v === data.ctx.sys.t) {
+      } else if (v === data.sys.t) {
         return symbolSpan("WISP", "T", "nil", style)
-      } else if (v === data.ctx.sys.top) {
+      } else if (v === data.sys.top) {
         return symbolSpan("WISP", "TOP", "nil", style)
-      } else if (v === data.ctx.sys.nah) {
+      } else if (v === data.sys.nah) {
         return symbolSpan("WISP", "NAH", "nil", style)
       } else {
         return <span className={style}>{v}</span>
@@ -339,14 +429,14 @@ const Val = ({ data, v, style }: { data: View, v: number, style?: string }) => {
     }
 
     case "v08": {
-      const str = data.str(v)
+      const str = getUtf8String(data, v)
       return <span className={`font-mono text-green-800 dark:text-green-200 ${style}`}>"{str}"</span>
     }
 
     case "v32": {
-      const v32 = Array.from(data.getV32(v))
+      const v32 = Array.from(getV32(data, v))
       return <span className={`${css.sexp.v32} ${style}`}>
-        {v32.map((x, i) => <Val data={data} v={x} key={i} />)}
+        {v32.map((x, i) => <Val v={x} key={i} />)}
       </span>
     }
 
@@ -354,12 +444,12 @@ const Val = ({ data, v, style }: { data: View, v: number, style?: string }) => {
       const list = []
       let dotted = false
       let cur = v
-      while (cur != data.ctx.sys.nil) {
-        const { car, cdr } = data.row("duo", cur)
+      while (cur != data.sys.nil) {
+        const { car, cdr } = getRow(data, "duo", cur)
         list.push(car)
-        if (data.ctx.tagOf(cdr) == "duo") {
+        if (tagOf(data, cdr) == "duo") {
           cur = cdr
-        } else if (cdr == data.ctx.sys.nil) {
+        } else if (cdr == data.sys.nil) {
           break
         } else {
           list.push(cdr)
@@ -369,54 +459,45 @@ const Val = ({ data, v, style }: { data: View, v: number, style?: string }) => {
       }
 
       return (
-        <span className={`${css.sexp.list} ${style}`}>
+        <span className={`${css.sexp.list} ${style} ${dotted ? "dotted" : ""}`}>
           {
             list.map((x, i) =>
-              <Val data={data} v={x} key={i} />)
+              <Val v={x} key={i} />)
           }
         </span>
       )
     }
 
     case "fun": {
-      const row = data.row("fun", v)
-      if (row.sym != data.ctx.sys.nil)
-        return <Val data={data} v={row.sym} style={style} />
+      const row = getRow(data, "fun", v)
+      if (row.sym != data.sys.nil)
+        return <Val v={row.sym} style={style} />
       else
         return (
           <span className={`${css.sexp.list} ${style}`}>
             {symbolSpan("WISP", "FN", "jet")}
-            <Val data={data} v={row.par} />
-            <Val data={data} v={row.exp} />
+            <Val v={row.par} />
+            <Val v={row.exp} />
           </span>
         )
     }
 
-    case "run": {
-      return (
-        <Debugger data={data} run={v} />
-     )
-    }
+    case "run":
+      return <Debugger run={v} />
 
-    case "ktx": {
+    case "ktx":
       return (
         <div className="font-semibold">
           《continuation》
         </div>
       )
-      // return (
-      //   <div className={style}>
-      //     {table(data, data.row("ktx", v))}
-      //   </div>
-      // )
-    }
 
     case "sym": {
-      const { str, pkg, fun } = data.row("sym", v)
-      const funtag = data.ctx.tagOf(fun)
-      const symstr = data.str(str)
-      const pkgstr = pkg == data.ctx.sys.nil
-        ? "#" : data.str(data.row("pkg", pkg).nam)
+      const { str, pkg, fun } = getRow(data, "sym", v)
+      const funtag = tagOf(data, fun)
+      const symstr = getUtf8String(data, str)
+      const pkgstr = pkg == data.sys.nil
+        ? "#" : getUtf8String(data, getRow(data, "pkg", pkg).nam)
 
       return symbolSpan(pkgstr, symstr, funtag, style)
     }
@@ -459,34 +540,12 @@ function extraStyleForSymbol(funtag: string): string {
   return ""
 }
 
-const Line = ({ data, turn, i }: {
-  data: View,
-  turn: Turn,
-  i: number,
-}) => {
-  const run = data.row("run", turn.run) as unknown as Run
-
-  return (
-    <div className="block p-2 px-3 flex flex-col justify-between gap-2 lg:flex-row items-baseline">
-      <Val data={data} v={turn.src} style="" />
-      { run.err == data.ctx.sys.nil
-          ? <Val data={data} v={run.val} />
-          : <Err data={data} run={turn.run} /> }
-    </div>
-  )
-}
-
 interface Run {
   exp: number
   val: number
   err: number
   way: number
   env: number
-}
-
-interface Turn {
-  src: number
-  run: number
 }
 
 const Form = ({ done, placeholder, autoFocus }: {
@@ -550,32 +609,40 @@ const Form = ({ done, placeholder, autoFocus }: {
   //   exec("(run '(request 'fetch \"https://httpbin.org/uuid\"))");
   // }, [])
 
-const uuid = new ShortUniqueId({ length: 8 })
+const Home: React.FC = () => {
+  const { data, refresh, ctx, noteOrder, notes, loadNotes } = useStore()
 
-const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
-  const [notes, setNotes] = React.useState(() => [{
-    id: uuid(),
-    initialCode: `(defun foo (x)
-  (append (list 1 x 3) '(a b c)))
+  const noteViews = noteOrder.map((key: string) => {
+    const note = notes[key]
+    return <Note note={note} key={note.key} />
+  })
 
-(foo 2)`
-  }])
+  const saveTape = async () => {
+    const book = noteOrder.map((key: string) => {
+      const { run, editorState } = notes[key]
+      return { key, run, editorState }
+    })
+    
+    await Tape.save(Tape.make(ctx, book), "save")
+  }
 
-  const noteViews = notes.map(note =>
-    <Note note={note} key={note.id} data={data} />
-  )
-
-  const addNote = () => setNotes(xs => [...xs, {
-    id: uuid(),
-    initialCode: "",
-  }])
+  const loadTape = async () => {
+    const tape = await Tape.load("save")
+    console.log("playing tape", tape)
+    Tape.play(ctx, tape)
+    refresh()
+    loadNotes(tape.book)
+  }
   
   return (
     <div className="absolute inset-0 flex flex-col bg-gray-100 dark:bg-neutral-900">
-      <Titlebar />
+      <Titlebar saveTape={saveTape} loadTape={loadTape} />
       <div className="flex flex-col gap-2">
         {noteViews}
-        <button onClick={addNote} className="mx-auto text-gray-400 hover:text-gray-500">
+        <button
+          onClick={() => state.newEmptyNote()}
+          className="mx-auto text-gray-400 hover:text-gray-500 mt-1"
+        >
           <IoAddCircleOutline size={30} title="Add new code block" />
         </button>
       </div>
@@ -583,12 +650,10 @@ const Home = ({ ctx, data }: { ctx: Wisp, data: View }) => {
   )
 }
 
-const Note = ({ note, data }: {
-  node: { id: string, initialCode: string },
-  data: View,
-}) => {
-  let [run, setRun] = React.useState(null)
-
+const Note = ({ note }: { note: Note }) => {
+  const { key, run } = note
+  const { ctx, data, refresh, setNoteRun, setNoteEditorState } = useStore()
+  
   const exec = (code: string, how: "run" | "debug") => {
     const src = ctx.read(`(progn\n${code}\n)`)
     const run = ctx.api.wisp_run_init(ctx.heap, src)
@@ -596,37 +661,49 @@ const Note = ({ note, data }: {
     if (how == "run")
       ctx.api.wisp_run_eval(ctx.heap, run, 10_000)
     
-    render()
-    setRun(run)
+    refresh()
+    setNoteRun(key, run)
   }
 
   function evaluation() {
     if (run) {
-      const { err, val, way } = data.row("run", run) as unknown as Run
-      if (val != ctx.sys.nah && err == ctx.sys.nil && way == ctx.sys.top) {
-        return <Result data={data} val={val} />
+      const { err, val, way } = getRow(data, "run", run) as unknown as Run
+      if (val != data.sys.nah && err == data.sys.nil && way == data.sys.top) {
+        return <Result val={val} />
       } else {
-        return <Debugger data={data} run={run} />
+        return <Debugger run={run} />
       }
     }
+  }
+
+  function onChange(x: any) {
+    setNoteEditorState(key, x)
   }
   
   return (
     <div className="flex gap-2 m-2 flex-col md:flex-row">
-      <div className="w-full bg-white border-gray-300">
-        <Editor exec={exec} initialCode={note.initialCode} />
+      <div className="w-full bg-white border-gray-300 dark:bg-neutral-900 dark:border-neutral-600 dark:text-neutral-400">
+        <Editor exec={exec} initialState={note.editorState} onChange={onChange} />
       </div>
       {evaluation()}
     </div>
   )
 }
 
-const Titlebar = () => {
+const Titlebar = ({ saveTape, loadTape }) => {
   return (
-    <header className="flex justify-between border-b-2 px-3 py-1 bg-slate-50 dark:bg-stone-900 dark:border-neutral-600 font-mono">
+    <header className="flex justify-between border-b-2 px-3 py-1 bg-slate-50 dark:bg-stone-900 dark:border-neutral-600">
+      <div>
+        <IconButton action={saveTape} left>
+          <VscSave title="Save" />
+        </IconButton>
+        <IconButton action={loadTape} right>
+          <VscFolderOpened title="Load" />
+        </IconButton>
+      </div>
       <span className="tracking-tight text-gray-800 dark:text-neutral-400 flex gap-2">
         <span className="font-medium">wisp</span>
-        <span className="text-gray-500">v0.6</span>
+        <span className="text-gray-500">0.6</span>
       </span>
       <a href="https://github.com/mbrock/wisp"
          className="tracking-tight text-blue-900 dark:text-blue-200 flex column items-center"
@@ -634,17 +711,6 @@ const Titlebar = () => {
         <VscGithub />
       </a>
     </header>
-  )
-}
-
-let ctx: Wisp = null
-
-function render() {
-  const data = ctx.view()
-
-  ReactDOM.render(
-    <Home ctx={ctx} data={data} />,
-    document.querySelector("#app")
   )
 }
 
@@ -661,5 +727,10 @@ onload = async () => {
 
   ctx = new Wisp(instance)
 
-  render()
+  ReactDOM.render(
+    <Provider createStore={createStore(ctx)}>
+      <Home />
+    </Provider>,
+    document.querySelector("#app")
+  )
 }

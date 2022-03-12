@@ -53,6 +53,13 @@ export interface WispAPI {
   wisp_destroy(heap: number, x: number): void
 
   wisp_heap_init(): number
+  
+  wisp_heap_load_tab_col(
+    heap: number, tag: number, col: number, len: number
+  ): number
+
+  wisp_heap_load_v08(heap: number, len: number): number
+  wisp_heap_load_v32(heap: number, len: number): number
 
   wisp_heap_v08_new(heap: number, x: number, n: number): number
   wisp_heap_v08_len(heap: number): number
@@ -76,111 +83,30 @@ export interface WispAPI {
   wisp_jet_name_len(jet: number): number
 }
 
-export class View {
-  tab: Record<string, Record<string, number[]>>
+export const tabs = {
+  duo: ["car", "cdr"],
+  sym: ["str", "pkg", "val", "fun"],
+  fun: ["env", "par", "exp", "sym"],
+  mac: ["env", "par", "exp", "sym"],
+  v08: ["idx", "len"],
+  v32: ["idx", "len"],
+  pkg: ["nam", "sym", "use"],
+  ktx: ["hop", "env", "fun", "acc", "arg"],
+  run: ["exp", "val", "err", "env", "way"],
+}
+
+type Row = Record<string, number[]>
+type Tab = Record<string, Row>
+
+export interface Data {
+  tag: Record<Tag, number>
+  sys: Record<Sys, number>
+  tab: Tab
   v08: ArrayBuffer
   v32: ArrayBuffer
-  mem: WebAssembly.Memory
-  api: WispAPI
-
-  constructor(
-    public ctx: Wisp,
-  ) {
-    this.api = ctx.api
-    this.mem = ctx.api.memory
-    this.tab = this.readTab()
-    this.v08 = this.readV08()
-    this.v32 = this.readV32()
-  }
-
-  readV08() {
-    const v08len = this.ctx.v08len()
-    const v08ptr = this.ctx.v08ptr()
-    return this.api.memory.buffer.slice(v08ptr, v08ptr + v08len)
-  }
-
-  readV32() {
-    const v32len = this.ctx.v32len()
-    const v32ptr = this.ctx.v32ptr()
-    return this.api.memory.buffer.slice(v32ptr, v32ptr + 4 * v32len)
-  }
-
-  readTab() {
-    const datptr = this.api.wisp_dat_init(this.ctx.heap)
-    this.api.wisp_dat_read(this.ctx.heap, datptr)
-
-    const tabs = {
-      duo: ["car", "cdr"],
-      sym: ["str", "pkg", "val", "fun"],
-      fun: ["env", "par", "exp", "sym"],
-      mac: ["env", "par", "exp", "sym"],
-      v08: ["idx", "len"],
-      v32: ["idx", "len"],
-      pkg: ["nam", "sym", "use"],
-      ktx: ["hop", "env", "fun", "acc", "arg"],
-      run: ["exp", "val", "err", "env", "way"],
-    }
-
-    const n = Object.values(tabs).length
-    const m = Object.values(tabs).reduce((n, cols) => n + cols.length, 0)
-
-    const dat = new DataView(this.api.memory.buffer, datptr, 4 * (n + m))
-    const mem = new DataView(this.api.memory.buffer)
-
-    const u32 = (v: DataView, x: number) => v.getUint32(x, true)
-    const u32s = (x: number, n: number): number[] => {
-      const xs = []
-      for (let i = 0; i < n; i++)
-        xs[i] = u32(mem, x + 4 * i)
-      return xs
-    }
-
-    let i = 0
-    const next = () => u32(dat, 4 * i++)
-
-    const tab: Record<string, Record<string, number[]>> = {}
-
-    for (const [tag, cols] of Object.entries(tabs)) {
-      tab[tag] = {}
-      const n = next()
-      for (const col of cols) {
-        tab[tag][col] = u32s(next(), n)
-      }
-    }
-
-    return tab
-  }
-
-  row(tag: Tag, x: number): Record<string, number> {
-    const row: Record<string, number> = {}
-    const tab = this.tab[tag]
-    const i = idxOf(x)
-
-    for (const [col, xs] of Object.entries(tab)) {
-      row[col] = xs[i]
-    }
-
-    return row
-  }
-
-  str(x: number): string {
-    const { idx, len } = this.row("v08", x)
-    const buf = new Uint8Array(this.v08, idx, len)
-    return new TextDecoder().decode(buf)
-  }
-
-  getV32(x: number): Uint32Array {
-    const { idx, len } = this.row("v32", x)
-    return new Uint32Array(this.v32, 4 * idx, len)
-  }
-
-  jetName(x: number): string {
-    const ptr = this.api.wisp_jet_name(x)
-    const len = this.api.wisp_jet_name_len(x)
-    const buf = this.api.memory.buffer.slice(ptr, ptr + len)
-    return new TextDecoder().decode(buf)
-  }
 }
+
+type Memory = WebAssembly.Memory
 
 export class Wisp {
   instance: WebAssembly.Instance
@@ -235,10 +161,58 @@ export class Wisp {
     }
   }
 
-  view(): View {
-    return new View(this)
+  loadData(): Data {
+    console.log("loading data")
+    return {
+      sys: this.sys,
+      tag: this.tag,
+      tab: this.loadTab(),
+      v08: this.v08slice(),
+      v32: this.v32slice(),
+    }
   }
 
+  loadTab(): Tab {
+    const datptr = this.api.wisp_dat_init(this.heap)
+    this.api.wisp_dat_read(this.heap, datptr)
+
+    const n = Object.values(tabs).length
+    const m = Object.values(tabs).reduce((n, cols) => n + cols.length, 0)
+
+    const dat = new DataView(this.api.memory.buffer, datptr, 4 * (n + m))
+    const mem = new DataView(this.api.memory.buffer)
+
+    const u32 = (v: DataView, x: number) => v.getUint32(x, true)
+    const u32s = (x: number, n: number): number[] => {
+      const xs = []
+      for (let i = 0; i < n; i++)
+        xs[i] = u32(mem, x + 4 * i)
+      return xs
+    }
+
+    let i = 0
+    const next = () => u32(dat, 4 * i++)
+
+    const tab: Tab = {}
+
+    for (const [tag, cols] of Object.entries(tabs)) {
+      tab[tag] = {}
+      const n = next()
+      for (const col of cols) {
+        tab[tag][col] = u32s(next(), n)
+      }
+    }
+
+    return tab
+  }
+
+  jetName(x: number): string {
+    const ptr = this.api.wisp_jet_name(x)
+    const len = this.api.wisp_jet_name_len(x)
+    const buf = this.api.memory.buffer.slice(ptr, ptr + len)
+    return new TextDecoder().decode(buf)
+  }
+  
   v08len(): number {
     return this.api.wisp_heap_v08_len(this.heap)
   }
@@ -253,6 +227,18 @@ export class Wisp {
 
   v32ptr(): number {
     return this.api.wisp_heap_v32_ptr(this.heap)
+  }
+
+  v08slice() {
+    const v08len = this.v08len()
+    const v08ptr = this.v08ptr()
+    return this.api.memory.buffer.slice(v08ptr, v08ptr + v08len)
+  }
+  
+  v32slice() {
+    const v32len = this.v32len()
+    const v32ptr = this.v32ptr()
+    return this.api.memory.buffer.slice(v32ptr, v32ptr + 4 * v32len)
   }
 
   newstr(txt: string): number {
@@ -287,19 +273,46 @@ export class Wisp {
   eval(exp: number): number {
     return this.api.wisp_eval(this.heap, exp, 10000)
   }
- 
-  tagOf(x: number): Tag {
-    const tagnum = x >>> (32 - 5)
-    if (tagnum < 0b10000) 
-      return "int"
+}
 
-    for (let [k, v] of Object.entries(this.tag)) {
-      if (v === tagnum)
-        return k as Tag
-    }
+export function tagOf(data: Data, x: number): Tag {
+  const tagnum = x >>> (32 - 5)
+  if (tagnum < 0b10000) 
+    return "int"
 
-    throw new Error("weird tag")
+  for (let [k, v] of Object.entries(data.tag)) {
+    if (v === tagnum)
+      return k as Tag
   }
+
+  throw new Error("weird tag")
+}
+
+export function getRow(data: Data, tag: Tag, x: number): Record<string, number> {
+  if (typeof x !== "number")
+    throw new Error("type error")
+  
+  const row: Record<string, number> = {}
+  const tab = data.tab[tag]
+  const i = idxOf(x)
+
+  for (const [col, xs] of Object.entries(tab)) {
+    row[col] = xs[i]
+  }
+
+  return row
+}
+
+export function getUtf8String(data: Data, x: number): string {
+  const { idx, len } = getRow(data, "v08", x)
+  const buf = new Uint8Array(data.v08, idx, len)
+  const str = new TextDecoder().decode(buf)
+  return str
+}
+
+export function getV32(data: Data, x: number): Uint32Array {
+  const { idx, len } = getRow(data, "v32", x)
+  return new Uint32Array(data.v32, 4 * idx, len)
 }
 
 export function idxOf(x: number): number {
