@@ -133,8 +133,19 @@ pub fn Tab(comptime tag: Tag) type {
         list: std.MultiArrayList(Row(tag)) = .{},
 
         pub fn new(tab: *This, orb: Orb, era: Era, row: Row(tag)) !u32 {
+            const len = tab.list.len;
+
+            if (len > 0 and @mod(len, 10_000) == 0) {
+                const bytes = @sizeOf(Row(tag)) * len;
+                std.log.info("tag {s} has {d}K rows, ~{d} KB", .{
+                    @tagName(tag),
+                    len / 1000,
+                    bytes / 1024,
+                });
+            }
+
             try tab.list.append(orb, row);
-            const idx = @intCast(u26, tab.list.len - 1);
+            const idx = @intCast(u26, len);
             return Ptr.make(tag, idx, era).word();
         }
 
@@ -270,7 +281,10 @@ pub const Heap = struct {
     }
 
     pub fn bytesize(heap: Heap) usize {
-        return heap.v08.items.len + heap.vat.bytesize();
+        var bytes = heap.v08.items.len;
+        bytes += heap.v32.list.items.len * 4;
+        bytes += heap.vat.bytesize();
+        return bytes;
     }
 
     pub fn tab(heap: *Heap, comptime tag: Tag) *Tab(tag) {

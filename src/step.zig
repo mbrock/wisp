@@ -718,15 +718,28 @@ pub fn evaluateUntilSpecificContinuation(
 
     var i: u32 = 0;
     while (true) {
-        if (limit > 0) {
-            if (i < limit) i += 1 else break;
+        if (limit > 0 and i >= limit) break;
+
+        if (limit == 0 and @mod(i, 100_000) == 0) {
+            // var timer = try std.time.Timer.start();
+            // const s0 = heap.bytesize();
+            try step.gcWithRunRoots();
+            // const s1 = heap.bytesize();
+            // const nanoseconds = timer.read();
+            // std.log.info("gc took {d}ms ({d} KB to {d} KB)", .{
+            //     @intToFloat(f64, nanoseconds) / 1_000_000,
+            //     s0 / 1024,
+            //     s1 / 1024,
+            // });
         }
 
         if (run.way == breakpoint and run.val != Wisp.nah) {
             return run.val;
         }
 
-        if (once(heap, run)) {} else |err| {
+        if (once(heap, run)) {
+            i += 1;
+        } else |err| {
             if (run.err == Wisp.nil) {
                 run.err = try heap.newv32(
                     &[_]u32{heap.kwd.@"PROGRAM-ERROR"},
