@@ -2,15 +2,17 @@
 
 * Wisp
 
-**Wisp** is a Lisp system for [[https://webassembly.org][WebAssembly]] and native
-execution.  It aims to offer an unusually pleasant developer
-experience both while hacking and in production, though it's
-still /very immature/ and far from ready for any serious use.
+*Wisp* is a Lisp system for [[https://webassembly.org][WebAssembly]] and native execution.
 
-You can try Wisp running entirely in your browser at
-[[https://wisp.node.town][wisp.node.town]].
+It aims to offer an unusually pleasant developer experience
+both while hacking and in production, though it's still /very
+immature/ and far from ready for any serious use.
 
-The Wisp runtime is implemented in [[https://ziglang.org][Zig]].
+You can try the live browser-based IDE at [[https://wisp.node.town][wisp.node.town]].
+
+Feel free to join the [[https://discord.gg/BeKtM3x687][Wisp Discord chat]] if you're interested
+in following the development work, hacking on the system, or
+chatting about Lisp, WebAssembly, and Zig.
 
 Wisp has:
 
@@ -35,9 +37,9 @@ Wisp has:
   - sandboxed execution with fine-grained capabilities via
     WebAssembly;
 
-  - and more!
+  - an implementation written in [[https://ziglang.org][Zig]];
 
-You can join the [[https://discord.gg/BeKtM3x687][Wisp Discord chat]].
+  - and more!
 
 The rest of this document is currently a bit rambling.
 
