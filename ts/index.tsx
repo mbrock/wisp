@@ -717,7 +717,7 @@ const Titlebar = ({ saveTape, loadTape }) => {
           <VscFolderOpened title="Load" />
         </IconButton>
       </div>
-      <span className="tracking-tight text-gray-800 dark:text-neutral-400 flex gap-2">
+      <span className="tracking-tight text-gray-800 dark:text-neutral-400 flex gap-2 text-xl">
         <span className="font-medium">wisp</span>
         <span className="text-gray-500">0.7</span>
       </span>
