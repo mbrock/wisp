@@ -230,16 +230,19 @@ fn scan(
     arg: u32,
     rev: bool,
 ) !void {
-    var pars = try scanListAlloc(step.heap, par);
+    var _tmp = std.heap.stackFallback(4096, step.heap.orb);
+    var tmp = _tmp.get();
+
+    var pars = try scanListAlloc(step.heap, tmp, par);
     defer pars.deinit();
-    var vals = try scanListAlloc(step.heap, arg);
+    var vals = try scanListAlloc(step.heap, tmp, arg);
     defer vals.deinit();
 
     if (rev)
         std.mem.reverse(u32, vals.items);
 
-    var scope = try step.heap.orb.alloc(u32, 2 * pars.items.len);
-    defer step.heap.orb.free(scope);
+    var scope = try tmp.alloc(u32, 2 * pars.items.len);
+    defer tmp.free(scope);
 
     var i: usize = 0;
     while (i < pars.items.len) : (i += 1) {
@@ -281,6 +284,9 @@ pub fn call(
     args: u32,
     rev: bool,
 ) anyerror!void {
+    var _tmp = std.heap.stackFallback(4096, step.heap.orb);
+    var tmp = _tmp.get();
+
     switch (Wisp.tagOf(funptr)) {
         .jet => {
             try step.oper(funptr, args, rev);
@@ -299,7 +305,7 @@ pub fn call(
         },
 
         .ktx => {
-            var vals = try scanListAlloc(step.heap, args);
+            var vals = try scanListAlloc(step.heap, tmp, args);
             defer vals.deinit();
 
             if (vals.items.len != 1) {
@@ -312,7 +318,7 @@ pub fn call(
 
         .sys => {
             if (funptr == Wisp.top) {
-                var vals = try scanListAlloc(step.heap, args);
+                var vals = try scanListAlloc(step.heap, tmp, args);
                 defer vals.deinit();
 
                 if (vals.items.len != 1) {
@@ -503,8 +509,8 @@ pub fn execKtx(step: *Step, ktx: Wisp.Row(.ktx)) !void {
     }
 }
 
-pub fn scanListAlloc(heap: *Heap, list: u32) !std.ArrayList(u32) {
-    var xs = std.ArrayList(u32).init(heap.orb);
+pub fn scanListAlloc(heap: *Heap, tmp: Wisp.Orb, list: u32) !std.ArrayList(u32) {
+    var xs = try std.ArrayList(u32).initCapacity(tmp, 16);
     errdefer xs.deinit();
 
     var cur = list;
@@ -569,9 +575,11 @@ fn reverseList(heap: *Heap, list: u32) !u32 {
 
 fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
     const def = Jets.jets[Wisp.Imm.from(jet).idx];
+    var tmp = std.heap.stackFallback(4096, step.heap.orb);
+
     switch (def.tag) {
         .f0x => {
-            const args = try scanListAlloc(step.heap, arg);
+            const args = try scanListAlloc(step.heap, tmp.get(), arg);
             defer args.deinit();
             if (rev) std.mem.reverse(u32, args.items);
             const fun = cast(.f0x, def);
@@ -593,7 +601,7 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f1x => {
-            const args = try scanListAlloc(step.heap, arg);
+            const args = try scanListAlloc(step.heap, tmp.get(), arg);
             defer args.deinit();
             if (rev) std.mem.reverse(u32, args.items);
             const fun = cast(.f1x, def);
@@ -610,7 +618,7 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f1 => {
-            const list = try scanListAlloc(step.heap, arg);
+            const list = try scanListAlloc(step.heap, tmp.get(), arg);
             const args = list.items;
             defer list.deinit();
 
@@ -623,7 +631,7 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f2 => {
-            const list = try scanListAlloc(step.heap, arg);
+            const list = try scanListAlloc(step.heap, tmp.get(), arg);
             const args = list.items;
             defer list.deinit();
 
@@ -637,7 +645,7 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f3 => {
-            const list = try scanListAlloc(step.heap, arg);
+            const list = try scanListAlloc(step.heap, tmp.get(), arg);
             const args = list.items;
             defer list.deinit();
 

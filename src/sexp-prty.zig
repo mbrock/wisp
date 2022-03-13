@@ -318,9 +318,11 @@ pub fn pretty(gpa: Gpa, heap: *Wisp.Heap, exp: u32) anyerror!Doc {
     _ = heap;
     _ = exp;
 
+    var tmp = std.heap.stackFallback(4096, heap.orb);
+
     switch (Wisp.tagOf(exp)) {
         .duo => {
-            var list = try Step.scanListAlloc(heap, exp);
+            var list = try Step.scanListAlloc(heap, tmp.get(), exp);
             defer list.deinit();
 
             if (hang(heap, list.items[0])) |n| {
