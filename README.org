@@ -2,60 +2,55 @@
 
 * Wisp
 
-Wisp is a Lisp interpreter that aims to offer an unusually
-pleasant developer experience, both while hacking and in
-production—though it's still *very immature* and far from
-ready for any serious use.
+**Wisp** is a Lisp system for [[https://webassembly.org][WebAssembly]] and native
+execution.  It aims to offer an unusually pleasant developer
+experience both while hacking and in production, though it's
+still /very immature/ and far from ready for any serious use.
 
-Some distinguishing features of Wisp:
+You can try Wisp running entirely in your browser at
+[[https://wisp.node.town][wisp.node.town]].
 
-  - the Wisp Notebook, a browser-based developer environment;
+The Wisp runtime is implemented in [[https://ziglang.org][Zig]].
 
-  - fast and portable saving and restoring of full application
-    state;
+Wisp has:
 
-  -
+  - a browser-based IDE for live hacking and interactive
+    debugging;
 
-It has a basic browser-based REPL written in TypeScript
-with React as well as a basic command-line REPL.
+  - saving and loading of full system state images, including
+    debugger state, also in browser local storage;
 
-This initial import has a working interpreter and garbage
-collector, but the language is very incomplete.
+  - thoughtful integration with the browser environment, Node,
+    Deno, and Unix in general;
 
-The interpreter is a small-step evaluator in the "CEK machine"
-style, which means it has an explicit representation of the
-evaluation context, also known as the continuation.
-Continuations are heap-allocated Lisp objects that can be
-inspected and serialized.
+  - first-class delimited continuations for advanced control
+    flow;
 
-The heap can be saved as an image file and loaded again.
-We currently don't save and restore the evaluator's state, but
-this can be fixed easily; then we could save and restore even
-in the middle of executing code.
+  - interactive restartable conditions in the style of Common
+    Lisp;
 
-The garbage collector uses stop & copy with two semispaces.
-It is not generational or fancy in any way, but it works.
-Collection is triggered between evaluation steps when heap
-usage exceeds a threshold.
+  - first-class stepwise execution for custom debuggers,
+    schedulers, etc;
 
-The TypeScript code reads the heap directly, so it needs to be
-kept in sync with the basic memory layout defined by the
-C code.
+  - sandboxed execution with fine-grained capabilities via
+    WebAssembly;
+
+  - and more!
+
+You can join the [[https://discord.gg/BeKtM3x687][Wisp Discord chat]].
+
+The rest of this document is currently a bit rambling.
 
 ** WebAssembly as a platform
 
-I want to have some kind of funny interactive computing
-platform that's very social and "portable" in the sense that
-you should be able to migrate between your browser, your
-laptop, the cloud, whatever.  I haven't yet figured out how to
-realize that.
+I've been dreaming of an interactive computing platform that's
+social and "portable" so you can migrate even running programs
+between browsers, laptops, cloud platforms, etc.
 
-Well, I started seeing people talk about WebAssembly as a new
-platform.  It's in the major web browsers with strong support.
-It runs in Node, native runtimes like Wasmtime, embedded as a
-library, on cloud edge computing platforms, in Kubernetes, and
-so on.  It's similar to the eBPF system of the Linux kernel, a
-sandbox for portable fast low-level code.
+Then I started paying attention to WebAssembly.  It's strongly
+supported by all the major browsers.  It runs in Node, native
+runtimes like Wasmer and Wasmtime, embedded as a library, on
+cloud edge computing platforms, in Kubernetes, and so on.
 
 So it's not just a thing for making 3D games.  It's not Java,
 it's not a whole platform bundle.  I had a hunch that it would
@@ -110,208 +105,38 @@ That's why there are Common Lisp packages for transforming
 code into continuation-passing style.  Even Ruby has callcc.
 It's like a low-hanging fruit of language design.
 
-** C, Rust, Zig
+** Garbage Collection
 
-I think Wisp probably ought to be written in Rust, or Zig,
-rather than C, but C is just easier for me right now.  In a
-way, Wisp is the anti-Rust, or like I would consider Rust a
-way to bootstrap a Lisp, but also to write fast Lisp extension
-modules.  The current code base could probably be translated
-to Zig in a few days.  Actually Zig can even translate C to
-Zig, but it didn't work on Wisp for some seemingly
-minor reason.
+Wisp has a simple stop-and-copy garbage collector following
+the algorithm published by Cheney in 1970 [cite:@cheney1970].
 
-** Ideas
+To summarize the algorithm, we divide the heap in two halves
+or "semispaces" which we call the new heap and the old heap,
+and to collect garbage we copy all reachable objects into the
+new heap and update all relevant pointers with an iterative
+breadth-first traversal.
 
-It would be very cool to have some form of data replication
-built into the system.  Like persistent variables that can be
-synchronized across nodes.  Especially CRDTs.
+This traversal is very simple and doesn't use any recursive
+functions.  We first copy the objects pointed to by roots like
+current scope and continuation into the new heap just by
+copying their memory with no inspection other than needed to
+determine each object's byte size.  We've now filled up a
+small prefix of the new heap with copied structures that still
+refer to objects in the old heap.  Now we /scavenge/,
+iterating from the start of the new heap through every slot of
+an instance, every list element, etc, and copy those objects
+in the same way as we did the roots.  As we scavenge we move
+the /scan/ pointer so that the next round of scavenging begins
+where we left off.  For each object we copy into the new heap,
+we update its old heap location to replace the object's first
+word with the pointer to its new location.  Before copying an
+object we check for such a /forwarding pointer/ or /broken
+heart/ so we don't copy the same object twice.
 
- - Wisp Library
- - Wisp Inspector
- - Wisp Remote
- - Wisp Emacs
- - Wisp DOM
- - Wisp React
- - Wisp Threads
- - Wisp Cluster
-
-* Wisp Internals
-
-** Memory Layout
-
-   A wisp word is 32 bits.
-
-   The least 3 significant bits hold a tag, the /lowtag/.
-
-*** Lowtag values
-
-    |-----+-----+-----------------|
-    | Tag | Hex | Type            |
-    |-----+-----+-----------------|
-    | 000 | 0x0 | FIXNUM          |
-    | 001 | 0x1 | FUNCTION-PTR    |
-    | 010 | 0x2 | OTHER-IMMEDIATE |
-    | 011 | 0x3 | LIST-PTR        |
-    | 100 | 0x4 | FIXNUM          |
-    | 101 | 0x5 | STRUCT-PTR      |
-    | 110 | 0x6 | OTHER-IMMEDIATE |
-    | 111 | 0x7 | OTHER-PTR       |
-    |-----+-----+-----------------|
-
-
-*** Symbols
-
-    A symbol is an OTHER-PTR to a SYMBOL-DATA.
-
-    But NIL is also used as a LIST-PTR.
-
-
-
-*** Packages
-
-    A package is an OTHER-PTR
-
-** CEK Machine
-
-   To evaluate Lisp code, we use a style of interpreter
-   known in the literature as the CEK machine, named after
-   its three registers: Control, Environment, Kontinuation.
-
-   We call the registers ~term~, ~scopes~, and ~plan~.
-
-   See the [[file:wisp-eval.c::wisp_step (wisp_machine_t *machine)][~wisp_step()~]] function.
-
-*** Plans
-
-    | Plan              | Meaning             |
-    |-------------------+---------------------|
-    | NIL               | Computation is done |
-    | APPLY vs ts e k   |                     |
-    | CALL vs e k       |                     |
-
-    A call like ~(f x y)~ ...
-
-
-*** Lisp forms based on what they evaluate
-
-    |-----------+-----------+--------|
-    | Form      | Arguments | Result |
-    |-----------+-----------+--------|
-    | QUOTE     | no        | no     |
-    | Macros    | no        | yes    |
-    | Functions | yes       | no     |
-    | EVAL      | yes       | yes    |
-    |-----------+-----------+--------|
-
-
-* Garbage Collection
-
-  Wisp has a simple stop-and-copy garbage collector following
-  the algorithm published by Cheney in 1970
-  [cite:@cheney1970].
-
-  To summarize the algorithm, we divide the heap in two halves
-  or "semispaces" which we call the new heap and the old heap,
-  and to collect garbage we copy all reachable objects into
-  the new heap and update all relevant pointers with an
-  iterative breadth-first traversal.
-
-  This traversal is very simple and doesn't use any recursive
-  functions.  We first copy the objects pointed to by roots
-  like current scope and continuation into the new heap just
-  by copying their memory with no inspection other than needed
-  to determine each object's byte size.  We've now filled up a
-  small prefix of the new heap with copied structures that
-  still refer to objects in the old heap.  Now we /scavenge/,
-  iterating from the start of the new heap through every slot
-  of an instance, every list element, etc, and copy those
-  objects in the same way as we did the roots.  As we scavenge
-  we move the /scan/ pointer so that the next round of
-  scavenging begins where we left off.  For each object we
-  copy into the new heap, we update its old heap location to
-  replace the object's first word with the pointer to its new
-  location.  Before copying an object we check for such a
-  /forwarding pointer/ or /broken heart/ so we don't copy the
-  same object twice.
-
-  Some objects are so foundational that it makes no sense to
-  allocate them in a garbage-collected heap.  NIL, especially,
-  should not be moved around.  We do this by just reserving a
-  small amount of space at the beginning of both semispaces.
-
-* Asynchronous Operations
-
-Let's say we want to fetch a URL from Wisp code:
-
-#+begin_src lisp
-  (print (await (fetch "https://httpbin.org/get")))
-#+end_src
-
-Here ~FETCH~ returns a promise and ~AWAIT~ blocks until that
-promise is resolved.
-
-What needs to happen for this to work?
-
-First, the fetch needs to invoke JavaScript code that returns
-a promise.  But we can't store JavaScript objects as Wisp
-values directly, so we need to maintain some kind of mapping
-between IDs and ~Promise~ objects.
-
-Then, to await, we need to pause the current execution until
-the promise is resolved.  Let's ignore concurrency for now.
-
-The REPL should pause, whether in a terminal or in the
-browser.  It would be nice if we would see a spinner.  And we
-should be able to cancel the wait, e.g. by hitting ~ESC~ in
-the terminal or clicking a button in the browser.
-
-So let's say ~wisp_step~ returns a special value that
-indicates to the runtime that we're waiting for something.
-This could also be a field in the ~wisp_machine_t~ structure.
-
-Oh, maybe there's a special kind of value like ~#<await
-promise-id>~ for which ~wisp_step~ returns ~false~ but keeps a
-continuation in the ~plan~ field.  Then the JavaScript runtime
-just needs to notice that and handle it.  Once the promise is
-resolved, it can replace the ~term~ field and
-continue stepping.
-
-** Plan for Asynchronous Operations
-*** DONE Implement a simple ~FETCH~ function.
-*** DONE Implement a simple ~AWAIT~ function.
-*** DONE Implement actual waiting.
-*** TODO Implement a spinner.
-*** TODO Implement cancelling.
-
-* Thoughts on Deno
-
-So we should be able to run Wisp in some other runtime than
-the browser.  So far that's been trivial with Emscripten
-because we use only standard I/O, but now we're using ~fetch~.
-
-OK, so we probably don't want to spend time on making a native
-Linux REPL for the terminal.  But if we can use a JavaScript
-runtime, it's much easier.  Then I thought: we should
-use [[https://deno.land][Deno]].
-
-But Deno isn't really compatible with Emscripten. Maybe that's
-a sign that we should move away from Emscripten.
-
-Towards what? Well, how about Zig?
-
-* Zig again
-
-OK, I've wanted to switch to Zig before.  Maybe it's best to
-do it before the C code grows huge.
-
-Zig is going to be self-hosting, by the way, Andrew is working
-on it all the time.  I think that means Zig itself will be
-able to run in WebAssembly?  Now that's fun.
-
-Well, it's quite a project.  Is it worth it?  I think so.
-Maybe it's not the most exciting thing to do right now?
-On the other hand, maybe it is.
+Some objects are so foundational that it makes no sense to
+allocate them in a garbage-collected heap.  NIL, especially,
+should not be moved around.  We do this by just reserving a
+small amount of space at the beginning of both semispaces.
 
 * Local Variables :noexport:
   Local Variables:

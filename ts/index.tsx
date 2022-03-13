@@ -744,7 +744,7 @@ onload = async () => {
 
   wasi.setMemory(exports.memory)
 
-  ctx = new Wisp(instance)
+  let ctx = new Wisp(instance)
 
   ReactDOM.render(
     <Provider createStore={createStore(ctx)}>
