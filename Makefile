@@ -16,9 +16,9 @@ zig-out/lib/wisp.wasm: build.zig $(ZIGSOURCES)
 
 web:
 	zig build
-	./build
+	cd web && ./build
 
-clean:; rm -rf dist/* wasm/* zig-cache zig-out src/zig-cache
+clean:; rm -rf web/dist/* wasm/* zig-cache zig-out src/zig-cache
 
-deploy:; cp dist/* /restless/www/wisp/
-deploy-nodetown: web; scp dist/* node.town:/restless/www/wisp/
+deploy:; cp web/dist/* /restless/www/wisp/
+deploy-nodetown: web; scp web/dist/* node.town:/restless/www/wisp/

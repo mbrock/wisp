@@ -31,7 +31,7 @@ import { WASI } from "./wasi"
 
 const Repl = ({ ctx, data }: {
   ctx: wisp.Wisp,
-  data: wisp.View
+  data: wisp.Data
 }) => {
   const [input, setInput] = React.useState("")
   const [outputs, setOutputs] = React.useState([])
@@ -77,7 +77,7 @@ const Repl = ({ ctx, data }: {
 
 async function main() {
   const wasi = new WASI
-  const source = await fs.readFile("zig-out/lib/wisp.wasm")
+  const source = await fs.readFile("../zig-out/lib/wisp.wasm")
   const { instance } = await WebAssembly.instantiate(source, {
     wasi_snapshot_preview1: wasi.exports(),
   })
@@ -87,7 +87,7 @@ async function main() {
 
   const ctx = new wisp.Wisp(instance)
 
-  render(<Repl ctx={ctx} data={ctx.view()}/>)
+  render(<Repl ctx={ctx} data={ctx.loadData()}/>)
 }
 
 main()

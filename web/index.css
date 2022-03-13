@@ -21,14 +21,14 @@
   font-family: "DM Mono";
   font-weight: normal;
   font-style: normal;
-  src: url(./lib/dm-mono/exports/DMMono-Regular.ttf) format("ttf");
+  src: url(../lib/dm-mono/exports/DMMono-Regular.ttf) format("ttf");
 }
 
 @font-face {
   font-family: "DM Mono";
   font-weight: medium;
   font-style: normal;
-  src: url(./lib/dm-mono/exports/DMMono-Medium.ttf) format("ttf");
+  src: url(../lib/dm-mono/exports/DMMono-Medium.ttf) format("ttf");
 }
 
 @tailwind base;
