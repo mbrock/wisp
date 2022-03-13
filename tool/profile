@@ -1,0 +1,4 @@
+#!/bin/sh
+set -e
+perf record -g ./zig-out/bin/wisp < tool/loop-demo.lisp
+perf report --branch-history

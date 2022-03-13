@@ -13,3 +13,5 @@ zig-out
 zig-cache
 *.core
 wapm_packages
+perf.data
+*.old
