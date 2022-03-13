@@ -1,7 +1,5 @@
 #+bibliography: bibliography.bib
 
-* Wisp
-
 *Wisp* is a Lisp system for [[https://webassembly.org][WebAssembly]] and native execution.
 
 It aims to offer an unusually pleasant developer experience
