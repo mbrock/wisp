@@ -34,6 +34,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
 .sym[data-package="WISP"] .pkg {
   display: none;
 }

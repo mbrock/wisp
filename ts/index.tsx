@@ -708,7 +708,7 @@ const Note = ({ note }: { note: Note }) => {
 
 const Titlebar = ({ saveTape, loadTape }) => {
   return (
-    <header className="flex justify-between border-b-2 px-3 py-1 bg-slate-50 dark:bg-stone-900 dark:border-neutral-600">
+    <header className="flex justify-between border-b-2 px-3 py-1 bg-slate-50 dark:bg-stone-900 dark:border-neutral-600 items-center text-sm">
       <div>
         <IconButton action={saveTape} left>
           <VscSave title="Save" />
@@ -717,15 +717,18 @@ const Titlebar = ({ saveTape, loadTape }) => {
           <VscFolderOpened title="Load" />
         </IconButton>
       </div>
-      <span className="tracking-tight text-gray-800 dark:text-neutral-400 flex gap-2 text-xl">
-        <span className="font-medium">wisp</span>
-        <span className="text-gray-500">0.7</span>
+      <span className="tracking-tight text-gray-800 dark:text-neutral-400 flex items-center gap-2">
+        <span className="font-semibold">Wisp</span>
+        <span className="font-medium text-gray-700">Notebook</span>
       </span>
-      <a href="https://github.com/mbrock/wisp"
-         className="tracking-tight text-blue-900 dark:text-blue-200 flex column items-center"
-         target="_blank">
-        <VscGithub />
-      </a>
+      <span className="text-gray-500">0.7</span>
+      <span className="flex items-center gap-1">
+        <a href="https://github.com/mbrock/wisp"
+           className="tracking-tight text-blue-900 dark:text-blue-200 flex column items-center"
+           target="_blank">
+          <VscGithub />
+        </a>
+      </span>
     </header>
   )
 }

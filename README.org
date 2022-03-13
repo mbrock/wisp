@@ -2,8 +2,19 @@
 
 * Wisp
 
-Wisp is an interpreter for a Lisp-style language that runs as
-a WebAssembly module but can also compile to native code.
+Wisp is a Lisp interpreter that aims to offer an unusually
+pleasant developer experience, both while hacking and in
+production—though it's still *very immature* and far from
+ready for any serious use.
+
+Some distinguishing features of Wisp:
+
+  - the Wisp Notebook, a browser-based developer environment;
+
+  - fast and portable saving and restoring of full application
+    state;
+
+  -
 
 It has a basic browser-based REPL written in TypeScript
 with React as well as a basic command-line REPL.
