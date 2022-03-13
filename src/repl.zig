@@ -82,7 +82,7 @@ pub fn repl() anyerror!void {
             var step = Step{ .heap = &heap, .run = &run };
 
             term: while (true) {
-                if (Step.evaluate(&heap, &run, 100_000)) |val| {
+                if (Step.evaluate(&heap, &run, 0)) |val| {
                     const pretty = try Sexp.prettyPrint(&heap, val, 62);
                     defer heap.orb.free(pretty);
                     try stdout.print("{s}\n", .{pretty});

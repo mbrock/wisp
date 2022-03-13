@@ -709,7 +709,11 @@ pub fn evaluateUntilSpecificContinuation(
     var step = Step{ .heap = heap, .run = run };
 
     var i: u32 = 0;
-    while (i < limit) : (i += 1) {
+    while (true) {
+        if (limit > 0) {
+            if (i < limit) i += 1 else break;
+        }
+
         if (run.way == breakpoint and run.val != Wisp.nah) {
             return run.val;
         }
