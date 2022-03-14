@@ -26,7 +26,7 @@ import { drawSelection, dropCursor, EditorView, highlightActiveLine, highlightSp
 import { EditorState } from '@codemirror/state';
 import { lineNumbers, highlightActiveLineGutter } from '@codemirror/gutter';
 import { history, historyKeymap } from '@codemirror/history';
-import { defaultKeymap, indentWithTab } from '@codemirror/commands';
+import { defaultKeymap, emacsStyleKeymap, indentWithTab } from '@codemirror/commands';
 import { bracketMatching } from '@codemirror/matchbrackets';
 import { defaultHighlightStyle } from '@codemirror/highlight';
 import { rectangularSelection } from "@codemirror/rectangular-selection";
@@ -120,6 +120,7 @@ export const Editor: React.FC<{
               },
               ...closeBracketsKeymap,
               ...defaultKeymap,
+              ...emacsStyleKeymap,
               ...historyKeymap,
               indentWithTab,
               ...foldKeymap,
