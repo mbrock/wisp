@@ -661,42 +661,8 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
     }
 }
 
-pub fn macroexpand(heap: *Heap, run: *Run, limit: u32) !void {
-    std.log.warn("macroexpansion", .{});
-
-    // Are we at a compound form?
-    if (Wisp.tagOf(run.exp) != .duo)
-        return;
-
-    const sym = try heap.get(.duo, .car, run.exp);
-
-    // We should have a symbol as the first subform.
-    if (Wisp.tagOf(sym) != .sym)
-        return;
-
-    const fun = try heap.get(.sym, .fun, sym);
-
-    // Is the symbol function a macro?
-    if (Wisp.tagOf(fun) != .mac)
-        return;
-
-    // Step into the macro invocation.
-    try once(heap, run);
-
-    // The continuation is now an (env . hop) pair.
-    assert(Wisp.tagOf(run.way) == .duo);
-
-    // Remember this continuation to use it as a breakpoint.
+pub fn stepOver(heap: *Heap, run: *Run, limit: u32) !void {
     const breakpoint = run.way;
-
-    std.log.warn("macroexpansion step 2", .{});
-
-    // Take one more step to avoid triggering the breakpoint.
-    try once(heap, run);
-
-    std.log.warn("macroexpanding", .{});
-
-    // Evaluate until the breakpoint.
     _ = try evaluateUntilSpecificContinuation(
         heap,
         run,
@@ -704,7 +670,25 @@ pub fn macroexpand(heap: *Heap, run: *Run, limit: u32) !void {
         breakpoint,
     );
 
-    std.log.warn("macroexpansion done", .{});
+    try once(heap, run);
+}
+
+pub fn getParentContinuation(heap: *Heap, way: u32) !u32 {
+    return switch (Wisp.tagOf(way)) {
+        .ktx => heap.get(.ktx, .hop, way),
+        .duo => heap.get(.duo, .cdr, way),
+        else => Wisp.Oof.Bug,
+    };
+}
+
+pub fn stepOut(heap: *Heap, run: *Run, limit: u32) !void {
+    const breakpoint = try getParentContinuation(heap, run.way);
+    _ = try evaluateUntilSpecificContinuation(
+        heap,
+        run,
+        limit,
+        breakpoint,
+    );
 }
 
 pub fn evaluateUntilSpecificContinuation(
@@ -734,7 +718,7 @@ pub fn evaluateUntilSpecificContinuation(
             // });
         }
 
-        if (run.way == breakpoint and run.val != Wisp.nah) {
+        if ((run.way == breakpoint or run.way == Wisp.top) and run.val != Wisp.nah) {
             return run.val;
         }
 
@@ -955,6 +939,14 @@ test "defun with &rest" {
         \\ (progn
         \\   (defun foo (x &rest xs) (cons x xs))
         \\   (foo 'x 1 2 3))
+    );
+}
+
+test "defmacro with &rest" {
+    try expectEval("(1 2 3)",
+        \\ (progn
+        \\   (defmacro foo (x &rest xs) (cons x xs))
+        \\   (foo list 1 2 3))
     );
 }
 

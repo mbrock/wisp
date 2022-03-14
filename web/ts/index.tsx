@@ -72,7 +72,7 @@ const createStore = (ctx: Wisp) => () => zustand<Store>(set => ({
   ctx,
   data: ctx.loadData(),
   tape: 0,
-  
+
   noteOrder: [initialNoteKey],
   notes: {
     [initialNoteKey]: {
@@ -92,7 +92,7 @@ const createStore = (ctx: Wisp) => () => zustand<Store>(set => ({
 
   refresh() {
     let data
-    
+
     set(state => {
       data = state.ctx.loadData()
       console.log({ data })
@@ -101,7 +101,7 @@ const createStore = (ctx: Wisp) => () => zustand<Store>(set => ({
 
     return data
   },
-  
+
   newEmptyNote() {
     const key = uuid()
     console.log(`new ${key}`)
@@ -140,7 +140,7 @@ const createStore = (ctx: Wisp) => () => zustand<Store>(set => ({
       }
     }))
   },
-  
+
   setNoteEditorState(key: string, editorState: any) {
     set(state => ({
       notes: {
@@ -163,32 +163,50 @@ const css = {
 
 const Way: React.FC<{ way: number }> = ({ way, children }) => {
   const { data } = useStore()
-  
+
   if (way == data.sys.top)
-    return <>children</>
-
-  const { hop, fun, acc, arg } = getRow(data, "ktx", way)
-
-  const accs = listItems(data, acc)
-  const args = listItems(data, arg)
+    return <>{children}</>
 
   function show(x: number, i: number): JSX.Element {
     return <Val v={x} key={i} />
   }
 
-  const me = (
-    <div className={css.sexp.list}>
-      {show(fun, 0)}
-      {accs.reverse().map(show)}
-      {children}
-      {args.map(show)}
-    </div>
-  )
+  if (tagOf(data, way) == "ktx") {
+    const { hop, fun, acc, arg } = getRow(data, "ktx", way)
 
-  if (hop == data.sys.top) {
-    return me
+    const accs = listItems(data, acc)
+    const args = listItems(data, arg)
+
+    const me = (
+      <div className={css.sexp.list}>
+        {show(fun, 0)}
+        {accs.reverse().map(show)}
+        {children}
+        {args.map(show)}
+      </div>
+    )
+
+    if (hop == data.sys.top) {
+      return me
+    } else {
+      return <Way way={hop}>{me}</Way>
+    }
+  } else if (tagOf(data, way) == "duo") {
+    const ktx = getRow(data, "duo", way)
+    const hop = ktx.cdr
+
+    return (
+      <Way way={hop}>
+        <div className={css.sexp.list}>
+          <span className="text-indigo-800 italic">
+            eval
+          </span>
+          {children}
+        </div>
+      </Way>
+    )
   } else {
-    return <Way way={hop}>{me}</Way>
+    throw new Error(tagOf(data, way))
   }
 }
 
@@ -207,7 +225,7 @@ const Fetch = ({ run, ask }: {
   run: number, ask: number[]
 }) => {
   const { ctx, data, refresh } = useStore()
-  
+
   const [url] = listItems(data, ask[2])
   const urlstr = getUtf8String(data, url)
 
@@ -218,7 +236,7 @@ const Fetch = ({ run, ask }: {
     ctx.api.wisp_run_restart(ctx.heap, run, txtv08)
     refresh()
   }
-  
+
   return (
     <div className="flex flex-col gap-1">
       <RestartButton action={doFetch}>
@@ -233,7 +251,7 @@ const Fetch = ({ run, ask }: {
 
 const Restarts: React.FC<{ run: number }> = ({ run }) => {
   const { ctx, data, refresh } = useStore()
-  
+
   function restart(s: string): void {
     const src = ctx.read(s)
     ctx.api.wisp_run_restart(ctx.heap, run, src)
@@ -245,7 +263,7 @@ const Restarts: React.FC<{ run: number }> = ({ run }) => {
 
   const v32 = Array.from(getV32(data, err))
 
-  const asksym = getRow(data, "sym", v32[1]) 
+  const asksym = getRow(data, "sym", v32[1])
   const askstr = getUtf8String(data, asksym.str)
   const isFetch = askstr === "FETCH"
 
@@ -253,7 +271,7 @@ const Restarts: React.FC<{ run: number }> = ({ run }) => {
     <div className="flex flex-col gap-1 mb-1">
       <div className="flex flex-col gap-1">
         { isFetch ? <Fetch ctx={ctx} run={run} ask={v32} /> : null }
-         
+
         <Form done={restart} placeholder="Provide another value" />
       </div>
     </div>
@@ -273,9 +291,10 @@ const Result = ({ val }: { val: number }) => {
 
 const Debugger: React.FC<{ run: number }> = ({ run }) => {
   const { data, ctx, refresh } = useStore()
-  
-  function doStep() {
-    ctx.api.wisp_eval_step(ctx.heap, run)
+
+  const doStep = (mode: "into" | "over" | | "out") => () => {
+    const modeNumbers = { into: 0, over: 1, out: 2 }
+    ctx.api.wisp_eval_step(ctx.heap, run, modeNumbers[mode])
     refresh()
   }
 
@@ -304,11 +323,11 @@ const Debugger: React.FC<{ run: number }> = ({ run }) => {
   const envs: number[][][] = listItems(data, env).map((env, i) => {
     const v32 = Array.from(getV32(data, env))
     const vars = []
-    
+
     while (v32.length > 0) {
       vars.push([v32.shift(), v32.shift()])
     }
-    
+
     return vars
   })
 
@@ -328,7 +347,7 @@ const Debugger: React.FC<{ run: number }> = ({ run }) => {
       {scope.map(renderRow)}
     </tbody>
   )
-  
+
   const scopes = envs.length > 0 ? (
     <table className="table-auto divide-y dark:divide-neutral-600 bg-white dark:bg-neutral-800 dark:text-neutral-100
                       border mb-1 text-sm">
@@ -355,16 +374,16 @@ const Debugger: React.FC<{ run: number }> = ({ run }) => {
           <Val data={data} v={cur} style={color} />
         </Way>
       </div>
-  
+
       <aside className="bg-gray-50 dark:bg-neutral-800 flex flex-col divide-y dark:divide-neutral-600 rounded-r-lg">
         <div className="flex p-1">
-          <IconButton action={doStep} left>
+          <IconButton action={doStep("into")} left>
             <VscDebugStepInto />
           </IconButton>
-          <IconButton action={() => alert("not implemented")} disabled>
+          <IconButton action={doStep("over")}>
             <VscDebugStepOver />
           </IconButton>
-          <IconButton action={() => alert("not implemented")} right disabled>
+          <IconButton action={doStep("out")} right>
             <VscDebugStepOut />
           </IconButton>
         </div>
@@ -413,7 +432,7 @@ function listItems(data: Data, v: number): number[] {
 
 const Val: React.FC<{ v: number, style?: string }> = ({ v, style }) => {
   const { data, ctx } = useStore()
-  
+
   const vtag = tagOf(data, v)
   switch (vtag) {
     case "int": {
@@ -494,6 +513,23 @@ const Val: React.FC<{ v: number, style?: string }> = ({ v, style }) => {
         )
     }
 
+    case "mac": {
+      const row = getRow(data, "mac", v)
+      const detail = () => (
+        <span className={`${css.sexp.list} ${style}`}>
+          {symbolSpan("WISP", "MAC", "jet")}
+          <Val v={row.par} />
+          <Val v={row.exp} />
+        </span>
+      )
+
+      return (
+        <Expander detail={detail}>
+          <Val v={row.sym} style={style} />
+        </Expander>
+      )
+    }
+
     case "run":
       return <Debugger run={v} />
 
@@ -517,6 +553,18 @@ const Val: React.FC<{ v: number, style?: string }> = ({ v, style }) => {
     default:
       return <span className={style}>{`${vtag}: ${v}`}</span>
   }
+}
+
+const Expander: React.FC<{
+  detail: () => React.ReactElement
+}> = ({ detail, children }) => {
+  let [show, setShow] = React.useState(false)
+
+  return (
+    <div onClick={() => setShow(x => !x)}>
+      { show ? detail() : children }
+    </div>
+  )
 }
 
 function symbolSpan(
@@ -640,7 +688,7 @@ const Home: React.FC = () => {
         },
       }
     })
-    
+
     await Tape.save(Tape.make(ctx, book), "save")
   }
 
@@ -653,7 +701,7 @@ const Home: React.FC = () => {
       loadNotes(tape.book)
     }
   }
-  
+
   return (
     <div className="absolute inset-0 flex flex-col bg-gray-100 dark:bg-neutral-900">
       <Titlebar saveTape={saveTape} loadTape={loadTape} />
@@ -673,14 +721,14 @@ const Home: React.FC = () => {
 const Note = ({ note }: { note: Note }) => {
   const { key, run } = note
   const { ctx, data, refresh, setNoteRun, setNoteEditorState } = useStore()
-  
+
   const exec = (code: string, how: "run" | "debug") => {
     const src = ctx.read(`(progn\n${code}\n)`)
     const run = ctx.api.wisp_run_init(ctx.heap, src)
-    
+
     if (how == "run")
       ctx.api.wisp_run_eval(ctx.heap, run, 10_000)
-    
+
     refresh()
     setNoteRun(key, run)
   }
@@ -708,7 +756,7 @@ const Note = ({ note }: { note: Note }) => {
   function onChange(x: any) {
     setNoteEditorState(key, x)
   }
-  
+
   return (
     <div className="flex gap-2 m-2 flex-col md:flex-row">
       <div className="w-full bg-white border-gray-300 dark:bg-neutral-900 dark:border-neutral-600 dark:text-neutral-400">

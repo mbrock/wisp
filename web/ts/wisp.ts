@@ -73,7 +73,7 @@ export interface WispAPI {
   wisp_read(heap: number, buf: number): number
   
   wisp_eval(heap: number, exp: number, max: number): number
-  wisp_eval_step(heap: number, run: number): number
+  wisp_eval_step(heap: number, run: number, mode: number): number
 
   wisp_run_init(heap: number, exp: number): number
   wisp_run_eval(heap: number, run: number, max: number): number

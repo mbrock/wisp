@@ -99,12 +99,20 @@ export fn wisp_run_eval(
     return val;
 }
 
-export fn wisp_eval_step(heap: *Wisp.Heap, runptr: u32) u32 {
+const StepMode = enum(u32) {
+    into = 0,
+    over = 1,
+    out = 2,
+};
+
+export fn wisp_eval_step(heap: *Wisp.Heap, runptr: u32, mode: StepMode) u32 {
     var run = heap.row(.run, runptr) catch return Wisp.zap;
 
-    if (Step.macroexpand(heap, &run, 10_000)) {
-        _ = Step.once(heap, &run) catch Wisp.nil;
-    } else |_| {}
+    switch (mode) {
+        .into => Step.once(heap, &run) catch return Wisp.zap,
+        .over => Step.stepOver(heap, &run, 10_000) catch return Wisp.zap,
+        .out => Step.stepOut(heap, &run, 10_000) catch return Wisp.zap,
+    }
 
     heap.put(.run, runptr, run) catch return Wisp.zap;
 
