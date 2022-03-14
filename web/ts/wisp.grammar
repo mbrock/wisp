@@ -4,6 +4,7 @@
 
 form[@isGroup=Form] {
   Symbol |
+  Key |
   String |
   Integer |
   Quote |
@@ -14,6 +15,8 @@ form[@isGroup=Form] {
 kw<term> {
   @specialize[@name={term}]<Symbol, term>
 }
+
+Key { '~' Date '.' ZB32 }
 
 Defun { "(" kw<"defun"> Symbol form form* ")" }
 Let { "(" kw<"let"> form* ")" }
@@ -35,6 +38,11 @@ Compound { "(" form* ")" }
 
   Symbol { identifierChar (identifierChar | std.digit)* }
 
+  ZB32 {
+    ($[ybndrfg8ejkmcpqxot1uwisza345h769] |
+     $[YBNDRFG8EJKMCPQXOT1UWISZA345H769])+
+  }
+
   @precedence { spaces, newline, Symbol }
 
   String {
@@ -42,6 +50,11 @@ Compound { "(" form* ")" }
   }
 
   Integer { std.digit+ }
+
+  Date { Year Month Day }
+  Year { $[0-9] $[0-9] $[0-9] $[0-9] }
+  Month { $[0-1] $[0-9] }
+  Day { $[0-3] $[0-9] }
 
   "(" ")" "'"
 }

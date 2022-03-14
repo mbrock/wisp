@@ -53,6 +53,7 @@ pub fn init(old: *Heap) !Tidy {
             .kwd = old.kwd,
             .base = old.base,
             .keywordPackage = old.keywordPackage,
+            .keyPackage = old.keyPackage,
             .pkg = old.pkg,
         },
     };
@@ -67,6 +68,7 @@ pub fn done(tidy: *Tidy) Heap {
 pub fn root(tidy: *Tidy) !void {
     try tidy.move(&tidy.new.base);
     try tidy.move(&tidy.new.keywordPackage);
+    try tidy.move(&tidy.new.keyPackage);
     try tidy.move(&tidy.new.pkg);
 
     inline for (std.meta.fields(@TypeOf(tidy.new.kwd))) |s| {
@@ -224,5 +226,6 @@ test "tidy ephemeral strings" {
     const n1 = heap.vat.v08.list.len;
     try gc(&heap);
     const n2 = heap.vat.v08.list.len;
+
     try std.testing.expectEqual(n1 - 2, n2);
 }

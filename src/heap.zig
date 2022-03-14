@@ -203,19 +203,29 @@ pub const Heap = struct {
     vat: Vat = .{},
     v08: V08 = .{},
     v32: V32 = .{},
+
     kwd: S32(Kwd) = .{},
 
-    base: u32 = nil,
-    keywordPackage: u32 = nil,
+    base: u32,
+    keywordPackage: u32,
+    keyPackage: u32,
 
-    pkg: u32 = nil,
+    pkg: u32,
     pkgmap: std.StringArrayHashMapUnmanaged(u32) = .{},
 
     pub fn init(orb: Orb, era: Era) !Heap {
-        var heap = Heap{ .orb = orb, .era = era };
+        var heap = Heap{
+            .orb = orb,
+            .era = era,
+            .base = nil,
+            .keywordPackage = nil,
+            .keyPackage = nil,
+            .pkg = nil,
+        };
 
         heap.base = try heap.defpackage(try heap.newv08("WISP"), nil);
         heap.keywordPackage = try heap.defpackage(try heap.newv08("KEYWORD"), nil);
+        heap.keyPackage = try heap.defpackage(try heap.newv08("KEY"), nil);
         heap.pkg = heap.base;
 
         inline for (std.meta.fields(Kwd)) |s| {

@@ -72,11 +72,20 @@ pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
 
         .sym => {
             const sym = try heap.row(.sym, x);
+            const pkg = sym.pkg;
             const name = heap.v08slice(sym.str);
-            if (sym.pkg == Wisp.nil) {
+            if (pkg == Wisp.nil) {
                 try out.print("#:{s}", .{name});
-            } else {
+            } else if (pkg == heap.keywordPackage) {
+                try out.print(":{s}", .{name});
+            } else if (pkg == heap.keyPackage) {
                 try out.print("{s}", .{name});
+            } else if (pkg == heap.pkg) {
+                try out.print("{s}", .{name});
+            } else {
+                const pkgname = try heap.get(.pkg, .nam, pkg);
+                const pkgstr = heap.v08slice(pkgname);
+                try out.print("{s}:{s}", .{ pkgstr, name });
             }
         },
 
@@ -223,6 +232,17 @@ test "print uninterned symbols" {
         &heap,
         "#:FOO",
         try heap.newSymbol("FOO", Wisp.nil),
+    );
+}
+
+test "print keys" {
+    var heap = try Heap.init(std.testing.allocator, .e0);
+    defer heap.deinit();
+
+    try expectPrintResult(
+        &heap,
+        "~20220314.8NJAFJ7WJF",
+        try heap.newSymbol("~20220314.8NJAFJ7WJF", heap.keyPackage),
     );
 }
 

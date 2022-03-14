@@ -26,9 +26,11 @@ const Step = @import("./step.zig");
 const Sexp = @import("./sexp.zig");
 const Jets = @import("./jets.zig");
 const Wasm = @import("./wasm.zig");
+const Keys = @import("./keys.zig");
 
 test {
     std.testing.refAllDecls(@This());
+    std.testing.refAllDecls(Keys);
 }
 
 pub fn main() anyerror!void {

@@ -21,6 +21,7 @@ const std = @import("std");
 const ziglyph = @import("ziglyph");
 
 const Wisp = @import("./wisp.zig");
+const Keys = @import("./keys.zig");
 const Heap = Wisp.Heap;
 
 const Error = error{
@@ -46,8 +47,9 @@ fn readValueOrEOF(self: *Reader) anyerror!?u32 {
             .singleQuote => try self.readQuote(),
             .backQuote => try self.readQuasiquote(),
             .comma => try self.readUnquote(),
-            .symbolChar => try self.readSymbol(),
+            .symbolChar => try self.readSymbol(self.heap.pkg),
             .digitChar => try self.readNumber(),
+            .tilde => try self.readKey(),
         };
     } else {
         return null;
@@ -68,6 +70,7 @@ const InitialCharType = enum {
     singleQuote,
     backQuote,
     comma,
+    tilde,
 };
 
 fn classifyInitial(c: u21) !InitialCharType {
@@ -89,6 +92,8 @@ fn classifyInitial(c: u21) !InitialCharType {
         return .backQuote;
     } else if (c == ',') {
         return .comma;
+    } else if (c == '~') {
+        return .tilde;
     } else {
         var out: [32]u8 = undefined;
         const len = try std.unicode.utf8Encode(c, &out);
@@ -224,10 +229,17 @@ fn readKeyword(self: *Reader) !u32 {
 
     defer self.heap.orb.free(uppercase);
 
-    return try self.heap.intern(uppercase, self.heap.keywordPackage);
+    const sym = try self.heap.intern(
+        uppercase,
+        self.heap.keywordPackage,
+    );
+
+    try self.heap.set(.sym, .val, sym, sym);
+
+    return sym;
 }
 
-fn readSymbol(self: *Reader) !u32 {
+fn readSymbol(self: *Reader, pkg: u32) !u32 {
     const text = try self.readWhile(isSymbolCharacterOrDigit);
     const uppercase = try ziglyph.toUpperStr(
         self.heap.orb,
@@ -236,7 +248,26 @@ fn readSymbol(self: *Reader) !u32 {
 
     defer self.heap.orb.free(uppercase);
 
-    return try self.heap.intern(uppercase, self.heap.pkg);
+    return try self.heap.intern(uppercase, pkg);
+}
+
+fn readKey(self: *Reader) !u32 {
+    const str = try self.readWhile(isKeyCharacter);
+    const key = try Keys.parse(str);
+    const sym = try self.heap.intern(
+        &key.toZB32(),
+        self.heap.keyPackage,
+    );
+
+    // var buf: [8]u8 = undefined;
+    // std.mem.writeIntSlice(u16, buf[0..2], key.day, .Little);
+    // std.mem.writeIntSlice(u48, buf[2..8], key.rnd, .Little);
+
+    // const v08 = try self.heap.newv08(&buf);
+
+    try self.heap.set(.sym, .val, sym, sym);
+
+    return sym;
 }
 
 fn readNumber(self: *Reader) !u32 {
@@ -349,6 +380,16 @@ fn isNotEndOfString(c: u21) bool {
     return c != '"';
 }
 
+fn isKeyCharacter(c: u21) bool {
+    if (ziglyph.isAsciiDigit(c))
+        return true;
+
+    return switch (c) {
+        '~', '.' => true,
+        else => c < 256 and Keys.zb32AlphabetMap[@intCast(u8, c)] >= 0,
+    };
+}
+
 fn isSymbolCharacter(c: u21) bool {
     if (ziglyph.isLetter(c)) {
         return true;
@@ -421,4 +462,10 @@ test "read nil" {
     var heap = try Heap.init(std.testing.allocator, .e0);
     defer heap.deinit();
     try std.testing.expectEqual(Wisp.nil, try read(&heap, "nil"));
+}
+
+test "read key" {
+    var heap = try Heap.init(std.testing.allocator, .e0);
+    defer heap.deinit();
+    _ = try read(&heap, "~20220314.8NJAFJ7WJF");
 }

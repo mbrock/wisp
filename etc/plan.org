@@ -1,0 +1,35 @@
+-*- mode: org; fill-column: 62; -*-
+
+* Wisp Plan
+** Keys
+
+ - An object can have a unique identifier called a `key`.
+
+ - The key is random and presented in a short text format.
+
+ - The key is 64 bits: 16 timestamp bits and 48 random bits.
+   - The timestamp is the number of days since 2022-01-01.
+   - The random bits should be cryptographic, but whatever.
+
+ - A key looks like: `~20220314.8NJAFJ7WJF`.
+   - The date is UTC YYYYMMDD.
+   - The random bits are uppercase ZB32.
+   - The format is URL safe.
+
+ - Keys are used for linking.
+
+ - Keys can be used as stable pointers.
+
+ - Keys are stored in source code.
+
+ - Keys can be generated in the IDE.
+
+ - Keys are read as interned symbols in the KEY package.
+   - The key symbol's value is a KEY struct with a 64-bit V08.
+
+** Docs
+ - An object can have a documentation value called a `doc`.
+
+ - Objects with docs also have keys.
+
+ - Keys are used for generating URLs.

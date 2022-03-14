@@ -54,8 +54,11 @@ export const wispLanguage = LRLanguage.define({
       styleTags({
         "defun let lambda run": tags.keyword,
         Symbol: tags.variableName,
+        Key: tags.docComment,
+        ZB32: tags.meta,
+        Date: tags.number,
         String: tags.string,
-        Integer: tags.number,
+        Integer: tags.integer,
         Comment: tags.lineComment,
         "( )": tags.paren,
       }),
@@ -86,7 +89,7 @@ export const wispCompletion = wispLanguage.data.of({
     {label: "append", type: "function"},
     {label: "cons", type: "function"},
     {label: "car", type: "function"},
-    {label: "cdr", type: "function"}
+    {label: "cdr", type: "function"},
   ])
 })
 
