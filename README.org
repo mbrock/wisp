@@ -18,7 +18,7 @@ It aims to offer an unusually pleasant developer experience
 both while hacking and in production, though it's still /very
 immature/ and far from ready for any serious use.
 
-You can try the live browser-based IDE at [[https://wisp.node.town][wisp.node.town]].
+You can try the live browser-based IDE at [[https://wisp.town][Wisp.Town]].
 
 Feel free to join the [[https://discord.gg/BeKtM3x687][Wisp Discord chat]] if you're interested
 in following the development work, hacking on the system, or
