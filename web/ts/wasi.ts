@@ -4,6 +4,10 @@ const WASI_STDERR_FILENO = 2
 
 type U32 = number
 
+const CLOCK = {
+  REALTIME: 0,
+}
+
 export class WASI {
   memory: WebAssembly.Memory
 
@@ -64,7 +68,33 @@ export class WASI {
 
       fd_filestat_get() {},
 
-      random_get() {},
+      random_get: (buf_ptr: number, buf_len: number): number => {
+        const buffer = new Uint8Array(this.memory.buffer, buf_ptr, buf_len)
+        crypto.getRandomValues(buffer)
+
+        return 0;
+      },
+
+      clock_time_get: (
+        clock_id: number,
+        _precision: bigint,
+        timestamp_out: number,
+      ) => {
+        const view = this.getDataView()
+
+        switch (clock_id) {
+          case CLOCK.REALTIME: {
+            const t = BigInt(Date.now()) * BigInt(1e6)
+            view.setBigUint64(timestamp_out, t, true)
+            break
+          }
+
+          default:
+            throw new Error("unhandled clock type")
+        }
+
+        return 0
+      },
     }
   }
 }
