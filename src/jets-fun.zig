@@ -340,3 +340,17 @@ pub fn REQUEST(step: *Step, req: u32, rest: Rest) anyerror!void {
 pub fn GENKEY(step: *Step) anyerror!void {
     step.give(.val, try step.heap.genkey());
 }
+
+pub fn @"KEY?"(step: *Step, val: u32) anyerror!void {
+    switch (Wisp.tagOf(val)) {
+        .sym => {
+            const pkg = try step.heap.get(.sym, .pkg, val);
+            step.give(
+                .val,
+                if (pkg == step.heap.keyPackage) Wisp.t else Wisp.nil,
+            );
+        },
+
+        else => step.give(.val, Wisp.nil),
+    }
+}
