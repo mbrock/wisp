@@ -380,17 +380,19 @@ const Ktx = struct {
             step.run.env = ktx.env;
         } else {
             const argduo = try step.heap.row(.duo, ktx.arg);
-            const way = try step.heap.new(.ktx, .{
-                .hop = ktx.hop,
-                .env = ktx.env,
-                .fun = ktx.fun,
-                .acc = nil,
-                .arg = argduo.cdr,
-            });
 
-            step.run.way = way;
-            step.run.env = ktx.env;
             step.give(.exp, argduo.car);
+            step.run.env = ktx.env;
+            step.run.way = if (argduo.cdr == nil)
+                ktx.hop
+            else
+                try step.heap.new(.ktx, .{
+                    .fun = step.heap.kwd.PROGN,
+                    .env = ktx.env,
+                    .acc = nil,
+                    .arg = argduo.cdr,
+                    .hop = ktx.hop,
+                });
         }
     }
 

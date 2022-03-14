@@ -354,3 +354,20 @@ pub fn @"KEY?"(step: *Step, val: u32) anyerror!void {
         else => step.give(.val, Wisp.nil),
     }
 }
+
+pub fn @"PROGNIFY"(step: *Step, arg: u32) anyerror!void {
+    // () => ()
+    // (foo bar) => (progn foo bar)
+    // (foo) => foo
+    // ((foo)) => (foo)
+    if ((try Wisp.length(step.heap, arg)) > 1) {
+        step.give(.val, try step.heap.new(.duo, .{
+            .car = step.heap.kwd.PROGN,
+            .cdr = arg,
+        }));
+    } else if (arg == Wisp.nil) {
+        step.give(.val, Wisp.nil);
+    } else {
+        step.give(.val, try step.heap.get(.duo, .car, arg));
+    }
+}

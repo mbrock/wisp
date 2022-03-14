@@ -22,15 +22,14 @@
  (%macro-lambda
   (name args &rest body)
   (list 'set-symbol-function (list 'quote name)
-        (list 'lambda args (cons 'progn body)))))
+        (list 'lambda args (prognify body)))))
 
 (set-symbol-function
  'DEFMACRO
  (%macro-lambda
   (name args &rest body)
   (list 'set-symbol-function (list 'quote name)
-        (list '%macro-lambda args (cons 'progn body)))))
-
+        (list '%macro-lambda args (prognify body)))))
 
 (defun caar (x) (car (car x)))
 (defun cadr (x) (car (cdr x)))
