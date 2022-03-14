@@ -81,6 +81,8 @@ export interface WispAPI {
 
   wisp_jet_name(jet: number): number
   wisp_jet_name_len(jet: number): number
+
+  wisp_genkey(heap: number): number
 }
 
 export const tabs = {

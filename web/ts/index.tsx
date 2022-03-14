@@ -66,7 +66,7 @@ interface Store {
 
 const initialNoteKey = uuid()
 
-const { Provider, useStore } = zustandContext()
+const { Provider, useStore } = zustandContext<Store>()
 
 const createStore = (ctx: Wisp) => () => zustand<Store>(set => ({
   ctx,
@@ -91,11 +91,15 @@ const createStore = (ctx: Wisp) => () => zustand<Store>(set => ({
   },
 
   refresh() {
+    let data
+    
     set(state => {
-      const data = state.ctx.loadData()
+      data = state.ctx.loadData()
       console.log({ data })
       return { data }
     })
+
+    return data
   },
   
   newEmptyNote() {
@@ -161,7 +165,7 @@ const Way: React.FC<{ way: number }> = ({ way, children }) => {
   const { data } = useStore()
   
   if (way == data.sys.top)
-    return children
+    return <>children</>
 
   const { hop, fun, acc, arg } = getRow(data, "ktx", way)
 
@@ -256,7 +260,7 @@ const Restarts: React.FC<{ run: number }> = ({ run }) => {
   )
 }
 
-const Result = ({ data, val }: { data: Data, val: number }) => {
+const Result = ({ val }: { val: number }) => {
   return (
     <div className="border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 dark:text-neutral-50 border flex flex-row divide-x-2 dark:divide-neutral-600 w-full">
       <div className="flex flex-grow flex-col gap-1 p-1 px-2">
@@ -681,6 +685,15 @@ const Note = ({ note }: { note: Note }) => {
     setNoteRun(key, run)
   }
 
+  const genkey = () => {
+    const key = ctx.api.wisp_genkey(ctx.heap)
+    if (key == ctx.sys.zap) throw new Error("genkey")
+    const newdata = refresh()
+    const row = getRow(newdata, "sym", key)
+    const symstr = getUtf8String(newdata, row.str)
+    return symstr
+  }
+
   function evaluation() {
     if (run) {
       const { err, val, way } = getRow(data, "run", run) as unknown as Run
@@ -699,7 +712,7 @@ const Note = ({ note }: { note: Note }) => {
   return (
     <div className="flex gap-2 m-2 flex-col md:flex-row">
       <div className="w-full bg-white border-gray-300 dark:bg-neutral-900 dark:border-neutral-600 dark:text-neutral-400">
-        <Editor exec={exec} initialState={note.editorState} onChange={onChange} />
+        <Editor exec={exec} genkey={genkey} initialState={note.editorState} onChange={onChange} />
       </div>
       {evaluation()}
     </div>

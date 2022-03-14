@@ -37,14 +37,15 @@ import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { commentKeymap } from "@codemirror/comment";
 import { showPanel } from "@codemirror/panel";
 import { IconButton } from "./button";
-import { VscDebug, VscDebugContinue } from "react-icons/vsc";
+import { VscDebug, VscDebugContinue, VscRuby } from "react-icons/vsc";
 
 export const Editor: React.FC<{
   exec: (code: string, how: "run" | "debug") => void,
+  genkey: () => string,
   initialState: any | null,
   onChange: (state: any) => void,
 }> = ({
-  exec, initialState, onChange,
+  exec, genkey, initialState, onChange,
 }) => {
   let [editorView, setEditorView] = React.useState<EditorView>(null)
 
@@ -110,6 +111,13 @@ export const Editor: React.FC<{
                   return true
                 },
               },
+              {
+                key: "Ctrl-Shift-k",
+                run(view) {
+                  insertGenkey(view)
+                  return true
+                },
+              },
               ...closeBracketsKeymap,
               ...defaultKeymap,
               ...historyKeymap,
@@ -124,14 +132,21 @@ export const Editor: React.FC<{
             showPanel.of(() => {
               let dom = document.createElement("div")
               ReactDOM.render(
-                <div className="p-1 bg-gray-50 dark:bg-neutral-800 dark:text-neutral-200 flex">
-                  <IconButton action={() => runCode(view, "run")} left>
-                    <VscDebugContinue title="Run code" />
-                  </IconButton>
-                  <IconButton action={() => runCode(view, "debug")} right>
-                    <VscDebug title="Debug code" />
-                  </IconButton>
-                  </div>,
+                <div className="p-1 bg-gray-50 dark:bg-neutral-800 dark:text-neutral-200 flex justify-between">
+                  <div>
+                    <IconButton action={() => runCode(view, "run")} left>
+                      <VscDebugContinue title="Run code" />
+                    </IconButton>
+                    <IconButton action={() => runCode(view, "debug")} right>
+                      <VscDebug title="Debug code" />
+                    </IconButton>
+                  </div>
+                  <div>
+                    <IconButton action={() => insertGenkey(view)} right>
+                      <VscRuby title="Insert new key" />
+                    </IconButton>
+                  </div>
+                </div>,
                 dom)
 
               return {
@@ -151,6 +166,23 @@ export const Editor: React.FC<{
 
   function runCode(view: EditorView, how: "run" | "debug") {
     exec(view.state.doc.sliceString(0), how)
+  }
+
+  function insertGenkey(view: EditorView) {
+    const key = genkey()
+    view.dispatch(
+      view.state.update(
+        view.state.changeByRange(range => {
+          return {
+            range: range.extend(range.from, range.from + key.length),
+            changes: {
+              from: range.from,
+              insert: key,
+            },
+          }
+        })
+      )
+    )
   }
 
   return (
