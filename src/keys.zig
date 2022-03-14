@@ -77,7 +77,7 @@ pub const Key = packed struct {
     }
 };
 
-pub fn generate(rng: std.rand.Random) Key {
+pub fn generate(rng: *const std.rand.Random) Key {
     const now: i64 = std.time.timestamp();
     const sec = @intCast(
         u16,
