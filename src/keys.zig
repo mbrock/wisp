@@ -40,17 +40,6 @@ pub const Key = packed struct {
         return .{ .day = day, .rnd = rnd };
     }
 
-    pub fn generate(rng: std.rand.Random) Key {
-        const now: i64 = std.time.timestamp();
-        const sec = @intCast(
-            u16,
-            @divFloor(now, 60 * 60 * 24) - epochDaysSince1970,
-        );
-
-        const rnd = rng.int(u48);
-        return Key.of(sec, rnd);
-    }
-
     pub fn rndToZB32(key: Key) [10]u8 {
         var rndS: [10]u8 = undefined;
         const rnd = @intCast(u64, key.rnd);
@@ -87,6 +76,17 @@ pub const Key = packed struct {
         return keyS;
     }
 };
+
+pub fn generate(rng: std.rand.Random) Key {
+    const now: i64 = std.time.timestamp();
+    const sec = @intCast(
+        u16,
+        @divFloor(now, 60 * 60 * 24) - epochDaysSince1970,
+    );
+
+    const rnd = rng.int(u48);
+    return Key.of(sec, rnd);
+}
 
 pub fn parse(str: []const u8) !Key {
     if (str.len != 20) return error.BadKey;
@@ -178,8 +178,8 @@ test "key zb32" {
     try std.testing.expectEqual(keyA.rnd, parsedKeyA.rnd);
     try std.testing.expectEqual(keyA.day, parsedKeyA.day);
 
-    const keyB = Key.generate(std.crypto.random);
-    const keyC = Key.generate(std.crypto.random);
+    const keyB = generate(std.crypto.random);
+    const keyC = generate(std.crypto.random);
 
     try std.testing.expectApproxEqAbs(
         @intToFloat(f32, keyB.day),

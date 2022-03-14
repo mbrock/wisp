@@ -23,6 +23,7 @@ const Wisp = @import("./wisp.zig");
 const Read = @import("./sexp-read.zig");
 const Step = @import("./step.zig");
 const Jets = @import("./jets.zig");
+const Keys = @import("./keys.zig");
 
 pub fn main() void {}
 
@@ -289,6 +290,10 @@ export fn wisp_jet_name(x: u32) usize {
 
 export fn wisp_jet_name_len(x: u32) usize {
     return Jets.jets[Wisp.Imm.from(x).idx].txt.len;
+}
+
+export fn wisp_genkey(heap: *Wisp.Heap) u32 {
+    return heap.genkey() catch Wisp.zap;
 }
 
 test "sanity" {

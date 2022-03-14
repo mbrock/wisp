@@ -336,3 +336,7 @@ pub fn AREF(step: *Step, vec: u32, idx: u32) anyerror!void {
 pub fn REQUEST(step: *Step, req: u32, rest: Rest) anyerror!void {
     try step.fail(&[_]u32{ step.heap.kwd.@"REQUEST", req, rest.arg });
 }
+
+pub fn GENKEY(step: *Step) anyerror!void {
+    step.give(.val, try step.heap.genkey());
+}

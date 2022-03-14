@@ -28,6 +28,8 @@ const Jets = @import("./jets.zig");
 const Wasm = @import("./wasm.zig");
 const Keys = @import("./keys.zig");
 
+pub const crypto_always_getrandom: bool = true;
+
 test {
     std.testing.refAllDecls(@This());
     std.testing.refAllDecls(Keys);

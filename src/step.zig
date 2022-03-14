@@ -813,14 +813,23 @@ test "step evaluates variable" {
     try expectEqual(nah, run.exp);
 }
 
+pub fn evalString(heap: *Heap, src: []const u8) !u32 {
+    const exp = try Sexp.read(heap, src);
+    var run = initRun(exp);
+
+    if (evaluate(heap, &run, 1_000)) |val| {
+        return val;
+    } else |e| {
+        try Sexp.warn("Error", heap, run.err);
+        return e;
+    }
+}
+
 pub fn expectEval(want: []const u8, src: []const u8) !void {
     var heap = try newTestHeap();
     defer heap.deinit();
 
-    const exp = try Sexp.read(&heap, src);
-    var run = initRun(exp);
-
-    if (evaluate(&heap, &run, 1_000)) |val| {
+    if (evalString(&heap, src)) |val| {
         const valueString = try Sexp.printAlloc(heap.orb, &heap, val);
 
         defer heap.orb.free(valueString);
@@ -836,7 +845,6 @@ pub fn expectEval(want: []const u8, src: []const u8) !void {
 
         try expectEqualStrings(wantString, valueString);
     } else |e| {
-        try Sexp.warn("Error", &heap, run.err);
         return e;
     }
 }
@@ -967,4 +975,14 @@ test "prty.lisp" {
     defer heap.deinit();
 
     try heap.load(@embedFile("../lisp/pretty.lisp"));
+}
+
+test "GENKEY" {
+    var heap = try newTestHeap();
+    defer heap.deinit();
+
+    const x = try evalString(&heap, "(genkey)");
+    const y = try evalString(&heap, "(genkey)");
+
+    try std.testing.expect(x != y);
 }

@@ -25,6 +25,7 @@ const Wisp = @import("./wisp.zig");
 const Tidy = @import("./tidy.zig");
 const Step = @import("./step.zig");
 const Sexp = @import("./sexp.zig");
+const Keys = @import("./keys.zig");
 
 const Tag = Wisp.Tag;
 const Era = Wisp.Era;
@@ -423,6 +424,17 @@ pub const Heap = struct {
         }));
 
         return symptr;
+    }
+
+    pub fn genkey(heap: *Heap) !u32 {
+        const key = Keys.generate(std.crypto.random);
+        const sym = try heap.intern(
+            &key.toZB32(),
+            heap.keyPackage,
+        );
+
+        try heap.set(.sym, .val, sym, sym);
+        return sym;
     }
 };
 
