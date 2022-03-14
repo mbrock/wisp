@@ -245,7 +245,7 @@ fn scan(
     defer tmp.free(scope);
 
     var i: usize = 0;
-    while (i < pars.items.len) : (i += 1) {
+    loop: while (i < pars.items.len) : (i += 1) {
         if (i < vals.items.len) {
             const x = pars.items[i];
             if (x == step.heap.kwd.@"&REST") {
@@ -254,6 +254,7 @@ fn scan(
                     step.heap,
                     vals.items[i..vals.items.len],
                 );
+                break :loop;
             } else {
                 scope[i * 2 + 0] = x;
                 scope[i * 2 + 1] = vals.items[i];

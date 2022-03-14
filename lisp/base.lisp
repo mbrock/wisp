@@ -17,33 +17,19 @@
 ;; <https://www.gnu.org/licenses/>.
 ;;
 
-;; (set-symbol-function
-;;  'DEFUN
-;;  (%macro-lambda (name args body)
-;;                 (list 'set-symbol-function (list 'quote name)
-;;                       (list 'lambda args
-;;                             (list 'progn
-;;                                   (list 'print (list 'list
-;;                                                      ''entering
-;;                                                      (list 'quote name)
-;;                                                      '(env)))
-;;                                   (list 'prog1
-;;                                         body
-;;                                         (list 'print (list 'list ''leaving
-;;                                                            (list 'quote name)))
-;;                                         ))))))
-
 (set-symbol-function
  'DEFUN
- (%macro-lambda (name args body)
-                (list 'set-symbol-function (list 'quote name)
-                      (list 'lambda args body))))
+ (%macro-lambda
+  (name args &rest body)
+  (list 'set-symbol-function (list 'quote name)
+        (list 'lambda args (cons 'progn body)))))
 
 (set-symbol-function
  'DEFMACRO
- (%macro-lambda (name args body)
-                (list 'set-symbol-function (list 'quote name)
-                      (list '%macro-lambda args body))))
+ (%macro-lambda
+  (name args &rest body)
+  (list 'set-symbol-function (list 'quote name)
+        (list '%macro-lambda args (cons 'progn body)))))
 
 
 (defun caar (x) (car (car x)))
@@ -54,7 +40,8 @@
   (list 'set-symbol-value (list 'quote var) val))
 
 (defmacro setq (var val)
-  (progn var (list 'set-symbol-value (list 'quote var) val)))
+  var  ;; evaluate it to trigger error if undefined
+  (list 'set-symbol-value (list 'quote var) val))
 
 (defun not (x)
   (if x nil t))
@@ -88,28 +75,25 @@
   (list 'progn '(wtf t) (list 'prog1 body '(wtf nil))))
 
 (defun base-test ()
-  (progn
-    (assert (equal 1 1))
-    (assert (equal '(1 2 3) '(1 2 3)))
-    (assert (equal '((1 2) (3 4)) '((1 2) (3 4))))
-    (assert (not (equal '(1) '(1 2))))
+  (assert (equal 1 1))
+  (assert (equal '(1 2 3) '(1 2 3)))
+  (assert (equal '((1 2) (3 4)) '((1 2) (3 4))))
+  (assert (not (equal '(1) '(1 2))))
 
-    (defvar *x* 1)
-    (assert (eq *x* 1))
-    (setq *x* 2)
-    (assert (eq *x* 2))))
+  (defvar *x* 1)
+  (assert (eq *x* 1))
+  (setq *x* 2)
+  (assert (eq *x* 2)))
 
 (defun test-call/cc ()
-  (progn
-    (defvar *plusser* nil)
-    (progn
-      (call/cc (lambda (break)
-                 (progn
-                   (+ 10 (call/cc (lambda (k)
-                                    (progn
-                                      (setq *plusser* k)
-                                      (funcall break nil))))))))
-      (assert (eq 11 (funcall *plusser* 1))))))
+  (defvar *plusser* nil)
+  (call/cc (lambda (break)
+             (progn
+               (+ 10 (call/cc (lambda (k)
+                                (progn
+                                  (setq *plusser* k)
+                                  (funcall break nil))))))))
+  (assert (eq 11 (funcall *plusser* 1))))
 
 (defun null (x)
   (eq x nil))
