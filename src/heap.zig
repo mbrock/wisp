@@ -436,6 +436,11 @@ pub const Heap = struct {
         try heap.set(.sym, .val, sym, sym);
         return sym;
     }
+
+    pub fn symstrslice(heap: *Heap, sym: u32) ![]const u8 {
+        var str = try heap.get(.sym, .str, sym);
+        return try heap.v08slice(str);
+    }
 };
 
 pub fn list(heap: *Heap, xs: anytype) !u32 {

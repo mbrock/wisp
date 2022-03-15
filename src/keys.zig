@@ -178,8 +178,8 @@ test "key zb32" {
     try std.testing.expectEqual(keyA.rnd, parsedKeyA.rnd);
     try std.testing.expectEqual(keyA.day, parsedKeyA.day);
 
-    const keyB = generate(std.crypto.random);
-    const keyC = generate(std.crypto.random);
+    const keyB = generate(&std.crypto.random);
+    const keyC = generate(&std.crypto.random);
 
     try std.testing.expectApproxEqAbs(
         @intToFloat(f32, keyB.day),

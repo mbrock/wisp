@@ -24,6 +24,7 @@ const Wisp = @import("./wisp.zig");
 const Step = @import("./step.zig");
 const Sexp = @import("./sexp.zig");
 const Disk = @import("./disk.zig");
+const Tape = @import("./tape.zig");
 const Jets = @import("./jets.zig");
 
 const Rest = Jets.Rest;
@@ -213,14 +214,12 @@ pub fn @"GET/CC"(step: *Step) anyerror!void {
     step.give(.val, step.run.way);
 }
 
-pub fn SAVE(step: *Step, @"CORE-NAME": u32) anyerror!void {
-    step.give(
-        .val,
-        try Disk.save(
-            step,
-            try step.heap.v08slice(@"CORE-NAME"),
-        ),
-    );
+pub fn SAVE(step: *Step) anyerror!void {
+    const key = try step.heap.genkey();
+    const name = try step.heap.symstrslice(key);
+
+    step.give(.val, key);
+    try Tape.save(step, "wisp-tapes", name);
 }
 
 pub fn FUNCALL(

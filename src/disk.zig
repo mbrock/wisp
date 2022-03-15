@@ -152,7 +152,7 @@ test "save" {
     var heap = try Step.newTestHeap();
     defer heap.deinit();
 
-    try Step.expectEval("\"foo.core\"", (
-        \\ (save "foo.core")
+    try Step.expectEval("ok", (
+        \\ (prog1 'ok (save))
     ));
 }
