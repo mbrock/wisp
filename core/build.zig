@@ -19,29 +19,35 @@ pub fn build(b: *std.build.Builder) void {
         .os_tag = .wasi,
     };
 
-    const exe = wispStep(mode, standardTarget, b.addExecutable(
-        "wisp",
-        "src/repl.zig",
-    ));
+    const exe = wispStep(
+        mode,
+        standardTarget,
+        b.addExecutable("wisp", "repl.zig"),
+    );
 
-    const wasmExe = wispStep(mode, wasiTarget, b.addExecutable(
-        "wisp",
-        "src/repl.zig",
-    ));
+    const wasmExe = wispStep(
+        mode,
+        wasiTarget,
+        b.addExecutable("wisp", "repl.zig"),
+    );
 
-    const wasmLib = wispStep(mode, wasiTarget, b.addSharedLibrary(
-        "wisp",
-        "src/wasm.zig",
-        .unversioned,
-    ));
+    const wasmLib = wispStep(
+        mode,
+        wasiTarget,
+        b.addSharedLibrary("wisp", "wasm.zig", .unversioned),
+    );
 
-    const tests = wispStep(mode, standardTarget, b.addTest(
-        "src/repl.zig",
-    ));
+    const tests = wispStep(
+        mode,
+        standardTarget,
+        b.addTest("repl.zig"),
+    );
 
-    const testsPrty = wispStep(mode, standardTarget, b.addTest(
-        "src/sexp-prty.zig",
-    ));
+    const testsPrty = wispStep(
+        mode,
+        standardTarget,
+        b.addTest("sexp-prty.zig"),
+    );
 
     exe.install();
     wasmExe.install();

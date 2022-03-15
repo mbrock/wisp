@@ -2,7 +2,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "wisp.wasm": ["../zig-out/lib/wisp.wasm", "./wisp.wasm"]
+      "wisp.wasm": ["../core/zig-out/lib/wisp.wasm", "./wisp.wasm"]
     },
     "target": "es2017",
     "jsx": "react",

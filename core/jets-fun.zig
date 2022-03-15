@@ -219,7 +219,7 @@ pub fn SAVE(step: *Step) anyerror!void {
     const name = try step.heap.symstrslice(key);
 
     step.give(.val, key);
-    try Tape.save(step, "wisp-tapes", name);
+    try Tape.save(step, "tmp/wisp-tapes", name);
 }
 
 pub fn FUNCALL(

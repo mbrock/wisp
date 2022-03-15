@@ -15,4 +15,5 @@ zig-cache
 wapm_packages
 perf.data
 *.old
-/wisp-tapes
+wisp-tapes
+tmp

@@ -3,7 +3,7 @@
 stdenvNoCC.mkDerivation {
   pname = "wisp";
   version = wisp-version;
-  src = ./.;
+  src = ./core;
 
   nativeBuildInputs = [zig];
 
