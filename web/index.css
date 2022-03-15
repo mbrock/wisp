@@ -22,7 +22,7 @@
   font-style: normal;
   font-weight: 100;
   font-display: swap;
-  src: url("vendor/dm-mono/exports/DMMono-Regular.ttf") format("ttf");
+  src: url("vendor/dm-mono/exports/DMMono-Regular.ttf") format("truetype");
 }
 
 @font-face {
@@ -30,7 +30,7 @@
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url("vendor/dm-mono/exports/DMMono-Medium.ttf") format("ttf");
+  src: url("vendor/dm-mono/exports/DMMono-Medium.ttf") format("truetype");
 }
 
 @tailwind base;
