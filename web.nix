@@ -1,17 +1,15 @@
-{ zig, stdenvNoCC }:
+{ wisp, mkYarnPackage, electron, makeWrapper }:
 
-stdenvNoCC.mkDerivation {
-  pname = "wisp";
+mkYarnPackage rec {
+  pname = "wisp-web";
   version = "0.7.5";
-  src = ./.;
-
-  nativeBuildInputs = [zig];
+  src = ./web;
+  buildInputs = [zig];
 
   XDG_CACHE_HOME = ".cache";
 
-  buildPhase = "zig build";
   testPhase = "zig build test";
-
+  buildPhase = "zig build";
   installPhase = ''
     mkdir -p $out/bin
     cp zig-out/bin/* $out/bin/

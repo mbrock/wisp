@@ -25,7 +25,7 @@ import zustandContext from "zustand/context"
 
 import "./index.css"
 
-import wispWasmPath from "../../zig-out/lib/wisp.wasm"
+import wispWasmPath from "wisp/wisp.wasm"
 
 import { WASI } from "./wasi"
 import { Wisp, WispAPI, Data, tagOf, getRow, getUtf8String, getV32 } from "./wisp"

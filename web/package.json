@@ -1,6 +1,6 @@
 {
   "name": "wisp",
-  "version": "0.7",
+  "version": "0.7.5",
   "description": "WebAssembly Lisp Machine",
   "author": "Mikael Brockman",
   "license": "AGPL-3.0",
@@ -21,9 +21,8 @@
     "@codemirror/state": "^0.19.9",
     "@codemirror/view": "^0.19.47",
     "@lezer/common": "^0.15.11",
+    "@lezer/generator": "^0.15.4",
     "@lezer/lr": "^0.15.8",
-    "@types/node": "^17.0.21",
-    "@wasmer/wasi": "^1.0.2",
     "esbuild": "^0.14.25",
     "idb": "^7.0.0",
     "ink": "^3.2.0",
@@ -32,7 +31,6 @@
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
     "react-icons": "^4.3.1",
-    "recoil": "^0.6.1",
     "short-unique-id": "^4.4.4",
     "zustand": "^3.7.1"
   },
@@ -40,12 +38,13 @@
     "build": "make",
     "test": "NODE_OPTIONS=--experimental-wasi-unstable-preview1 jest",
     "watch": "NODE_OPTIONS=--experimental-wasi-unstable-preview1 jest --watchAll",
-    "repl": "ts-node ts/repl.tsx"
+    "repl": "ts-node src/repl.tsx"
   },
   "devDependencies": {
     "@nota-lang/esbuild-lezer": "^0.3.3",
     "@tailwindcss/forms": "^0.5.0",
     "@types/jest": "^27.4.1",
+    "@types/node": "^17.0.21",
     "@types/react": "^17.0.39",
     "@types/react-dom": "^17.0.11",
     "autoprefixer": "^10.4.2",

@@ -1,5 +1,9 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "wisp/wisp.wasm": ["../zig-out/bin/wisp.wasm"]
+    },
     "target": "es2017",
     "jsx": "react",
     "moduleResolution": "node",
