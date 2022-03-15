@@ -10,6 +10,6 @@ stdenv.mkDerivation {
   buildPhase = "zig build";
   installPhase = ''
     mkdir -p $out/bin
-    cp zig-out/bin/wisp/* $out/bin
+    cp zig-out/bin/* $out/bin/
   '';
 }

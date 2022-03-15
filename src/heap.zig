@@ -427,7 +427,7 @@ pub const Heap = struct {
     }
 
     pub fn genkey(heap: *Heap) !u32 {
-        const key = Keys.generate(std.crypto.random);
+        const key = Keys.generate(&std.crypto.random);
         const sym = try heap.intern(
             &key.toZB32(),
             heap.keyPackage,
