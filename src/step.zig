@@ -965,12 +965,12 @@ test "MAPCAR with LAMBDA" {
 //     );
 // }
 
-test "prty.lisp" {
-    var heap = try newTestHeap();
-    defer heap.deinit();
+// test "prty.lisp" {
+//     var heap = try newTestHeap();
+//     defer heap.deinit();
 
-    try heap.load(@embedFile("../lisp/pretty.lisp"));
-}
+//     try heap.load(@embedFile("../lisp/pretty.lisp"));
+// }
 
 test "GENKEY" {
     var heap = try newTestHeap();

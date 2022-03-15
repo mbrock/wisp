@@ -66,7 +66,24 @@
       "inputs": {
         "flake-utils": "flake-utils",
         "nixpkgs": "nixpkgs",
+        "wapm-cli": "wapm-cli",
         "zig": "zig"
+      }
+    },
+    "wapm-cli": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1645203498,
+        "narHash": "sha256-I7k62sGMu/N0WPJIr74h+vn/5JBoMFtj7GaCNcCzK98=",
+        "owner": "wasmerio",
+        "repo": "wapm-cli",
+        "rev": "a11ea874e20c04fcba8bd33853cf6f908a5e4335",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wasmerio",
+        "repo": "wapm-cli",
+        "type": "github"
       }
     },
     "zig": {

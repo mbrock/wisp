@@ -1,8 +1,12 @@
-{ wisp, mkYarnPackage, electron, makeWrapper }:
+{ wisp, mkYarnPackage, electron, makeWrapper, lib }:
 
-mkYarnPackage rec {
+let
+  json = lib.importJSON ./package.json;
+  version = json.version;
+
+in mkYarnPackage rec {
   pname = "wisp-ide";
-  version = "0.7.5";
+  inherit version;
   src = ./.;
   nativeBuildInputs = [makeWrapper];
 

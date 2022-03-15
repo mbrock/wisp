@@ -1,0 +1,6 @@
+/lib
+*.lock
+/web/vendor
+/web/dist
+yarn.nix
+COPYING
