@@ -20,6 +20,8 @@
 import * as ReactDOM from "react-dom"
 import * as React from "react"
 
+import wispPackageJSON from "../package.json"
+
 import zustand from "zustand"
 import zustandContext from "zustand/context"
 
@@ -783,7 +785,7 @@ const Titlebar = ({ saveTape, loadTape }) => {
         <span className="font-semibold">Wisp</span>
         <span className="font-medium text-gray-700">Notebook</span>
       </span>
-      <span className="text-gray-500">0.7</span>
+      <span className="text-gray-500">{wispPackageJSON.version}</span>
       <span className="flex items-center gap-1">
         <a href="https://github.com/mbrock/wisp"
            className="tracking-tight text-blue-900 dark:text-blue-200 flex column items-center"

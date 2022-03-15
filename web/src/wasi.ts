@@ -63,6 +63,7 @@ export class WASI {
 
       path_open() {},
       path_rename() {},
+      path_create_directory() {},
       path_remove_directory() {},
       path_unlink_file() {},
 
