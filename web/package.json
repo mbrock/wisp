@@ -1,5 +1,5 @@
 {
-  "name": "wisp",
+  "name": "wisp-ide",
   "version": "0.7.5",
   "description": "WebAssembly Lisp Machine",
   "author": "Mikael Brockman",
@@ -35,7 +35,7 @@
     "zustand": "^3.7.1"
   },
   "scripts": {
-    "build": "make",
+    "build": "./build",
     "test": "NODE_OPTIONS=--experimental-wasi-unstable-preview1 jest",
     "watch": "NODE_OPTIONS=--experimental-wasi-unstable-preview1 jest --watchAll",
     "repl": "ts-node src/repl.tsx"

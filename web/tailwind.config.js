@@ -1,11 +1,11 @@
 const defaultTheme = require("tailwindcss/defaultTheme")
 
 module.exports = {
-  content: ["./ts/*.tsx", "./index.css"],
+  content: ["./src/*.tsx", "./index.css"],
   theme: {
     extend: {
       fontFamily: {
-        sans: ["inter var", ...defaultTheme.fontFamily.sans],
+        sans: ["inter var", "inter", ...defaultTheme.fontFamily.sans],
         mono: ["dm mono", ...defaultTheme.fontFamily.mono],
       },
     },

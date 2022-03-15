@@ -13,7 +13,8 @@ stdenvNoCC.mkDerivation {
   testPhase = "zig build test";
 
   installPhase = ''
-    mkdir -p $out/bin
+    mkdir -p $out/{bin,lib}
     cp zig-out/bin/* $out/bin/
+    cp zig-out/lib/* $out/lib/
   '';
 }

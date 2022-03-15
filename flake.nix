@@ -25,8 +25,13 @@
         defaultPackage = packages.wisp;
         packages = rec {
           zig = inputs.zig.packages.${system}.master.latest;
+
           wisp = pkgs.callPackage ./default.nix {
             inherit zig;
+          };
+
+          wisp-ide = pkgs.callPackage ./web/default.nix {
+            inherit wisp;
           };
         };
       }

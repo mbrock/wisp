@@ -19,16 +19,18 @@
 
 @font-face {
   font-family: "DM Mono";
-  font-weight: normal;
   font-style: normal;
-  src: url(./vendor/dm-mono/exports/DMMono-Regular.ttf) format("ttf");
+  font-weight: 100;
+  font-display: swap;
+  src: url("vendor/dm-mono/exports/DMMono-Regular.ttf") format("ttf");
 }
 
 @font-face {
   font-family: "DM Mono";
-  font-weight: medium;
   font-style: normal;
-  src: url(./vendor/dm-mono/exports/DMMono-Medium.ttf) format("ttf");
+  font-weight: 500;
+  font-display: swap;
+  src: url("vendor/dm-mono/exports/DMMono-Medium.ttf") format("ttf");
 }
 
 @tailwind base;

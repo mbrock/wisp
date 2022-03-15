@@ -24,8 +24,9 @@ import zustand from "zustand"
 import zustandContext from "zustand/context"
 
 import "./index.css"
+import "../vendor/inter/inter.css"
 
-import wispWasmPath from "wisp/wisp.wasm"
+import wispWasmPath from "wisp.wasm"
 
 import { WASI } from "./wasi"
 import { Wisp, WispAPI, Data, tagOf, getRow, getUtf8String, getV32 } from "./wisp"

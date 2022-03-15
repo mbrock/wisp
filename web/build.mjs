@@ -14,6 +14,8 @@ esbuild.build({
   loader: {
     ".wasm": "file",
     ".ttf": "file",
+    ".woff2": "file",
+    ".woff": "file",
   },
   plugins: [
     style({
