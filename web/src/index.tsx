@@ -60,7 +60,7 @@ interface Store {
   notes: Record<string, Note>
   noteOrder: string[]
 
-  refresh(): void
+  refresh(): Data
   newEmptyNote(): void
   loadNotes(notes: [Note]): void
   setNoteRun(key: string, run: number): void
@@ -330,14 +330,20 @@ const Restarts: React.FC<{ run: number }> = ({ run }) => {
 
   const v32 = Array.from(getV32(data, err))
 
-  const asksym = getRow(data, "sym", v32[1])
-  const askstr = getUtf8String(data, asksym.str)
-  const isFetch = askstr === "FETCH"
+  const isFetch = () => {
+    if (v32.length > 1) {
+      const asksym = getRow(data, "sym", v32[1])
+      const askstr = getUtf8String(data, asksym.str)
+      return askstr === "FETCH"
+    } else {
+      return false
+    }
+  }
 
   return (
     <div className="flex flex-col gap-1 mb-1">
       <div className="flex flex-col gap-1">
-        { isFetch ? <Fetch ctx={ctx} run={run} ask={v32} /> : null }
+        { isFetch() ? <Fetch run={run} ask={v32} /> : null }
 
         <Form done={restart} placeholder="Provide another value" />
       </div>
@@ -387,16 +393,18 @@ const Debugger: React.FC<{ run: number }> = ({ run }) => {
     color += "bg-yellow-50 dark:bg-amber-600/50"
   }
 
-  const envs: number[][][] = listItems(data, env).map((env, i) => {
-    const v32 = Array.from(getV32(data, env))
-    const vars = []
+  function readEnv(env: number): number[][][] {
+    return listItems(data, env).map(x => {
+      const v32 = Array.from(getV32(data, x))
+      const vars = []
 
-    while (v32.length > 0) {
-      vars.push([v32.shift(), v32.shift()])
-    }
+      while (v32.length > 0) {
+        vars.push([v32.shift(), v32.shift()])
+      }
 
-    return vars
-  })
+      return vars
+    })
+  }
 
   const renderRow = ([k, v]: number[], i: number) => (
     <tr key={i}>
@@ -415,12 +423,53 @@ const Debugger: React.FC<{ run: number }> = ({ run }) => {
     </tbody>
   )
 
-  const scopes = envs.length > 0 ? (
-    <table className="table-auto divide-y dark:divide-neutral-600 bg-white dark:bg-neutral-800 dark:text-neutral-100
-                      border mb-1 text-sm">
-      {envs.map(renderScope)}
-    </table>
-  ) : null
+  function renderScopes(env: number, key?: React.Key): React.ReactNode {
+    const xs = readEnv(env)
+    return xs.length > 0 ? (
+      <table key={key} className="table-auto divide-y dark:divide-neutral-600 bg-white dark:bg-neutral-800 dark:text-neutral-100 border mb-1 text-sm">
+        {xs.map(renderScope)}
+      </table>
+    ) : null
+  }
+
+  const lexicalScope = () => renderScopes(env)
+
+  const dynamicScope = () => {
+    const cache = new Set([env])
+    const scopes = []
+    let cur = way
+    let key = 0
+
+    function processEnv(env: number) {
+      if (!cache.has(env)) {
+        scopes.push(renderScopes(env, key++))
+        cache.add(env)
+      }
+    }
+
+    while (cur !== data.sys.top) {
+      switch (tagOf(data, cur)) {
+        case "ktx": {
+          const ktx = getRow(data, "ktx", cur)
+          processEnv(ktx.env)
+          cur = ktx.hop
+          break
+        }
+
+        case "duo": {
+          const duo = getRow(data, "duo", cur)
+          processEnv(duo.car)
+          cur = duo.cdr
+          break
+        }
+
+        default:
+          throw new Error("bad continuation")
+      }
+    }
+
+    return <div>{scopes}</div>
+  }
 
   const condition = (
     err === data.sys.nil
@@ -438,7 +487,7 @@ const Debugger: React.FC<{ run: number }> = ({ run }) => {
     <div className="border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 dark:text-neutral-50 flex flex-row gap-2 divide-x-2 dark:divide-neutral-600 w-full">
       <div className="flex flex-grow flex-col gap-1 p-2">
         <Way way={way}>
-          <Val data={data} v={cur} style={color} />
+          <Val v={cur} style={color} />
         </Way>
       </div>
 
@@ -456,9 +505,15 @@ const Debugger: React.FC<{ run: number }> = ({ run }) => {
         </div>
         <div className="flex flex-col gap px-1">
           <span className="font-medium text-sm text-gray-500">
-            Scopes
+            Lexical scope
           </span>
-          {scopes}
+          {lexicalScope()}
+        </div>
+        <div className="flex flex-col gap px-1">
+          <span className="font-medium text-sm text-gray-500">
+            Dynamic scope
+          </span>
+          {dynamicScope()}
         </div>
         <div className="px-1 flex flex-col">
           <span className="font-medium text-sm text-gray-500">
