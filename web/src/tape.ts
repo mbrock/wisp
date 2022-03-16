@@ -35,7 +35,7 @@ type Tape = {
 }
 
 async function openTapeDB(): Promise<IDBPDatabase> {
-  return await openDB("wisp-v0.7", version, {
+  return await openDB("wisp-v0.8", version, {
     upgrade(db) {
       db.createObjectStore("tape", { keyPath: "name" })
     },

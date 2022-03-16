@@ -1,6 +1,6 @@
 {
   "name": "wisp-ide",
-  "version": "0.7.6",
+  "version": "0.8.0",
   "description": "WebAssembly Lisp Machine",
   "author": "Mikael Brockman",
   "license": "AGPL-3.0",

@@ -50,7 +50,7 @@ const colnum = blk: {
 
 fn currentVersion() [32]u8 {
     var array: [32]u8 = .{0} ** 32;
-    std.mem.copy(u8, &array, "wisp tape v0.7.5\n");
+    std.mem.copy(u8, &array, "wisp tape v0.8.0\n");
     return array;
 }
 
