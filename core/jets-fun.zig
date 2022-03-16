@@ -201,6 +201,7 @@ pub fn @"TYPE-OF"(step: *Step, x: u32) anyerror!void {
             .pkg => kwd.PACKAGE,
             .ktx => kwd.CONTINUATION,
             .run => kwd.EVALUATOR,
+            .cap => kwd.PROMPT,
             .sys => unreachable,
         });
     }
@@ -368,5 +369,137 @@ pub fn @"PROGNIFY"(step: *Step, arg: u32) anyerror!void {
         step.give(.val, Wisp.nil);
     } else {
         step.give(.val, try step.heap.get(.duo, .car, arg));
+    }
+}
+
+/// This is a continuation control operator.  It invokes a thunk
+/// in the context of a new prompt with the given tag and
+/// handler function.
+pub fn HANDLE(
+    step: *Step,
+    TAG: u32,
+    THUNK: u32,
+    HANDLER: u32,
+) anyerror!void {
+    const cap = try step.heap.new(.cap, .{
+        .hop = step.run.way,
+        .env = step.run.env,
+        .tag = TAG,
+        .fun = HANDLER,
+    });
+
+    step.run.way = cap;
+
+    try step.call(THUNK, Wisp.nil, false);
+}
+
+/// This is a continuation control operator.
+pub fn SEND(
+    step: *Step,
+    TAG: u32,
+    VALUE: u32,
+) anyerror!void {
+    // We search the current context for a prompt that matches
+    // the tag.  If we don't find it, that's an error.
+    //
+    // As we're searching, we're copying the context, ending
+    // with TOP when we get to the matching tag.
+    //
+    // Then we invoke the handler function with the given value
+    // and the delimited continuation we've created.
+    //
+    //     𝐸₁[handle 𝐸₂[send 𝑣] 𝑒] ⟶ 𝐸₁[𝑒 𝑣 (λ𝑥. 𝐸₂[𝑥])]
+    //
+
+    var new = try step.heap.copyAny(step.run.way);
+    var cur = new;
+
+    while (true) {
+        const result = switch (Wisp.tagOf(cur)) {
+            .ktx => try lookForPrompt(step, TAG, cur, .ktx, .hop),
+            .duo => try lookForPrompt(step, TAG, cur, .duo, .cdr),
+            .cap => try lookForPrompt(step, TAG, cur, .cap, .hop),
+            .sys => return step.fail(&[_]u32{
+                step.heap.kwd.@"PROMPT-TAG-MISSING",
+                TAG,
+            }),
+            else => return Wisp.Oof.Bug,
+        };
+
+        switch (result) {
+            .done => |cap| {
+                const args = try Wisp.list(step.heap, &[_]u32{ VALUE, new });
+                step.run.way = cap.hop;
+                step.run.env = cap.env;
+                return step.call(cap.fun, args, false);
+            },
+
+            .next => |hop| cur = hop,
+        }
+    }
+}
+
+const ContinuationCopyOutcome = enum { done, next };
+const ContinuationCopyResult = union(ContinuationCopyOutcome) {
+    done: Wisp.Row(.cap),
+    next: u32,
+};
+
+fn lookForPrompt(
+    step: *Step,
+    promptTag: u32,
+    ptr: u32,
+    comptime tag: Wisp.Tag,
+    comptime col: Wisp.Col(tag),
+) !ContinuationCopyResult {
+    const hop = try step.heap.get(tag, col, ptr);
+
+    try Sexp.warn("prompt ptr", step.heap, ptr);
+
+    if (Wisp.tagOf(hop) == .cap) {
+        const capTag = try step.heap.get(.cap, .tag, hop);
+        if (capTag == promptTag) {
+            std.log.warn("found it", .{});
+            try step.heap.set(tag, col, ptr, Wisp.top);
+            return ContinuationCopyResult{
+                .done = try step.heap.row(.cap, hop),
+            };
+        }
+    }
+
+    const next = try step.heap.copyAny(hop);
+    try step.heap.set(tag, col, ptr, next);
+
+    return ContinuationCopyResult{ .next = next };
+}
+
+pub fn @"%SETQ"(step: *Step, sym: u32, val: u32) anyerror!void {
+    var cur = step.run.env;
+    while (cur != Wisp.nil) {
+        var curduo = try step.heap.row(.duo, cur);
+        var v32 = try step.heap.v32slice(curduo.car);
+        var i: usize = 0;
+        while (i < v32.len) : (i += 2) {
+            if (v32[i] == sym) {
+                v32[i + 1] = val;
+                return step.give(.val, val);
+            }
+        }
+        cur = curduo.cdr;
+    }
+
+    switch (try step.heap.get(.sym, .val, sym)) {
+        Wisp.nah => {
+            const err = [2]u32{
+                step.heap.kwd.@"UNBOUND-VARIABLE",
+                sym,
+            };
+            step.run.err = try step.heap.newv32(&err);
+            return Wisp.Oof.Err;
+        },
+        else => |_| {
+            try step.heap.set(.sym, .val, sym, val);
+            step.give(.val, val);
+        },
     }
 }

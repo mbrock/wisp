@@ -1,0 +1,29 @@
+* Semantics of Continuations
+
+Alexis King ([[https://twitter.com/lexi_lambda][@lexi_lambda]]) posted a [[https://twitter.com/lexi_lambda/status/1504020880661303300][thread about delimited
+continuation semantics]] that I liked a lot, and I was inspired to write
+[[https://twitter.com/meekaale/status/1504030031781236743][my own thread]].
+
+Semantic rules for /throw/ and /catch/:
+
+  - 𝐸[catch 𝑣 𝑒] ⟶ 𝐸[𝑣]
+  - 𝐸₁[catch 𝐸₂[throw 𝑣] 𝑒] ⟶ 𝐸₁[𝑒 𝑣]
+
+Semantic rules for /send/ and /handle/:
+
+  - 𝐸[handle 𝑣 𝑒] ⟶ 𝐸[𝑣]
+  - 𝐸₁[handle 𝐸₂[send 𝑣] 𝑒] ⟶ 𝐸₁[𝑒 𝑣 (λ𝑥. 𝐸₂[𝑥])]
+
+Semantic rules for /shift/ and /reset/:
+
+  - 𝐸[reset 𝑣] ⟶ 𝐸[𝑣]
+  - 𝐸₁[reset 𝐸₂[shift 𝑓]] ⟶ 𝐸₁[𝑓 (λ𝑥. 𝐸₂[𝑥])]
+
+Semantic rule for /capture/ (aka /callcc/):
+
+  - 𝐸[capture 𝑓] ⟶ 𝐸[𝑓 (λ𝑥. 𝐸[𝑥])]
+
+Semantic rules for /send/ and /handle/ with tags:
+
+  - 𝐸[handle 𝑡 𝑣 𝑒] ⟶ 𝐸[𝑣]
+  - 𝐸₁[handle 𝑡 𝐸₂[send 𝑡 𝑓]] ⟶ 𝐸₁[𝑓 (λ𝑥. 𝐸₂[𝑥])]

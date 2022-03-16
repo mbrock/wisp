@@ -47,6 +47,7 @@ pub fn ColEnum(comptime t: Tag) type {
         .v32 => enum { idx, len },
         .pkg => enum { nam, sym, use },
         .ktx => enum { hop, env, fun, acc, arg },
+        .cap => enum { hop, env, tag, fun },
         .run => enum { exp, val, err, env, way },
     };
 }
@@ -81,17 +82,20 @@ pub const Kwd = enum {
     MACRO,
     NULL,
     PACKAGE,
+    PROMPT,
     STRING,
     SYMBOL,
     VECTOR,
 
     @"BUG",
+    @"CONTINUATION-CALL-ERROR",
     @"EXHAUSTED",
     @"FIXNUM-OVERFLOW",
     @"INEXACT-FIXNUM-DIVISION",
     @"INVALID-ARGUMENT-COUNT",
     @"PACKAGE-ERROR",
     @"PROGRAM-ERROR",
+    @"PROMPT-TAG-MISSING",
     @"TYPE-MISMATCH",
     @"UNBOUND-VARIABLE",
     @"UNDEFINED-FUNCTION",
@@ -183,8 +187,9 @@ pub const Vat = struct {
     v32: Tab(.v32) = .{},
     v08: Tab(.v08) = .{},
     pkg: Tab(.pkg) = .{},
-    ktx: Tab(.ktx) = .{},
     run: Tab(.run) = .{},
+    ktx: Tab(.ktx) = .{},
+    cap: Tab(.cap) = .{},
 
     pub fn bytesize(vat: Vat) usize {
         var n: usize = 0;
@@ -308,6 +313,26 @@ pub const Heap = struct {
         return heap.tab(tag).new(heap.orb, heap.era, data);
     }
 
+    pub fn copy(heap: *Heap, comptime tag: Tag, ptr: u32) !u32 {
+        return heap.new(tag, try heap.row(tag, ptr));
+    }
+
+    pub fn copyAny(heap: *Heap, x: u32) !u32 {
+        return switch (Wisp.tagOf(x)) {
+            .int, .chr, .sys, .jet => x,
+            .sym => heap.copy(.sym, x),
+            .duo => heap.copy(.duo, x),
+            .fun => heap.copy(.fun, x),
+            .mac => heap.copy(.mac, x),
+            .v32 => heap.copy(.v32, x),
+            .v08 => heap.copy(.v08, x),
+            .pkg => heap.copy(.pkg, x),
+            .run => heap.copy(.run, x),
+            .ktx => heap.copy(.ktx, x),
+            .cap => heap.copy(.cap, x),
+        };
+    }
+
     pub fn row(heap: *Heap, comptime tag: Tag, ptr: u32) !Row(tag) {
         if (Wisp.tagOf(ptr) != tag)
             return Oof.Bug;
@@ -381,7 +406,7 @@ pub const Heap = struct {
         return heap.v08.items[str.idx .. str.idx + str.len];
     }
 
-    pub fn v32slice(heap: *Heap, ptr: u32) ![]const u32 {
+    pub fn v32slice(heap: *Heap, ptr: u32) ![]u32 {
         const str = try heap.row(.v32, ptr);
         return heap.v32.list.items[str.idx .. str.idx + str.len];
     }

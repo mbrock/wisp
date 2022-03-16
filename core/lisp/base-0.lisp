@@ -43,8 +43,7 @@
   (list 'set-symbol-value (list 'quote var) val))
 
 (defmacro setq (var val)
-  var  ;; evaluate it to trigger error if undefined
-  (list 'set-symbol-value (list 'quote var) val))
+  (list '%setq (list 'quote var) val))
 
 (defun not (x)
   (if x nil t))

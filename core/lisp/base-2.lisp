@@ -46,3 +46,10 @@
 
 (defmacro or (a b)
   `(if ,a ,b nil))
+
+(defun test-1 ()
+  (handle 'foo
+          (lambda ()
+            (+ 5 (send 'foo 'bar)))
+          (lambda (v k)
+            (+ 1 (funcall k 3)))))

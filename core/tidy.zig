@@ -92,8 +92,9 @@ fn copy(tidy: *Tidy, x: u32) !u32 {
         .v32 => tidy.push(.v32, x),
         .v08 => tidy.push(.v08, x),
         .pkg => tidy.push(.pkg, x),
-        .ktx => tidy.push(.ktx, x),
         .run => tidy.push(.run, x),
+        .ktx => tidy.push(.ktx, x),
+        .cap => tidy.push(.cap, x),
     };
 }
 

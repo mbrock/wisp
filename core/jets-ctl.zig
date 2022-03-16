@@ -131,8 +131,3 @@ pub fn @"IN-PACKAGE"(step: *Step, pkgsym: u32) anyerror!void {
         try step.fail(&[_]u32{ step.heap.kwd.@"PACKAGE-ERROR", pkgsym });
     }
 }
-
-// pub fn QUASIQUOTE(step: *Step, exp: u32) anyerror!void {
-//     // `(x ,y) => (list (quote x) y)
-
-// }

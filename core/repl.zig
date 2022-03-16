@@ -84,8 +84,9 @@ pub fn repl() anyerror!void {
         if (try readSexp(stdin, tmp, &heap)) |term| {
             var run = Step.initRun(term);
             var step = Step{ .heap = &heap, .run = &run };
+            _ = step;
 
-            term: while (true) {
+            while (true) {
                 if (Step.evaluate(&heap, &run, 0)) |val| {
                     const pretty = try Sexp.prettyPrint(&heap, val, 62);
                     defer heap.orb.free(pretty);
@@ -100,15 +101,19 @@ pub fn repl() anyerror!void {
                         try Sexp.warn("Term", &heap, run.exp);
                         try Sexp.warn("Value", &heap, run.val);
                         try Sexp.warn("Environment", &heap, run.env);
+                        try Sexp.warn("Context", &heap, run.way);
 
                         try stdout.writeAll("*> ");
-                        if (try readSexp(stdin, tmp, &heap)) |restart| {
-                            run.err = Wisp.nil;
-                            step.give(.exp, restart);
-                            continue :term;
-                        } else {
-                            return error.Nope;
-                        }
+
+                        return e;
+
+                        // if (try readSexp(stdin, tmp, &heap)) |restart| {
+                        //     run.err = Wisp.nil;
+                        //     step.give(.exp, restart);
+                        //     continue :term;
+                        // } else {
+                        //     return error.Nope;
+                        // }
                     }
                 }
             }

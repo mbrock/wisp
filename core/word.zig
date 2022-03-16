@@ -36,8 +36,9 @@ pub const Tag = enum(u5) {
     v08 = 0x1a, // byte vector pointer
     pkg = 0x1b, // package pointer
 
-    ktx = 0x1c, // evaluation context
-    run = 0x1d, // evaluation state
+    run = 0x1c, // evaluation state
+    ktx = 0x1d, // evaluation context
+    cap = 0x1e, // prompt
 };
 
 pub const pointerTags = .{
@@ -48,8 +49,9 @@ pub const pointerTags = .{
     .v08,
     .v32,
     .pkg,
-    .ktx,
     .run,
+    .ktx,
+    .cap,
 };
 
 pub const Era = enum(u1) {

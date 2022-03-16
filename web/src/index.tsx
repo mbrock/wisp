@@ -45,6 +45,14 @@ import { IoAddCircleOutline } from "react-icons/io5"
 import ShortUniqueId from "short-unique-id"
 import { IconButton } from "./button"
 
+const initialDocument = `(cons 'ok
+      (handle 'tag
+              (lambda ()
+                (* 2 (send 'tag 5)))
+              (lambda (v k)
+                (list (list 'continuation k)
+                      (list 'result (funcall k (+ 1 v)))))))`
+
 const uuid = new ShortUniqueId({ length: 8 })
 
 export type Note = {
@@ -81,10 +89,7 @@ const createStore = (ctx: Wisp) => () => zustand<Store>(set => ({
     [initialNoteKey]: {
       key: initialNoteKey,
       editorState: {
-        doc: `(defun foo (x)
-  (append '(1 2 x) '(a b c)))
-
-(foo 3)`
+        doc: initialDocument,
       },
     }
   },
@@ -259,20 +264,37 @@ const Way: React.FC<{ way: number }> = ({ way, children }) => {
       return <Way way={hop}>{me()}</Way>
     }
   } else if (tagOf(data, way) == "duo") {
-    const ktx = getRow(data, "duo", way)
-    const hop = ktx.cdr
+    const duo = getRow(data, "duo", way)
+    const hop = duo.cdr
 
     return (
       <Way way={hop}>
         <div className={css.sexp.list}>
-          <span className="text-indigo-800 italic">
+          <span className="text-indigo-600 italic">
             eval
           </span>
           {children}
         </div>
       </Way>
     )
+  } else if (tagOf(data, way) == "cap") {
+    const cap = getRow(data, "cap", way)
+    const hop = cap.hop
+
+    return (
+      <Way way={hop}>
+        <div className={css.sexp.list}>
+          <span className="text-indigo-600 italic">
+            prompt
+          </span>
+          {show(cap.tag)}
+          {children}
+          {show(cap.fun)}
+        </div>
+      </Way>
+    )
   } else {
+    debugger
     throw new Error(tagOf(data, way))
   }
 }
@@ -463,8 +485,18 @@ const Debugger: React.FC<{ run: number }> = ({ run }) => {
           break
         }
 
-        default:
-          throw new Error("bad continuation")
+        case "cap": {
+          const cap = getRow(data, "cap", cur)
+          processEnv(cap.env)
+          cur = cap.hop
+          break
+        }
+
+        default: {
+          console.error(`bad continuation: ${cur}`)
+          cur = data.sys.top
+          break
+        }
       }
     }
 
@@ -655,12 +687,13 @@ const Val: React.FC<{ v: number, style?: string }> = ({ v, style }) => {
     case "run":
       return <Debugger run={v} />
 
-    case "ktx":
+    case "ktx": {
       return (
-        <div className="font-semibold">
-          《continuation》
-        </div>
+        <span className={`${style} border p-1 border-cyan-400 rounded`}>
+          <Way way={v}>⛳</Way>
+        </span>
       )
+    }
 
     case "sym": {
       const { str, pkg, fun } = getRow(data, "sym", v)

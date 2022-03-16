@@ -20,7 +20,7 @@
 type Tag =
   "int" | "chr" | "sys" | "jet" |
   "duo" | "sym" | "pkg" |
-  "fun" | "mac" | "ktx" | "run" |
+  "fun" | "mac" | "run" | "ktx" | "cap" | 
   "v32" | "v08"
 
 type Sys = "t" | "nil" | "nah" | "zap" | "top"
@@ -41,8 +41,9 @@ export interface WispAPI {
   wisp_tag_v32: WebAssembly.Global
   wisp_tag_v08: WebAssembly.Global
   wisp_tag_pkg: WebAssembly.Global
-  wisp_tag_ktx: WebAssembly.Global
   wisp_tag_run: WebAssembly.Global
+  wisp_tag_ktx: WebAssembly.Global
+  wisp_tag_cap: WebAssembly.Global
 
   wisp_sys_t: WebAssembly.Global
   wisp_sys_nil: WebAssembly.Global
@@ -97,6 +98,7 @@ export const tabs = {
   pkg: ["nam", "sym", "use"],
   ktx: ["hop", "env", "fun", "acc", "arg"],
   run: ["exp", "val", "err", "env", "way"],
+  cap: ["hop", "env", "tag", "fun"],
 }
 
 type Row = Record<string, number[]>
@@ -143,8 +145,9 @@ export class Wisp {
       v08: tag("v08"),
       v32: tag("v32"),
       pkg: tag("pkg"),
-      ktx: tag("ktx"),
       run: tag("run"),
+      ktx: tag("ktx"),
+      cap: tag("cap"),
     }
   }
 

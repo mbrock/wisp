@@ -199,8 +199,16 @@ pub fn proceed(step: *Step, x: u32) !void {
     switch (Wisp.tagOf(step.run.way)) {
         .ktx => try step.execKtx(try step.heap.row(.ktx, step.run.way)),
         .duo => try step.execDuo(try step.heap.row(.duo, step.run.way)),
+        .cap => try step.execCap(try step.heap.row(.cap, step.run.way)),
 
-        else => unreachable,
+        else => |tag| {
+            std.log.err(
+                "cannot proceed with continuation {any}",
+                .{tag},
+            );
+
+            return Oof.Bug;
+        },
     }
 }
 
@@ -220,6 +228,10 @@ fn execDuo(step: *Step, duo: Wisp.Row(.duo)) !void {
         .exp = val,
         .val = nah,
     };
+}
+
+fn execCap(step: *Step, cap: Wisp.Row(.cap)) !void {
+    step.run.way = cap.hop;
 }
 
 fn scan(
@@ -310,9 +322,12 @@ pub fn call(
             defer vals.deinit();
 
             if (vals.items.len != 1) {
-                try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"});
+                try step.fail(&[_]u32{
+                    step.heap.kwd.@"PROGRAM-ERROR",
+                    step.heap.kwd.@"CONTINUATION-CALL-ERROR",
+                });
             } else {
-                step.run.way = funptr;
+                step.run.way = try step.composeContinuation(funptr);
                 try step.proceed(vals.items[0]);
             }
         },
@@ -339,6 +354,39 @@ pub fn call(
             try Sexp.warn("oof", step.heap, funptr);
             return Oof.Bug;
         },
+    }
+}
+
+fn composeContinuation(step: *Step, way: u32) !u32 {
+    var new = try step.heap.copyAny(way);
+    var cur = new;
+
+    while (cur != Wisp.top) {
+        cur = switch (Wisp.tagOf(cur)) {
+            .ktx => try lookForTop(step, cur, .ktx, .hop),
+            .duo => try lookForTop(step, cur, .duo, .cdr),
+            .cap => try lookForTop(step, cur, .cap, .hop),
+            else => return Wisp.Oof.Bug,
+        };
+    }
+
+    return new;
+}
+
+fn lookForTop(
+    step: *Step,
+    cur: u32,
+    comptime tag: Wisp.Tag,
+    comptime col: Wisp.Col(tag),
+) !u32 {
+    const hop = try step.heap.get(tag, col, cur);
+    if (hop == Wisp.top) {
+        try step.heap.set(tag, col, cur, step.run.way);
+        return Wisp.top;
+    } else {
+        const new = try step.heap.copyAny(hop);
+        try step.heap.set(tag, col, cur, new);
+        return new;
     }
 }
 
@@ -980,4 +1028,18 @@ test "GENKEY" {
     const y = try evalString(&heap, "(genkey)");
 
     try std.testing.expect(x != y);
+}
+
+test "HANDLE" {
+    var heap = try newTestHeap();
+    defer heap.deinit();
+
+    const x = try evalString(&heap,
+        \\(handle 'foo
+        \\ (lambda () 1)
+        \\ (lambda (v k)
+        \\   k))
+    );
+
+    try std.testing.expectEqual(x, 1);
 }

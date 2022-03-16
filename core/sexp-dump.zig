@@ -143,6 +143,16 @@ pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
             try out.print(">", .{});
         },
 
+        .cap => {
+            const cap = try heap.row(.cap, x);
+            try out.print("<%cap", .{});
+            inline for (std.meta.fields(@TypeOf(cap))) |field| {
+                try out.print(" {s}=", .{field.name});
+                try dump(heap, out, @field(cap, field.name));
+            }
+            try out.print(">", .{});
+        },
+
         .fun => {
             // const fun = try heap.row(.fun, x);
             try out.print("<fun", .{});
