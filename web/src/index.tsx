@@ -170,8 +170,8 @@ const Way: React.FC<{ way: number }> = ({ way, children }) => {
   if (way == data.sys.top)
     return <>{children}</>
 
-  function show(x: number, i: number): JSX.Element {
-    return <Val v={x} key={i} />
+  function show(x: number, key?: React.Key): JSX.Element {
+    return <Val v={x} key={key} />
   }
 
   if (tagOf(data, way) == "ktx") {
@@ -180,19 +180,83 @@ const Way: React.FC<{ way: number }> = ({ way, children }) => {
     const accs = listItems(data, acc)
     const args = listItems(data, arg)
 
-    const me = (
-      <div className={css.sexp.list}>
-        {show(fun, 0)}
-        {accs.reverse().map(show)}
-        {children}
-        {args.map(show)}
-      </div>
-    )
+    const me = () => {
+      if (fun === data.kwd.LET) {
+        // LET continuations have a peculiar representation
+        // that's efficient to build up but slightly annoying to
+        // parse for display.
+        //
+        // Take this example, where evaluation is now at <E2>.
+        //
+        //       (LET ((A E1) (B <E2>) (C E3) BODY)
+        //
+        // The continuation will look like this:
+        //
+        //   acc: (BODY A V1 B)     [except backwards]
+        //   exp: E2
+        //   arg: ((C E3))
+        //
+        // So the accumulator has the body, the finished
+        // bindings, and the symbol for the binding which we are
+        // evaluating, all in the same list.
+
+        const items = listItems(data, acc).reverse()
+        const body = show(items[0], 0)
+        const bindings = []
+
+        let i = 1
+
+        // Render all the finished bindings.
+        while (i < items.length - 1) {
+          bindings.push(
+            <div className={css.sexp.list} key={i}>
+              {show(items[i])}
+              {show(items[i + 1])}
+            </div>
+          )
+
+          i += 2
+        }
+
+        // Render the current binding.
+        bindings.push(
+          <div className={css.sexp.list} key={i++}>
+            {show(items[items.length - 1])}
+            {children}
+          </div>
+        )
+
+        // Render the upcoming bindings.
+        for (const x of listItems(data, arg)) {
+          bindings.push(show(x, i++))
+        }
+
+        return (
+          <div className={css.sexp.list}>
+            {show(fun)}
+            <div className={css.sexp.list}>
+              {bindings}
+            </div>
+            {body}
+          </div>
+        )
+
+      } else {
+        return (
+          <div className={css.sexp.list}>
+            {show(fun)}
+            {accs.reverse().map(show)}
+            {children}
+            {args.map(show)}
+          </div>
+        )
+      }
+    }
 
     if (hop == data.sys.top) {
-      return me
+      return me()
     } else {
-      return <Way way={hop}>{me}</Way>
+      return <Way way={hop}>{me()}</Way>
     }
   } else if (tagOf(data, way) == "duo") {
     const ktx = getRow(data, "duo", way)

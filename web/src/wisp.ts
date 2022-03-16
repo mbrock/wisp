@@ -25,6 +25,8 @@ type Tag =
 
 type Sys = "t" | "nil" | "nah" | "zap" | "top"
 
+type Kwd = "LET"
+
 export interface WispAPI {
   memory: WebAssembly.Memory
 
@@ -103,12 +105,11 @@ type Tab = Record<string, Row>
 export interface Data {
   tag: Record<Tag, number>
   sys: Record<Sys, number>
+  kwd: Record<Kwd, number>
   tab: Tab
   v08: ArrayBuffer
   v32: ArrayBuffer
 }
-
-type Memory = WebAssembly.Memory
 
 export class Wisp {
   instance: WebAssembly.Instance
@@ -171,6 +172,9 @@ export class Wisp {
       tab: this.loadTab(),
       v08: this.v08slice(),
       v32: this.v32slice(),
+      kwd: {
+        LET: this.read("LET"),
+      },
     }
   }
 
@@ -220,7 +224,7 @@ export class Wisp {
   }
 
   v08ptr(): number {
-    return this.api.wisp_heap_v08_ptr(this.heap)
+    return this.api.wisp_heap_v08_ptr(this.heap) >>> 0
   }
 
   v32len(): number {
@@ -228,7 +232,7 @@ export class Wisp {
   }
 
   v32ptr(): number {
-    return this.api.wisp_heap_v32_ptr(this.heap)
+    return this.api.wisp_heap_v32_ptr(this.heap) >>> 0
   }
 
   v08slice() {
@@ -253,7 +257,7 @@ export class Wisp {
       mem.setUint8(i, arr[i])
     }
 
-    return buf
+    return buf >>> 0
   }
 
   read(sexp: string): number {
@@ -269,11 +273,11 @@ export class Wisp {
 
     const x = this.api.wisp_read(this.heap, buf)
     this.api.wisp_free(this.heap, buf)
-    return x
+    return x >>> 0
   }
 
   eval(exp: number): number {
-    return this.api.wisp_eval(this.heap, exp, 10000)
+    return this.api.wisp_eval(this.heap, exp, 10000) >>> 0
   }
 }
 
