@@ -45,11 +45,3 @@
     (resume 3)
     (resume 4)
     (list 'done 'a a 'b b)))
-
-(list 'ok
-      (handle 'tag
-              (lambda ()
-                (* 2 (send 'tag 5)))
-              (lambda (v k)
-                (list '(continuation k)
-                      '(result (funcall k (+ 1 v)))))))
