@@ -45,7 +45,7 @@ fn readValueOrEOF(self: *Reader) anyerror!?u32 {
             .colon => try self.readKeyword(),
             .doubleQuote => try self.readString(),
             .singleQuote => try self.readQuote(),
-            .backQuote => try self.readQuasiquote(),
+            .backQuote => try self.readBackquote(),
             .comma => try self.readUnquote(),
             .symbolChar => try self.readSymbol(self.heap.pkg),
             .digitChar => try self.readNumber(),
@@ -147,11 +147,11 @@ fn readQuote(self: *Reader) !u32 {
     });
 }
 
-fn readQuasiquote(self: *Reader) !u32 {
+fn readBackquote(self: *Reader) !u32 {
     try self.skipOnly('`');
     const x = try self.readValue();
     return try self.heap.new(.duo, .{
-        .car = self.heap.kwd.QUASIQUOTE,
+        .car = self.heap.kwd.BACKQUOTE,
         .cdr = try self.heap.new(.duo, .{
             .car = x,
             .cdr = Wisp.nil,
@@ -161,9 +161,18 @@ fn readQuasiquote(self: *Reader) !u32 {
 
 fn readUnquote(self: *Reader) !u32 {
     try self.skipOnly(',');
+
+    const kwd = switch ((try self.peek()).?) {
+        '@' => blk: {
+            try self.skipOnly('@');
+            break :blk self.heap.kwd.@"UNQUOTE-SPLICING";
+        },
+        else => self.heap.kwd.UNQUOTE,
+    };
+
     const x = try self.readValue();
     return try self.heap.new(.duo, .{
-        .car = self.heap.kwd.UNQUOTE,
+        .car = kwd,
         .cdr = try self.heap.new(.duo, .{
             .car = x,
             .cdr = Wisp.nil,

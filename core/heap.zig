@@ -55,8 +55,9 @@ pub fn ColEnum(comptime t: Tag) type {
 /// from the Zig code.
 pub const Kwd = enum {
     QUOTE,
-    QUASIQUOTE,
+    BACKQUOTE,
     UNQUOTE,
+    @"UNQUOTE-SPLICING",
 
     @"&REST",
 

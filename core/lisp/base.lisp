@@ -102,11 +102,6 @@
       (cons (funcall f (car xs))
             (mapcar f (cdr xs)))))
 
-(defun append (xs ys)
-  (if (null xs) ys
-      (cons (car xs)
-            (append (cdr xs) ys))))
-
 (defun last (xs)
   (if (null xs) nil
       (if (null (cdr xs)) xs
@@ -136,6 +131,14 @@
 
 (defun reduce (f xs init)
   (reduce-loop f init xs))
+
+(defun append-2 (xs ys)
+  (if (null xs) ys
+      (cons (car xs)
+            (append (cdr xs) ys))))
+
+(defun append (&rest xss)
+  (reduce #'append-2 xss '()))
 
 (defun remove-if (f xs)
   (if (null xs) nil

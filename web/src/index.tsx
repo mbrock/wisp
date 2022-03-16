@@ -849,7 +849,7 @@ const Note = ({ note }: { note: Note }) => {
     const run = ctx.api.wisp_run_init(ctx.heap, src)
 
     if (how == "run")
-      ctx.api.wisp_run_eval(ctx.heap, run, 10_000)
+      ctx.api.wisp_run_eval(ctx.heap, run, 100_000)
 
     refresh()
     setNoteRun(key, run)

@@ -1,4 +1,5 @@
-default:; cd core && zig build test && zig build
+all: zig web
+zig: test; cd core && zig build
 test:; cd core && zig build test
 
 .PHONY: web

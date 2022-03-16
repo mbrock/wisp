@@ -26,69 +26,60 @@
     (bq-remove-tokens raw-result)))
 
 (defun bq-loop (p q)
-  (progn
-    (print (list 'bq-loop p q))
-    (if (atom p)
-        (cons *bq-append*
-              (revappend q (list (list *bq-quote* p))))
-        (cond ((eq (car p) 'unquote)
-               (if (null (cddr p))
-                   (cons *bq-append*
-                         (revappend q (list (cadr p))))
-                   (error "malformed ,")))
-              ((eq (car p) 'unquote-splicing)
-               (error "dotted ,@"))
-              (t
-               (bq-loop (cdr p)
-                        (cons (bracket (car p)) q)))))))
+  (if (atom p)
+      (cons *bq-append*
+            (revappend q (list (list *bq-quote* p))))
+      (cond ((eq (car p) 'unquote)
+             (if (null (cddr p))
+                 (cons *bq-append*
+                       (revappend q (list (cadr p))))
+                 (error "malformed ,")))
+            ((eq (car p) 'unquote-splicing)
+             (error "dotted ,@"))
+            (t
+             (bq-loop (cdr p)
+                      (cons (bracket (car p)) q))))))
 
 (defun bq-process (x)
-  (progn
-    (print (list 'processing x))
-    (cond ((atom x)
-           (list *bq-quote* x))
-          ((eq (car x) 'backquote)
-           (bq-process (bq-completely-process (cadr x))))
-          ((eq (car x) 'unquote)
-           (cadr x))
-          ((eq (car x) 'unquote-splicing)
-           (error ",@ after `"))
-          (t (bq-loop x nil)))))
+  (cond ((atom x)
+         (list *bq-quote* x))
+        ((eq (car x) 'backquote)
+         (bq-process (bq-completely-process (cadr x))))
+        ((eq (car x) 'unquote)
+         (cadr x))
+        ((eq (car x) 'unquote-splicing)
+         (error ",@ after `"))
+        (t (bq-loop x nil))))
 
 (defun bracket (x)
   (cond ((atom x)
          (list *bq-list* (bq-process x)))
-        ((eq (car q) 'unquote)
+        ((eq (car x) 'unquote)
          (list *bq-list* (cadr x)))
         ((eq (car x) 'unquote-splicing)
          (cadr x))
         (t (list *bq-list* (bq-process x)))))
 
 (defun eql (a b)
-  (prog1 (eq a b)
-    (print (list 'eql (eq a b) a b))))
+  (eq a b))
 
 (defun maptree (fn x)
-  (progn
-    (print (list 'in-maptree (env)))
-    (if (atom x)
-        (funcall fn x)
-        (let ((a (funcall fn (car x)))
-              (d (maptree fn (cdr x))))
-          (if (and (eq a (car x)) (eq d (cdr x)))
-              x
-              (cons a d))))))
+  (if (atom x)
+      (funcall fn x)
+      (let ((a (funcall fn (car x)))
+            (d (maptree fn (cdr x))))
+        (if (and (eq a (car x)) (eq d (cdr x)))
+            x
+            (cons a d)))))
 
 (defun bq-remove-tokens (x)
-  (progn
-    (print (list 'bq-remove-tokens x))
-    (cond ((eql x *bq-list*) 'list)
-          ((eql x *bq-append*) 'append)
-          ((eql x *bq-quote*) 'quote)
-          ((atom x) x)
-          (t (maptree #'bq-remove-tokens x)))))
+  (cond ((eql x *bq-list*) 'list)
+        ((eql x *bq-append*) 'append)
+        ((eql x *bq-quote*) 'quote)
+        ((atom x) x)
+        (t (maptree #'bq-remove-tokens x))))
 
-(defmacro quasiquote (x)
+(defmacro backquote (x)
   (bq-completely-process x))
 
 (defmacro foobar (x)
