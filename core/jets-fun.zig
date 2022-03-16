@@ -250,7 +250,7 @@ pub fn @"CALL/CC"(step: *Step, function: u32) anyerror!void {
 }
 
 pub fn WTF(step: *Step, wtf: u32) anyerror!void {
-    Step.wtf = wtf > 0;
+    Step.wtf = wtf != Wisp.nil;
     step.give(.val, wtf);
 }
 

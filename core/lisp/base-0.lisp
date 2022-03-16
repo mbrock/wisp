@@ -17,6 +17,10 @@
 ;; <https://www.gnu.org/licenses/>.
 ;;
 
+;;;
+;;; NOTE: We can't use backquote in this file.
+;;;
+
 (set-symbol-function
  'DEFUN
  (%macro-lambda
@@ -69,30 +73,6 @@
 
 (defmacro assert (x)
   (list 'if x nil (list 'error (list 'quote x))))
-
-(defmacro with-trace (body)
-  (list 'progn '(wtf t) (list 'prog1 body '(wtf nil))))
-
-(defun base-test ()
-  (assert (equal 1 1))
-  (assert (equal '(1 2 3) '(1 2 3)))
-  (assert (equal '((1 2) (3 4)) '((1 2) (3 4))))
-  (assert (not (equal '(1) '(1 2))))
-
-  (defvar *x* 1)
-  (assert (eq *x* 1))
-  (setq *x* 2)
-  (assert (eq *x* 2)))
-
-(defun test-call/cc ()
-  (defvar *plusser* nil)
-  (call/cc (lambda (break)
-             (progn
-               (+ 10 (call/cc (lambda (k)
-                                (progn
-                                  (setq *plusser* k)
-                                  (funcall break nil))))))))
-  (assert (eq 11 (funcall *plusser* 1))))
 
 (defun null (x)
   (eq x nil))
