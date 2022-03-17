@@ -48,9 +48,11 @@ export const wisp_sys_nah: u32 = Wisp.nah;
 export const wisp_sys_zap: u32 = Wisp.zap;
 export const wisp_sys_top: u32 = Wisp.top;
 
-export fn wisp_heap_init() ?*Wisp.Heap {
-    var orb = std.heap.page_allocator;
+const GPA = std.heap.GeneralPurposeAllocator(.{});
+var gpa = GPA{};
+var orb = gpa.allocator();
 
+export fn wisp_heap_init() ?*Wisp.Heap {
     if (orb.create(Wisp.Heap)) |heapptr| {
         if (Wisp.Heap.init(orb, .e0)) |heap| {
             var heap2 = heap;

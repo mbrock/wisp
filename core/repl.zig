@@ -30,6 +30,9 @@ const Keys = @import("./keys.zig");
 
 pub const crypto_always_getrandom: bool = true;
 
+var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+var orb = gpa.allocator();
+
 test {
     std.testing.refAllDecls(@This());
     std.testing.refAllDecls(Keys);
@@ -43,16 +46,16 @@ pub fn main() anyerror!void {
     }
 }
 
-fn readLine(stream: anytype, orb: std.mem.Allocator) !?[]u8 {
-    return stream.readUntilDelimiterOrEofAlloc(orb, '\n', 4096);
+fn readLine(allocator: std.mem.Allocator, stream: anytype) !?[]u8 {
+    return stream.readUntilDelimiterOrEofAlloc(allocator, '\n', 4096);
 }
 
 fn readSexp(
     stream: anytype,
-    orb: std.mem.Allocator,
+    allocator: std.mem.Allocator,
     heap: *Wisp.Heap,
 ) !?u32 {
-    if (try readLine(stream, orb)) |line| {
+    if (try readLine(allocator, stream)) |line| {
         return try Sexp.read(heap, line);
     } else {
         return null;
@@ -62,9 +65,8 @@ fn readSexp(
 pub fn repl() anyerror!void {
     const stdin = std.io.getStdIn().reader();
     const stdout = std.io.getStdOut().writer();
-    const allocator = std.heap.page_allocator;
 
-    var heap = try Wisp.Heap.init(allocator, .e0);
+    var heap = try Wisp.Heap.init(orb, .e0);
     defer heap.deinit();
 
     try Jets.load(&heap);
@@ -77,7 +79,7 @@ pub fn repl() anyerror!void {
     repl: while (true) {
         try stdout.writeAll("> ");
 
-        var arena = std.heap.ArenaAllocator.init(allocator);
+        var arena = std.heap.ArenaAllocator.init(orb);
         var tmp = arena.allocator();
         defer arena.deinit();
 
