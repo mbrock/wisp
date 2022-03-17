@@ -47,7 +47,6 @@ pub fn ColEnum(comptime t: Tag) type {
         .v32 => enum { idx, len },
         .pkg => enum { nam, sym, use },
         .ktx => enum { hop, env, fun, acc, arg },
-        .cap => enum { hop, env, tag, fun },
         .run => enum { exp, val, err, env, way },
     };
 }
@@ -69,6 +68,7 @@ pub const Kwd = enum {
     LET,
     PROGN,
     @"CALL/CC",
+    EVAL,
 
     REQUEST,
 
@@ -189,7 +189,6 @@ pub const Vat = struct {
     pkg: Tab(.pkg) = .{},
     run: Tab(.run) = .{},
     ktx: Tab(.ktx) = .{},
-    cap: Tab(.cap) = .{},
 
     pub fn bytesize(vat: Vat) usize {
         var n: usize = 0;
@@ -329,7 +328,6 @@ pub const Heap = struct {
             .pkg => heap.copy(.pkg, x),
             .run => heap.copy(.run, x),
             .ktx => heap.copy(.ktx, x),
-            .cap => heap.copy(.cap, x),
         };
     }
 

@@ -179,9 +179,12 @@ fn intoFunction(step: *Step, fun: u32, arg: u32) !void {
 }
 
 fn intoMacro(step: *Step, fun: u32, arg: u32) !void {
-    const way = try step.heap.new(.duo, .{
-        .car = step.run.env,
-        .cdr = step.run.way,
+    const way = try step.heap.new(.ktx, .{
+        .hop = step.run.way,
+        .env = step.run.env,
+        .fun = step.heap.kwd.EVAL,
+        .acc = nil,
+        .arg = nil,
     });
 
     try step.call(fun, arg, false);
@@ -198,8 +201,6 @@ pub fn proceed(step: *Step, x: u32) !void {
 
     switch (Wisp.tagOf(step.run.way)) {
         .ktx => try step.execKtx(try step.heap.row(.ktx, step.run.way)),
-        .duo => try step.execDuo(try step.heap.row(.duo, step.run.way)),
-        .cap => try step.execCap(try step.heap.row(.cap, step.run.way)),
 
         else => |tag| {
             std.log.err(
@@ -210,28 +211,6 @@ pub fn proceed(step: *Step, x: u32) !void {
             return Oof.Bug;
         },
     }
-}
-
-fn execDuo(step: *Step, duo: Wisp.Row(.duo)) !void {
-    const val = step.run.val;
-
-    if (wtf) {
-        try Sexp.warn("macroexpansion", step.heap, val);
-        try Sexp.warn("old env", step.heap, step.run.env);
-        try Sexp.warn("new env", step.heap, duo.car);
-    }
-
-    step.run.* = .{
-        .err = nil,
-        .env = duo.car,
-        .way = duo.cdr,
-        .exp = val,
-        .val = nah,
-    };
-}
-
-fn execCap(step: *Step, cap: Wisp.Row(.cap)) !void {
-    step.run.way = cap.hop;
 }
 
 fn scan(
@@ -363,9 +342,7 @@ fn composeContinuation(step: *Step, way: u32) !u32 {
 
     while (cur != Wisp.top) {
         cur = switch (Wisp.tagOf(cur)) {
-            .ktx => try lookForTop(step, cur, .ktx, .hop),
-            .duo => try lookForTop(step, cur, .duo, .cdr),
-            .cap => try lookForTop(step, cur, .cap, .hop),
+            .ktx => try lookForTop(step, cur),
             else => return Wisp.Oof.Bug,
         };
     }
@@ -376,16 +353,14 @@ fn composeContinuation(step: *Step, way: u32) !u32 {
 fn lookForTop(
     step: *Step,
     cur: u32,
-    comptime tag: Wisp.Tag,
-    comptime col: Wisp.Col(tag),
 ) !u32 {
-    const hop = try step.heap.get(tag, col, cur);
+    const hop = try step.heap.get(.ktx, .hop, cur);
     if (hop == Wisp.top) {
-        try step.heap.set(tag, col, cur, step.run.way);
+        try step.heap.set(.ktx, .hop, cur, step.run.way);
         return Wisp.top;
     } else {
-        const new = try step.heap.copyAny(hop);
-        try step.heap.set(tag, col, cur, new);
+        const new = try step.heap.copy(.ktx, hop);
+        try step.heap.set(.ktx, .hop, cur, new);
         return new;
     }
 }
@@ -420,6 +395,22 @@ const Ktx = struct {
             step.run.way = way;
             step.give(.exp, argduo.car);
         }
+    }
+
+    fn EVAL(step: *Step, ktx: Wisp.Row(.ktx)) !void {
+        const exp = step.run.val;
+        step.run.* = .{
+            .err = nil,
+            .env = ktx.env,
+            .way = ktx.hop,
+            .exp = exp,
+            .val = nah,
+        };
+    }
+
+    fn PROMPT(step: *Step, ktx: Wisp.Row(.ktx)) !void {
+        step.run.way = ktx.hop;
+        step.run.env = ktx.env;
     }
 
     fn PROGN(step: *Step, ktx: Wisp.Row(.ktx)) !void {
@@ -549,6 +540,10 @@ pub fn execKtx(step: *Step, ktx: Wisp.Row(.ktx)) !void {
         try Ktx.IF(step, ktx)
     else if (ktx.fun == step.heap.kwd.LET)
         try Ktx.LET(step, ktx)
+    else if (ktx.fun == step.heap.kwd.PROMPT)
+        try Ktx.PROMPT(step, ktx)
+    else if (ktx.fun == step.heap.kwd.EVAL)
+        try Ktx.EVAL(step, ktx)
     else switch (Wisp.tagOf(ktx.fun)) {
         .jet => return Ktx.funargs(step, ktx),
         .fun => return Ktx.funargs(step, ktx),

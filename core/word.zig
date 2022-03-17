@@ -38,7 +38,6 @@ pub const Tag = enum(u5) {
 
     run = 0x1c, // evaluation state
     ktx = 0x1d, // evaluation context
-    cap = 0x1e, // prompt
 };
 
 pub const pointerTags = .{
@@ -51,7 +50,6 @@ pub const pointerTags = .{
     .pkg,
     .run,
     .ktx,
-    .cap,
 };
 
 pub const Era = enum(u1) {

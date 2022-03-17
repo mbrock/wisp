@@ -182,11 +182,17 @@ const Way: React.FC<{ way: number }> = ({ way, children }) => {
   if (tagOf(data, way) == "ktx") {
     const { hop, fun, acc, arg } = getRow(data, "ktx", way)
 
-    const accs = listItems(data, acc)
-    const args = listItems(data, arg)
-
     const me = () => {
-      if (fun === data.kwd.LET) {
+      if (fun === data.kwd.PROMPT) {
+        return (
+          <div className={css.sexp.list}>
+            {show(fun)}
+            {show(acc)}
+            {children}
+            {show(arg)}
+          </div>
+        )
+      } else if (fun === data.kwd.LET) {
         // LET continuations have a peculiar representation
         // that's efficient to build up but slightly annoying to
         // parse for display.
@@ -247,6 +253,9 @@ const Way: React.FC<{ way: number }> = ({ way, children }) => {
         )
 
       } else {
+        const accs = listItems(data, acc)
+        const args = listItems(data, arg)
+
         return (
           <div className={css.sexp.list}>
             {show(fun)}
@@ -263,36 +272,6 @@ const Way: React.FC<{ way: number }> = ({ way, children }) => {
     } else {
       return <Way way={hop}>{me()}</Way>
     }
-  } else if (tagOf(data, way) == "duo") {
-    const duo = getRow(data, "duo", way)
-    const hop = duo.cdr
-
-    return (
-      <Way way={hop}>
-        <div className={css.sexp.list}>
-          <span className="text-indigo-600 italic">
-            eval
-          </span>
-          {children}
-        </div>
-      </Way>
-    )
-  } else if (tagOf(data, way) == "cap") {
-    const cap = getRow(data, "cap", way)
-    const hop = cap.hop
-
-    return (
-      <Way way={hop}>
-        <div className={css.sexp.list}>
-          <span className="text-indigo-600 italic">
-            prompt
-          </span>
-          {show(cap.tag)}
-          {children}
-          {show(cap.fun)}
-        </div>
-      </Way>
-    )
   } else {
     debugger
     throw new Error(tagOf(data, way))
@@ -470,34 +449,9 @@ const Debugger: React.FC<{ run: number }> = ({ run }) => {
     }
 
     while (cur !== data.sys.top) {
-      switch (tagOf(data, cur)) {
-        case "ktx": {
-          const ktx = getRow(data, "ktx", cur)
-          processEnv(ktx.env)
-          cur = ktx.hop
-          break
-        }
-
-        case "duo": {
-          const duo = getRow(data, "duo", cur)
-          processEnv(duo.car)
-          cur = duo.cdr
-          break
-        }
-
-        case "cap": {
-          const cap = getRow(data, "cap", cur)
-          processEnv(cap.env)
-          cur = cap.hop
-          break
-        }
-
-        default: {
-          console.error(`bad continuation: ${cur}`)
-          cur = data.sys.top
-          break
-        }
-      }
+      const ktx = getRow(data, "ktx", cur)
+      processEnv(ktx.env)
+      cur = ktx.hop
     }
 
     return <div>{scopes}</div>

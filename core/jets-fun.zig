@@ -27,6 +27,7 @@ const Disk = @import("./disk.zig");
 const Tape = @import("./tape.zig");
 const Jets = @import("./jets.zig");
 
+const Heap = Wisp.Heap;
 const Rest = Jets.Rest;
 
 fn wordint(x: u32) !i31 {
@@ -201,7 +202,6 @@ pub fn @"TYPE-OF"(step: *Step, x: u32) anyerror!void {
             .pkg => kwd.PACKAGE,
             .ktx => kwd.CONTINUATION,
             .run => kwd.EVALUATOR,
-            .cap => kwd.PROMPT,
             .sys => unreachable,
         });
     }
@@ -381,14 +381,15 @@ pub fn HANDLE(
     THUNK: u32,
     HANDLER: u32,
 ) anyerror!void {
-    const cap = try step.heap.new(.cap, .{
+    const ktx = try step.heap.new(.ktx, .{
         .hop = step.run.way,
         .env = step.run.env,
-        .tag = TAG,
-        .fun = HANDLER,
+        .fun = step.heap.kwd.PROMPT,
+        .acc = TAG,
+        .arg = HANDLER,
     });
 
-    step.run.way = cap;
+    step.run.way = ktx;
 
     try step.call(THUNK, Wisp.nil, false);
 }
@@ -411,67 +412,81 @@ pub fn SEND(
     //     𝐸₁[handle 𝐸₂[send 𝑣] 𝑒] ⟶ 𝐸₁[𝑒 𝑣 (λ𝑥. 𝐸₂[𝑥])]
     //
 
-    var new = try step.heap.copyAny(step.run.way);
+    if (try copyContinuationSlice(
+        step.heap,
+        step.run.way,
+        TAG,
+    )) |result| {
+        const args = try Wisp.list(
+            step.heap,
+            &[_]u32{ VALUE, result.e2 },
+        );
+
+        if (result.e1 == Wisp.top) {
+            step.run.way = Wisp.top;
+            step.run.env = Wisp.nil;
+        } else {
+            const ktx = try step.heap.row(.ktx, result.e1);
+            step.run.way = ktx.hop;
+            step.run.env = ktx.env;
+        }
+
+        return step.call(result.handler, args, false);
+    } else {
+        return step.fail(&[_]u32{
+            step.heap.kwd.@"PROMPT-TAG-MISSING",
+            TAG,
+        });
+    }
+}
+
+fn isMatchingPrompt(
+    heap: *Heap,
+    ktx: u32,
+    tag: u32,
+) !bool {
+    if (ktx == Wisp.top) return false;
+    return tag == try heap.get(.ktx, .acc, ktx);
+}
+
+fn copyContinuationSlice(
+    heap: *Heap,
+    ktx: u32,
+    tag: u32,
+) !?ContinuationCopyResult {
+    if (try isMatchingPrompt(heap, ktx, tag)) {
+        return ContinuationCopyResult{
+            .handler = try heap.get(.ktx, .arg, ktx),
+            .e1 = try heap.get(.ktx, .hop, ktx),
+            .e2 = Wisp.top,
+        };
+    }
+
+    var new = try heap.copy(.ktx, ktx);
     var cur = new;
 
     while (true) {
-        const result = switch (Wisp.tagOf(cur)) {
-            .ktx => try lookForPrompt(step, TAG, cur, .ktx, .hop),
-            .duo => try lookForPrompt(step, TAG, cur, .duo, .cdr),
-            .cap => try lookForPrompt(step, TAG, cur, .cap, .hop),
-            .sys => return step.fail(&[_]u32{
-                step.heap.kwd.@"PROMPT-TAG-MISSING",
-                TAG,
-            }),
-            else => return Wisp.Oof.Bug,
-        };
-
-        switch (result) {
-            .done => |cap| {
-                const args = try Wisp.list(step.heap, &[_]u32{ VALUE, new });
-                step.run.way = cap.hop;
-                step.run.env = cap.env;
-                return step.call(cap.fun, args, false);
-            },
-
-            .next => |hop| cur = hop,
-        }
-    }
-}
-
-const ContinuationCopyOutcome = enum { done, next };
-const ContinuationCopyResult = union(ContinuationCopyOutcome) {
-    done: Wisp.Row(.cap),
-    next: u32,
-};
-
-fn lookForPrompt(
-    step: *Step,
-    promptTag: u32,
-    ptr: u32,
-    comptime tag: Wisp.Tag,
-    comptime col: Wisp.Col(tag),
-) !ContinuationCopyResult {
-    const hop = try step.heap.get(tag, col, ptr);
-
-    try Sexp.warn("prompt ptr", step.heap, ptr);
-
-    if (Wisp.tagOf(hop) == .cap) {
-        const capTag = try step.heap.get(.cap, .tag, hop);
-        if (capTag == promptTag) {
-            std.log.warn("found it", .{});
-            try step.heap.set(tag, col, ptr, Wisp.top);
+        const hop = try heap.get(.ktx, .hop, cur);
+        if (try isMatchingPrompt(heap, hop, tag)) {
+            try heap.set(.ktx, .hop, cur, Wisp.top);
             return ContinuationCopyResult{
-                .done = try step.heap.row(.cap, hop),
+                .handler = try heap.get(.ktx, .arg, hop),
+                .e1 = try heap.get(.ktx, .hop, hop),
+                .e2 = new,
             };
+        } else {
+            cur = hop;
         }
     }
 
-    const next = try step.heap.copyAny(hop);
-    try step.heap.set(tag, col, ptr, next);
-
-    return ContinuationCopyResult{ .next = next };
+    return null;
 }
+
+const ContinuationCopyResult = struct {
+    handler: u32,
+    e1: u32,
+    e2: u32,
+};
 
 pub fn @"%SETQ"(step: *Step, sym: u32, val: u32) anyerror!void {
     var cur = step.run.env;

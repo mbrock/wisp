@@ -40,7 +40,6 @@ export const wisp_tag_v08 = Wisp.Tag.v08;
 export const wisp_tag_pkg = Wisp.Tag.pkg;
 export const wisp_tag_run = Wisp.Tag.run;
 export const wisp_tag_ktx = Wisp.Tag.ktx;
-export const wisp_tag_cap = Wisp.Tag.cap;
 
 export const wisp_sys_t: u32 = Wisp.t;
 export const wisp_sys_nil: u32 = Wisp.nil;
@@ -175,7 +174,6 @@ const Dat = packed struct {
     pkg: TabDat(.pkg),
     ktx: TabDat(.ktx),
     run: TabDat(.run),
-    cap: TabDat(.cap),
 };
 
 export fn wisp_dat_init(heap: *Wisp.Heap) ?*Dat {
@@ -257,7 +255,6 @@ export fn wisp_heap_load_tab_col(
         .pkg => loadColumn(.pkg, params),
         .ktx => loadColumn(.ktx, params),
         .run => loadColumn(.run, params),
-        .cap => loadColumn(.cap, params),
 
         .int, .sys, .chr, .jet => null,
     } catch null;
