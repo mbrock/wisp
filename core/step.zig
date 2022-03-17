@@ -750,7 +750,7 @@ pub fn evaluateUntilSpecificContinuation(
     while (true) {
         if (limit > 0 and i >= limit) break;
 
-        if (limit == 0 and @mod(i, 100_000) == 0) {
+        if (limit == 0 and i > 0 and @mod(i, 100_000) == 0) {
             // var timer = try std.time.Timer.start();
             // const s0 = heap.bytesize();
             try step.gcWithRunRoots();

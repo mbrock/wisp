@@ -31,6 +31,91 @@
    So I'll start a Deno service on Wisp.Town.  It needs some data
    persistence.  We'll have user accounts, right?
 
+   OK, I've got Auth0 working in the single-page app.  Now I need to
+   be able to do authenticated API calls into some kind of server.
+
+   I would really like to use Elixir for this stuff.  But I couldn't
+   immediately get the Wasmer binding to work, and I don't know if I
+   really trust it.
+
+   So why do I really need Wasmer inside the BEAM?  I mean, it would
+   be sweet, it seems appropriate... But I can also use
+   Unix processes.
+
+   OK, whatever.  Let's use Deno.
+
+   I just need to start a server.  It needs to load state from
+   a database.  What is that state?
+
+   There are a bunch of "programs."  But now we get into ontology.
+   Like, I suppose there are both source code repositories and
+   running instances.
+
+   Well, what's in the database?  I suppose there are images, that is,
+   "tapes."  It's a tape collection.  Tapes are blobs, files.
+   Let's hypothesize that tapes are content-addressed and immutable.
+
+   Presumably we want to continue some set of tapes when we boot.
+   So there's a set of active tapes.  They will have been suspended in
+   some basically unknown state, though always in terms of Wisp steps.
+
+** Interlude on Replication
+   Wait, interlude.  Transactions.  Replication.  Can we do this with
+   Wisp state?  As if every time the runtime takes a step, it emits a
+   little transaction, such that the system state is determined by the
+   sequence of transactions.  Yeah, like Urbit.  Or Postgres, or
+   whatever.  This isn't so exotic.
+
+   What would it mean?  Well, you could synchronize state between
+   different computers.  At least read replication would be easy.
+   The main replica on the server does all the I/O or whatever.
+   It broadcasts transactions to its clients who can then locally
+   query the state, evaluate expressions, etc.
+
+   Basically we're saying the Wisp state is linearizable.  We can even
+   use hashing for integrity: hash the transaction sequence.
+
+   One reason we can do this is that Wisp doesn't use any system
+   pointers.  It's all just indices.  So even garbage collection is
+   totally deterministic if you specify an ordered list of roots.
+
+   Of course the server might execute a thousand steps and send them
+   bundled in one big transaction.
+
+   We could even enumerate the transaction types.  Well, it depends on
+   how granular you want to be.  Here's a minimal set:
+
+     - new: tag val...
+     - put: tag ptr val...
+     - v08: bytes
+     - v32: words
+     - set: tag col ptr val
+     - era: roots
+     - pkg: pkg
+     - rnd
+
+   This is actually really clean.
+
+   I see one issue: different clients might want different roots, like
+   if you have different browsers viewing different objects.  But OK,
+   you can just try to tell the server to add them to the root set.
+   Maybe it associates a root set with each client.
+
+** Implementation
+   So what's the easiest path towards implementing this?
+
+   It kind of feels like it needs Zig intervention.
+
+   Basically, the `Heap` needs to learn to emit events to a log.
+
+   Then we need to be able to run a `Heap` in replica mode.  Such a
+   heap is only updated via events received from a source heap.
+
+   Now we can have a JavaScript driver that streams events on a
+   WebSocket and tells the Zig `Heap` to apply them.
+
+   How does the server work?  It's a basic WebSocket thing, right?
+
 ** Remote Protocol
    OK, I'll definitely need a remote protocol for accessing
    Wisp instances.

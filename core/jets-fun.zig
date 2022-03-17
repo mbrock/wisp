@@ -76,9 +76,9 @@ pub fn @"/"(step: *Step, xs: []u32) anyerror!void {
     } else {
         var result: i31 = try wordint(xs[0]);
         for (xs[1..xs.len]) |x| {
-            result = std.math.divExact(i31, result, try wordint(x)) catch {
+            result = std.math.divFloor(i31, result, try wordint(x)) catch {
                 return step.fail(&[_]u32{
-                    step.heap.kwd.@"INEXACT-FIXNUM-DIVISION",
+                    step.heap.kwd.@"BAD-FIXNUM-DIVISION",
                     intword(result),
                     x,
                 });
