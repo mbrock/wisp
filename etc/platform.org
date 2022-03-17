@@ -116,6 +116,21 @@
 
    How does the server work?  It's a basic WebSocket thing, right?
 
+   Let's say it has some API routes:
+
+*** API routes
+**** POST /run src
+     1. Start a new Wisp runtime.
+     2. Initialize a run of `src`.
+     3. Return an URL like https://wisp.town/run/~20220317.WJBTHC4D5B.
+
+**** POST /run/<id>/step
+     1. Ensure that we have a Wisp runtime for `id`.
+     2. Take one step in that runtime.
+
+*** Subscription
+    Aside from the API routes, there's also WebSocket channels.
+
 ** Remote Protocol
    OK, I'll definitely need a remote protocol for accessing
    Wisp instances.

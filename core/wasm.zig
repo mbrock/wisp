@@ -27,6 +27,8 @@ const Keys = @import("./keys.zig");
 
 pub fn main() void {}
 
+export fn _initialize() void {}
+
 export const wisp_tag_int = Wisp.Tag.int;
 export const wisp_tag_sys = Wisp.Tag.sys;
 export const wisp_tag_chr = Wisp.Tag.chr;
