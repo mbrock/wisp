@@ -1,0 +1,79 @@
+* Wisp as a Platform
+** What?
+   Let's say you write a program on [[https://wisp.town][wisp.town]].  Maybe it's like a simple
+   web app server.  It defines behavior of routes in terms of a web
+   server interface.
+
+   Now you want to run it.  You should be able to just press a run button
+   and get a public URL.  Same thing but for a bot that lives on Discord
+   or Telegram.
+
+   And then you should be able to attach to that running instance and see
+   what it's doing, change its code on the fly, etc.
+
+   On the server, it will run as a WebAssembly thread in some runtime.
+   Wasmer, Deno, Wasmtime...  Elixir?
+
+   I think Deno will be easiest to get started with.
+
+** Suspending and Resuming
+   The platform should be able to suspend and resume Wisp processes,
+   and transport them between nodes as seamlessly as possible.
+
+   Of course this is made possible with serializable continuations.
+
+   Pervasive use of restartable conditions also seems relevant.
+
+   Maybe there's a dashboard where you can see all your conditions and
+   do bulk restart actions.
+
+** Basic Operation
+   So I'll start a Deno service on Wisp.Town.  It needs some data
+   persistence.  We'll have user accounts, right?
+
+** Remote Protocol
+   OK, I'll definitely need a remote protocol for accessing
+   Wisp instances.
+
+   How do I use the Wisp instance now, in the IDE?
+
+*** System values
+    This is pretty simple: it's static data.  We do load it with a
+    WASM call, for convenience, but it could also be hardcoded into
+    the client SDK.  Let's say we'll just receive it when we connect.
+
+*** Tag values
+    Same as system values.
+
+*** Loading rows
+    This could just be an API call, but that's inefficient because
+    we'll always be loading more than one row.
+
+    So that's the main thing.  Let's say we're the debugger.  We want
+    to render the current continuation.  That's probably, like, 20
+    rows just for the continuation structures.  Then each of those
+    will load a bunch more rows: symbols, functions, etc.  Not to
+    mention lists.
+
+    We could have an API call that loads every pointer that's
+    reachable from a root.  Except that this could easily end up
+    pulling in enormous amounts of stuff we don't really need.
+
+    I mean, most roots will point to the WISP package which contains a
+    lot of symbols and functions...  Now, we might want all of that
+    stuff...  The user wants to be able to click a function to learn
+    about it...
+
+    But that stuff should be lazily loaded.
+
+    So this is like a GraphQL kind of thing, right?
+
+    Another thing: we have mutation.
+
+    Like, when you run DEFUN, the package changes.  Or maybe just a
+    symbol in the package.  How will the IDE know?  Does it subscribe
+    to things somehow?
+
+    I mean, it could.  The server could maintain a set of watched
+    pointers.  That's similar to maintaining a set of roots for
+    garbage collection, which we will also need.

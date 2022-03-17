@@ -5,6 +5,7 @@
   "author": "Mikael Brockman",
   "license": "AGPL-3.0",
   "dependencies": {
+    "@auth0/auth0-react": "^1.9.0",
     "@codemirror/autocomplete": "^0.19.14",
     "@codemirror/basic-setup": "^0.19.1",
     "@codemirror/closebrackets": "^0.19.1",

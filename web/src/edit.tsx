@@ -142,7 +142,7 @@ export const Editor: React.FC<{
                       <VscDebug title="Debug code" />
                     </IconButton>
                   </div>
-                  <div>
+                  <div className="hidden">
                     <IconButton action={() => insertGenkey(view)} right>
                       <VscRuby title="Insert new key" />
                     </IconButton>

@@ -85,7 +85,7 @@
             LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
           };
 
-          inherit (pkgs) wasmer;
+          inherit (pkgs) wasmer elixir cargo rust;
         };
       }
     );

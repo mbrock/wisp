@@ -44,6 +44,7 @@ import { IoAddCircleOutline } from "react-icons/io5"
 
 import ShortUniqueId from "short-unique-id"
 import { IconButton } from "./button"
+import { Auth0Provider, useAuth0 } from "@auth0/auth0-react"
 
 const initialDocument = `(cons 'ok
       (handle 'tag
@@ -812,7 +813,7 @@ const Home: React.FC = () => {
   }
 
   return (
-    <div className="absolute inset-0 flex flex-col bg-gray-100 dark:bg-neutral-900">
+    <div className="absolute inset-0 flex flex-col bg-gray-100 dark:bg-black">
       <Titlebar saveTape={saveTape} loadTape={loadTape} />
       <div className="flex flex-col gap-2">
         {noteViews}
@@ -877,28 +878,49 @@ const Note = ({ note }: { note: Note }) => {
 }
 
 const Titlebar = ({ saveTape, loadTape }) => {
+  const classes = `
+    flex justify-between items-center
+    border-b
+    pl-4 pr-2 py-1
+    bg-slate-50 dark:bg-stone-800
+    border-gray-300 dark:border-neutral-600 dark:border-b-neutral-700
+  `
+
+  const { user, isAuthenticated, isLoading, loginWithRedirect } = useAuth0()
+
+  console.log({ user })
+
   return (
-    <header className="flex justify-between border-b-2 px-3 py-1 bg-slate-50 dark:bg-stone-900 dark:border-neutral-600 items-center text-sm">
-      <div>
-        <IconButton action={saveTape} left>
-          <VscSave title="Save" />
-        </IconButton>
-        <IconButton action={loadTape} right>
-          <VscFolderOpened title="Load" />
-        </IconButton>
+    <header className={classes}>
+      <span className="tracking-tight text-gray-800 dark:text-neutral-400 flex items-center gap-4">
+        <span className="flex items-center gap-1">
+          <a href="https://github.com/mbrock/wisp"
+             className="tracking-tight text-blue-900 dark:text-stone-500 flex column items-center"
+             target="_blank">
+            <VscGithub />
+          </a>
+        </span>
+        <span className="font-semibold">Wisp.<span className="font-normal">Town</span></span>
+      <span className="text-stone-500">v{wispPackageJSON.version}</span>
+      </span>
+      <div className="flex items-center">
+        {
+          isLoading
+            ? null
+            : (
+              isAuthenticated
+                ? (
+                  <div className="flex gap-2 items-center dark:text-stone-400/80 text-xs font-medium">
+                    {user.name}
+                  </div>
+                ) : (
+                  <IconButton action={() => loginWithRedirect()} left right>
+                    {"Log in"}
+                  </IconButton>
+                )
+            )
+        }
       </div>
-      <span className="tracking-tight text-gray-800 dark:text-neutral-400 flex items-center gap-2">
-        <span className="font-semibold">Wisp</span>
-        <span className="font-medium text-gray-700">Notebook</span>
-      </span>
-      <span className="text-gray-500">{wispPackageJSON.version}</span>
-      <span className="flex items-center gap-1">
-        <a href="https://github.com/mbrock/wisp"
-           className="tracking-tight text-blue-900 dark:text-blue-200 flex column items-center"
-           target="_blank">
-          <VscGithub />
-        </a>
-      </span>
     </header>
   )
 }
@@ -918,7 +940,12 @@ onload = async () => {
 
   ReactDOM.render(
     <Provider createStore={createStore(ctx)}>
-      <Home />
+      <Auth0Provider
+        domain="dev-wnks73rd.us.auth0.com"
+        clientId="tJwSob2zIUMr0Di0sHM46CsYcLz70r10"
+        redirectUri={window.location.origin}>
+        <Home />
+      </Auth0Provider>
     </Provider>,
     document.querySelector("#app")
   )

@@ -9,14 +9,18 @@ export const IconButton: React.FC<{
   action, left, right, disabled, children,
 }) => {
   const classes = `
-    inline-flex items-center py-1 px-2 border border-gray-300 dark:border-neutral-600
-    bg-white dark:bg-neutral-700
-    text-gray-700 dark:text-neutral-300
+    inline-flex items-center
+    py-1 px-2
+    text-xs font-semibold
+
+    bg-white dark:bg-stone-700/50
+    text-gray-700 dark:text-stone-400
+    border border-gray-300 dark:border-neutral-600
     hover:bg-gray-50 dark:hover:bg-neutral-500
-    font-medium
-    focus:ring-1 focus:ring-indigo-500
-    ${left ? "rounded-l-md" : (right ? "rounded-r-md" : "")}
-    ${disabled ? "text-gray-400 dark:text-neutral-500" : ""}
+
+    ${disabled ? " text-gray-400 dark:text-neutral-500" : ""}
+    ${left ? " rounded-l-md" : ""}
+    ${right ? " rounded-r-md" : ""}
   `
 
   return (
