@@ -20,7 +20,6 @@
 const std = @import("std");
 
 const Wisp = @import("./wisp.zig");
-const Step = @import("./step.zig");
 
 pub fn cwd(allocator: std.mem.Allocator) !std.fs.Dir {
     if (@import("builtin").os.tag == .wasi) {
@@ -56,7 +55,6 @@ fn currentVersion() [32]u8 {
 
 const Header = packed struct {
     version: [32]u8,
-    pkglen: u32,
     v08len: u32,
     v32len: u32,
     tabSizes: [colnum]u32,
@@ -74,19 +72,17 @@ fn mkvec(ptr: anytype, len: usize) std.os.iovec_const {
     };
 }
 
-pub fn save(step: *Step, dirpath: []const u8, name: []const u8) !void {
-    var arena = std.heap.ArenaAllocator.init(step.heap.orb);
+pub fn save(heap: *Wisp.Heap, name: []const u8) !void {
+    var arena = std.heap.ArenaAllocator.init(heap.orb);
     defer arena.deinit();
 
     var rootdir = try cwd(arena.allocator());
-    var subdir = try rootdir.makeOpenPath(dirpath, .{});
-    var file = try subdir.createFile(name, .{});
+    var file = try rootdir.createFile(name, .{});
 
     var header = Header{
         .version = currentVersion(),
-        .pkglen = @intCast(u32, step.heap.pkgmap.count()),
-        .v08len = @intCast(u32, step.heap.v08.items.len),
-        .v32len = @intCast(u32, step.heap.v32.list.items.len),
+        .v08len = @intCast(u32, heap.v08.items.len),
+        .v32len = @intCast(u32, heap.v32.list.items.len),
         .tabSizes = .{0} ** colnum,
     };
 
@@ -94,19 +90,19 @@ pub fn save(step: *Step, dirpath: []const u8, name: []const u8) !void {
 
     iovecs[0] = mkvec(&header, @sizeOf(Header));
     iovecs[1] = mkvec(
-        step.heap.v08.items.ptr,
-        step.heap.v08.items.len,
+        heap.v08.items.ptr,
+        heap.v08.items.len,
     );
 
     iovecs[2] = mkvec(
-        step.heap.v32.list.items.ptr,
-        4 * step.heap.v32.list.items.len,
+        heap.v32.list.items.ptr,
+        4 * heap.v32.list.items.len,
     );
 
     comptime var ii = 0;
     var i: u8 = 0;
     inline for (Wisp.pointerTags) |tag| {
-        const tab = step.heap.tab(tag);
+        const tab = heap.tab(tag);
         inline for (std.meta.fields(Wisp.Row(tag))) |_, j| {
             const col = tab.col(@intToEnum(Wisp.Col(tag), j));
             if (col.len > 0) {

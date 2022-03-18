@@ -85,6 +85,8 @@ export interface WispAPI {
   wisp_jet_name_len(jet: number): number
 
   wisp_genkey(heap: number): number
+
+  wisp_tape_save(heap: number, filename: number): number
 }
 
 export const tabs = {
@@ -261,24 +263,44 @@ export class Wisp {
     return buf >>> 0
   }
 
-  read(sexp: string): number {
-    const buf = this.api.wisp_alloc(this.heap, sexp.length + 1)
-    const arr = new TextEncoder().encode(sexp)
-    const mem = new DataView(this.api.memory.buffer, buf, arr.length + 1)
+  allocString(s: string): number {
+    const arr = new TextEncoder().encode(s)
+    const buf = this.api.wisp_alloc(this.heap, arr.length + 1)
+    const mem = new Uint8Array(this.api.memory.buffer, buf, arr.length + 1)
 
-    mem.setUint8(arr.length, 0)
+    mem.set(arr)
+    mem[arr.length] = 0
 
-    for (let i = 0; i < arr.length; i++) {
-      mem.setUint8(i, arr[i])
+    return buf
+  }
+
+  free(...xs: number[]): void {
+    for (const x of xs) {
+      this.api.wisp_free(this.heap, x)
     }
+  }
 
+  read(sexp: string): number {
+    const buf = this.allocString(sexp)
     const x = this.api.wisp_read(this.heap, buf)
-    this.api.wisp_free(this.heap, buf)
+    this.free(buf)
     return x >>> 0
   }
 
   eval(exp: number): number {
     return this.api.wisp_eval(this.heap, exp, 10000) >>> 0
+  }
+
+  saveTape(filename: string): void {
+    const filenamePtr = this.allocString(filename)
+
+    const result =
+      this.api.wisp_tape_save(this.heap, filenamePtr) >>> 0
+
+    if (result != this.sys.nil)
+      throw new Error("wisp_tape_save failed")
+    
+    this.free(filenamePtr)
   }
 }
 

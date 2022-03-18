@@ -148,11 +148,11 @@ pub fn save(step: *Step, name: []const u8) !u32 {
     );
 }
 
-test "save" {
-    var heap = try Step.newTestHeap();
-    defer heap.deinit();
+// test "save" {
+//     var heap = try Step.newTestHeap();
+//     defer heap.deinit();
 
-    try Step.expectEval("ok", (
-        \\ (prog1 'ok (save))
-    ));
-}
+//     try Step.expectEval("ok", (
+//         \\ (prog1 'ok (save))
+//     ));
+// }

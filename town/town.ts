@@ -1,9 +1,13 @@
-import { Wisp } from "./wisp.ts"
+import { Wisp } from "../web/src/wisp.ts"
 
-import Context from "https://deno.land/std@0.130.0/wasi/snapshot_preview1.ts"
-import { serve } from "https://deno.land/std@0.130.0/http/server.ts"
-import { format } from "https://deno.land/std@0.130.0/datetime/mod.ts"
-import { encode as encodeAsBase32 } from "https://deno.land/std@0.130.0/encoding/base32.ts"
+import Context
+from "https://deno.land/std@0.130.0/wasi/snapshot_preview1.ts"
+import { serve }
+from "https://deno.land/std@0.130.0/http/server.ts"
+import { format }
+from "https://deno.land/std@0.130.0/datetime/mod.ts"
+import { encode as encodeAsBase32 }
+from "https://deno.land/std@0.130.0/encoding/base32.ts"
 
 interface Run {
   wisp: Wisp
@@ -32,7 +36,16 @@ async function start() {
       const rnd = crypto.getRandomValues(new Uint8Array(6))
       const key = `~${now}.${encodeAsBase32(rnd).replaceAll("=", "")}`
 
-      const wasi = new Context({ args: [], env: {} })
+      await Deno.mkdir(`run/${key}`, { recursive: true })
+
+      const wasi = new Context({
+        args: [],
+        env: {},
+        preopens: {
+          ".": `run/${key}`,
+        },
+      })
+
       const instance = await WebAssembly.instantiate(module, {
         "wasi_snapshot_preview1": wasi.exports,
       })
@@ -41,6 +54,8 @@ async function start() {
 
       const wisp = new Wisp(instance)
       runs[key] = { wisp }
+
+      wisp.saveTape("tape")
 
       console.info(key, "started")
 

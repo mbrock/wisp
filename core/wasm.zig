@@ -24,6 +24,7 @@ const Read = @import("./sexp-read.zig");
 const Step = @import("./step.zig");
 const Jets = @import("./jets.zig");
 const Keys = @import("./keys.zig");
+const Tape = @import("./tape.zig");
 
 pub fn main() void {}
 
@@ -306,6 +307,18 @@ export fn wisp_jet_name_len(x: u32) usize {
 
 export fn wisp_genkey(heap: *Wisp.Heap) u32 {
     return heap.genkey() catch Wisp.zap;
+}
+
+export fn wisp_tape_save(
+    heap: *Wisp.Heap,
+    filename: [*:0]const u8,
+) u32 {
+    Tape.save(
+        heap,
+        std.mem.span(filename),
+    ) catch return Wisp.zap;
+
+    return Wisp.nil;
 }
 
 test "sanity" {
