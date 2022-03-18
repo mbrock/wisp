@@ -26,12 +26,45 @@ async function start() {
 
   console.log("listening on http://localhost:8000/")
 
+  const sockets = new Set<WebSocket>()
+
+  function message(socket: WebSocket, data: string) {
+    console.log("WebSocket data:", data)
+  }
+
   async function handler(req: Request): Promise<Response> {
     const url = new URL(req.url)
     const route = `${req.method} ${url.pathname}`
     let matches = null
 
-    if (route === "POST /run") {
+    if (route === "GET /websocket") {
+      const { socket, response } = Deno.upgradeWebSocket(req)
+
+      sockets.add(socket)
+
+      socket.onopen = () => {
+        console.log("new WebSocket")
+      }
+
+      socket.onmessage = (e: MessageEvent) => {
+        message(socket, e.data)
+      }
+
+      socket.onerror = e => console.error(e)
+
+      return response
+
+    } else if (route === "GET /") {
+      return new Response(`
+        <script>
+        let ws = new WebSocket("ws://"+location.host+"/websocket")
+        ws.onmessage = e => pre.textContent += e.data+"\\n"
+        </script>
+        <input onkeyup="event.key=='Enter'&&ws.send(this.value)"><pre id=pre>
+      `, {
+        headers: { "content-type": "text/html" }
+      })
+    } else if (route === "POST /run") {
       const now = format(new Date(), "yyyyMMdd")
       const rnd = crypto.getRandomValues(new Uint8Array(6))
       const key = `~${now}.${encodeAsBase32(rnd).replaceAll("=", "")}`
