@@ -54,28 +54,20 @@ const GPA = std.heap.GeneralPurposeAllocator(.{});
 var gpa = GPA{};
 var orb = gpa.allocator();
 
+fn heap_init() !*Wisp.Heap {
+    var heap = try orb.create(Wisp.Heap);
+    heap.* = try Wisp.Heap.init(orb, .e0);
+    try Jets.load(heap);
+    try heap.cook();
+    return heap;
+}
+
 export fn wisp_heap_init() ?*Wisp.Heap {
-    if (orb.create(Wisp.Heap)) |heapptr| {
-        if (Wisp.Heap.init(orb, .e0)) |heap| {
-            var heap2 = heap;
-            Jets.load(&heap2) catch return null;
-            heap2.cook() catch return null;
-            heapptr.* = heap2;
-            return heapptr;
-        } else |_| {
-            return null;
-        }
-    } else |_| {
-        return null;
-    }
+    return heap_init() catch null;
 }
 
 export fn wisp_read(heap: *Wisp.Heap, str: [*:0]const u8) u32 {
-    if (Read.read(heap, std.mem.span(str))) |x| {
-        return x;
-    } else |_| {
-        return Wisp.zap;
-    }
+    return Read.read(heap, std.mem.span(str)) catch Wisp.zap;
 }
 
 export fn wisp_eval(heap: *Wisp.Heap, exp: u32, max: u32) u32 {
@@ -93,15 +85,23 @@ export fn wisp_run_init(heap: *Wisp.Heap, exp: u32) u32 {
     }) catch Wisp.zap;
 }
 
+fn run_eval(
+    heap: *Wisp.Heap,
+    runptr: u32,
+    max: u32,
+) !u32 {
+    var run = try heap.row(.run, runptr);
+    const val = try Step.evaluate(heap, &run, max);
+    try heap.put(.run, runptr, run);
+    return val;
+}
+
 export fn wisp_run_eval(
     heap: *Wisp.Heap,
     runptr: u32,
     max: u32,
 ) u32 {
-    var run = heap.row(.run, runptr) catch return Wisp.zap;
-    const val = Step.evaluate(heap, &run, max) catch Wisp.zap;
-    heap.put(.run, runptr, run) catch return Wisp.zap;
-    return val;
+    return run_eval(heap, runptr, max) catch Wisp.zap;
 }
 
 const StepMode = enum(u32) {
@@ -110,16 +110,16 @@ const StepMode = enum(u32) {
     out = 2,
 };
 
-export fn wisp_eval_step(heap: *Wisp.Heap, runptr: u32, mode: StepMode) u32 {
-    var run = heap.row(.run, runptr) catch return Wisp.zap;
+fn eval_step(heap: *Wisp.Heap, runptr: u32, mode: StepMode) !u32 {
+    var run = try heap.row(.run, runptr);
 
     switch (mode) {
-        .into => Step.once(heap, &run) catch return Wisp.zap,
-        .over => Step.stepOver(heap, &run, 10_000) catch return Wisp.zap,
-        .out => Step.stepOut(heap, &run, 10_000) catch return Wisp.zap,
+        .into => try Step.once(heap, &run),
+        .over => try Step.stepOver(heap, &run, 10_000),
+        .out => try Step.stepOut(heap, &run, 10_000),
     }
 
-    heap.put(.run, runptr, run) catch return Wisp.zap;
+    try heap.put(.run, runptr, run);
 
     return if (run.val != Wisp.nah and run.way == Wisp.top)
         Wisp.nil
@@ -127,12 +127,19 @@ export fn wisp_eval_step(heap: *Wisp.Heap, runptr: u32, mode: StepMode) u32 {
         Wisp.t;
 }
 
-export fn wisp_run_restart(heap: *Wisp.Heap, run: u32, exp: u32) u32 {
-    std.log.warn("run restart {any} {any}", .{ run, exp });
-    heap.set(.run, .exp, run, exp) catch return Wisp.zap;
-    heap.set(.run, .val, run, Wisp.nah) catch return Wisp.zap;
-    heap.set(.run, .err, run, Wisp.nil) catch return Wisp.zap;
+export fn wisp_eval_step(heap: *Wisp.Heap, runptr: u32, mode: StepMode) u32 {
+    return eval_step(heap, runptr, mode) catch Wisp.zap;
+}
+
+fn run_restart(heap: *Wisp.Heap, run: u32, exp: u32) !u32 {
+    try heap.set(.run, .exp, run, exp);
+    try heap.set(.run, .val, run, Wisp.nah);
+    try heap.set(.run, .err, run, Wisp.nil);
     return Wisp.nil;
+}
+
+export fn wisp_run_restart(heap: *Wisp.Heap, run: u32, exp: u32) u32 {
+    return run_restart(heap, run, exp) catch Wisp.zap;
 }
 
 fn Field(comptime name: []const u8, t: type) std.builtin.TypeInfo.StructField {
