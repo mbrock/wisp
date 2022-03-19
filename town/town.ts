@@ -9,111 +9,130 @@ from "https://deno.land/std@0.130.0/datetime/mod.ts"
 import { encode as encodeAsBase32 }
 from "https://deno.land/std@0.130.0/encoding/base32.ts"
 
-interface Run {
+interface Heap {
   wisp: Wisp
 }
 
-async function start() {
+async function loadWispModule(): Promise<WebAssembly.Module> {
   console.info("loading Wisp WebAssembly module")
-
-  const module = await WebAssembly.compile(
+  return WebAssembly.compile(
     await Deno.readFile("../core/zig-out/lib/wisp.wasm")
   )
+}
 
-  const runs: Record<string, Run> = {}
+class Town {
+  heapsByKey: Record<string, Heap> = {}
+  webSockets: Set<WebSocket> = new Set<WebSocket>()
 
-  serve(handler, { port: 8000 })
+  constructor(
+    public wispModule: WebAssembly.Module
+  ) {}
 
-  console.log("listening on http://localhost:8000/")
-
-  const sockets = new Set<WebSocket>()
-
-  function message(socket: WebSocket, data: string) {
-    console.log("WebSocket data:", data)
-  }
-
-  async function handler(req: Request): Promise<Response> {
+  async handle(req: Request): Promise<Response> {
     const url = new URL(req.url)
     const route = `${req.method} ${url.pathname}`
     let matches = null
 
-    if (route === "GET /websocket") {
-      const { socket, response } = Deno.upgradeWebSocket(req)
-
-      sockets.add(socket)
-
-      socket.onopen = () => {
-        console.log("new WebSocket")
-      }
-
-      socket.onmessage = (e: MessageEvent) => {
-        message(socket, e.data)
-      }
-
-      socket.onerror = e => console.error(e)
-
-      return response
-
-    } else if (route === "GET /") {
-      return new Response(`
-        <script>
-        let ws = new WebSocket("ws://"+location.host+"/websocket")
-        ws.onmessage = e => pre.textContent += e.data+"\\n"
-        </script>
-        <input onkeyup="event.key=='Enter'&&ws.send(this.value)"><pre id=pre>
-      `, {
-        headers: { "content-type": "text/html" }
-      })
+    if (route === "GET /") {
+      return this.getRoot()
+    } else if (route === "GET /websocket") {
+      return this.getWebsocket(req)
     } else if (route === "POST /run") {
-      const now = format(new Date(), "yyyyMMdd")
-      const rnd = crypto.getRandomValues(new Uint8Array(6))
-      const key = `~${now}.${encodeAsBase32(rnd).replaceAll("=", "")}`
-
-      await Deno.mkdir(`run/${key}`, { recursive: true })
-
-      const wasi = new Context({
-        args: [],
-        env: {},
-        preopens: {
-          ".": `run/${key}`,
-        },
-      })
-
-      const instance = await WebAssembly.instantiate(module, {
-        "wasi_snapshot_preview1": wasi.exports,
-      })
-
-      wasi.initialize(instance)
-
-      const wisp = new Wisp(instance)
-      runs[key] = { wisp }
-
-      wisp.saveTape("tape")
-
-      console.info(key, "started")
-
-      return new Response(`/run/${key}\n`)
-
+      return await this.postRun()
     } else if ((matches = route.match(/^POST \/run\/(.*?)\/eval$/))) {
-      const key = matches[1]
-      const run = runs[key]
+      return await this.postEval(req, matches[1])
+    } else {
+      return new Response("nope", { status: 404 })
+    }
+  }
 
-      if (!run) {
-        return new Response("nope", { status: 404 })
-      }
+  getRoot(): Response {
+    return new Response(`
+      <script>
+      let ws = new WebSocket("ws://"+location.host+"/websocket")
+      ws.onmessage = e => pre.textContent += e.data+"\\n"
+      </script>
+      <input onkeyup="event.key=='Enter'&&ws.send(this.value)"><pre id=pre>
+    `, {
+      headers: { "content-type": "text/html" }
+    })
+  }
 
-      const src = await req.text()
+  getWebsocket(req: Request): Response {
+    const { socket, response } = Deno.upgradeWebSocket(req)
 
-      console.info(key, "eval", src)
+    this.webSockets.add(socket)
 
-      const exp = run.wisp.read(src) >>> 0
-      const val = run.wisp.eval(exp) >>> 0
-
-      return new Response(val.toString() + "\n")
+    socket.onopen = () => {
+      console.log("new WebSocket")
     }
 
-    return new Response("nope", { status: 404 })
+    socket.onmessage = (e: MessageEvent) => {
+      console.log("WebSocket data:", e.data)
+    }
+
+    socket.onerror = e => console.error(e)
+
+    return response
   }
+
+  async postRun(): Promise<Response> {
+    const now = format(new Date(), "yyyyMMdd")
+    const rnd = crypto.getRandomValues(new Uint8Array(6))
+    const key = `~${now}.${encodeAsBase32(rnd).replaceAll("=", "")}`
+
+    await Deno.mkdir(`run/${key}`, { recursive: true })
+
+    const wasi = new Context({
+      args: [],
+      env: {},
+      preopens: {
+        ".": `run/${key}`,
+      },
+    })
+
+    const instance = await WebAssembly.instantiate(this.wispModule, {
+      "wasi_snapshot_preview1": wasi.exports,
+    })
+
+    wasi.initialize(instance)
+
+    const wisp = new Wisp(instance)
+    this.heapsByKey[key] = { wisp }
+
+    wisp.saveTape("tape")
+
+    console.info(key, "started")
+
+    return new Response(`/run/${key}\n`)
+  }
+
+  async postEval(req: Request, key: string): Promise<Response> {
+    const run = this.heapsByKey[key]
+
+    if (!run) {
+      return new Response("nope", { status: 404 })
+    }
+
+    const src = await req.text()
+
+    console.info(key, "eval", src)
+
+    const exp = run.wisp.read(src) >>> 0
+    const val = run.wisp.eval(exp) >>> 0
+
+    return new Response(val.toString() + "\n")
+  }
+}
+
+async function start() {
+  const wispModule = await loadWispModule()
+  const town = new Town(wispModule)
+
+  serve(req => town.handle(req), { port: 8000 })
+
+  console.log("listening on http://localhost:8000/")
+
 }
 
 start()
