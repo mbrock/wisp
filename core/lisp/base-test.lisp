@@ -17,25 +17,18 @@
 ;; <https://www.gnu.org/licenses/>.
 ;;
 
-(defmacro assert (x)
-  `(if ,x nil (error ',x)))
+(defun base-test ()
+  (assert (equal? 1 1))
+  (assert (equal? '(1 2 3) '(1 2 3)))
+  (assert (equal? '((1 2) (3 4)) '((1 2) (3 4))))
+  (assert (not (equal? '(1) '(1 2))))
 
-(defmacro with-trace (&rest body)
-  `(progn
-     (wtf t)
-     (returning ,(prognify body)
-       (wtf nil))))
+  (defvar *x* 1)
+  (assert (eq? *x* 1))
+  (set! *x* 2)
+  (assert (eq? *x* 2))
 
-(defun test-call/cc ()
-  (defvar *plusser* nil)
-  (call/cc (fn (break)
-             (+ 10 (call/cc (fn (k)
-                              (progn
-                                (set! *plusser* k)
-                                (call break nil)))))))
-  (assert (eq? 11 (call *plusser* 1))))
-
-(defun test-1 ()
-  (handle 'foo
-          (fn () (+ 5 (send! 'foo 'bar)))
-          (fn (v k) (+ 1 (call k 3)))))
+  (assert (eq? 3
+               (handle 'error
+                       (fn () (+ 1 (/ 1 0)))
+                       (fn (e k) (call k 2))))))
