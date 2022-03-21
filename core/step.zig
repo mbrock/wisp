@@ -555,18 +555,54 @@ pub fn execKtx(step: *Step, ktx: Wisp.Row(.ktx)) !void {
     }
 }
 
+pub const ListKind = enum { proper, dotted };
+pub const List = union(ListKind) {
+    proper: std.ArrayList(u32),
+    dotted: std.ArrayList(u32),
+
+    pub fn isDotted(this: List) bool {
+        return switch (this) {
+            .proper => false,
+            .dotted => true,
+        };
+    }
+
+    pub fn arrayList(this: List) std.ArrayList(u32) {
+        return switch (this) {
+            .proper => |xs| xs,
+            .dotted => |xs| xs,
+        };
+    }
+
+    pub fn deinit(this: List) void {
+        this.arrayList().deinit();
+    }
+};
+
 pub fn scanListAlloc(heap: *Heap, tmp: Wisp.Orb, list: u32) !std.ArrayList(u32) {
+    return switch (try scanListAllocAllowDotted(heap, tmp, list)) {
+        .proper => |xs| xs,
+        .dotted => Wisp.Oof.Err,
+    };
+}
+
+pub fn scanListAllocAllowDotted(heap: *Heap, tmp: Wisp.Orb, list: u32) !List {
     var xs = try std.ArrayList(u32).initCapacity(tmp, 16);
     errdefer xs.deinit();
 
     var cur = list;
-    while (cur != nil) {
+    while (Wisp.tagOf(cur) == .duo) {
         const duo = try heap.row(.duo, cur);
         try xs.append(duo.car);
         cur = duo.cdr;
     }
 
-    return xs;
+    if (cur == nil) {
+        return List{ .proper = xs };
+    } else {
+        try xs.append(cur);
+        return List{ .dotted = xs };
+    }
 }
 
 pub fn scanList(

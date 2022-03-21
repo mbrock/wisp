@@ -21,22 +21,6 @@ const std = @import("std");
 
 const Wisp = @import("./wisp.zig");
 
-pub fn cwd(allocator: std.mem.Allocator) !std.fs.Dir {
-    if (@import("builtin").os.tag == .wasi) {
-        var preopens = std.fs.wasi.PreopenList.init(allocator);
-        defer preopens.deinit();
-
-        try preopens.populate();
-        if (preopens.find(.{ .Dir = "." })) |x| {
-            return std.fs.Dir{ .fd = x.fd };
-        } else {
-            return Wisp.Oof.Err;
-        }
-    } else {
-        return std.fs.cwd();
-    }
-}
-
 const colnum = blk: {
     var i = 0;
 
@@ -76,7 +60,7 @@ pub fn save(heap: *Wisp.Heap, name: []const u8) !void {
     var arena = std.heap.ArenaAllocator.init(heap.orb);
     defer arena.deinit();
 
-    var rootdir = try cwd(arena.allocator());
+    var rootdir = try @import("./file.zig").cwd(arena.allocator());
     var file = try rootdir.createFile(name, .{});
 
     var header = Header{

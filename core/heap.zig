@@ -295,26 +295,30 @@ pub const Heap = struct {
         return pkg;
     }
 
-    pub fn load(heap: *Heap, str: []const u8) !void {
+    pub fn load(heap: *Heap, str: []const u8) !u32 {
+        var result = nil;
+
         const forms = try Sexp.readMany(heap, str);
         defer forms.deinit();
 
         for (forms.items) |form| {
             var run = Step.initRun(form);
-            _ = Step.evaluate(heap, &run, 1_000) catch {
+            result = Step.evaluate(heap, &run, 1_000_000) catch {
                 try Sexp.warn("failed", heap, form);
                 try Sexp.warn("condition", heap, run.err);
                 break;
             };
         }
 
-        try Tidy.gc(heap);
+        try Tidy.gc(heap, &.{&result});
+
+        return result;
     }
 
     pub fn cook(heap: *Heap) !void {
-        try heap.load(@embedFile("./lisp/base-0.lisp"));
-        try heap.load(@embedFile("./lisp/base-1-backquote.lisp"));
-        try heap.load(@embedFile("./lisp/base-2.lisp"));
+        _ = try heap.load(@embedFile("./lisp/base-0.lisp"));
+        _ = try heap.load(@embedFile("./lisp/base-1-backquote.lisp"));
+        _ = try heap.load(@embedFile("./lisp/base-2.lisp"));
     }
 
     fn initvar(heap: *Heap, txt: []const u8, val: u32) !void {

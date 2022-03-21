@@ -22,13 +22,13 @@ pub fn build(b: *std.build.Builder) void {
     const exe = wispStep(
         mode,
         standardTarget,
-        b.addExecutable("wisp", "repl.zig"),
+        b.addExecutable("wisp", "main.zig"),
     );
 
     const wasmExe = wispStep(
         mode,
         wasiTarget,
-        b.addExecutable("wisp", "repl.zig"),
+        b.addExecutable("wisp", "main.zig"),
     );
 
     const wasmLib = wispStep(

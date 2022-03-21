@@ -36,9 +36,14 @@ const Row = Wisp.Row;
 const Tab = Wisp.Tab;
 const Tag = Wisp.Tag;
 
-pub fn gc(heap: *Heap) !void {
+pub fn gc(heap: *Heap, roots: []*u32) !void {
     var this = try init(heap);
     try this.root();
+
+    for (roots) |x| {
+        try this.move(x);
+    }
+
     try this.scan();
     heap.* = this.done();
 }
@@ -203,7 +208,7 @@ test "read and tidy" {
     const v1 = try heap.intern("X", heap.base);
 
     try heap.set(.sym, .val, v1, t1);
-    try gc(&heap);
+    try gc(&heap, &.{});
 
     try std.testing.expectEqual(Era.e1, heap.era);
 
@@ -225,7 +230,7 @@ test "tidy ephemeral strings" {
     try heap.set(.sym, .val, try heap.intern("X", heap.base), foo);
 
     const n1 = heap.vat.v08.list.len;
-    try gc(&heap);
+    try gc(&heap, &.{});
     const n2 = heap.vat.v08.list.len;
 
     try std.testing.expectEqual(n1 - 2, n2);

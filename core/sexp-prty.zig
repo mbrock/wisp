@@ -322,18 +322,25 @@ pub fn pretty(gpa: Gpa, heap: *Wisp.Heap, exp: u32) anyerror!Doc {
 
     switch (Wisp.tagOf(exp)) {
         .duo => {
-            var list = try Step.scanListAlloc(heap, tmp.get(), exp);
-            defer list.deinit();
+            var list = try Step.scanListAllocAllowDotted(heap, tmp.get(), exp);
 
-            if (hang(heap, list.items[0])) |n| {
+            var array = list.arrayList();
+            defer array.deinit();
+
+            var items = array.items;
+
+            if (hang(heap, array.items[0])) |n| {
+                if (list.isDotted())
+                    return Wisp.Oof.Err;
+
                 var xs = std.ArrayListUnmanaged(Doc){};
                 var ys = std.ArrayListUnmanaged(Doc){};
 
-                for (list.items[0..n]) |x| {
+                for (items[0..n]) |x| {
                     try xs.append(gpa, try pretty(gpa, heap, x));
                 }
 
-                for (list.items[n..list.items.len]) |x| {
+                for (items[n..items.len]) |x| {
                     try ys.append(gpa, try pretty(gpa, heap, x));
                 }
 
@@ -346,6 +353,7 @@ pub fn pretty(gpa: Gpa, heap: *Wisp.Heap, exp: u32) anyerror!Doc {
                     ),
                     try shove(
                         gpa,
+
                         try hcat(
                             gpa,
                             try vjoin(gpa, ys.items),
@@ -353,22 +361,26 @@ pub fn pretty(gpa: Gpa, heap: *Wisp.Heap, exp: u32) anyerror!Doc {
                         ),
                     ),
                 );
-            } else if (list.items.len > 2) {
+            } else if (items.len > 2) {
                 var cdr = std.ArrayListUnmanaged(Doc){};
-                for (list.items[1..list.items.len]) |x| {
+                for (items[1..items.len]) |x, n| {
+                    if (n == items.len - 1) {
+                        try cdr.append(gpa, try text(gpa, "."));
+                    }
+
                     try cdr.append(gpa, try pretty(gpa, heap, x));
                 }
 
                 return hjoin(gpa, &[_]Doc{
                     try text(gpa, "("),
-                    try pretty(gpa, heap, list.items[0]),
+                    try pretty(gpa, heap, items[0]),
                     try text(gpa, " "),
                     try join(gpa, cdr.items),
                     try text(gpa, ")"),
                 });
             } else {
                 var xs = std.ArrayListUnmanaged(Doc){};
-                for (list.items[0..list.items.len]) |x| {
+                for (items[0..items.len]) |x| {
                     try xs.append(gpa, try pretty(gpa, heap, x));
                 }
                 return hjoin(gpa, &[_]Doc{

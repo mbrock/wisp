@@ -23,6 +23,7 @@
   (list 'blocked-on (head *suspension*) 'until '(resume x)))
 
 (defun resume! (x)
+  (print x)
   (if *suspension*
       (call (tail *suspension*) x)
       'done))
@@ -31,16 +32,17 @@
       (b nil))
   (progn
     (engine (fn ()
-              (set! a
-                    (+ (send! 'await '(gimme number))
-                       (send! 'await '(gimme another)))))
+                (set! a
+                      (+ (send! 'await '(gimme number))
+                         (send! 'await '(gimme another)))))
             (fn ()
-              (set! b
-                    (* (send! 'await '(one more))
-                       (send! 'await '(last one))))))
-
-    (resume! 1)
-    (resume! 2)
-    (resume! 3)
-    (resume! 4)
-    (list 'done 'a a 'b b)))
+                (set! b
+                      (* (send! 'await '(one more))
+                         (send! 'await '(last one))))))
+    (with-trace
+        (progn
+          (resume! 1)
+          (resume! 2)
+          (resume! 3)
+          (resume! 4)
+          (list 'done 'a a 'b b)))))
