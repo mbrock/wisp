@@ -20,13 +20,14 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const Wisp = @import("./wisp.zig");
-const Tidy = @import("./tidy.zig");
-const Step = @import("./step.zig");
-const Sexp = @import("./sexp.zig");
+const File = @import("./file.zig");
 const Jets = @import("./jets.zig");
-const Wasm = @import("./wasm.zig");
 const Keys = @import("./keys.zig");
+const Sexp = @import("./sexp.zig");
+const Step = @import("./step.zig");
+const Tidy = @import("./tidy.zig");
+const Wasm = @import("./wasm.zig");
+const Wisp = @import("./wisp.zig");
 
 pub const crypto_always_getrandom: bool = true;
 
@@ -46,16 +47,12 @@ pub fn main() anyerror!void {
     }
 }
 
-fn readLine(allocator: std.mem.Allocator, stream: anytype) !?[]u8 {
-    return stream.readUntilDelimiterOrEofAlloc(allocator, '\n', 4096);
-}
-
 fn readSexp(
     stream: anytype,
     allocator: std.mem.Allocator,
     heap: *Wisp.Heap,
 ) !?u32 {
-    if (try readLine(allocator, stream)) |line| {
+    if (try File.readLine(allocator, stream)) |line| {
         return try Sexp.read(heap, line);
     } else {
         return null;

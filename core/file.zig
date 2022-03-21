@@ -36,3 +36,7 @@ pub fn cwd(allocator: std.mem.Allocator) !std.fs.Dir {
         return std.fs.cwd();
     }
 }
+
+pub fn readLine(allocator: std.mem.Allocator, stream: anytype) !?[]u8 {
+    return stream.readUntilDelimiterOrEofAlloc(allocator, '\n', 4096);
+}

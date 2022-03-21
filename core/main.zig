@@ -70,6 +70,19 @@ pub fn main() anyerror!void {
         try stdout.print("{s}\n", .{key.toZB32()});
     } else if (std.mem.eql(u8, cmd, "repl")) {
         try @import("./repl.zig").repl();
+    } else if (std.mem.eql(u8, cmd, "eval")) {
+        const code = try (args.next(tmp) orelse return help(stderr));
+
+        var heap = try Wisp.Heap.init(tmp, .e0);
+        defer heap.deinit();
+
+        try Jets.load(&heap);
+        try heap.cook();
+
+        const result = try heap.load(code);
+
+        const pretty = try Sexp.prettyPrint(&heap, result, 62);
+        try stdout.print("{s}\n", .{pretty});
     } else {
         try help(stderr);
     }

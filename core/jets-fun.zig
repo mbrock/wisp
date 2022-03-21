@@ -21,11 +21,12 @@ const std = @import("std");
 
 const Wisp = @import("./wisp.zig");
 
-const Step = @import("./step.zig");
-const Sexp = @import("./sexp.zig");
 const Disk = @import("./disk.zig");
-const Tape = @import("./tape.zig");
+const File = @import("./file.zig");
 const Jets = @import("./jets.zig");
+const Sexp = @import("./sexp.zig");
+const Step = @import("./step.zig");
+const Tape = @import("./tape.zig");
 
 const Heap = Wisp.Heap;
 const Rest = Jets.Rest;
@@ -546,4 +547,32 @@ pub fn @"KTX-ARG"(step: *Step, ktx: u32) anyerror!void {
 
 pub fn @"TOP?"(step: *Step, ktx: u32) anyerror!void {
     step.give(.val, if (ktx == Wisp.top) Wisp.t else Wisp.nil);
+}
+
+pub fn @"READ-LINE"(step: *Step) anyerror!void {
+    const stdin = std.io.getStdIn().reader();
+
+    if (try File.readLine(step.heap.orb, stdin)) |line| {
+        defer step.heap.orb.free(line);
+        step.give(.val, try step.heap.newv08(line));
+    } else {
+        step.give(.val, Wisp.nil);
+    }
+}
+
+pub fn @"READ"(step: *Step, src: u32) anyerror!void {
+    const bytes = try step.heap.v08slice(src);
+    const val = try Sexp.read(step.heap, bytes);
+    step.give(.val, val);
+}
+
+pub fn @"WRITE"(step: *Step, v08: u32) anyerror!void {
+    const bytes = try step.heap.v08slice(v08);
+    try std.io.getStdOut().writeAll(bytes);
+    step.give(.val, Wisp.nil);
+}
+
+pub fn @"EVAL"(step: *Step, exp: u32) anyerror!void {
+    step.run.exp = exp;
+    step.run.val = Wisp.nah;
 }

@@ -50,17 +50,11 @@
                    (list (ktx-show hop terminus))
                    arg))))))
 
-(handle 'break
-        (fn ()
-            (* 2
-               (let ((x 1)
-                     (y (progn
-                          'foo
-                          (if (send! 'break nil) 1 2)
-                          'bar
-                          5))
-                     (z 3))
-                 (+ x y))
-               3))
-        (fn (v k)
-            (ktx-show k '⛳)))
+(defun repl ()
+  (write "> ")
+  (let ((src (read-line)))
+    (let ((exp (read src)))
+      (let ((val (eval exp)))
+        (progn
+          (print val)
+          (repl))))))
