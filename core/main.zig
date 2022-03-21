@@ -68,8 +68,16 @@ pub fn main() anyerror!void {
     } else if (std.mem.eql(u8, cmd, "keygen")) {
         const key = @import("./keys.zig").generate(&std.crypto.random);
         try stdout.print("{s}\n", .{key.toZB32()});
-    } else if (std.mem.eql(u8, cmd, "repl")) {
+    } else if (std.mem.eql(u8, cmd, "repl-zig")) {
         try @import("./repl.zig").repl();
+    } else if (std.mem.eql(u8, cmd, "repl")) {
+        var heap = try Wisp.Heap.init(tmp, .e0);
+        defer heap.deinit();
+
+        try Jets.load(&heap);
+        try heap.cook();
+
+        _ = try heap.load("(repl)");
     } else if (std.mem.eql(u8, cmd, "eval")) {
         const code = try (args.next(tmp) orelse return help(stderr));
 

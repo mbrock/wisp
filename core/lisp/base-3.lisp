@@ -32,29 +32,60 @@
             (acc (ktx-acc ktx))
             (arg (ktx-arg ktx))
             (hop (ktx-hop ktx)))
-        (cond
-          ((eq? fun 'if)
-           (list 'if (ktx-show hop terminus) (head arg) (tail arg)))
-          ((eq? fun 'let)
-           (let ((current-symbol (head acc))
-                 (let-acc (parse-let-acc (tail acc) nil)))
-             (list 'let
-                   (append (head let-acc)
-                           (cons (list current-symbol
-                                       (ktx-show hop terminus))
-                                 arg))
-                   (tail let-acc))))
-          (t
-           (append (list fun)
-                   acc
-                   (list (ktx-show hop terminus))
-                   arg))))))
+        (let ((me (cond
+                    ((eq? fun 'if)
+                     (list 'if terminus (head arg) (tail arg)))
+                    ((eq? fun 'let)
+                     (let ((current-symbol (head acc))
+                           (let-acc (parse-let-acc (tail acc) nil)))
+                       (list 'let
+                             (append (head let-acc)
+                                     (cons (list current-symbol
+                                                 terminus)
+                                           arg))
+                             (tail let-acc))))
+                    ((eq? fun 'prompt)
+                     (list 'prompt acc terminus (list arg)))
+                    (t
+                     (append (list fun)
+                             acc
+                             (list terminus)
+                             arg)))))
+          (ktx-show hop me)))))
+
+(defun ask ()
+  (progn
+    (write "use this instead> ")
+    (read (read-line))))
 
 (defun repl ()
   (write "> ")
   (let ((src (read-line)))
-    (let ((exp (read src)))
-      (let ((val (eval exp)))
-        (progn
-          (print val)
-          (repl))))))
+    (if (nil? src)
+        'bye
+        (let ((exp (read src)))
+          (progn
+            (handle
+             'error
+             (fn () (print (eval exp)))
+             (fn (condition continuation)
+                 (progn
+                   (print (list 'error condition))
+                   (print
+                    (list 'context
+                          (show-ktx continuation)))
+                   (call continuation (ask)))))
+            (repl))))))
+
+(defun show-ktx (k)
+  (ktx-show k '⛳))
+
+(defun foo-test ()
+  (handle 'foo (fn () (send! 'foo 'bar)) (fn (v k) v)))
+
+(defun do-step! (run)
+  (let ((now (run-exp run)))
+    (progn
+      (print (list 'context (ktx-show (run-way run)
+                                      (list '⛳ (head now) (tail now)))))
+      (step! run))))

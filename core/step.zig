@@ -58,14 +58,35 @@ const nah = Wisp.nah;
 
 pub fn once(heap: *Heap, run: *Run) !void {
     var step = Step{ .heap = heap, .run = run };
+    step.attemptOneStep() catch |e| try step.handleError(e);
+}
+
+fn makeCondition(step: *Step, err: anyerror) !u32 {
+    return if (step.run.err == Wisp.nil)
+        try step.heap.newv32(&.{
+            step.heap.kwd.@"LOW-LEVEL-ERROR",
+            try step.heap.newv08(@errorName(err)),
+        })
+    else
+        step.run.err;
+}
+
+pub fn handleError(step: *Step, err: anyerror) !void {
+    const condition = try step.makeCondition(err);
+    step.run.err = Wisp.nil;
+    try Jets.Funs.@"SEND!"(step, step.heap.kwd.ERROR, condition);
+}
+
+pub fn attemptOneStep(step: *Step) !void {
+    const heap = step.heap;
+    const run = step.run;
+    const exp = run.exp;
+    const val = run.val;
 
     if (wtf) {
         std.log.warn("\n", .{});
         try Sexp.warn("env", heap, run.env);
     }
-
-    const exp = run.exp;
-    const val = run.val;
 
     if (val == nah) {
         if (wtf) try Sexp.warn("exp", heap, exp);
@@ -336,7 +357,7 @@ pub fn call(
     }
 }
 
-fn composeContinuation(step: *Step, way: u32) !u32 {
+pub fn composeContinuation(step: *Step, way: u32) !u32 {
     var new = try step.heap.copyAny(way);
     var cur = new;
 

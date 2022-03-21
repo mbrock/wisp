@@ -70,6 +70,10 @@ pub const Kwd = enum {
     @"CALL/CC",
     EVAL,
 
+    EXP,
+    VAL,
+
+    ERROR,
     REQUEST,
 
     BOOLEAN,
@@ -87,12 +91,13 @@ pub const Kwd = enum {
     SYMBOL,
     VECTOR,
 
+    @"BAD-FIXNUM-DIVISION",
     @"BUG",
     @"CONTINUATION-CALL-ERROR",
     @"EXHAUSTED",
     @"FIXNUM-OVERFLOW",
-    @"BAD-FIXNUM-DIVISION",
     @"INVALID-ARGUMENT-COUNT",
+    @"LOW-LEVEL-ERROR",
     @"PACKAGE-ERROR",
     @"PROGRAM-ERROR",
     @"PROMPT-TAG-MISSING",

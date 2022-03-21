@@ -427,9 +427,7 @@ pub fn @"SEND!"(
             step.run.way = Wisp.top;
             step.run.env = Wisp.nil;
         } else {
-            const ktx = try step.heap.row(.ktx, result.e1);
-            step.run.way = ktx.hop;
-            step.run.env = ktx.env;
+            step.run.way = result.e1;
         }
 
         return step.call(result.handler, args, false);
@@ -575,4 +573,37 @@ pub fn @"WRITE"(step: *Step, v08: u32) anyerror!void {
 pub fn @"EVAL"(step: *Step, exp: u32) anyerror!void {
     step.run.exp = exp;
     step.run.val = Wisp.nah;
+}
+
+pub fn @"COMPOSE-CONTINUATION"(step: *Step, ktx: u32) anyerror!void {
+    step.give(.val, try step.composeContinuation(ktx));
+}
+
+pub fn @"RUN-WAY"(step: *Step, run: u32) anyerror!void {
+    step.give(.val, try step.heap.get(.run, .way, run));
+}
+
+pub fn @"RUN-EXP"(step: *Step, run: u32) anyerror!void {
+    const row = try step.heap.row(.run, run);
+
+    const duo = if (row.exp == Wisp.nah)
+        try step.heap.new(.duo, .{
+            .car = step.heap.kwd.@"VAL",
+            .cdr = row.val,
+        })
+    else
+        try step.heap.new(.duo, .{
+            .car = step.heap.kwd.@"EXP",
+            .cdr = row.exp,
+        });
+
+    step.give(.val, duo);
+}
+
+pub fn @"RUN-VAL"(step: *Step, run: u32) anyerror!void {
+    step.give(.val, try step.heap.get(.run, .val, run));
+}
+
+pub fn @"RUN-ERR"(step: *Step, run: u32) anyerror!void {
+    step.give(.val, try step.heap.get(.run, .err, run));
 }
