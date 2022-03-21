@@ -17,39 +17,36 @@
 ;; <https://www.gnu.org/licenses/>.
 ;;
 
+(defmacro assert (x)
+  `(if ,x nil (error ',x)))
+
 (defmacro with-trace (&rest body)
   `(progn
      (wtf t)
-     (prog1 ,(prognify body)
+     (returning ,(prognify body)
        (wtf nil))))
 
 (defun base-test ()
-  (assert (equal 1 1))
-  (assert (equal '(1 2 3) '(1 2 3)))
-  (assert (equal '((1 2) (3 4)) '((1 2) (3 4))))
-  (assert (not (equal '(1) '(1 2))))
+  (assert (equal? 1 1))
+  (assert (equal? '(1 2 3) '(1 2 3)))
+  (assert (equal? '((1 2) (3 4)) '((1 2) (3 4))))
+  (assert (not (equal? '(1) '(1 2))))
 
   (defvar *x* 1)
-  (assert (eq *x* 1))
-  (setq *x* 2)
-  (assert (eq *x* 2)))
+  (assert (eq? *x* 1))
+  (set! *x* 2)
+  (assert (eq? *x* 2)))
 
 (defun test-call/cc ()
   (defvar *plusser* nil)
-  (call/cc (lambda (break)
-             (progn
-               (+ 10 (call/cc (lambda (k)
-                                (progn
-                                  (setq *plusser* k)
-                                  (funcall break nil))))))))
-  (assert (eq 11 (funcall *plusser* 1))))
-
-(defmacro or (a b)
-  `(if ,a ,b nil))
+  (call/cc (fn (break)
+             (+ 10 (call/cc (fn (k)
+                              (progn
+                                (set! *plusser* k)
+                                (call break nil)))))))
+  (assert (eq? 11 (call *plusser* 1))))
 
 (defun test-1 ()
   (handle 'foo
-          (lambda ()
-            (+ 5 (send 'foo 'bar)))
-          (lambda (v k)
-            (+ 1 (funcall k 3)))))
+          (fn () (+ 5 (send! 'foo 'bar)))
+          (fn (v k) (+ 1 (call k 3)))))

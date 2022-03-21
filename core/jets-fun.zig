@@ -39,7 +39,7 @@ fn intword(x: i31) u32 {
     return @intCast(u32, @bitCast(u31, x));
 }
 
-pub fn @"PROG1"(step: *Step, xs: []u32) anyerror!void {
+pub fn @"RETURNING"(step: *Step, xs: []u32) anyerror!void {
     _ = step;
     step.give(.val, xs[0]);
 }
@@ -106,7 +106,7 @@ pub fn @"CONS"(step: *Step, car: u32, cdr: u32) anyerror!void {
     step.give(.val, try step.heap.new(.duo, .{ .car = car, .cdr = cdr }));
 }
 
-pub fn @"CAR"(step: *Step, x: u32) anyerror!void {
+pub fn @"HEAD"(step: *Step, x: u32) anyerror!void {
     if (x == Wisp.nil) {
         step.give(.val, Wisp.nil);
     } else if (step.heap.get(.duo, .car, x)) |car| {
@@ -120,7 +120,7 @@ pub fn @"CAR"(step: *Step, x: u32) anyerror!void {
     }
 }
 
-pub fn @"CDR"(step: *Step, x: u32) anyerror!void {
+pub fn @"TAIL"(step: *Step, x: u32) anyerror!void {
     if (x == Wisp.nil) {
         step.give(.val, Wisp.nil);
     } else if (step.heap.get(.duo, .cdr, x)) |cdr| {
@@ -134,7 +134,7 @@ pub fn @"CDR"(step: *Step, x: u32) anyerror!void {
     }
 }
 
-pub fn @"SET-SYMBOL-FUNCTION"(
+pub fn @"SET-SYMBOL-FUNCTION!"(
     step: *Step,
     sym: u32,
     fun: u32,
@@ -150,7 +150,7 @@ pub fn @"SET-SYMBOL-FUNCTION"(
     step.give(.val, fun);
 }
 
-pub fn @"SET-SYMBOL-VALUE"(
+pub fn @"SET-SYMBOL-VALUE!"(
     step: *Step,
     sym: u32,
     val: u32,
@@ -170,7 +170,7 @@ pub fn @"LIST"(step: *Step, xs: []u32) anyerror!void {
     step.give(.val, cur);
 }
 
-pub fn @"EQ"(step: *Step, x: u32, y: u32) anyerror!void {
+pub fn @"EQ?"(step: *Step, x: u32, y: u32) anyerror!void {
     step.give(.val, if (x == y) Wisp.t else Wisp.nil);
 }
 
@@ -223,7 +223,7 @@ pub fn SAVE(step: *Step) anyerror!void {
     try Tape.save(step.heap, name);
 }
 
-pub fn FUNCALL(
+pub fn CALL(
     step: *Step,
     function: u32,
     arguments: Rest,
@@ -303,7 +303,7 @@ pub fn RUN(step: *Step, exp: u32) anyerror!void {
     step.give(.val, try step.heap.new(.run, run));
 }
 
-pub fn STEP(step: *Step, runptr: u32) anyerror!void {
+pub fn @"STEP!"(step: *Step, runptr: u32) anyerror!void {
     var run = try step.heap.row(.run, runptr);
     try Step.once(step.heap, &run);
     try step.heap.put(.run, runptr, run);
@@ -337,7 +337,7 @@ pub fn REQUEST(step: *Step, req: u32, rest: Rest) anyerror!void {
     try step.fail(&[_]u32{ step.heap.kwd.@"REQUEST", req, rest.arg });
 }
 
-pub fn GENKEY(step: *Step) anyerror!void {
+pub fn @"GENKEY!"(step: *Step) anyerror!void {
     step.give(.val, try step.heap.genkey());
 }
 
@@ -395,7 +395,7 @@ pub fn HANDLE(
 }
 
 /// This is a continuation control operator.
-pub fn SEND(
+pub fn @"SEND!"(
     step: *Step,
     TAG: u32,
     VALUE: u32,
@@ -488,7 +488,7 @@ const ContinuationCopyResult = struct {
     e2: u32,
 };
 
-pub fn @"%SETQ"(step: *Step, sym: u32, val: u32) anyerror!void {
+pub fn @"%SET!"(step: *Step, sym: u32, val: u32) anyerror!void {
     var cur = step.run.env;
     while (cur != Wisp.nil) {
         var curduo = try step.heap.row(.duo, cur);

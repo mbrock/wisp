@@ -8,7 +8,7 @@ form[@isGroup=Form] {
   String |
   Integer |
   Quote |
-  Defun | Let | Lambda | List | Run |
+  Defun | Let | Fn | List | Run |
   Compound
 }
 
@@ -20,7 +20,7 @@ Key { '~' Date '.' ZB32 }
 
 Defun { "(" kw<"defun"> Symbol form form* ")" }
 Let { "(" kw<"let"> form* ")" }
-Lambda { "(" kw<"lambda"> form* ")" }
+Fn { "(" kw<"fn"> form* ")" }
 List { "(" kw<"list"> form* ")" }
 Run { "(" kw<"run"> form* ")" }
 

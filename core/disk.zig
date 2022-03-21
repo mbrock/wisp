@@ -153,6 +153,6 @@ pub fn save(step: *Step, name: []const u8) !u32 {
 //     defer heap.deinit();
 
 //     try Step.expectEval("ok", (
-//         \\ (prog1 'ok (save))
+//         \\ (returning 'ok (save))
 //     ));
 // }

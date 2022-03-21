@@ -44,15 +44,15 @@ export const wispLanguage = LRLanguage.define({
       indentNodeProp.add({
         Defun: continuedIndent(),
         Let: continuedIndent(),
-        Lambda: continuedIndent(),
+        Fn: continuedIndent(),
       }),
       foldNodeProp.add({
         Defun: hang(2),
         Let: hang(1),
-        Lambda: hang(1),
+        Fn: hang(1),
       }),
       styleTags({
-        "defun let lambda run": tags.keyword,
+        "defun let fn run": tags.keyword,
         Symbol: tags.variableName,
         Key: tags.docComment,
         ZB32: tags.meta,
@@ -83,13 +83,13 @@ export const wispCompletion = wispLanguage.data.of({
     {label: "defvar", type: "keyword"},
     {label: "let", type: "keyword"},
     {label: "call/cc", type: "keyword"},
-    {label: "lambda", type: "keyword"},
+    {label: "fn", type: "keyword"},
 
     {label: "list", type: "function"},
     {label: "append", type: "function"},
     {label: "cons", type: "function"},
-    {label: "car", type: "function"},
-    {label: "cdr", type: "function"},
+    {label: "head", type: "function"},
+    {label: "tail", type: "function"},
   ])
 })
 

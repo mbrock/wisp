@@ -404,6 +404,7 @@ fn isSymbolCharacter(c: u21) bool {
         return true;
     } else {
         return switch (c) {
+            '!',
             '$',
             '%',
             '&',

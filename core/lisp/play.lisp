@@ -1,47 +1,46 @@
 (defvar *suspension* nil)
 
 (defun fix (f)
-  (funcall f f))
+  (call f f))
 
 (defun engine (thread-a thread-b)
   (let ((handler
-          (fix (lambda (self)
-                 (lambda (request continuation)
-                   (setq *suspension*
+          (fix (fn (self)
+                 (fn (request continuation)
+                   (set! *suspension*
                          (cons request
-                               (lambda (x)
+                               (fn (x)
                                  (handle 'await
-                                         (lambda ()
-                                           (funcall continuation x))
+                                         (fn () (call continuation x))
                                          (fix self))))))))))
     (handle 'await
-            (lambda ()
+            (fn ()
               (progn
-                (funcall thread-a)
-                (funcall thread-b)
-                (setq *suspension* nil)))
+                (call thread-a)
+                (call thread-b)
+                (set! *suspension* nil)))
             handler))
-  (list 'blocked-on (car *suspension*) 'until '(resume x)))
+  (list 'blocked-on (head *suspension*) 'until '(resume x)))
 
-(defun resume (x)
+(defun resume! (x)
   (if *suspension*
-      (funcall (cdr *suspension*) x)
+      (call (tail *suspension*) x)
       'done))
 
 (let ((a nil)
       (b nil))
   (progn
-    (engine (lambda ()
-              (setq a
-                    (+ (send 'await '(gimme number))
-                       (send 'await '(gimme another)))))
-            (lambda ()
-              (setq b
-                    (* (send 'await '(one more))
-                       (send 'await '(last one))))))
+    (engine (fn ()
+              (set! a
+                    (+ (send! 'await '(gimme number))
+                       (send! 'await '(gimme another)))))
+            (fn ()
+              (set! b
+                    (* (send! 'await '(one more))
+                       (send! 'await '(last one))))))
 
-    (resume 1)
-    (resume 2)
-    (resume 3)
-    (resume 4)
+    (resume! 1)
+    (resume! 2)
+    (resume! 3)
+    (resume! 4)
     (list 'done 'a a 'b b)))

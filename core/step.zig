@@ -847,7 +847,7 @@ pub fn evalString(heap: *Heap, src: []const u8) !u32 {
     const exp = try Sexp.read(heap, src);
     var run = initRun(exp);
 
-    if (evaluate(heap, &run, 1_000)) |val| {
+    if (evaluate(heap, &run, 1_000_000)) |val| {
         return val;
     } else |e| {
         try Sexp.warn("Error", heap, run.err);
@@ -887,12 +887,12 @@ test "(+ (+ 1 2) (+ 3 4))" {
     try expectEval("10", "(+ (+ 1 2) (+ 3 4))");
 }
 
-test "(car (cons 1 2)) => 1" {
-    try expectEval("1", "(car (cons 1 2))");
+test "(head (cons 1 2)) => 1" {
+    try expectEval("1", "(head (cons 1 2))");
 }
 
-test "(cdr (cons 1 2)) => 2" {
-    try expectEval("2", "(cdr (cons 1 2))");
+test "(tail (cons 1 2)) => 2" {
+    try expectEval("2", "(tail (cons 1 2))");
 }
 
 test "nil => nil" {
@@ -908,8 +908,8 @@ test "progn" {
     try expectEval("3", "(progn 1 2 3)");
 }
 
-test "prog1" {
-    try expectEval("1", "(prog1 1 2 3)");
+test "returning" {
+    try expectEval("1", "(returning 1 2 3)");
 }
 
 test "quote" {
@@ -931,7 +931,7 @@ test "calling a closure" {
     try expectEval("13",
         \\ (progn
         \\   (let ((ten 10))
-        \\     (set-symbol-function 'foo (lambda (x y) (+ ten x y))))
+        \\     (set-symbol-function! 'foo (fn (x y) (+ ten x y))))
         \\   (foo 1 2))
     );
 }
@@ -939,8 +939,8 @@ test "calling a closure" {
 test "calling a macro closure" {
     try expectEval("3",
         \\ (progn
-        \\   (set-symbol-function 'frob
-        \\      (%macro-lambda (x y z)
+        \\   (set-symbol-function! 'frob
+        \\      (%macro-fn (x y z)
         \\        (list y x z)))
         \\   (frob 1 + 2))
     );
@@ -950,11 +950,11 @@ test "(list 1 2 3)" {
     try expectEval("(1 2 3)", "(list 1 2 3)");
 }
 
-test "EQ" {
-    try expectEval("T", "(eq 1 1)");
-    try expectEval("NIL", "(eq 1 2)");
-    try expectEval("T", "(eq 'foo 'foo)");
-    try expectEval("NIL", "(eq 'foo 'bar)");
+test "EQ?" {
+    try expectEval("T", "(eq? 1 1)");
+    try expectEval("NIL", "(eq? 1 2)");
+    try expectEval("T", "(eq? 'foo 'foo)");
+    try expectEval("NIL", "(eq? 'foo 'bar)");
 }
 
 test "DEFUN" {
@@ -969,13 +969,13 @@ test "base test suite" {
 
 test "FUNCALL" {
     try expectEval("(b . a)",
-        \\ (funcall (lambda (x y) (cons y x)) 'a 'b)
+        \\ (call (fn (x y) (cons y x)) 'a 'b)
     );
 }
 
 test "APPLY" {
     try expectEval("(a b c)",
-        \\ (apply (lambda (x y z) (list x y z)) '(a b c))
+        \\ (apply (fn (x y z) (list x y z)) '(a b c))
     );
 }
 
@@ -995,9 +995,9 @@ test "defmacro with &rest" {
     );
 }
 
-test "MAPCAR with LAMBDA" {
+test "MAP with FN" {
     try expectEval("(2 3 4)",
-        \\ (mapcar (lambda (x) (+ x 1)) '(1 2 3))
+        \\ (map (fn (x) (+ x 1)) '(1 2 3))
     );
 }
 
@@ -1015,12 +1015,12 @@ test "MAPCAR with LAMBDA" {
 //     try heap.load(@embedFile("../lisp/pretty.lisp"));
 // }
 
-test "GENKEY" {
+test "GENKEY!" {
     var heap = try newTestHeap();
     defer heap.deinit();
 
-    const x = try evalString(&heap, "(genkey)");
-    const y = try evalString(&heap, "(genkey)");
+    const x = try evalString(&heap, "(genkey!)");
+    const y = try evalString(&heap, "(genkey!)");
 
     try std.testing.expect(x != y);
 }
@@ -1031,8 +1031,8 @@ test "HANDLE" {
 
     const x = try evalString(&heap,
         \\(handle 'foo
-        \\ (lambda () 1)
-        \\ (lambda (v k)
+        \\ (fn () 1)
+        \\ (fn (v k)
         \\   k))
     );
 

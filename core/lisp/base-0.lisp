@@ -21,121 +21,117 @@
 ;;; NOTE: We can't use backquote in this file.
 ;;;
 
-(set-symbol-function
+(set-symbol-function!
  'DEFUN
- (%macro-lambda
+ (%macro-fn
   (name args &rest body)
-  (list 'set-symbol-function (list 'quote name)
-        (list 'lambda args (prognify body)))))
+  (list 'set-symbol-function! (list 'quote name)
+        (list 'fn args (prognify body)))))
 
-(set-symbol-function
+(set-symbol-function!
  'DEFMACRO
- (%macro-lambda
+ (%macro-fn
   (name args &rest body)
-  (list 'set-symbol-function (list 'quote name)
-        (list '%macro-lambda args (prognify body)))))
-
-(defun caar (x) (car (car x)))
-(defun cadr (x) (car (cdr x)))
-(defun cddr (x) (cdr (cdr x)))
+  (list 'set-symbol-function! (list 'quote name)
+        (list '%macro-fn args (prognify body)))))
 
 (defmacro defvar (var val)
-  (list 'set-symbol-value (list 'quote var) val))
+  (list 'set-symbol-value! (list 'quote var) val))
 
-(defmacro setq (var val)
-  (list '%setq (list 'quote var) val))
+(defmacro set! (var val)
+  (list '%set! (list 'quote var) val))
 
 (defun not (x)
   (if x nil t))
 
-(defun atom (x)
-  (not (eq 'cons (type-of x))))
+(defmacro and (x y)
+  (list 'if x y nil))
 
-(defun equal (x y)
-  (if (eq x y) t
+(defmacro or (x y)
+  (list 'if x t y))
+
+(defun atom? (x)
+  (not (eq? 'cons (type-of x))))
+
+(defun equal? (x y)
+  (if (eq? x y) t
       (let ((xt (type-of x))
             (yt (type-of y)))
-        (if (not (eq xt yt))
+        (if (not (eq? xt yt))
             nil
-            (if (eq xt 'cons)
-                (equal-lists x y)
+            (if (eq? xt 'cons)
+                (equal-lists? x y)
                 (error xt))))))
 
-(defun equal-lists (x y)
-  (if (eq x nil)
-      (eq y nil)
-      (if (eq y nil)
+(defun equal-lists? (x y)
+  (if (eq? x nil)
+      (eq? y nil)
+      (if (eq? y nil)
           nil
-          (if (equal (car x) (car y))
-              (equal-lists (cdr x) (cdr y))
+          (if (equal? (head x) (head y))
+              (equal-lists? (tail x) (tail y))
               nil))))
 
-(defmacro assert (x)
-  (list 'if x nil (list 'error (list 'quote x))))
+(defun nil? (x)
+  (eq? x nil))
 
-(defun null (x)
-  (eq x nil))
-
-(defun mapcar (f xs)
-  (if (null xs) nil
-      (cons (funcall f (car xs))
-            (mapcar f (cdr xs)))))
+(defun map (f xs)
+  (if (nil? xs) nil
+      (cons (call f (head xs))
+            (map f (tail xs)))))
 
 (defun last (xs)
-  (if (null xs) nil
-      (if (null (cdr xs)) xs
-          (last (cdr xs)))))
+  (if (nil? xs) nil
+      (if (nil? (tail xs)) xs
+          (last (tail xs)))))
 
 (defun %cond (clauses)
-  (progn
-    (if (null clauses) nil
-        (let ((x (car clauses)))
-          (list 'if
-                (car x)
-                (car (cdr x))
-                (%cond (cdr clauses)))))))
+  (if (nil? clauses) nil
+      (let ((x (head clauses)))
+        (list 'if
+              (head x)
+              (head (tail x))
+              (%cond (tail clauses))))))
 
 (defmacro cond (&rest clauses)
   (%cond clauses))
 
 (defun reduce-loop (f x xs)
-  (cond ((null xs)
-         x)
-        ((null (cdr xs))
-         (funcall f x (car xs)))
+  (cond ((nil? xs) x)
+        ((nil? (tail xs))
+         (call f x (head xs)))
         (t
          (reduce-loop f
-                      (funcall f x (car xs))
-                      (cdr xs)))))
+                      (call f x (head xs))
+                      (tail xs)))))
 
 (defun reduce (f xs init)
   (reduce-loop f init xs))
 
 (defun append-2 (xs ys)
-  (if (null xs) ys
-      (cons (car xs)
-            (append (cdr xs) ys))))
+  (if (nil? xs) ys
+      (cons (head xs)
+            (append (tail xs) ys))))
 
 (defun append (&rest xss)
   (reduce #'append-2 xss '()))
 
 (defun remove-if (f xs)
-  (if (null xs) nil
-      (if (funcall f (car xs))
-          (remove-if f (cdr xs))
-          (cons (car xs) (remove-if f (cdr xs))))))
+  (if (nil? xs) nil
+      (if (call f (head xs))
+          (remove-if f (tail xs))
+          (cons (head xs) (remove-if f (tail xs))))))
 
-(defun some (f xs)
-  (if (null xs) nil
-      (if (funcall f (car xs))
-          t
-          (some f (cdr xs)))))
+(defun some? (f xs)
+  (if (nil? xs) nil
+      (or (call f (head xs))
+          (some? f (tail xs)))))
 
 (defun butlast (xs)
-  (if (null xs) nil
-      (if (null (cdr xs)) nil
-          (cons (car xs)
-                (butlast (cdr xs))))))
+  (if (nil? xs) nil
+      (if (nil? (tail xs)) nil
+          (cons (head xs)
+                (butlast (tail xs))))))
 
 (defun snoc (x y)
   (cons y x))
@@ -143,8 +139,5 @@
 (defun reverse (list)
   (reduce #'snoc list nil))
 
-(defun revappend (list tail)
+(defun reverse-append (list tail)
   (reduce #'snoc list tail))
-
-(defmacro and (x y)
-  (list 'if x y nil))

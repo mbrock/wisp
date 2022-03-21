@@ -301,7 +301,7 @@ fn hang(heap: *Wisp.Heap, car: u32) ?usize {
         return 2
     else if (car == heap.kwd.LET)
         return 2
-    else if (car == heap.kwd.LAMBDA)
+    else if (car == heap.kwd.FN)
         return 2
     else if (car == heap.kwd.COND)
         return 1

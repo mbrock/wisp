@@ -75,9 +75,9 @@ pub fn repl() anyerror!void {
     try Jets.load(&heap);
     try heap.cook();
 
-    var baseTestRun = Step.initRun(try Sexp.read(&heap, "(base-test)"));
+    // var baseTestRun = Step.initRun(try Sexp.read(&heap, "(base-test)"));
 
-    _ = try Step.evaluate(&heap, &baseTestRun, 1_000_000);
+    // _ = try Step.evaluate(&heap, &baseTestRun, 1_000_000);
 
     repl: while (true) {
         try stdout.print("({d} log bytes)\n", .{log.items.len});

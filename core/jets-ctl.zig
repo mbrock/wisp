@@ -32,7 +32,7 @@ pub fn FUNCTION(step: *Step, x: u32) anyerror!void {
     step.give(.val, fun);
 }
 
-pub fn @"%MACRO-LAMBDA"(step: *Step, par: u32, exp: u32) anyerror!void {
+pub fn @"%MACRO-FN"(step: *Step, par: u32, exp: u32) anyerror!void {
     step.give(.val, try step.heap.new(.mac, .{
         .env = step.run.env,
         .par = par,
@@ -72,7 +72,7 @@ pub fn @"LET"(step: *Step, bs: u32, e: u32) anyerror!void {
     }
 }
 
-pub fn @"LAMBDA"(step: *Step, par: u32, exp: u32) anyerror!void {
+pub fn @"FN"(step: *Step, par: u32, exp: u32) anyerror!void {
     step.give(.val, try step.heap.new(.fun, .{
         .env = step.run.env,
         .par = par,

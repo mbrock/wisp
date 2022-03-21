@@ -64,7 +64,7 @@ pub const Kwd = enum {
     COND,
     DEFUN,
     IF,
-    LAMBDA,
+    FN,
     LET,
     PROGN,
     @"CALL/CC",

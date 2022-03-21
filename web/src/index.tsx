@@ -48,11 +48,10 @@ import { Auth0Provider, useAuth0 } from "@auth0/auth0-react"
 
 const initialDocument = `(cons 'ok
       (handle 'tag
-              (lambda ()
-                (* 2 (send 'tag 5)))
-              (lambda (v k)
+              (fn () (* 2 (send! 'tag 5)))
+              (fn (v k)
                 (list (list 'continuation k)
-                      (list 'result (funcall k (+ 1 v)))))))`
+                      (list 'result (call k (+ 1 v)))))))`
 
 const uuid = new ShortUniqueId({ length: 8 })
 
@@ -774,7 +773,7 @@ const Form = ({ done, placeholder, autoFocus }: {
 
   // React.useEffect(() => {
   //   exec("(run '(append (list 1 x 3) '(a b c)))")
-  //   exec("(run '(mapcar (lambda (x) (+ x 1)) '(1 2 3)))")
+  //   exec("(run '(map (fn (x) (+ x 1)) '(1 2 3)))")
   //   exec("(+ 1 2 3)")
   //   exec("(run '(request 'fetch \"https://httpbin.org/uuid\"))");
   // }, [])
