@@ -319,6 +319,7 @@ pub const Heap = struct {
         _ = try heap.load(@embedFile("./lisp/base-0.lisp"));
         _ = try heap.load(@embedFile("./lisp/base-1-backquote.lisp"));
         _ = try heap.load(@embedFile("./lisp/base-2.lisp"));
+        _ = try heap.load(@embedFile("./lisp/base-3.lisp"));
     }
 
     fn initvar(heap: *Heap, txt: []const u8, val: u32) !void {

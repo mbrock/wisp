@@ -155,7 +155,7 @@ pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
 
         .jet => {
             const jet = Jets.jets[Wisp.Imm.from(x).idx];
-            try out.print("<jet {s}>", .{jet.txt});
+            try out.print("{s}", .{jet.txt});
         },
 
         .run => {

@@ -518,3 +518,32 @@ pub fn @"%SET!"(step: *Step, sym: u32, val: u32) anyerror!void {
         },
     }
 }
+
+pub fn @"KTX-HOP"(step: *Step, ktx: u32) anyerror!void {
+    const hop = try step.heap.get(.ktx, .hop, ktx);
+    step.give(.val, hop);
+}
+
+pub fn @"KTX-FUN"(step: *Step, ktx: u32) anyerror!void {
+    const fun = try step.heap.get(.ktx, .fun, ktx);
+    step.give(.val, fun);
+}
+
+pub fn @"KTX-ENV"(step: *Step, ktx: u32) anyerror!void {
+    const env = try step.heap.get(.ktx, .env, ktx);
+    step.give(.val, env);
+}
+
+pub fn @"KTX-ACC"(step: *Step, ktx: u32) anyerror!void {
+    const acc = try step.heap.get(.ktx, .acc, ktx);
+    step.give(.val, acc);
+}
+
+pub fn @"KTX-ARG"(step: *Step, ktx: u32) anyerror!void {
+    const arg = try step.heap.get(.ktx, .arg, ktx);
+    step.give(.val, arg);
+}
+
+pub fn @"TOP?"(step: *Step, ktx: u32) anyerror!void {
+    step.give(.val, if (ktx == Wisp.top) Wisp.t else Wisp.nil);
+}

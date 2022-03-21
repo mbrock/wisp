@@ -400,7 +400,7 @@ fn isKeyCharacter(c: u21) bool {
 }
 
 fn isSymbolCharacter(c: u21) bool {
-    if (ziglyph.isLetter(c)) {
+    if (ziglyph.isLetter(c) or ziglyph.emoji_data.isEmojiPresentation(c)) {
         return true;
     } else {
         return switch (c) {
