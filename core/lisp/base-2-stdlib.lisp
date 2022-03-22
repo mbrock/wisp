@@ -27,9 +27,17 @@
        (wtf nil))))
 
 (defmacro handle (body clause)
-  (let ((tag-name (head clause))
+    (let ((tag-name (head clause))
         (handler-args (head (tail clause)))
         (handler-body (tail (tail clause))))
     `(call-with-prompt ',tag-name
+       (fn () ,body)
+       (fn ,handler-args ,(prognify handler-body)))))
+
+(defmacro try (body clause)
+  (let ((catch (head clause))
+        (handler-args (head (tail clause)))
+        (handler-body (tail (tail clause))))
+    `(call-with-prompt 'error
        (fn () ,body)
        (fn ,handler-args ,(prognify handler-body)))))

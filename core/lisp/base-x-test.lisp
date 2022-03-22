@@ -29,6 +29,6 @@
   (assert (eq? *x* 2))
 
   (assert (eq? 3
-               (handle (+ 1 (/ 1 0))
-                 (error (e k)
-                  (call k 2))))))
+               (try (+ 1 (/ 1 0))
+                 (catch (error restart)
+                   (call restart 2))))))

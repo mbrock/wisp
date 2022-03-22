@@ -63,17 +63,16 @@
   (let ((src (read-line)))
     (if (nil? src)
         'bye
-        (let ((exp (handle (read src)
-                     (error (e k)
-                      (returning nil
-                        (print (list 'read-error e)))))))
+        (let ((exp (try (read src)
+                     (catch (e k)
+                       (returning nil
+                         (print (list 'read-error e)))))))
           (progn
-            (handle (print (eval exp))
-              (error (e k)
-               (progn
-                 (print (list 'error e))
-                 (print (list 'context (show-ktx k)))
-                 (call k (ask)))))
+            (try (print (eval exp))
+              (catch (e k)
+                (print (list 'error e))
+                (print (list 'context (show-ktx k)))
+                (call k (ask))))
             (repl))))))
 
 (defun show-ktx (k)
