@@ -261,6 +261,8 @@ fn scan(
     defer tmp.free(scope);
 
     var i: usize = 0;
+    var n: usize = 0;
+
     loop: while (i < pars.items.len) : (i += 1) {
         if (i < vals.items.len) {
             const x = pars.items[i];
@@ -270,10 +272,14 @@ fn scan(
                     step.heap,
                     vals.items[i..vals.items.len],
                 );
+
+                n = i + 1;
+
                 break :loop;
             } else {
                 scope[i * 2 + 0] = x;
                 scope[i * 2 + 1] = vals.items[i];
+                n = i + 1;
             }
         } else {
             try step.fail(&[_]u32{
@@ -286,7 +292,7 @@ fn scan(
     }
 
     step.run.env = try step.heap.cons(
-        try step.heap.newv32(scope),
+        try step.heap.newv32(scope[0 .. n * 2]),
         step.run.env,
     );
 
@@ -798,17 +804,28 @@ pub fn evaluateUntilSpecificContinuation(
     while (true) {
         if (limit > 0 and i >= limit) break;
 
-        if (limit == 0 and i > 0 and @mod(i, 100_000) == 0) {
-            // var timer = try std.time.Timer.start();
-            // const s0 = heap.bytesize();
-            try step.gcWithRunRoots();
-            // const s1 = heap.bytesize();
-            // const nanoseconds = timer.read();
-            // std.log.info("gc took {d}ms ({d} KB to {d} KB)", .{
-            //     @intToFloat(f64, nanoseconds) / 1_000_000,
-            //     s0 / 1024,
-            //     s1 / 1024,
-            // });
+        if (heap.please_tidy or (limit == 0 and i > 0 and @mod(i, 100_000) == 0)) {
+            var timer = try std.time.Timer.start();
+            const s0 = heap.bytesize();
+
+            var gc = try prepareToTidy(&step);
+            try finishTidying(&step, &gc);
+
+            const s1 = heap.bytesize();
+            const nanoseconds = timer.read();
+
+            if (s0 - s1 > 1_000) {
+                try std.io.getStdErr().writer().print(
+                    ";; [gc took {d}ms; {d} KB to {d} KB]\n",
+                    .{
+                        @intToFloat(f64, nanoseconds) / 1_000_000,
+                        s0 / 1024,
+                        s1 / 1024,
+                    },
+                );
+            }
+
+            heap.please_tidy = false;
         }
 
         if ((run.way == breakpoint or run.way == top) and run.val != nah) {
@@ -841,16 +858,23 @@ pub fn evaluate(heap: *Heap, run: *Run, limit: u32) !u32 {
     );
 }
 
-pub fn gcWithRunRoots(step: *Step) !void {
+pub fn prepareToTidy(step: *Step) !Tidy {
     var gc = try Tidy.init(step.heap);
     try gc.root();
-
     try gc.move(&step.run.err);
     try gc.move(&step.run.env);
     try gc.move(&step.run.way);
     try gc.move(&step.run.val);
     try gc.move(&step.run.exp);
 
+    for (step.heap.roots.items) |x| {
+        try gc.move(x);
+    }
+
+    return gc;
+}
+
+pub fn finishTidying(step: *Step, gc: *Tidy) !void {
     try gc.scan();
     step.heap.* = gc.done();
 }

@@ -76,6 +76,7 @@
                    (print (list 'error e))
                    (print (list 'context (show-ktx k)))
                    (call k (ask))))
+               (gc)
                (repl))))))))
 
 (defun show-ktx (k)

@@ -484,7 +484,7 @@ fn copyContinuationSlice(
     var new = try heap.copy(.ktx, ktx);
     var cur = new;
 
-    while (true) {
+    while (cur != Wisp.top) {
         const hop = try heap.get(.ktx, .hop, cur);
         if (try isMatchingPrompt(heap, hop, tag)) {
             try heap.set(.ktx, .hop, cur, top);
@@ -652,4 +652,9 @@ pub fn @"FIND-PACKAGE"(step: *Step, name: u32) anyerror!void {
 
 pub fn @"JET?"(step: *Step, fun: u32) anyerror!void {
     step.give(.val, if (Wisp.tagOf(fun) == .jet) t else nil);
+}
+
+pub fn @"GC"(step: *Step) anyerror!void {
+    step.heap.please_tidy = true;
+    step.give(.val, nil);
 }

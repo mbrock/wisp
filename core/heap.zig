@@ -240,6 +240,10 @@ pub const Heap = struct {
     pkg: u32,
     pkgmap: std.StringArrayHashMapUnmanaged(u32) = .{},
 
+    roots: std.ArrayListUnmanaged(*u32) = .{},
+
+    please_tidy: bool = false,
+
     pub fn init(orb: Orb, era: Era) !Heap {
         return initWithLog(orb, era, null);
     }
@@ -306,12 +310,26 @@ pub const Heap = struct {
         const forms = try Sexp.readMany(heap, str);
         defer forms.deinit();
 
-        for (forms.items) |form| {
-            var run = Step.initRun(form);
-            result = Step.evaluate(heap, &run, 4_000_000) catch {
-                try Sexp.warn("failed", heap, form);
+        for (forms.items) |*x| {
+            try heap.roots.append(heap.orb, x);
+        }
+
+        defer {
+            for (forms.items) |_| {
+                _ = heap.roots.pop();
+            }
+        }
+
+        for (forms.items) |*form| {
+            var run = Step.initRun(form.*);
+
+            try heap.roots.append(heap.orb, form);
+            defer _ = heap.roots.pop();
+
+            result = Step.evaluate(heap, &run, 0) catch |e| {
+                try Sexp.warn("failed", heap, form.*);
                 try Sexp.warn("condition", heap, run.err);
-                break;
+                return e;
             };
         }
 
@@ -352,6 +370,8 @@ pub const Heap = struct {
         inline for (std.meta.fields(Vat)) |field| {
             @field(heap.vat, field.name).list.deinit(heap.orb);
         }
+
+        heap.roots.deinit(heap.orb);
     }
 
     pub fn bytesize(heap: Heap) usize {
@@ -423,7 +443,7 @@ pub const Heap = struct {
         p: u32,
     ) !u32 {
         if (Wisp.tagOf(p) != tag)
-            return Oof.Bug;
+            unreachable;
 
         return heap.col(tag, c)[ref(p)];
     }
@@ -497,6 +517,12 @@ pub const Heap = struct {
             try writer.writeIntLittle(u32, @intCast(u32, dat.len));
             for (dat) |x| {
                 try writer.writeIntLittle(u32, x);
+            }
+        }
+
+        for (dat) |x| {
+            if (x == 0xaaaaaaaa) {
+                unreachable;
             }
         }
 

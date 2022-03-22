@@ -62,6 +62,7 @@ pub fn init(old: *Heap) !Tidy {
             .keyPackage = old.keyPackage,
             .pkg = old.pkg,
             .pkgmap = old.pkgmap,
+            .roots = old.roots,
         },
     };
 }
@@ -69,6 +70,7 @@ pub fn init(old: *Heap) !Tidy {
 pub fn done(tidy: *Tidy) Heap {
     tidy.old.v08 = .{};
     tidy.old.pkgmap = .{};
+    tidy.old.roots = .{};
     tidy.old.deinit();
     return tidy.new;
 }
@@ -115,6 +117,7 @@ fn push(tidy: *Tidy, comptime tag: Tag, x: u32) !u32 {
 
     var c0 = tidy.old.col(tag, @intToEnum(Col(tag), 0));
     var c1 = tidy.old.col(tag, @intToEnum(Col(tag), 1));
+
     if (c0[ptr.idx] == Wisp.zap) return c1[ptr.idx];
 
     const new = if (tag == .v32)
@@ -157,6 +160,7 @@ fn pullV32(tidy: *Tidy) !void {
     const tab = &tidy.new.v32;
 
     var i = tab.scan;
+
     while (i < tab.list.items.len) : (i += 1) {
         try tidy.move(&tab.list.items[i]);
     }
