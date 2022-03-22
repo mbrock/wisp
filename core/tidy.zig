@@ -182,7 +182,7 @@ test "garbage collection of conses" {
 
     defer heap.deinit();
 
-    _ = try heap.new(.duo, .{ .car = 1, .cdr = 2 });
+    _ = try heap.cons(1, 2);
 
     const cons = Row(.duo){
         .car = 3,

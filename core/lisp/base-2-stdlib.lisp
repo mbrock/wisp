@@ -25,17 +25,3 @@
      (wtf t)
      (returning ,(prognify body)
        (wtf nil))))
-
-(defun test-call/cc ()
-  (defvar *plusser* nil)
-  (call/cc (fn (break)
-             (+ 10 (call/cc (fn (k)
-                              (progn
-                                (set! *plusser* k)
-                                (call break nil)))))))
-  (assert (eq? 11 (call *plusser* 1))))
-
-(defun test-1 ()
-  (handle 'foo
-          (fn () (+ 5 (send! 'foo 'bar)))
-          (fn (v k) (+ 1 (call k 3)))))

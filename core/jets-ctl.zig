@@ -52,13 +52,10 @@ pub fn @"LET"(step: *Step, bs: u32, e: u32) anyerror!void {
         const letsym = letduo.car;
         const letexp = try step.heap.get(.duo, .car, letduo.cdr);
 
-        const acc = try step.heap.new(.duo, .{
-            .car = letsym,
-            .cdr = try step.heap.new(.duo, .{
-                .car = e,
-                .cdr = Wisp.nil,
-            }),
-        });
+        const acc = try step.heap.cons(
+            letsym,
+            try step.heap.cons(e, Wisp.nil),
+        );
 
         step.run.way = try step.heap.new(.ktx, .{
             .hop = step.run.way,
@@ -87,10 +84,7 @@ pub fn IF(step: *Step, exp: u32, yay: u32, nay: u32) anyerror!void {
         .env = step.run.env,
         .fun = step.heap.kwd.IF,
         .acc = Wisp.nil,
-        .arg = try step.heap.new(.duo, .{
-            .car = yay,
-            .cdr = nay,
-        }),
+        .arg = try step.heap.cons(yay, nay),
     });
 
     step.run.way = ktx;

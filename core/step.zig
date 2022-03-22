@@ -38,10 +38,10 @@ pub var wtf = false;
 
 pub fn initRun(exp: u32) Run {
     return .{
-        .way = Wisp.top,
-        .env = Wisp.nil,
-        .err = Wisp.nil,
-        .val = Wisp.nah,
+        .way = top,
+        .env = nil,
+        .err = nil,
+        .val = nah,
         .exp = exp,
     };
 }
@@ -52,9 +52,13 @@ const expectEqualStrings = std.testing.expectEqualStrings;
 
 const Oof = Wisp.Oof;
 const Ptr = Wisp.Ptr;
-const ref = Wisp.ref;
-const nil = Wisp.nil;
+const Row = Wisp.Row;
 const nah = Wisp.nah;
+const nil = Wisp.nil;
+const ref = Wisp.ref;
+const t = Wisp.t;
+const tagOf = Wisp.tagOf;
+const top = Wisp.top;
 
 pub fn once(heap: *Heap, run: *Run) !void {
     var step = Step{ .heap = heap, .run = run };
@@ -62,7 +66,7 @@ pub fn once(heap: *Heap, run: *Run) !void {
 }
 
 fn makeCondition(step: *Step, err: anyerror) !u32 {
-    return if (step.run.err == Wisp.nil)
+    return if (step.run.err == nil)
         try step.heap.newv32(&.{
             step.heap.kwd.@"LOW-LEVEL-ERROR",
             try step.heap.newv08(@errorName(err)),
@@ -73,7 +77,7 @@ fn makeCondition(step: *Step, err: anyerror) !u32 {
 
 pub fn handleError(step: *Step, err: anyerror) !void {
     const condition = try step.makeCondition(err);
-    step.run.err = Wisp.nil;
+    step.run.err = nil;
     try Jets.Funs.@"SEND!"(step, step.heap.kwd.ERROR, condition);
 }
 
@@ -90,7 +94,7 @@ pub fn attemptOneStep(step: *Step) !void {
 
     if (val == nah) {
         if (wtf) try Sexp.warn("exp", heap, exp);
-        switch (Wisp.tagOf(exp)) {
+        switch (tagOf(exp)) {
             .int, .v08, .sys => step.give(.val, exp),
             .sym => return step.findVariable(exp),
             .duo => return step.intoPair(exp),
@@ -116,7 +120,7 @@ fn findVariable(step: *Step, sym: u32) !void {
     }
 
     switch (try step.heap.get(.sym, .val, sym)) {
-        Wisp.nah => {
+        nah => {
             const err = [2]u32{
                 step.heap.kwd.@"UNBOUND-VARIABLE",
                 sym,
@@ -150,7 +154,7 @@ fn intoPair(step: *Step, p: u32) !void {
 }
 
 fn intoCall(step: *Step, fun: u32, arg: u32) !void {
-    return switch (Wisp.tagOf(fun)) {
+    return switch (tagOf(fun)) {
         .jet => intoJet(step, fun, arg),
         .fun => intoFunction(step, fun, arg),
         .mac => intoMacro(step, fun, arg),
@@ -214,13 +218,13 @@ fn intoMacro(step: *Step, fun: u32, arg: u32) !void {
 }
 
 pub fn proceed(step: *Step, x: u32) !void {
-    if (step.run.way == Wisp.top) {
-        step.run.env = Wisp.nil;
+    if (step.run.way == top) {
+        step.run.env = nil;
         step.give(.val, x);
         return;
     }
 
-    switch (Wisp.tagOf(step.run.way)) {
+    switch (tagOf(step.run.way)) {
         .ktx => try step.execKtx(try step.heap.row(.ktx, step.run.way)),
 
         else => |tag| {
@@ -281,10 +285,10 @@ fn scan(
         }
     }
 
-    step.run.env = try step.heap.new(.duo, .{
-        .car = try step.heap.newv32(scope),
-        .cdr = step.run.env,
-    });
+    step.run.env = try step.heap.cons(
+        try step.heap.newv32(scope),
+        step.run.env,
+    );
 
     step.give(.exp, exp);
 }
@@ -300,7 +304,7 @@ pub fn call(
     var _tmp = std.heap.stackFallback(4096, step.heap.orb);
     var tmp = _tmp.get();
 
-    switch (Wisp.tagOf(funptr)) {
+    switch (tagOf(funptr)) {
         .jet => {
             try step.oper(funptr, args, rev);
         },
@@ -333,7 +337,7 @@ pub fn call(
         },
 
         .sys => {
-            if (funptr == Wisp.top) {
+            if (funptr == top) {
                 var vals = try scanListAlloc(step.heap, tmp, args);
                 defer vals.deinit();
 
@@ -361,10 +365,10 @@ pub fn composeContinuation(step: *Step, way: u32) !u32 {
     var new = try step.heap.copyAny(way);
     var cur = new;
 
-    while (cur != Wisp.top) {
-        cur = switch (Wisp.tagOf(cur)) {
+    while (cur != top) {
+        cur = switch (tagOf(cur)) {
             .ktx => try lookForTop(step, cur),
-            else => return Wisp.Oof.Bug,
+            else => return Oof.Bug,
         };
     }
 
@@ -376,9 +380,9 @@ fn lookForTop(
     cur: u32,
 ) !u32 {
     const hop = try step.heap.get(.ktx, .hop, cur);
-    if (hop == Wisp.top) {
+    if (hop == top) {
         try step.heap.set(.ktx, .hop, cur, step.run.way);
-        return Wisp.top;
+        return top;
     } else {
         const new = try step.heap.copy(.ktx, hop);
         try step.heap.set(.ktx, .hop, cur, new);
@@ -391,11 +395,8 @@ pub fn debug(heap: *Heap, txt: []const u8, val: u32) !void {
 }
 
 const Ktx = struct {
-    fn funargs(step: *Step, ktx: Wisp.Row(.ktx)) !void {
-        const acc = try step.heap.new(.duo, .{
-            .car = step.run.val,
-            .cdr = ktx.acc,
-        });
+    fn funargs(step: *Step, ktx: Row(.ktx)) !void {
+        const acc = try step.heap.cons(step.run.val, ktx.acc);
 
         // Come back to the environment of the call form.
         step.run.env = ktx.env;
@@ -418,7 +419,7 @@ const Ktx = struct {
         }
     }
 
-    fn EVAL(step: *Step, ktx: Wisp.Row(.ktx)) !void {
+    fn EVAL(step: *Step, ktx: Row(.ktx)) !void {
         const exp = step.run.val;
         step.run.* = .{
             .err = nil,
@@ -429,12 +430,12 @@ const Ktx = struct {
         };
     }
 
-    fn PROMPT(step: *Step, ktx: Wisp.Row(.ktx)) !void {
+    fn PROMPT(step: *Step, ktx: Row(.ktx)) !void {
         step.run.way = ktx.hop;
         step.run.env = ktx.env;
     }
 
-    fn PROGN(step: *Step, ktx: Wisp.Row(.ktx)) !void {
+    fn PROGN(step: *Step, ktx: Row(.ktx)) !void {
         if (ktx.arg == nil) {
             step.run.way = ktx.hop;
             step.run.env = ktx.env;
@@ -456,7 +457,7 @@ const Ktx = struct {
         }
     }
 
-    fn LET(step: *Step, ktx: Wisp.Row(.ktx)) !void {
+    fn LET(step: *Step, ktx: Row(.ktx)) !void {
         // LET (k v1 k1 ... x) ((k e) ...)
         const val = step.run.val;
 
@@ -475,19 +476,12 @@ const Ktx = struct {
             step.run.env = env;
             step.give(.exp, exp);
         } else {
-            const valacc = try step.heap.new(.duo, .{
-                .car = val,
-                .cdr = ktx.acc,
-            });
-
+            const valacc = try step.heap.cons(val, ktx.acc);
             const argduo = try step.heap.row(.duo, ktx.arg);
             const letduo = try step.heap.row(.duo, argduo.car);
             const letsym = letduo.car;
             const letexp = try step.heap.get(.duo, .car, letduo.cdr);
-            const symacc = try step.heap.new(.duo, .{
-                .car = letsym,
-                .cdr = valacc,
-            });
+            const symacc = try step.heap.cons(letsym, valacc);
 
             const way = try step.heap.new(.ktx, .{
                 .hop = ktx.hop,
@@ -503,7 +497,7 @@ const Ktx = struct {
         }
     }
 
-    fn IF(step: *Step, ktx: Wisp.Row(.ktx)) !void {
+    fn IF(step: *Step, ktx: Row(.ktx)) !void {
         const argduo = try step.heap.row(.duo, ktx.arg);
         const p = step.run.val != nil;
 
@@ -548,13 +542,10 @@ fn scanLetAcc(
         exp.* = curduo.car;
     }
 
-    return heap.new(.duo, .{
-        .car = try heap.newv32(scope.items),
-        .cdr = env,
-    });
+    return heap.cons(try heap.newv32(scope.items), env);
 }
 
-pub fn execKtx(step: *Step, ktx: Wisp.Row(.ktx)) !void {
+pub fn execKtx(step: *Step, ktx: Row(.ktx)) !void {
     if (ktx.fun == step.heap.kwd.PROGN)
         try Ktx.PROGN(step, ktx)
     else if (ktx.fun == step.heap.kwd.IF)
@@ -565,7 +556,7 @@ pub fn execKtx(step: *Step, ktx: Wisp.Row(.ktx)) !void {
         try Ktx.PROMPT(step, ktx)
     else if (ktx.fun == step.heap.kwd.EVAL)
         try Ktx.EVAL(step, ktx)
-    else switch (Wisp.tagOf(ktx.fun)) {
+    else switch (tagOf(ktx.fun)) {
         .jet => return Ktx.funargs(step, ktx),
         .fun => return Ktx.funargs(step, ktx),
 
@@ -603,7 +594,7 @@ pub const List = union(ListKind) {
 pub fn scanListAlloc(heap: *Heap, tmp: Wisp.Orb, list: u32) !std.ArrayList(u32) {
     return switch (try scanListAllocAllowDotted(heap, tmp, list)) {
         .proper => |xs| xs,
-        .dotted => Wisp.Oof.Err,
+        .dotted => Oof.Err,
     };
 }
 
@@ -612,7 +603,7 @@ pub fn scanListAllocAllowDotted(heap: *Heap, tmp: Wisp.Orb, list: u32) !List {
     errdefer xs.deinit();
 
     var cur = list;
-    while (Wisp.tagOf(cur) == .duo) {
+    while (tagOf(cur) == .duo) {
         const duo = try heap.row(.duo, cur);
         try xs.append(duo.car);
         cur = duo.cdr;
@@ -670,7 +661,7 @@ fn reverseList(heap: *Heap, list: u32) !u32 {
     var rev = nil;
     while (cur != nil) {
         const duo = try heap.row(.duo, cur);
-        rev = try heap.new(.duo, .{ .car = duo.car, .cdr = rev });
+        rev = try heap.cons(duo.car, rev);
         cur = duo.cdr;
     }
     return rev;
@@ -776,10 +767,10 @@ pub fn stepOver(heap: *Heap, run: *Run, limit: u32) !void {
 }
 
 pub fn getParentContinuation(heap: *Heap, way: u32) !u32 {
-    return switch (Wisp.tagOf(way)) {
+    return switch (tagOf(way)) {
         .ktx => heap.get(.ktx, .hop, way),
         .duo => heap.get(.duo, .cdr, way),
-        else => Wisp.Oof.Bug,
+        else => Oof.Bug,
     };
 }
 
@@ -799,7 +790,7 @@ pub fn evaluateUntilSpecificContinuation(
     limit: u32,
     breakpoint: u32,
 ) !u32 {
-    if (run.err != nil) return Wisp.Oof.Bug;
+    if (run.err != nil) return Oof.Bug;
 
     var step = Step{ .heap = heap, .run = run };
 
@@ -820,14 +811,14 @@ pub fn evaluateUntilSpecificContinuation(
             // });
         }
 
-        if ((run.way == breakpoint or run.way == Wisp.top) and run.val != Wisp.nah) {
+        if ((run.way == breakpoint or run.way == top) and run.val != nah) {
             return run.val;
         }
 
         if (once(heap, run)) {
             i += 1;
         } else |err| {
-            if (run.err == Wisp.nil) {
+            if (run.err == nil) {
                 run.err = try heap.newv32(
                     &[_]u32{heap.kwd.@"PROGRAM-ERROR"},
                 );
@@ -846,7 +837,7 @@ pub fn evaluate(heap: *Heap, run: *Run, limit: u32) !u32 {
         heap,
         run,
         limit,
-        Wisp.top,
+        top,
     );
 }
 

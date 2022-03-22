@@ -206,11 +206,7 @@ test "print lists" {
         try Wisp.list(&heap, [_]u32{ 1, 2, 3 }),
     );
 
-    try expectPrintResult(
-        &heap,
-        "(1 . 2)",
-        try heap.new(.duo, .{ .car = 1, .cdr = 2 }),
-    );
+    try expectPrintResult(&heap, "(1 . 2)", try heap.cons(1, 2));
 }
 
 test "print symbols" {

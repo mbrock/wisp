@@ -138,25 +138,19 @@ fn readWhile(
 fn readQuote(self: *Reader) !u32 {
     try self.skipOnly('\'');
     const x = try self.readValue();
-    return try self.heap.new(.duo, .{
-        .car = self.heap.kwd.QUOTE,
-        .cdr = try self.heap.new(.duo, .{
-            .car = x,
-            .cdr = Wisp.nil,
-        }),
-    });
+    return try self.heap.cons(
+        self.heap.kwd.QUOTE,
+        try self.heap.cons(x, Wisp.nil),
+    );
 }
 
 fn readBackquote(self: *Reader) !u32 {
     try self.skipOnly('`');
     const x = try self.readValue();
-    return try self.heap.new(.duo, .{
-        .car = self.heap.kwd.BACKQUOTE,
-        .cdr = try self.heap.new(.duo, .{
-            .car = x,
-            .cdr = Wisp.nil,
-        }),
-    });
+    return try self.heap.cons(
+        self.heap.kwd.BACKQUOTE,
+        try self.heap.cons(x, Wisp.nil),
+    );
 }
 
 fn readUnquote(self: *Reader) !u32 {
@@ -171,25 +165,19 @@ fn readUnquote(self: *Reader) !u32 {
     };
 
     const x = try self.readValue();
-    return try self.heap.new(.duo, .{
-        .car = kwd,
-        .cdr = try self.heap.new(.duo, .{
-            .car = x,
-            .cdr = Wisp.nil,
-        }),
-    });
+    return try self.heap.cons(
+        kwd,
+        try self.heap.cons(x, Wisp.nil),
+    );
 }
 
 fn readFunctionQuote(self: *Reader) !u32 {
     try self.skipOnly('\'');
     const x = try self.readValue();
-    return try self.heap.new(.duo, .{
-        .car = self.heap.kwd.FUNCTION,
-        .cdr = try self.heap.new(.duo, .{
-            .car = x,
-            .cdr = Wisp.nil,
-        }),
-    });
+    return try self.heap.cons(
+        self.heap.kwd.FUNCTION,
+        try self.heap.cons(x, Wisp.nil),
+    );
 }
 
 fn readHash(self: *Reader) !u32 {
@@ -327,10 +315,7 @@ fn readListTail(self: *Reader) anyerror!u32 {
             else => {
                 const car = try self.readValue();
                 const cdr = try self.readListTail();
-                return self.heap.new(.duo, .{
-                    .car = car,
-                    .cdr = cdr,
-                });
+                return self.heap.cons(car, cdr);
             },
         }
     } else {

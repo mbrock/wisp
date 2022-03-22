@@ -321,11 +321,11 @@ pub const Heap = struct {
     }
 
     pub fn cook(heap: *Heap) !void {
-        _ = try heap.load(@embedFile("./lisp/base-0.lisp"));
+        _ = try heap.load(@embedFile("./lisp/base-0-prelude.lisp"));
         _ = try heap.load(@embedFile("./lisp/base-1-backquote.lisp"));
-        _ = try heap.load(@embedFile("./lisp/base-2.lisp"));
-        _ = try heap.load(@embedFile("./lisp/base-3.lisp"));
-        _ = try heap.load(@embedFile("./lisp/base-test.lisp"));
+        _ = try heap.load(@embedFile("./lisp/base-2-stdlib.lisp"));
+        _ = try heap.load(@embedFile("./lisp/base-3-repl.lisp"));
+        _ = try heap.load(@embedFile("./lisp/base-x-test.lisp"));
     }
 
     fn initvar(heap: *Heap, txt: []const u8, val: u32) !void {
@@ -374,6 +374,10 @@ pub const Heap = struct {
 
     pub fn copy(heap: *Heap, comptime tag: Tag, ptr: u32) !u32 {
         return heap.new(tag, try heap.row(tag, ptr));
+    }
+
+    pub fn cons(heap: *Heap, car: u32, cdr: u32) !u32 {
+        return heap.new(.duo, .{ .car = car, .cdr = cdr });
     }
 
     pub fn copyAny(heap: *Heap, x: u32) !u32 {
@@ -541,10 +545,7 @@ pub const Heap = struct {
 
         const symptr = try heap.newSymbol(txt, pkgptr);
 
-        try heap.set(.pkg, .sym, pkgptr, try heap.new(.duo, .{
-            .car = symptr,
-            .cdr = pkg.sym,
-        }));
+        try heap.set(.pkg, .sym, pkgptr, try heap.cons(symptr, pkg.sym));
 
         return symptr;
     }
@@ -575,7 +576,7 @@ pub fn list(heap: *Heap, xs: anytype) !u32 {
     var i: u32 = @intCast(u32, xs.len);
     while (i >= 1) : (i -= 1) {
         const x = xs[i - 1];
-        cur = try heap.new(.duo, .{ .car = x, .cdr = cur });
+        cur = try heap.cons(x, cur);
     }
     return cur;
 }
