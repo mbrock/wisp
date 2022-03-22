@@ -6,6 +6,7 @@ type U32 = number
 
 const CLOCK = {
   REALTIME: 0,
+  MONOTONIC: 1,
 }
 
 export class WASI {
@@ -84,7 +85,8 @@ export class WASI {
         const view = this.getDataView()
 
         switch (clock_id) {
-          case CLOCK.REALTIME: {
+          case CLOCK.REALTIME:
+          case CLOCK.MONOTONIC: {
             const t = BigInt(Date.now()) * BigInt(1e6)
             view.setBigUint64(timestamp_out, t, true)
             break
