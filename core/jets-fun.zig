@@ -141,6 +141,10 @@ pub fn @"TAIL"(step: *Step, x: u32) anyerror!void {
     }
 }
 
+pub fn @"SYMBOL-FUNCTION"(step: *Step, sym: u32) anyerror!void {
+    step.give(.val, try step.heap.get(.sym, .fun, sym));
+}
+
 pub fn @"SET-SYMBOL-FUNCTION!"(
     step: *Step,
     sym: u32,
@@ -182,9 +186,10 @@ pub fn @"EQ?"(step: *Step, x: u32, y: u32) anyerror!void {
 }
 
 pub fn @"PRINT"(step: *Step, x: u32) anyerror!void {
-    const out = std.io.getStdOut().writer();
-    try Sexp.dump(step.heap, out, x);
-    try out.writeByte('\n');
+    const stdout = std.io.getStdOut().writer();
+    const pretty = try Sexp.prettyPrint(step.heap, x, 78);
+    defer step.heap.orb.free(pretty);
+    try stdout.print("{s}\n", .{pretty});
     step.give(.val, x);
 }
 
@@ -322,8 +327,19 @@ pub fn CODE(step: *Step, fun: u32) anyerror!void {
     return switch (tagOf(fun)) {
         .fun => step.give(.val, try step.heap.get(.fun, .exp, fun)),
         .mac => step.give(.val, try step.heap.get(.mac, .exp, fun)),
+        .jet => step.give(.val, nil),
         else => step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"}),
     };
+}
+
+pub fn @"SET-CODE!"(step: *Step, fun: u32, exp: u32) anyerror!void {
+    switch (tagOf(fun)) {
+        .fun => try step.heap.set(.fun, .exp, fun, exp),
+        .mac => try step.heap.set(.mac, .exp, fun, exp),
+        else => try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"}),
+    }
+
+    step.give(.val, fun);
 }
 
 pub fn AREF(step: *Step, vec: u32, idx: u32) anyerror!void {
@@ -604,4 +620,36 @@ pub fn @"RUN-VAL"(step: *Step, run: u32) anyerror!void {
 
 pub fn @"RUN-ERR"(step: *Step, run: u32) anyerror!void {
     step.give(.val, try step.heap.get(.run, .err, run));
+}
+
+pub fn @"MACROEXPAND-1"(step: *Step, code: u32) anyerror!void {
+    if (Wisp.tagOf(code) == .duo) {
+        const duo = try step.heap.row(.duo, code);
+        if (Wisp.tagOf(duo.car) == .sym) {
+            const fun = try step.heap.get(.sym, .fun, duo.car);
+            if (Wisp.tagOf(fun) == .mac) {
+                try step.call(fun, duo.cdr, false);
+                return;
+            }
+        }
+    }
+
+    step.give(.val, code);
+}
+
+pub fn @"PACKAGE-SYMBOLS"(step: *Step, pkg: u32) anyerror!void {
+    step.give(.val, try step.heap.get(.pkg, .sym, pkg));
+}
+
+pub fn @"FIND-PACKAGE"(step: *Step, name: u32) anyerror!void {
+    const bytes = try step.heap.v08slice(name);
+    if (step.heap.pkgmap.get(bytes)) |pkg| {
+        step.give(.val, pkg);
+    } else {
+        step.give(.val, nil);
+    }
+}
+
+pub fn @"JET?"(step: *Step, fun: u32) anyerror!void {
+    step.give(.val, if (Wisp.tagOf(fun) == .jet) t else nil);
 }

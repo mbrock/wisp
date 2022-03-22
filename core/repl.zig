@@ -70,7 +70,9 @@ pub fn repl() anyerror!void {
     defer heap.deinit();
 
     try Jets.load(&heap);
-    try heap.cook();
+
+    try heap.cookBase();
+    try heap.cookRepl();
 
     // var baseTestRun = Step.initRun(try Sexp.read(&heap, "(base-test)"));
 

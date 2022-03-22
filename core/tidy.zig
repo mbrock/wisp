@@ -61,12 +61,14 @@ pub fn init(old: *Heap) !Tidy {
             .keywordPackage = old.keywordPackage,
             .keyPackage = old.keyPackage,
             .pkg = old.pkg,
+            .pkgmap = old.pkgmap,
         },
     };
 }
 
 pub fn done(tidy: *Tidy) Heap {
     tidy.old.v08 = .{};
+    tidy.old.pkgmap = .{};
     tidy.old.deinit();
     return tidy.new;
 }
@@ -79,6 +81,10 @@ pub fn root(tidy: *Tidy) !void {
 
     inline for (std.meta.fields(@TypeOf(tidy.new.kwd))) |s| {
         try tidy.move(&@field(tidy.new.kwd, s.name));
+    }
+
+    for (tidy.new.pkgmap.entries.items(.value)) |*pkg| {
+        try tidy.move(pkg);
     }
 }
 

@@ -858,7 +858,7 @@ pub fn gcWithRunRoots(step: *Step) !void {
 pub fn newTestHeap() !Heap {
     var heap = try Heap.init(std.testing.allocator, .e0);
     try Jets.load(&heap);
-    try heap.cook();
+    try heap.cookBase();
     return heap;
 }
 
@@ -903,21 +903,14 @@ pub fn evalString(heap: *Heap, src: []const u8) !u32 {
     }
 }
 
-pub fn expectEval(want: []const u8, src: []const u8) !void {
-    var heap = try newTestHeap();
-    defer heap.deinit();
-
-    if (evalString(&heap, src)) |val| {
-        const valueString = try Sexp.printAlloc(heap.orb, &heap, val);
+pub fn expectEvalHeap(heap: *Heap, want: []const u8, src: []const u8) !void {
+    if (evalString(heap, src)) |val| {
+        const valueString = try Sexp.printAlloc(heap.orb, heap, val);
 
         defer heap.orb.free(valueString);
 
-        const wantValue = try Sexp.read(&heap, want);
-        const wantString = try Sexp.printAlloc(
-            heap.orb,
-            &heap,
-            wantValue,
-        );
+        const wantValue = try Sexp.read(heap, want);
+        const wantString = try Sexp.printAlloc(heap.orb, heap, wantValue);
 
         defer heap.orb.free(wantString);
 
@@ -925,6 +918,13 @@ pub fn expectEval(want: []const u8, src: []const u8) !void {
     } else |e| {
         return e;
     }
+}
+
+pub fn expectEval(want: []const u8, src: []const u8) !void {
+    var heap = try newTestHeap();
+    defer heap.deinit();
+
+    try expectEvalHeap(&heap, want, src);
 }
 
 test "(+ 1 2 3) => 6" {
@@ -1012,7 +1012,11 @@ test "DEFUN" {
 }
 
 test "base test suite" {
-    try expectEval("nil", "(base-test)");
+    var heap = try newTestHeap();
+    defer heap.deinit();
+
+    try heap.cookTest();
+    try expectEvalHeap(&heap, "nil", "(base-test)");
 }
 
 test "FUNCALL" {

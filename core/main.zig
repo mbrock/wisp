@@ -59,7 +59,8 @@ pub fn main() anyerror!void {
         defer heap.deinit();
 
         try Jets.load(&heap);
-        try heap.cook();
+        try heap.cookBase();
+        try heap.cookRepl();
 
         const result = try heap.load(code);
 
@@ -75,7 +76,8 @@ pub fn main() anyerror!void {
         defer heap.deinit();
 
         try Jets.load(&heap);
-        try heap.cook();
+        try heap.cookBase();
+        try heap.cookRepl();
 
         _ = try heap.load("(repl)");
     } else if (std.mem.eql(u8, cmd, "eval")) {
@@ -85,7 +87,8 @@ pub fn main() anyerror!void {
         defer heap.deinit();
 
         try Jets.load(&heap);
-        try heap.cook();
+        try heap.cookBase();
+        try heap.cookRepl();
 
         const result = try heap.load(code);
 

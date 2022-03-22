@@ -44,11 +44,11 @@
 (defun not (x)
   (if x nil t))
 
-(defmacro and (x y)
-  (list 'if x y nil))
+(defmacro and-2 (x y)
+  (list 'if x y x))
 
-(defmacro or (x y)
-  (list 'if x t y))
+(defmacro or-2 (x y)
+  (list 'if x x y))
 
 (defun atom? (x)
   (not (eq? 'cons (type-of x))))
@@ -85,6 +85,9 @@
       (if (nil? (tail xs)) xs
           (last (tail xs)))))
 
+(defun second (xs)
+  (head (tail xs)))
+
 (defun %cond (clauses)
   (if (nil? clauses) nil
       (let ((x (head clauses)))
@@ -105,7 +108,15 @@
                       (call f x (head xs))
                       (tail xs)))))
 
+(defun length-aux (xs n)
+  (if (nil? xs) n
+      (length-aux (tail xs) (+ n 1))))
+
+(defun length (xs)
+  (length-aux xs 0))
+
 (defun reduce (f xs init)
+  ;; TODO: version that ignores init when (length xs) is 2
   (reduce-loop f init xs))
 
 (defun append-2 (xs ys)
@@ -115,6 +126,12 @@
 
 (defun append (&rest xss)
   (reduce #'append-2 xss '()))
+
+(defmacro and (&rest xs)
+  (reduce #'and-2 xs t))
+
+(defmacro or (&rest xs)
+  (reduce #'or-2 xs nil))
 
 (defun remove-if (f xs)
   (if (nil? xs) nil

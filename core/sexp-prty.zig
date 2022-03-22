@@ -294,6 +294,15 @@ pub fn join(gpa: Gpa, xss: []const Doc) !Doc {
     }
 }
 
+fn hangList(heap: *Wisp.Heap, items: []u32) ?usize {
+    if (hang(heap, items[0])) |n| {
+        if (n < items.len)
+            return n;
+    }
+
+    return null;
+}
+
 fn hang(heap: *Wisp.Heap, car: u32) ?usize {
     if (car == heap.kwd.DEFUN)
         return 3
@@ -329,7 +338,7 @@ pub fn pretty(gpa: Gpa, heap: *Wisp.Heap, exp: u32) anyerror!Doc {
 
             var items = array.items;
 
-            if (hang(heap, array.items[0])) |n| {
+            if (hangList(heap, array.items)) |n| {
                 if (list.isDotted())
                     return Wisp.Oof.Err;
 

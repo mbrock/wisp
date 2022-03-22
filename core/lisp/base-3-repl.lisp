@@ -67,13 +67,16 @@
                      (catch (e k)
                        (returning nil
                          (print (list 'read-error e)))))))
-          (progn
-            (try (print (eval exp))
-              (catch (e k)
-                (print (list 'error e))
-                (print (list 'context (show-ktx k)))
-                (call k (ask))))
-            (repl))))))
+          (cond
+            ((eq? exp 'quit) 'bye)
+            (t
+             (progn
+               (try (print (eval exp))
+                 (catch (e k)
+                   (print (list 'error e))
+                   (print (list 'context (show-ktx k)))
+                   (call k (ask))))
+               (repl))))))))
 
 (defun show-ktx (k)
   (ktx-show k '⛳))
@@ -84,3 +87,5 @@
       (print (list 'context (ktx-show (run-way run)
                                       (list '⛳ (head now) (tail now)))))
       (step! run))))
+
+(compile-many! (find-package "WISP"))

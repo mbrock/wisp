@@ -146,7 +146,7 @@ pub fn Tab(comptime tag: Tag) type {
         pub fn new(tab: *This, orb: Orb, era: Era, row: Row(tag)) !u32 {
             const len = tab.list.len;
 
-            if (len > 0 and @mod(len, 10_000) == 0) {
+            if (len > 0 and @mod(len, 100_000) == 0) {
                 const bytes = @sizeOf(Row(tag)) * len;
                 std.log.info("tag {s} has {d}K rows, ~{d} KB", .{
                     @tagName(tag),
@@ -308,7 +308,7 @@ pub const Heap = struct {
 
         for (forms.items) |form| {
             var run = Step.initRun(form);
-            result = Step.evaluate(heap, &run, 1_000_000) catch {
+            result = Step.evaluate(heap, &run, 4_000_000) catch {
                 try Sexp.warn("failed", heap, form);
                 try Sexp.warn("condition", heap, run.err);
                 break;
@@ -320,11 +320,17 @@ pub const Heap = struct {
         return result;
     }
 
-    pub fn cook(heap: *Heap) !void {
+    pub fn cookBase(heap: *Heap) !void {
         _ = try heap.load(@embedFile("./lisp/base-0-prelude.lisp"));
         _ = try heap.load(@embedFile("./lisp/base-1-backquote.lisp"));
         _ = try heap.load(@embedFile("./lisp/base-2-stdlib.lisp"));
+    }
+
+    pub fn cookRepl(heap: *Heap) !void {
         _ = try heap.load(@embedFile("./lisp/base-3-repl.lisp"));
+    }
+
+    pub fn cookTest(heap: *Heap) !void {
         _ = try heap.load(@embedFile("./lisp/base-x-test.lisp"));
     }
 
@@ -369,7 +375,7 @@ pub const Heap = struct {
             }
         }
 
-        return heap.tab(tag).new(heap.orb, heap.era, data);
+        return try heap.tab(tag).new(heap.orb, heap.era, data);
     }
 
     pub fn copy(heap: *Heap, comptime tag: Tag, ptr: u32) !u32 {

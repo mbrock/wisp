@@ -58,7 +58,8 @@ fn heap_init() !*Wisp.Heap {
     var heap = try orb.create(Wisp.Heap);
     heap.* = try Wisp.Heap.init(orb, .e0);
     try Jets.load(heap);
-    try heap.cook();
+    try heap.cookBase();
+    try heap.cookRepl();
     return heap;
 }
 
