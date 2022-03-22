@@ -47,10 +47,10 @@ pub fn main() anyerror!void {
 
     _ = args.skip(); // skip the program name
 
-    const cmd = try (args.next(tmp) orelse return help(stderr));
+    const cmd = args.next() orelse return help(stderr);
 
     if (std.mem.eql(u8, cmd, "run")) {
-        const path = try (args.next(tmp) orelse return help(stderr));
+        const path = args.next() orelse return help(stderr);
         const root = try File.cwd(tmp);
         const file = try root.openFile(path, .{});
         const code = try file.readToEndAlloc(tmp, maxCodeSize);
@@ -79,7 +79,7 @@ pub fn main() anyerror!void {
 
         _ = try heap.load("(repl)");
     } else if (std.mem.eql(u8, cmd, "eval")) {
-        const code = try (args.next(tmp) orelse return help(stderr));
+        const code = args.next() orelse return help(stderr);
 
         var heap = try Wisp.Heap.init(tmp, .e0);
         defer heap.deinit();
