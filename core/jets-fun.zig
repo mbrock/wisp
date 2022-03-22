@@ -380,7 +380,7 @@ pub fn @"PROGNIFY"(step: *Step, arg: u32) anyerror!void {
 /// This is a continuation control operator.  It invokes a thunk
 /// in the context of a new prompt with the given tag and
 /// handler function.
-pub fn HANDLE(
+pub fn @"CALL-WITH-PROMPT"(
     step: *Step,
     TAG: u32,
     THUNK: u32,
@@ -414,7 +414,7 @@ pub fn @"SEND!"(
     // Then we invoke the handler function with the given value
     // and the delimited continuation we've created.
     //
-    //     𝐸₁[handle 𝐸₂[send 𝑣] 𝑒] ⟶ 𝐸₁[𝑒 𝑣 (λ𝑥. 𝐸₂[𝑥])]
+    //   𝐸₁[call-with-prompt 𝐸₂[send 𝑣] 𝑒] ⟶ 𝐸₁[𝑒 𝑣 (λ𝑥. 𝐸₂[𝑥])]
     //
 
     if (try copyContinuationSlice(

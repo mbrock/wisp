@@ -29,6 +29,6 @@
   (assert (eq? *x* 2))
 
   (assert (eq? 3
-               (handle 'error
-                       (fn () (+ 1 (/ 1 0)))
-                       (fn (e k) (call k 2))))))
+               (handle (+ 1 (/ 1 0))
+                 (error (e k)
+                  (call k 2))))))

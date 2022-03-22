@@ -63,25 +63,21 @@
   (let ((src (read-line)))
     (if (nil? src)
         'bye
-        (let ((exp (read src)))
+        (let ((exp (handle (read src)
+                     (error (e k)
+                      (returning nil
+                        (print (list 'read-error e)))))))
           (progn
-            (handle
-             'error
-             (fn () (print (eval exp)))
-             (fn (condition continuation)
-                 (progn
-                   (print (list 'error condition))
-                   (print
-                    (list 'context
-                          (show-ktx continuation)))
-                   (call continuation (ask)))))
+            (handle (print (eval exp))
+              (error (e k)
+               (progn
+                 (print (list 'error e))
+                 (print (list 'context (show-ktx k)))
+                 (call k (ask)))))
             (repl))))))
 
 (defun show-ktx (k)
   (ktx-show k '⛳))
-
-(defun foo-test ()
-  (handle 'foo (fn () (send! 'foo 'bar)) (fn (v k) v)))
 
 (defun do-step! (run)
   (let ((now (run-exp run)))

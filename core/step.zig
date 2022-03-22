@@ -1073,12 +1073,12 @@ test "GENKEY!" {
     try std.testing.expect(x != y);
 }
 
-test "HANDLE" {
+test "CALL-WITH-PROMPT" {
     var heap = try newTestHeap();
     defer heap.deinit();
 
     const x = try evalString(&heap,
-        \\(handle 'foo
+        \\(call-with-prompt 'foo
         \\ (fn () 1)
         \\ (fn (v k)
         \\   k))
