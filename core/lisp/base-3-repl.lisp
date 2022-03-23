@@ -90,3 +90,8 @@
       (step! run))))
 
 (compile-many! (find-package "WISP"))
+
+(defmacro plus (x y)
+  (if (eq? x 0)
+      y
+      (plus (- x 1) (+ y 1))))

@@ -21,6 +21,8 @@ const std = @import("std");
 
 const Wisp = @import("./wisp.zig");
 const Jets = @import("./jets.zig");
+const Prty = @import("./sexp-prty.zig");
+
 const Heap = Wisp.Heap;
 
 test "print one" {
@@ -51,9 +53,10 @@ pub fn printAlloc(
 }
 
 pub fn warn(prefix: []const u8, heap: *Heap, word: u32) !void {
-    var s = try printAlloc(heap.orb, heap, word);
-    std.log.warn("{s} {s}", .{ prefix, s });
-    heap.orb.free(s);
+    var s = try Prty.prettyPrint(heap, word, 72);
+    defer heap.orb.free(s);
+    const stderr = std.io.getStdErr().writer();
+    try stderr.print("; {s}\n{s}\n", .{ prefix, s });
 }
 
 pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {

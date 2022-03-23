@@ -17,6 +17,10 @@
 ;; <https://www.gnu.org/licenses/>.
 ;;
 
+
+
+;;; * Various useful functions and macros
+
 (defmacro assert (x)
   `(if ,x nil (error ',x)))
 
@@ -26,12 +30,54 @@
      (returning ,(prognify body)
        (wtf nil))))
 
+(defun %let* (clauses body)
+  (if (nil? clauses)
+      body
+      (let ((var (head (head clauses)))
+            (exp (second (head clauses))))
+        `(let ((,var ,exp))
+           ,(%let* (tail clauses) body)))))
+
+(defmacro let* (clauses &rest body)
+  (%let* clauses (prognify body)))
+
+(defun fix (f)
+  (call f f))
+
+(defun for-each (xs f)
+  (if (nil? xs) nil
+      (progn
+        (call f (head xs))
+        (for-each (tail xs) f))))
+
+(defmacro when (condition &rest body)
+  `(if ,condition ,(prognify body) nil))
+
+
+
+;;; * Utilities for delimited continuation control
+
+(defun send-or-invoke (tag value function)
+  (let* ((default (fresh-symbol!))
+         (result (send-with-default! tag value default)))
+    (if (eq? result default)
+        (function value)
+        result)))
+
+(defun error (&rest xs)
+  (send-or-invoke 'error xs #'unhandled-error))
+
+(defun send! (tag value)
+  (send-or-invoke tag value
+                  (fn (x)
+                    (error 'prompt-tag-missing tag))))
+
 (defmacro handle (body clause)
   (let ((tag-name (head clause))
         (handler-args (head (tail clause)))
         (handler-body (tail (tail clause))))
     `(call-with-prompt ',tag-name
-       (fn () ,body)
+         (fn () ,body)
        (fn ,handler-args ,(prognify handler-body)))))
 
 (defmacro try (body clause)
@@ -39,19 +85,66 @@
         (handler-args (head (tail clause)))
         (handler-body (tail (tail clause))))
     `(call-with-prompt 'error
-       (fn () ,body)
+         (fn () ,body)
        (fn ,handler-args ,(prognify handler-body)))))
 
-(defun fixpoint (f x)
+
+
+;;; * Parameters with dynamic scope
+;;;
+;;; A dynamic binding is just a prompt with a handler that
+;;; resumes its continuation with the binding's value.
+;;;
+;;; Each dynamic variable ("parameter") has its own prompt tag.
+;;; The prompt tag is the value returned by ~MAKE-PARAMETER~.
+;;;
+;;; We also allow "mutating" the current dynamic binding of a
+;;; parameter by sending a singleton list to its prompt.
+;;;
+;;; If we had something like ~DEFINE-SYMBOL-MACRO~, we could
+;;; access parameters as if they were variables... that would
+;;; be nice.
+
+(defun make-parameter (name default-value)
+  (list name default-value))
+
+(defun parameter (parameter)
+  (let ((default (second parameter)))
+    (send-with-default! parameter 'get default)))
+
+(defun call-with-parameter (parameter value function)
+  (call-with-prompt parameter function
+    (fn (request continuation)
+      (let ((next-value (if (eq? request 'get)
+                            value
+                            (head request))))
+        (call-with-parameter parameter next-value
+          (fn () (call continuation next-value)))))))
+
+(defmacro with (parameter value &rest body)
+  `(call-with-parameter ,parameter ,value
+     (fn () ,(prognify body))))
+
+
+
+;;; * Macroexpansion
+;;;
+;;; We define a code walker that can expand macros recursively.
+;;;
+;;; Unfortunately, this makes recursive macros loop forever.
+;;; Maybe a recursion limit would be a reasonable way to
+;;; solve that.
+
+(defun iterative-fixpoint (f x)
   (let ((y (call f x)))
     (if (eq? x y) x
-        (fixpoint f y))))
+        (iterative-fixpoint f y))))
 
 (defun macroexpand (form)
-  (fixpoint #'macroexpand-1 form))
+  (iterative-fixpoint #'macroexpand-1 form))
 
 (defun macroexpand-completely (form)
-  (fixpoint #'macroexpand-recursively form))
+  (iterative-fixpoint #'macroexpand-recursively form))
 
 (defun macroexpand-recursively (form)
   (if (atom? form) form
@@ -93,6 +186,7 @@
                  form
                  (macroexpand-completely expansion))))))))
 
+;;; Now we redefine DEFUN to use macroexpansion.
 (defmacro defun (name args &rest body)
   (progn
     (print (list 'defun name args))
@@ -101,23 +195,16 @@
              (prognify body))))
       `(set-symbol-function! ',name (fn ,args ,expanded-body)))))
 
+;;; We can also mutate the code of a function or macro.
 (defun compile! (function)
   (set-code! function (macroexpand-completely (code function))))
 
-(defun each! (xs f)
-  (if (nil? xs) nil
-      (progn
-        (call f (head xs))
-        (each! (tail xs) f))))
-
-(defmacro when (condition &rest body)
-  `(if ,condition ,(prognify body) nil))
-
+;;; Now we can go back and compile everything in the package.
 (defun compile-many! (package)
-  (each! (package-symbols package)
-         (fn (symbol)
-           (let ((function (symbol-function symbol)))
-             (when (and function
-                        (not (jet? function)))
-               (print (list 'macroexpanding symbol))
-               (compile! function))))))
+  (for-each (package-symbols package)
+    (fn (symbol)
+      (let ((function (symbol-function symbol)))
+        (when (and function
+                   (not (jet? function)))
+          (print (list 'macroexpanding symbol))
+          (compile! function))))))

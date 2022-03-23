@@ -271,7 +271,7 @@ fn readNumber(self: *Reader) !u32 {
     const str = try self.readWhile(ziglyph.isAsciiDigit);
 
     var result: i31 = 0;
-    var magnitude = std.math.pow(i31, 10, @intCast(i31, str.len - 1));
+    var magnitude = try std.math.powi(i31, 10, @intCast(i31, str.len - 1));
     for (str) |c| {
         result += magnitude * (c - '0');
         if (magnitude > 1) {

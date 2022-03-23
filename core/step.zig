@@ -78,7 +78,7 @@ fn makeCondition(step: *Step, err: anyerror) !u32 {
 pub fn handleError(step: *Step, err: anyerror) !void {
     const condition = try step.makeCondition(err);
     step.run.err = nil;
-    try Jets.Funs.@"SEND!"(step, step.heap.kwd.ERROR, condition);
+    try Jets.Funs.@"SEND-WITH-DEFAULT!"(step, step.heap.kwd.ERROR, condition, Wisp.nah);
 }
 
 pub fn attemptOneStep(step: *Step) !void {
@@ -90,6 +90,7 @@ pub fn attemptOneStep(step: *Step) !void {
     if (wtf) {
         std.log.warn("\n", .{});
         try Sexp.warn("env", heap, run.env);
+        try Sexp.warn("ktx", heap, run.way);
     }
 
     if (val == nah) {
@@ -310,6 +311,10 @@ pub fn call(
     var _tmp = std.heap.stackFallback(4096, step.heap.orb);
     var tmp = _tmp.get();
 
+    if (wtf) {
+        try step.warn("call", funptr);
+    }
+
     switch (tagOf(funptr)) {
         .jet => {
             try step.oper(funptr, args, rev);
@@ -352,7 +357,7 @@ pub fn call(
                         &[_]u32{step.heap.kwd.@"PROGRAM-ERROR"},
                     );
                 } else {
-                    step.run.way = funptr;
+                    step.run.way = try step.composeContinuation(funptr);
                     try step.proceed(vals.items[0]);
                 }
             } else {
@@ -367,18 +372,26 @@ pub fn call(
     }
 }
 
+pub fn warn(step: *Step, text: []const u8, exp: u32) !void {
+    try Sexp.warn(text, step.heap, exp);
+}
+
 pub fn composeContinuation(step: *Step, way: u32) !u32 {
-    var new = try step.heap.copyAny(way);
-    var cur = new;
+    if (way == top) {
+        return step.run.way;
+    } else {
+        var new = try step.heap.copyAny(way);
+        var cur = new;
 
-    while (cur != top) {
-        cur = switch (tagOf(cur)) {
-            .ktx => try lookForTop(step, cur),
-            else => return Oof.Bug,
-        };
+        while (cur != top) {
+            cur = switch (tagOf(cur)) {
+                .ktx => try lookForTop(step, cur),
+                else => return Oof.Bug,
+            };
+        }
+
+        return new;
     }
-
-    return new;
 }
 
 fn lookForTop(

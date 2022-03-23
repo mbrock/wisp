@@ -14,8 +14,11 @@
      (fn (as lambda))
      (handle (4 &rest (&whole 2 &rest 1)))
      (try (2 &rest (&whole 2 &rest 1)))
-     (call-with-prompt 1)
-     (returning 1)))
+     (call-with-prompt 2)
+     (call-with-parameter 2)
+     (returning 1)
+     (for-each 1)
+     ))
 
   (common-lisp-set-style "wisp"))
 

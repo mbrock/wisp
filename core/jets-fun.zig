@@ -219,10 +219,6 @@ pub fn @"TYPE-OF"(step: *Step, x: u32) anyerror!void {
     }
 }
 
-pub fn @"ERROR"(step: *Step, xs: []u32) anyerror!void {
-    try step.fail(xs);
-}
-
 pub fn @"GET/CC"(step: *Step) anyerror!void {
     step.give(.val, step.run.way);
 }
@@ -365,6 +361,10 @@ pub fn @"GENKEY!"(step: *Step) anyerror!void {
     step.give(.val, try step.heap.genkey());
 }
 
+pub fn @"FRESH-SYMBOL!"(step: *Step) anyerror!void {
+    step.give(.val, try step.heap.genkey());
+}
+
 pub fn @"KEY?"(step: *Step, val: u32) anyerror!void {
     switch (tagOf(val)) {
         .sym => {
@@ -416,13 +416,14 @@ pub fn @"CALL-WITH-PROMPT"(
 }
 
 /// This is a continuation control operator.
-pub fn @"SEND!"(
+pub fn @"SEND-WITH-DEFAULT!"(
     step: *Step,
     TAG: u32,
     VALUE: u32,
+    DEFAULT: u32,
 ) anyerror!void {
     // We search the current context for a prompt that matches
-    // the tag.  If we don't find it, that's an error.
+    // the tag.  If we don't find it, return DEFAULT.
     //
     // As we're searching, we're copying the context, ending
     // with TOP when we get to the matching tag.
@@ -452,10 +453,11 @@ pub fn @"SEND!"(
 
         return step.call(result.handler, args, false);
     } else {
-        return step.fail(&[_]u32{
-            step.heap.kwd.@"PROMPT-TAG-MISSING",
-            TAG,
-        });
+        if (DEFAULT == Wisp.nah) {
+            try step.fail(&.{step.heap.kwd.@"UNHANDLED-ERROR"});
+        } else {
+            step.give(.val, DEFAULT);
+        }
     }
 }
 

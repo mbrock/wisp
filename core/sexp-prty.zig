@@ -37,8 +37,8 @@ fn copy(gpa: Gpa, str: Str) !Str {
     return new;
 }
 
-fn insertIndent(n: u8, str: *Str, gpa: Gpa) !void {
-    var i: u8 = 0;
+fn insertIndent(n: u16, str: *Str, gpa: Gpa) !void {
+    var i: u16 = 0;
     while (i < n) : (i += 1)
         try str.insert(gpa, 0, ' ');
 }
@@ -46,8 +46,8 @@ fn insertIndent(n: u8, str: *Str, gpa: Gpa) !void {
 const Box = struct {
     txt: Txt = .{},
     len: u16,
-    fin: u8,
-    max: u8,
+    fin: u16,
+    max: u16,
 
     pub fn text(bytes: []const u8, gpa: Gpa) !Box {
         var str = try Str.initCapacity(gpa, bytes.len);
@@ -58,8 +58,8 @@ const Box = struct {
 
         return Box{
             .len = 0,
-            .fin = @intCast(u8, str.items.len),
-            .max = @intCast(u8, str.items.len),
+            .fin = @intCast(u16, str.items.len),
+            .max = @intCast(u16, str.items.len),
             .txt = txt,
         };
     }
@@ -69,7 +69,7 @@ const Box = struct {
         box.txt.deinit(gpa);
     }
 
-    pub fn indent(box: Box, n: u8, gpa: Gpa) !Box {
+    pub fn indent(box: Box, n: u16, gpa: Gpa) !Box {
         var box2 = Box{
             .len = box.len,
             .fin = box.fin + n,
@@ -123,7 +123,7 @@ const Box = struct {
 
         for (b.txt.items[1 .. b.len + 1]) |bs| {
             var x = try copy(gpa, bs);
-            try insertIndent(@intCast(u8, lastA.items.len), &x, gpa);
+            try insertIndent(@intCast(u16, lastA.items.len), &x, gpa);
             try c.txt.append(gpa, x);
         }
 

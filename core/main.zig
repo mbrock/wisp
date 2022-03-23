@@ -80,6 +80,9 @@ pub fn main() anyerror!void {
         try heap.cookRepl();
 
         _ = try heap.load("(repl)");
+
+        try stderr.print(";; repl finished\n", .{});
+        @breakpoint();
     } else if (std.mem.eql(u8, cmd, "eval")) {
         const code = args.next() orelse return help(stderr);
 

@@ -101,6 +101,7 @@ pub const Kwd = enum {
     @"PACKAGE-ERROR",
     @"PROGRAM-ERROR",
     @"PROMPT-TAG-MISSING",
+    @"UNHANDLED-ERROR",
     @"TYPE-MISMATCH",
     @"UNBOUND-VARIABLE",
     @"UNDEFINED-FUNCTION",
