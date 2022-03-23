@@ -88,6 +88,9 @@
 (defun second (xs)
   (head (tail xs)))
 
+(defun third (xs)
+  (head (tail (tail xs))))
+
 (defun %cond (clauses)
   (if (nil? clauses) nil
       (let ((x (head clauses)))

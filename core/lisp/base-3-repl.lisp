@@ -90,3 +90,84 @@
       (step! run))))
 
 (compile-many! (find-package "WISP"))
+
+
+
+;;; * Asynchronous event loop using delimited continuation control
+
+(defun make-actor (continuation)
+  (let ((pid (fresh-symbol!))
+        (inbox '()))
+    (vector :actor pid inbox continuation)))
+
+(defun actor-pid (actor)
+  (vector-get actor 1))
+
+(defun actor-inbox (actor)
+  (vector-get actor 2))
+
+(defun actor-continuation (actor)
+  (vector-get actor 3))
+
+(defun actor-push! (actor message)
+  (vector-set! actor 2 (append (actor-inbox actor)
+                               (list message))))
+
+(defun set-actor-continuation! (actor continuation)
+  (vector-set! actor 3 continuation))
+
+(defun find-actor (actors pid)
+  (if (nil? actors actors)
+      (error 'no-such-actor pid)
+      (let ((actor (head actors)))
+        (if (eq? (actor-pid actor) pid)
+            actor
+            (find-actor (tail actors) pid)))))
+
+(defun engine-act (actors self value)
+  (let* ((yield-handler
+           (fn (request continuation)
+             (if (atom? request)
+                 (error 'bad-request)
+                 (ecase (head request)
+                   (:spawn
+                    (let ((actor (make-actor (second request))))
+                      (progn
+                        (set-actor-continuation! self continuation)
+                        (engine-act (cons actor actors)
+                                    self
+                                    (actor-pid actor)))))
+                   (:send
+                    (let* ((pid (second request))
+                           (message (third request))
+                           (actor (find-actor actors pid)))
+                      (actor-push! actor (cons (actor-pid self) message))
+                      (set-actor-continuation! self continuation)
+                      (engine-act actors self nil))))))))
+    (call-with-prompt :yield
+        (fn () (call (actor-continuation self) value))
+      handle-yield)))
+
+(defun start-engine (root)
+  (let* ((self (make-actor root))
+         (actors (list self)))
+    (engine-act actors self)))
+
+(defun spawn (function)
+  (send! :yield (list :spawn function)))
+
+(defun engine-example ()
+  (start-engine (fn (self)
+                  (let* ((a (spawn (fn (a)
+                                     (progn
+                                       (print (list 'a a))))))
+                         (b (spawn (fn (b)
+                                     (progn
+                                       (print (list 'b b)))))))
+                    (print (list 'a a 'b b))))))
+
+(defun debug (run n)
+  (if (eq? n 0) run
+      (progn
+        (do-step! run)
+        (debug run (- n 1)))))

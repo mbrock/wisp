@@ -53,6 +53,19 @@
 (defmacro when (condition &rest body)
   `(if ,condition ,(prognify body) nil))
 
+(defun %case->cond (thing clauses)
+  (if (nil? clauses) nil
+      (cons `((eq? ,thing ',(head (head clauses)))
+              ,(prognify (tail (head clauses))))
+            (%case->cond thing (tail clauses)))))
+
+(defmacro ecase (thing &rest clauses)
+  (let ((thing-variable (fresh-symbol!)))
+    `(let ((,thing-variable ,thing))
+       (cond
+         ,@(%case->cond thing-variable clauses)
+         (t (error 'case-fail ,thing-variable))))))
+
 
 
 ;;; * Utilities for delimited continuation control

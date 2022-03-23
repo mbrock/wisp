@@ -338,12 +338,28 @@ pub fn @"SET-CODE!"(step: *Step, fun: u32, exp: u32) anyerror!void {
     step.give(.val, fun);
 }
 
-pub fn AREF(step: *Step, vec: u32, idx: u32) anyerror!void {
+pub fn @"VECTOR-GET"(step: *Step, vec: u32, idx: u32) anyerror!void {
     switch (tagOf(vec)) {
         .v32 => {
             const xs = try step.heap.v32slice(vec);
             if (tagOf(idx) == .int and idx < xs.len) {
                 step.give(.val, xs[idx]);
+            } else {
+                try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"});
+            }
+        },
+
+        else => try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"}),
+    }
+}
+
+pub fn @"VECTOR-SET!"(step: *Step, vec: u32, idx: u32, val: u32) anyerror!void {
+    switch (tagOf(vec)) {
+        .v32 => {
+            const xs = try step.heap.v32slice(vec);
+            if (tagOf(idx) == .int and idx < xs.len) {
+                xs[idx] = val;
+                step.give(.val, val);
             } else {
                 try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"});
             }
@@ -659,4 +675,8 @@ pub fn @"JET?"(step: *Step, fun: u32) anyerror!void {
 pub fn @"GC"(step: *Step) anyerror!void {
     step.heap.please_tidy = true;
     step.give(.val, nil);
+}
+
+pub fn @"VECTOR"(step: *Step, xs: []u32) anyerror!void {
+    step.give(.val, try step.heap.newv32(xs));
 }
