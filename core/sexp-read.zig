@@ -355,7 +355,10 @@ fn skipLine(self: *Reader) !void {
 fn skipSpace(self: *Reader) !void {
     while (try self.peek()) |c| {
         switch (c) {
-            ' ', '\n' => {
+            ' ',
+            '\n',
+            12, // ^L, page break character
+            => {
                 _ = try self.skip();
             },
 
