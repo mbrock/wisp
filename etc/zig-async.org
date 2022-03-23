@@ -1,0 +1,223 @@
+#+AUTHOR: Miss Mull on the Zig Discord
+
+* Coroutines
+
+A traditional function call performs four operations:
+
+  1. Initiate the called function
+  2. Transfer control to it
+  3. Wait until it completes
+  4. Retrieve its return value
+
+If we think of our program as only doing one thing at once, then it
+makes sense to indivisibly combine these four. However, say your
+program has some long-running components, or some parts of it have to
+wait for some external action (i.e. user input, or interfacing with
+the network):
+
+*<example of blocking I/O- or network-bound program with multiple parts>*
+
+In the above code, each *<externally bound function>* takes control of
+the entire program, and has to fully complete before the next can
+run. It works, but it wastes a lot of time. We could make more
+efficient use of our time if we were able to *start* each *<ebf>*, let
+it run in the background, and only *later* require it to be done.
+
+In Zig, **coroutines**[^1] enable us to do exactly that. Here is the
+same program, rewritten to take advantage of coroutines:
+
+*<same example, rewritten asynchronously>*
+
+The ~async~ keyword initiates a coroutine which then runs
+*asynchronously* (independently) to the caller, and returns the
+**frame** of the running coroutine. (More on frames later.) The frame
+may then be completed with the ~await~ keyword, which waits until the
+coroutine completes and returns its return value. A frame may only be
+awaited once.
+
+(Note: *asynchronous* is not synonymous with *parallel* -- a coroutine
+is not necessarily run in a separate thread, and in fact the semantics
+of ~async~/~await~ are entirely serial and deterministic; however, it
+allows us to *think* of our code as running concurrently, and an event
+loop (below) with support for multithreading can make this a reality.)
+
+** Suspension
+
+Under the hood, a coroutine is a special kind of Zig function that may
+*suspend* its execution at some points, to be *resumed* later. Much
+like one ~async~ invocation pairs with exactly one ~await~ completion,
+one suspension pairs with exactly one resumption -- thus, a coroutine
+that suspends must ensure that it is resumed.
+
+There are three kinds of suspension:
+
+*** suspend
+The ~suspend~ keyword is an explicit suspend point. ~suspend~ may also
+initiate a **suspend block**[^2], permitting patterns such as this:
+
+*<example of suspend block>*
+
+The builtin function ~@frame()~ returns a pointer to the current
+coroutine's *frame*, which may then be resumed by other code with the
+~resume~ keyword. (This resuming service is typically known as an
+*event loop* -- more on that later.)
+
+*** await
+
+The ~await~ keyword suspends until the coroutine associated with the
+awaited frame completes. There is no mediator -- the awaiting routine
+frame address is written into the awaited frame, so the awaited
+coroutine will automatically resume the awaiter upon completion.
+
+*** coroutine calls
+
+A **blocking call** of a coroutine (i.e. a call without the ~async~
+keyword) is semantically equivalent to prepending the call with ~await
+async~; since the coroutine may suspend, any direct invocation is
+itself a suspend point.
+
+** Event Loop
+
+An **event loop** is a service that resumes suspended coroutines when
+certain conditions are met. A coroutine that suspends with the
+~suspend~ keyword registers a pointer to its frame with the even loop,
+as well as some context so that the loop can determine when it's ready
+to be resumed.
+
+Here is a simple asynchronous program that uses a custom event loop:
+
+#+begin_src zig
+const std = @import("std");
+
+// main asynchronous function
+// (`main` itself cannot be asynchronous, with some caveats)
+fn asyncMain() void
+{
+    // Start two interleaving tasks
+    var task_a = async waitUntilAndPrint(start + 1000, start + 1200, "task a");
+    var task_b = async waitUntilAndPrint(start + 500,  start + 1300, "task b");
+
+    await task_a;
+    await task_b;
+}
+
+fn waitUntilAndPrint(time1: i64, time2: i64, name: []const u8) void
+{
+    waitForTime(time1);
+    std.log.info("[{}] it is now {} ms since start!", .{ name, std.time.milliTimestamp() - start });
+
+    waitForTime(time2);
+    std.log.info("[{}] it is now {} ms since start!", .{ name, std.time.milliTimestamp() - start });
+}
+
+// suspension context
+const Task = struct { frame: anyframe, time: i64 };
+// suspended frame storage
+var task_list = [1]?Task { null } ** 10;
+var start: i64 = 0;
+
+fn waitForTime(time: i64) void {
+    suspend {
+        // append the task into a list structure "tasks to be resumed later" and store the @frame()
+        // as well as a condition (in this case: time)
+        const slot = for(task_list) |*task| { if (task.* == null) break task; } else unreachable;
+        slot.* = Task { .frame = @frame(), .time = time };
+    }
+}
+
+pub fn main() !void
+{
+    start = std.time.milliTimestamp();
+
+    var main_task = async asyncMain();
+
+    while(true) // this is "the event loop"
+    {
+        const now = std.time.milliTimestamp();
+
+        var any = false; // store if we have any tasks left
+        for(task_list) |*task| {
+            if(task.* != null) {
+                any = true;
+                if(task.*.?.time <= now) { // is the frame ready to resume?
+                    var frame = task.*.?.frame;
+                    task.* = null; // make task slot available again
+                    resume frame;
+                }
+            }
+        }
+        if(!any) break; // all tasks done, we can now exit the program
+    }
+
+    // finalize the tasks properly (we know they are done, as there are no more tasks)
+    // -- with this knowledge, we may use `nosuspend`, so this `await` will not be a suspend point
+    // (`main` may not be a coroutine, and hence cannot suspend)
+    nosuspend await main_task;
+}
+#+end_src
+
+The Zig standard library has its own event loop, which we may
+automatically bring into our program and make all relevant standard
+library functions use by declaring ~pub const io_mode = .evented;~ in
+our root source file, as we did in the second program example on this
+page. We may also write our own event loop implementation.
+
+** Colour Blindness
+
+There is an infamous problem with asynchronous functions as
+implemented in other languages, colloquially known as [function
+colour](https://journal.stuffwithstuff.com/2015/02/01/what-color-is-your-function/):
+asynchronous functions cannot be called from synchronous functions, so
+any use of async automatically pollutes your entire stack, and every
+program has to be written twice for synchronous and
+asynchronous operation.
+
+In Zig, this problem does not exist. Everything on this page also
+works with synchronous code -- ~async~/~await~ becomes just some fancy
+syntax for a regular function call. Furthermore, a program written
+with entirely blocking calls will still work when those calls are to
+coroutines, as long as evented I/O has been enabled. (We accomplish
+this last feat by invoking the event loop before ~main~, so ~main~ may
+even be asynchronous in this case.) Thus, our standard library is able
+to share a single codebase for synchronous and asynchronous operation.
+
+* Appendix: Coroutine Internals
+
+The state of a coroutine is stored in a structure known as a
+**frame**. The frame stores the information necessary to resume a
+coroutine from suspension: preserved local variables, the last suspend
+point, the yield address, the result location (if applicable), and the
+awaiter address (if applicable). A frame is associated with code that
+resumes its coroutine; the (semantic) resumer invokes this code with
+the frame and its own program counter as argument, and the resumer
+code then saves the passed program counter as the yield address,
+checks the last suspend point and loads the relevant local variables
+into registers, then jumps to the corresponding point in the
+coroutine's code. A suspending coroutine performs the reverse: save
+the suspend point, save registers to the frame, then jump to the yield
+address. (A ~suspend~ block will perform the first two operations on
+block entry, and the last on block exit.) A coroutine maintains a
+pointer to its frame throughout execution.
+
+A coroutine that suspends for the first time will yield to the
+function that invoked it, and thereafter will yield to the function
+that resumed it. ~await~, as well as performing the function of a
+suspend point, will write a pointer to its own frame into the awaiter
+address field of the awaited frame -- so, awaiting does not require a
+mediator. A coroutine that blockingly invokes another will embed the
+callee's frame into its local variables field.
+
+There is one caveat with coroutine return: Zig's **result location
+semantics** do not apply. That is, a blocking function knows from its
+invocation where to write its result, if it cannot be passed directly
+by value -- however, a coroutine does not know this, and hence its
+frame must also include space for a copy of its result, which will
+then be copied to the *actual* result location later. There is a
+[proposal](https://github.con/ziglang/zig/issues/5913) open to change
+the semantics of coroutines (and of blocking functions invoked with
+~async~) to make them cancelable after invocation, which would also
+allow copies to be elided; however, as of this writing, it is still
+under contention.
+
+[^1]: Strictly, **suspendable stackless coroutines**.
+[^2]: A suspend block is semantically distinct from the code in the block followed by ~suspend~ in that, on block entry, the coroutine is already considered to be suspended. This is important, as otherwise an event loop running on a separate thread may resume the coroutine before it is suspended, leading to undefined behaviour. Suspend blocks also allow coroutines to tail-resume themselves, which can be used, for instance, to switch a coroutine onto a different thread.
