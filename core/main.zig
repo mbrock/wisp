@@ -30,6 +30,16 @@ fn megabytes(bytes: usize) usize {
     return bytes * 1024 * 1024;
 }
 
+fn makeHeap(orb: Wisp.Orb) !Wisp.Heap {
+    var heap = try Wisp.Heap.init(orb, .e0);
+
+    try Jets.load(&heap);
+    try heap.cookBase();
+    try heap.cookRepl();
+
+    return heap;
+}
+
 pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     var orb = gpa.allocator();
@@ -55,15 +65,10 @@ pub fn main() anyerror!void {
         const file = try root.openFile(path, .{});
         const code = try file.readToEndAlloc(tmp, maxCodeSize);
 
-        var heap = try Wisp.Heap.init(tmp, .e0);
+        var heap = try makeHeap(orb);
         defer heap.deinit();
 
-        try Jets.load(&heap);
-        try heap.cookBase();
-        try heap.cookRepl();
-
         const result = try heap.load(code);
-
         const pretty = try Sexp.prettyPrint(&heap, result, 62);
         try stdout.print("{s}\n", .{pretty});
     } else if (std.mem.eql(u8, cmd, "keygen")) {
@@ -72,13 +77,7 @@ pub fn main() anyerror!void {
     } else if (std.mem.eql(u8, cmd, "repl-zig")) {
         try @import("./repl.zig").repl();
     } else if (std.mem.eql(u8, cmd, "repl")) {
-        var heap = try Wisp.Heap.init(tmp, .e0);
-        defer heap.deinit();
-
-        try Jets.load(&heap);
-        try heap.cookBase();
-        try heap.cookRepl();
-
+        var heap = try makeHeap(orb);
         _ = try heap.load("(repl)");
 
         try stderr.print(";; repl finished\n", .{});
@@ -86,17 +85,16 @@ pub fn main() anyerror!void {
     } else if (std.mem.eql(u8, cmd, "eval")) {
         const code = args.next() orelse return help(stderr);
 
-        var heap = try Wisp.Heap.init(tmp, .e0);
-        defer heap.deinit();
-
-        try Jets.load(&heap);
-        try heap.cookBase();
-        try heap.cookRepl();
-
+        var heap = try makeHeap(orb);
         const result = try heap.load(code);
-
         const pretty = try Sexp.prettyPrint(&heap, result, 62);
         try stdout.print("{s}\n", .{pretty});
+    } else if (std.mem.eql(u8, cmd, "core")) {
+        const name = args.next() orelse return help(stderr);
+
+        var heap = try makeHeap(orb);
+        try @import("./tidy.zig").gc(&heap, &.{});
+        try @import("./tape.zig").save(&heap, name);
     } else {
         try help(stderr);
     }
@@ -110,6 +108,7 @@ fn help(stderr: std.fs.File.Writer) !void {
         \\
         \\  wisp run        run a program
         \\  wisp repl       start a REPL
+        \\  wisp core       save a boot core
         \\  wisp keygen     print a unique key
         \\  wisp version    print the Wisp version
     );
