@@ -133,10 +133,9 @@
                    (:spawn
                     (let ((actor (make-actor (second request))))
                       (progn
+                        (set! actors (cons actor actors))
                         (set-actor-continuation! self continuation)
-                        (engine-act (cons actor actors)
-                                    self
-                                    (actor-pid actor)))))
+                        (engine-act actors self (actor-pid actor)))))
                    (:send
                     (let* ((pid (second request))
                            (message (third request))
@@ -144,14 +143,15 @@
                       (actor-push! actor (cons (actor-pid self) message))
                       (set-actor-continuation! self continuation)
                       (engine-act actors self nil))))))))
-    (call-with-prompt :yield
-        (fn () (call (actor-continuation self) value))
-      handle-yield)))
+    (returning actors
+      (call-with-prompt :yield
+          (fn () (call (actor-continuation self) value))
+        yield-handler))))
 
 (defun start-engine (root)
   (let* ((self (make-actor root))
          (actors (list self)))
-    (engine-act actors self)))
+    (engine-act actors self (actor-pid self))))
 
 (defun spawn (function)
   (send! :yield (list :spawn function)))
@@ -166,8 +166,12 @@
                                        (print (list 'b b)))))))
                     (print (list 'a a 'b b))))))
 
-(defun debug (run n)
-  (if (eq? n 0) run
-      (progn
-        (do-step! run)
-        (debug run (- n 1)))))
+(defun show-actors (actors)
+  (map (fn (actor)
+         (list (actor-pid actor)
+               (actor-inbox actor)
+               (show-ktx (actor-continuation actor))))
+       actors))
+
+(defun foo ()
+  (show-actors (engine-example)))
