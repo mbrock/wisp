@@ -147,13 +147,19 @@ pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
         },
 
         .fun => {
-            // const fun = try heap.row(.fun, x);
-            try out.print("<fun", .{});
-            // inline for (std.meta.fields(@TypeOf(fun))) |field| {
-            //     try out.print(" {s}=", .{field.name});
-            //     try dump(heap, out, @field(fun, field.name));
-            // }
-            try out.print(">", .{});
+            const sym = try heap.get(.fun, .sym, x);
+            if (sym == Wisp.nil)
+                try out.print("#<ANONYMOUS-FUNCTION>", .{})
+            else
+                try out.print("#'{s}", .{try heap.symstrslice(sym)});
+        },
+
+        .mac => {
+            const sym = try heap.get(.mac, .sym, x);
+            if (sym == Wisp.nil)
+                try out.print("#<ANONYMOUS-MACRO>", .{})
+            else
+                try out.print("#'{s}", .{try heap.symstrslice(sym)});
         },
 
         .jet => {

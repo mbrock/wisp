@@ -21,6 +21,9 @@
 
 ;;; * Various useful functions and macros
 
+(defmacro fn (params &rest body)
+  `(%fn nil ,params ,(prognify body)))
+
 (defmacro assert (x)
   `(if ,x nil (error ',x)))
 
@@ -50,8 +53,11 @@
         (call f (head xs))
         (for-each (tail xs) f))))
 
-(defmacro when (condition &rest body)
-  `(if ,condition ,(prognify body) nil))
+(defmacro when (test &rest body)
+  `(if ,test ,(prognify body) nil))
+
+(defmacro unless (test &rest body)
+  `(if ,test nil ,(prognify body)))
 
 (defun %case->cond (thing clauses)
   (if (nil? clauses) nil
@@ -74,7 +80,7 @@
   (let* ((default (fresh-symbol!))
          (result (send-with-default! tag value default)))
     (if (eq? result default)
-        (function value)
+        (call function value)
         result)))
 
 (defun error (&rest xs)
@@ -91,7 +97,7 @@
         (handler-body (tail (tail clause))))
     `(call-with-prompt ',tag-name
          (fn () ,body)
-       (fn ,handler-args ,(prognify handler-body)))))
+       (fn ,handler-args ,@handler-body))))
 
 (defmacro try (body clause)
   (let ((catch (head clause))
@@ -99,7 +105,7 @@
         (handler-body (tail (tail clause))))
     `(call-with-prompt 'error
          (fn () ,body)
-       (fn ,handler-args ,(prognify handler-body)))))
+       (fn ,handler-args ,@handler-body))))
 
 
 
@@ -136,7 +142,7 @@
 
 (defmacro with (parameter value &rest body)
   `(call-with-parameter ,parameter ,value
-     (fn () ,(prognify body))))
+     (fn () ,@body)))
 
 
 
@@ -201,12 +207,11 @@
 
 ;;; Now we redefine DEFUN to use macroexpansion.
 (defmacro defun (name args &rest body)
-  (progn
-    (print (list 'defun name args))
-    (let ((expanded-body
-            (macroexpand-completely
-             (prognify body))))
-      `(set-symbol-function! ',name (fn ,args ,expanded-body)))))
+  (print (list 'defun name args))
+  (let ((expanded-body
+          (macroexpand-completely
+           (prognify body))))
+    `(set-symbol-function! ',name (%fn ,name ,args ,expanded-body))))
 
 ;;; We can also mutate the code of a function or macro.
 (defun compile! (function)
@@ -214,7 +219,7 @@
 
 ;;; Now we can go back and compile everything in the package.
 (defun compile-many! (package)
-  (for-each (package-symbols package)
+  (for-each (reverse (package-symbols package))
     (fn (symbol)
       (let ((function (symbol-function symbol)))
         (when (and function

@@ -26,7 +26,7 @@
  (%macro-fn
   (name args &rest body)
   (list 'set-symbol-function! (list 'quote name)
-        (list 'fn args (prognify body)))))
+        (list '%fn name args (prognify body)))))
 
 (set-symbol-function!
  'DEFMACRO

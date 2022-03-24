@@ -170,6 +170,22 @@ pub fn @"SET-SYMBOL-VALUE!"(
     step.give(.val, val);
 }
 
+pub fn @"SET-FUNCTION-NAME!"(
+    step: *Step,
+    fun: u32,
+    sym: u32,
+) anyerror!void {
+    switch (tagOf(fun)) {
+        .fun => try step.heap.set(.fun, .sym, fun, sym),
+        .mac => try step.heap.set(.mac, .sym, fun, sym),
+        else => try step.fail(&.{
+            step.heap.kwd.@"PROGRAM-ERROR",
+            step.heap.kwd.@"TYPE-MISMATCH",
+            fun,
+        }),
+    }
+}
+
 pub fn @"LIST"(step: *Step, xs: []u32) anyerror!void {
     var cur = nil;
     var i = xs.len;
@@ -288,6 +304,7 @@ pub fn LOAD(step: *Step, src: u32) anyerror!void {
         if (Step.evaluate(step.heap, &run, 1_000)) |_| {} else |err| {
             try Sexp.warn("failed", step.heap, form);
             try Sexp.warn("condition", step.heap, run.err);
+            try Sexp.warn("context", step.heap, run.way);
             step.run.err = run.err;
             return err;
         }
@@ -345,11 +362,17 @@ pub fn @"VECTOR-GET"(step: *Step, vec: u32, idx: u32) anyerror!void {
             if (tagOf(idx) == .int and idx < xs.len) {
                 step.give(.val, xs[idx]);
             } else {
-                try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"});
+                try step.failTypeMismatch(
+                    idx,
+                    step.heap.kwd.@"INTEGER",
+                );
             }
         },
 
-        else => try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"}),
+        else => try step.failTypeMismatch(
+            vec,
+            step.heap.kwd.@"VECTOR",
+        ),
     }
 }
 
@@ -361,11 +384,11 @@ pub fn @"VECTOR-SET!"(step: *Step, vec: u32, idx: u32, val: u32) anyerror!void {
                 xs[idx] = val;
                 step.give(.val, val);
             } else {
-                try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"});
+                try step.failTypeMismatch(idx, step.heap.kwd.@"INTEGER");
             }
         },
 
-        else => try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"}),
+        else => try step.failTypeMismatch(vec, step.heap.kwd.@"VECTOR"),
     }
 }
 
@@ -679,4 +702,14 @@ pub fn @"GC"(step: *Step) anyerror!void {
 
 pub fn @"VECTOR"(step: *Step, xs: []u32) anyerror!void {
     step.give(.val, try step.heap.newv32(xs));
+}
+
+pub fn @"SET-HEAD!"(step: *Step, duo: u32, val: u32) anyerror!void {
+    try step.heap.set(.duo, .car, duo, val);
+    step.give(.val, duo);
+}
+
+pub fn @"SET-TAIL!"(step: *Step, duo: u32, val: u32) anyerror!void {
+    try step.heap.set(.duo, .cdr, duo, val);
+    step.give(.val, duo);
 }

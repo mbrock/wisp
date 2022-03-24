@@ -97,14 +97,15 @@ pub const Kwd = enum {
     @"EXHAUSTED",
     @"FIXNUM-OVERFLOW",
     @"INVALID-ARGUMENT-COUNT",
+    @"JET-FAILURE",
     @"LOW-LEVEL-ERROR",
     @"PACKAGE-ERROR",
     @"PROGRAM-ERROR",
     @"PROMPT-TAG-MISSING",
-    @"UNHANDLED-ERROR",
     @"TYPE-MISMATCH",
     @"UNBOUND-VARIABLE",
     @"UNDEFINED-FUNCTION",
+    @"UNHANDLED-ERROR",
 };
 
 /// The orb is the vat's allocator.  All Lisp values reside in memory
@@ -124,7 +125,12 @@ pub const V32 = struct {
 /// they're just enums.  Lisp conditions are rows in the vat.  So the
 /// step function can always fail, and when it fails, it stores its
 /// err in the job.
-pub const Oof = error{ Ugh, Bug, Err };
+pub const Oof = error{
+    Ugh,
+    Bug,
+    Err,
+    @"SEVERE-GARBAGE-COLLECTION-BUG",
+};
 
 pub fn Row(comptime tag: Tag) type {
     return std.enums.EnumFieldStruct(ColEnum(tag), u32, null);
@@ -147,14 +153,14 @@ pub fn Tab(comptime tag: Tag) type {
         pub fn new(tab: *This, orb: Orb, era: Era, row: Row(tag)) !u32 {
             const len = tab.list.len;
 
-            if (len > 0 and @mod(len, 100_000) == 0) {
-                const bytes = @sizeOf(Row(tag)) * len;
-                std.log.info("tag {s} has {d}K rows, ~{d} KB", .{
-                    @tagName(tag),
-                    len / 1000,
-                    bytes / 1024,
-                });
-            }
+            // if (len > 0 and @mod(len, 100_000) == 0) {
+            //     const bytes = @sizeOf(Row(tag)) * len;
+            //     std.log.info("tag {s} has {d}K rows, ~{d} KB", .{
+            //         @tagName(tag),
+            //         len / 1000,
+            //         bytes / 1024,
+            //     });
+            // }
 
             try tab.list.append(orb, row);
             const idx = @intCast(u26, len);
@@ -163,8 +169,13 @@ pub fn Tab(comptime tag: Tag) type {
 
         pub fn get(tab: This, era: Era, ptr: u32) !Row(tag) {
             const p = Ptr.from(ptr);
-            assert(p.tag == tag);
-            assert(p.era == era);
+            if (p.tag != tag) return Oof.Bug;
+
+            if (p.era != era) {
+                @breakpoint();
+                return Oof.@"SEVERE-GARBAGE-COLLECTION-BUG";
+            }
+
             return tab.list.get(p.idx);
         }
 
@@ -330,6 +341,7 @@ pub const Heap = struct {
             result = Step.evaluate(heap, &run, 0) catch |e| {
                 try Sexp.warn("failed", heap, form.*);
                 try Sexp.warn("condition", heap, run.err);
+                try Sexp.warn("context", heap, run.way);
                 return e;
             };
         }
@@ -444,7 +456,7 @@ pub const Heap = struct {
         p: u32,
     ) !u32 {
         if (Wisp.tagOf(p) != tag)
-            unreachable;
+            return Oof.Bug;
 
         return heap.col(tag, c)[ref(p)];
     }

@@ -202,7 +202,7 @@ pub fn hcat(gpa: Gpa, xs: Doc, ys: Doc) !Doc {
     for (xs) |x| {
         for (ys) |y| {
             const xy = try x.hcat(y, gpa);
-            if (xy.max < 500) {
+            if (xy.max < 78) {
                 try zs.append(gpa, xy);
             }
         }
@@ -370,7 +370,7 @@ pub fn pretty(gpa: Gpa, heap: *Wisp.Heap, exp: u32) anyerror!Doc {
                         ),
                     ),
                 );
-            } else if (items.len > 2) {
+            } else if (items.len > 2 and Wisp.tagOf(items[0]) == .sym) {
                 var cdr = std.ArrayListUnmanaged(Doc){};
                 for (items[1..items.len]) |x, n| {
                     if (n == items.len - 1) {
@@ -411,6 +411,21 @@ pub fn pretty(gpa: Gpa, heap: *Wisp.Heap, exp: u32) anyerror!Doc {
                 try text(gpa, "["),
                 try join(gpa, array.items),
                 try text(gpa, "]"),
+            });
+        },
+
+        .ktx => {
+            const ktx = try heap.row(.ktx, exp);
+            return hjoin(gpa, &.{
+                try text(gpa, "<ktx "),
+                try join(gpa, &.{
+                    try pretty(gpa, heap, ktx.fun),
+                    try pretty(gpa, heap, ktx.acc),
+                    try pretty(gpa, heap, ktx.arg),
+                    try pretty(gpa, heap, ktx.env),
+                    try pretty(gpa, heap, ktx.hop),
+                }),
+                try text(gpa, ">"),
             });
         },
 

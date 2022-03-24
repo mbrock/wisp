@@ -69,12 +69,12 @@ pub fn @"LET"(step: *Step, bs: u32, e: u32) anyerror!void {
     }
 }
 
-pub fn @"FN"(step: *Step, par: u32, exp: u32) anyerror!void {
+pub fn @"%FN"(step: *Step, sym: u32, par: u32, exp: u32) anyerror!void {
     step.give(.val, try step.heap.new(.fun, .{
         .env = step.run.env,
         .par = par,
         .exp = exp,
-        .sym = Wisp.nil,
+        .sym = sym,
     }));
 }
 

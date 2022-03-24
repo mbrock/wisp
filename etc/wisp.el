@@ -18,6 +18,8 @@
      (call-with-parameter 2)
      (returning 1)
      (for-each 1)
+     (if 2)
+     (when-result 2)
      ))
 
   (common-lisp-set-style "wisp"))

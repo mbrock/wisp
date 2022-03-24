@@ -353,9 +353,10 @@ pub fn call(
                 defer vals.deinit();
 
                 if (vals.items.len != 1) {
-                    try step.fail(
-                        &[_]u32{step.heap.kwd.@"PROGRAM-ERROR"},
-                    );
+                    try step.fail(&.{
+                        step.heap.kwd.@"PROGRAM-ERROR",
+                        step.heap.kwd.@"CONTINUATION-CALL-ERROR",
+                    });
                 } else {
                     step.run.way = try step.composeContinuation(funptr);
                     try step.proceed(vals.items[0]);
@@ -686,7 +687,46 @@ fn reverseList(heap: *Heap, list: u32) !u32 {
     return rev;
 }
 
+fn invalidArgumentCount(step: *Step, fun: u32) !void {
+    try step.fail(&[_]u32{
+        step.heap.kwd.@"PROGRAM-ERROR",
+        step.heap.kwd.@"INVALID-ARGUMENT-COUNT",
+        fun,
+    });
+}
+
+pub fn failTypeMismatch(step: *Step, arg: u32, expected: u32) !void {
+    try step.fail(&.{
+        step.heap.kwd.@"PROGRAM-ERROR",
+        step.heap.kwd.@"TYPE-MISMATCH",
+        expected,
+        arg,
+    });
+}
+
 fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
+    if (step.invokeJet(jet, arg, rev)) {
+        return;
+    } else |err| {
+        const condition = if (step.run.err == nil)
+            try step.heap.newv32(&.{
+                step.heap.kwd.@"LOW-LEVEL-ERROR",
+                try step.heap.newv08(@errorName(err)),
+            })
+        else
+            step.run.err;
+
+        step.run.err = try step.heap.newv32(&.{
+            step.heap.kwd.@"JET-FAILURE",
+            jet,
+            condition,
+        });
+
+        return err;
+    }
+}
+
+fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
     const def = Jets.jets[Wisp.Imm.from(jet).idx];
     var tmp = std.heap.stackFallback(4096, step.heap.orb);
 
@@ -726,7 +766,7 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
                 const fun = cast(.f0, def);
                 try fun(step);
             } else {
-                try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"});
+                try step.invalidArgumentCount(jet);
             }
         },
 
@@ -739,7 +779,7 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
                 const fun = cast(.f1, def);
                 try fun(step, args[0]);
             } else {
-                try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"});
+                try step.invalidArgumentCount(jet);
             }
         },
 
@@ -753,7 +793,7 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
                 const fun = cast(.f2, def);
                 try fun(step, args[0], args[1]);
             } else {
-                try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"});
+                try step.invalidArgumentCount(jet);
             }
         },
 
@@ -767,7 +807,7 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
                 const fun = cast(.f3, def);
                 try fun(step, args[0], args[1], args[2]);
             } else {
-                try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"});
+                try step.invalidArgumentCount(jet);
             }
         },
     }
@@ -850,7 +890,10 @@ pub fn evaluateUntilSpecificContinuation(
         } else |err| {
             if (run.err == nil) {
                 run.err = try heap.newv32(
-                    &[_]u32{heap.kwd.@"PROGRAM-ERROR"},
+                    &[_]u32{
+                        heap.kwd.@"PROGRAM-ERROR",
+                        try step.heap.newv08("unknown error??"),
+                    },
                 );
             }
             return err;
