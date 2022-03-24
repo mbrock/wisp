@@ -202,7 +202,7 @@ pub fn hcat(gpa: Gpa, xs: Doc, ys: Doc) !Doc {
     for (xs) |x| {
         for (ys) |y| {
             const xy = try x.hcat(y, gpa);
-            if (xy.max < 72) {
+            if (xy.max < 500) {
                 try zs.append(gpa, xy);
             }
         }
@@ -398,6 +398,20 @@ pub fn pretty(gpa: Gpa, heap: *Wisp.Heap, exp: u32) anyerror!Doc {
                     try text(gpa, ")"),
                 });
             }
+        },
+
+        .v32 => {
+            var items = try heap.v32slice(exp);
+            var array = std.ArrayListUnmanaged(Doc){};
+            for (items) |x| {
+                try array.append(gpa, try pretty(gpa, heap, x));
+            }
+
+            return hjoin(gpa, &[_]Doc{
+                try text(gpa, "["),
+                try join(gpa, array.items),
+                try text(gpa, "]"),
+            });
         },
 
         else => {
