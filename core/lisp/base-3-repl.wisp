@@ -17,14 +17,16 @@
 ;; <https://www.gnu.org/licenses/>.
 ;;
 
+(compile-many! (find-package "WISP"))
+
 (defun parse-let-acc (acc bindings)
   (if (nil? (tail acc))
       (cons bindings (head acc))
-      (let ((expr (head acc))
-            (name (head (tail acc)))
-            (rest (tail (tail acc))))
-        (parse-let-acc rest (cons (list name expr)
-                                  bindings)))))
+    (let ((expr (head acc))
+          (name (head (tail acc)))
+          (rest (tail (tail acc))))
+      (parse-let-acc rest (cons (list name expr)
+                                bindings)))))
 
 (defun ktx-show (ktx terminus)
   (if (top? ktx) terminus
@@ -60,7 +62,7 @@
 ;;   (3) Quit
 ")
   (write "*> ")
-  (let ((choice (read (read-line))))
+  (let ((choice (read)))
     (ecase choice
       (1 nil)
       (2 (progn
@@ -86,6 +88,38 @@
          (gc)
          (repl))))))
 
+(defun rpc-read ()
+  (let* ((id (read-from-string (read-line)))
+         (len (read-from-string (read-line)))
+         (str (read-bytes len)))
+    (let ((cmd (try (read-from-string str)
+                 (catch (e k)
+                   (returning nil
+                     (rpc-reply id `(error ,e)))))))
+      (cons id cmd))))
+
+(defun communicate-once ()
+  (let* ((req (rpc-read)))
+    (when req
+      (let* ((id (head req))
+             (cmd (tail req))
+             (method (head cmd))
+             (body (tail cmd))
+             (response
+               (try (ecase method
+                      (eval (list 'result (eval (head body)))))
+                 (catch (e k)
+                   (list 'error e)))))
+        (rpc-send id response)))))
+
+(defun rpc-send (id response)
+  (let ((str (print-to-string (list id response))))
+    (print (+ 1 (byte-size str)))
+    (write "\n" str "\n")))
+
+(defun communicator ()
+  (loop #'communicate-once))
+
 (defmacro with-simple-error-handler (dummy &rest body)
   `(try ,(prognify body)
      (catch (e k)
@@ -94,16 +128,14 @@
        (unhandled-error e))))
 
 (defun show-ktx (k)
-  (ktx-show k '⛳))
+  (ktx-show k '⦿))
 
 (defun do-step! (run)
   (let ((now (run-exp run)))
     (progn
       (print (list 'context (ktx-show (run-way run)
-                                      (list '⛳ (head now) (tail now)))))
+                                      (list '⦿ (head now) (tail now)))))
       (step! run))))
-
-(compile-many! (find-package "WISP"))
 
 
 
@@ -249,9 +281,10 @@
 (defun do-receive (actors self request continuation)
   (if (actor-inbox self)
       (let ((message (actor-take-message! self)))
-        (set-actor-answer! self message)
-        (set-actor-state! self :running)
-        (enqueue-first! actors self))
+        (progn
+          (set-actor-answer! self message)
+          (set-actor-state! self :running)
+          (enqueue-first! actors self)))
     (progn
       (set-actor-state! self :receiving))))
 
@@ -367,3 +400,5 @@
 
 (defun run-engine-example ()
   (exhaust-engine (engine-example)))
+
+(+ 1 2 3)

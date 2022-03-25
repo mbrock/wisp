@@ -204,6 +204,16 @@ pub fn @"PRINT"(step: *Step, x: u32) anyerror!void {
     step.give(.val, x);
 }
 
+pub fn @"PRINT-TO-STRING"(step: *Step, x: u32) anyerror!void {
+    const pretty = try Sexp.prettyPrint(step.heap, x, 78);
+    defer step.heap.orb.free(pretty);
+    step.give(.val, try step.heap.newv08(pretty));
+}
+
+pub fn @"BYTE-SIZE"(step: *Step, v08: u32) anyerror!void {
+    step.give(.val, intword(@intCast(i31, (try step.heap.v08slice(v08)).len)));
+}
+
 pub fn @"TYPE-OF"(step: *Step, x: u32) anyerror!void {
     const kwd = step.heap.kwd;
 
@@ -620,9 +630,25 @@ pub fn @"READ"(step: *Step) anyerror!void {
     step.give(.val, val);
 }
 
-pub fn @"WRITE"(step: *Step, v08: u32) anyerror!void {
-    const bytes = try step.heap.v08slice(v08);
-    try std.io.getStdOut().writeAll(bytes);
+pub fn @"READ-FROM-STRING"(step: *Step, v08: u32) anyerror!void {
+    step.give(.val, try Sexp.read(step.heap, try step.heap.v08slice(v08)));
+}
+
+pub fn @"READ-BYTES"(step: *Step, n: u32) anyerror!void {
+    var buffer = try step.heap.orb.alloc(u8, n);
+    defer step.heap.orb.free(buffer);
+
+    const stdin = std.io.getStdIn().reader();
+    try stdin.readNoEof(buffer);
+
+    step.give(.val, try step.heap.newv08(buffer));
+}
+
+pub fn @"WRITE"(step: *Step, v08s: []u32) anyerror!void {
+    for (v08s) |v08| {
+        const bytes = try step.heap.v08slice(v08);
+        try std.io.getStdOut().writeAll(bytes);
+    }
     step.give(.val, nil);
 }
 

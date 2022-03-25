@@ -106,7 +106,9 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
         }
 
         fn readValue(self: *@This()) anyerror!u32 {
-            return if (try self.readValueOrEOF()) |x| x else Error.EOF;
+            if (try self.readValueOrEOF()) |x| {
+                return x;
+            } else return Error.EOF;
         }
 
         const InitialCharType = enum {

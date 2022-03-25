@@ -24,6 +24,22 @@
 
   (common-lisp-set-style "wisp"))
 
+(defun wisp-debug-region (start end)
+  (interactive "r")
+  (comint-send-string (inferior-lisp-proc) "(defvar *wisp-debug-run* (run (quote ")
+  (comint-send-region (inferior-lisp-proc) start end)
+  (comint-send-string (inferior-lisp-proc) ")))\n")
+  (let ((buffer (generate-new-buffer "*wisp debug*")))
+    (display-buffer buffer '(display-buffer-pop-up-window))
+    (with-current-buffer buffer
+      (wisp-mode 1)
+
+      )))
+
+(defun wisp-debug-last-sexp ()
+  (interactive)
+  (wisp-debug-region (save-excursion (backward-sexp) (point)) (point)))
+
 (add-to-list 'auto-mode-alist '("\\.wisp\\'" . wisp-mode))
 
 (provide 'wisp)
