@@ -42,3 +42,5 @@
 }
 
 .cm-focused { outline: none !important; }
+
+body { background: black; }

@@ -20,8 +20,6 @@
 import * as ReactDOM from "react-dom"
 import * as React from "react"
 
-import wispPackageJSON from "../package.json"
-
 import zustand from "zustand"
 import zustandContext from "zustand/context"
 
@@ -32,19 +30,50 @@ import wispWasmPath from "wisp.wasm"
 
 import { WASI } from "./wasi"
 import { Wisp, WispAPI, Data, tagOf, getRow, getUtf8String, getV32 } from "./wisp"
-import * as Tape from "./tape"
 
 import { Editor } from "./edit"
 
 import {
-  VscDebugStepInto, VscDebugStepOut, VscDebugStepOver, VscFolderOpened, VscGithub, VscSave
+  VscDebugStepInto, VscDebugStepOut, VscDebugStepOver, VscGithub
 } from "react-icons/vsc"
-
-import { IoAddCircleOutline } from "react-icons/io5"
 
 import ShortUniqueId from "short-unique-id"
 import { IconButton } from "./button"
 import { Auth0Provider, useAuth0 } from "@auth0/auth0-react"
+
+const Home: React.FC = () => {
+  const { tape, noteOrder, notes, openedFile } = useStore()
+
+  // React.useEffect(() => {
+  //   async function load() {
+  //     const filename = "../core/lisp/base-3-repl.wisp"
+  //     let content = await readFile(filename)
+  //     openedFile(filename, content.toString())
+  //   }
+
+  //   load()
+  // }, [])
+
+  const noteViews = noteOrder.map((key: string) => {
+    const note = notes[key]
+    return <Note note={note} key={`${tape}-${note.key}`} />
+  })
+
+        // <button
+        //   onClick={() => newEmptyNote()}
+        //   className="mx-auto text-gray-400 hover:text-gray-500 mt-1"
+        // >
+        //   <IoAddCircleOutline size={30} title="Add new code block" />
+        // </button>
+
+  return (
+    <div className="absolute inset-0 flex flex-col bg-black">
+      <div className="flex flex-col gap-2 h-full">
+        {noteViews}
+      </div>
+    </div>
+  )
+}
 
 const initialDocument = `(cons 'ok
       (handle 'tag
@@ -70,6 +99,7 @@ interface Store {
 
   refresh(): Data
   newEmptyNote(): void
+  openedFile(name: string, text: string): void
   loadNotes(notes: [Note]): void
   setNoteRun(key: string, run: number): void
   setNoteEditorState(key: string, editorState: any): void
@@ -118,6 +148,18 @@ const createStore = (ctx: Wisp) => () => zustand<Store>(set => ({
       notes: {
         ...state.notes,
         [key]: { key, src: "" }
+      },
+    }))
+  },
+
+  openedFile(path: string, text: string) {
+    set(state => ({
+      notes: {
+        ...state.notes,
+        [path]: {
+          key: path,
+          src: text,
+        },
       },
     }))
   },
@@ -283,7 +325,7 @@ const RestartButton: React.FC<{
 }> = ({ action, children }) => {
   return (
     <button onClick={action}
-      className="border rounded dark:border-neutral-500 dark:bg-neutral-700 text-sm">
+      className="border rounded border-neutral-500 bg-neutral-700 text-sm">
       {children}
     </button>
   )
@@ -354,9 +396,9 @@ const Restarts: React.FC<{ run: number }> = ({ run }) => {
 
 const Result = ({ val }: { val: number }) => {
   return (
-    <div className="border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 dark:text-neutral-50 border flex flex-row divide-x-2 dark:divide-neutral-600 w-full">
+    <div className="border-l border-stone-400/40 bg-stone-800/30 text-stone-50 flex flex-row divide-x-2 divide-neutral-600 w-full">
       <div className="flex flex-grow flex-col gap-1 p-1 px-2">
-         <span className="font-medium text-sm text-gray-500 dark:text-neutral-400">Result</span>
+         <span className="font-medium text-sm text-neutral-400">Result</span>
          <Val v={val} />
       </div>
     </div>
@@ -387,11 +429,11 @@ const Debugger: React.FC<{ run: number }> = ({ run }) => {
   let color = "ring-1 ring-gray-300 dark:ring-amber-600 py-px px-1 font-mono "
 
   if (err != data.sys.nil) {
-    color += "bg-red-100 dark:bg-red-600/50"
+    color += "bg-red-600/50"
   } else if (exp == data.sys.nah) {
-    color += "bg-blue-100 dark:bg-green-600/50"
+    color += "bg-green-600/50"
   } else {
-    color += "bg-yellow-50 dark:bg-amber-600/50"
+    color += "bg-amber-600/50"
   }
 
   function readEnv(env: number): number[][][] {
@@ -427,7 +469,7 @@ const Debugger: React.FC<{ run: number }> = ({ run }) => {
   function renderScopes(env: number, key?: React.Key): React.ReactNode {
     const xs = readEnv(env)
     return xs.length > 0 ? (
-      <table key={key} className="table-auto divide-y dark:divide-neutral-600 bg-white dark:bg-neutral-800 dark:text-neutral-100 border mb-1 text-sm">
+      <table key={key} className="table-auto divide-y divide-neutral-600 bg-neutral-800 text-neutral-100 border mb-1 text-sm">
         {xs.map(renderScope)}
       </table>
     ) : null
@@ -470,14 +512,14 @@ const Debugger: React.FC<{ run: number }> = ({ run }) => {
   )
 
   return (
-    <div className="border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 dark:text-neutral-50 flex flex-row gap-2 divide-x-2 dark:divide-neutral-600 w-full">
+    <div className="border border-neutral-600 bg-neutral-800 text-neutral-50 flex flex-row gap-2 divide-x-2 divide-neutral-600 w-full">
       <div className="flex flex-grow flex-col gap-1 p-2">
         <Way way={way}>
           <Val v={cur} style={color} />
         </Way>
       </div>
 
-      <aside className="bg-gray-50 dark:bg-neutral-800 flex flex-col divide-y dark:divide-neutral-600 rounded-r-lg">
+      <aside className="bg-neutral-800 flex flex-col divide-y divide-neutral-600 rounded-r-lg">
         <div className="flex p-1">
           <IconButton action={doStep("into")} left>
             <VscDebugStepInto />
@@ -545,7 +587,7 @@ const Val: React.FC<{ v: number, style?: string }> = ({ v, style }) => {
   switch (vtag) {
     case "int": {
       const i = v & (1 << 30) ? ((-(~v << 1) >> 1) - 1): v
-      return <span className={`dark:text-neutral-300 ${style}`}>{i}</span>
+      return <span className={`text-neutral-300 ${style}`}>{i}</span>
     }
 
     case "jet": {
@@ -569,7 +611,7 @@ const Val: React.FC<{ v: number, style?: string }> = ({ v, style }) => {
 
     case "v08": {
       const str = getUtf8String(data, v)
-      return <span className={`font-mono text-green-800 dark:text-green-200 ${style}`}>"{str}"</span>
+      return <span className={`font-mono text-green-200 ${style}`}>"{str}"</span>
     }
 
     case "v32": {
@@ -682,8 +724,9 @@ function symbolSpan(
   const extra = extraStyleForSymbol(funtag)
 
   const classes = `
-    sym lowercase tracking-tighter text-gray-800 hover:text-blue-600 dark:hover:text-amber-600
-    dark:text-neutral-300
+    sym lowercase tracking-tighter
+    text-neutral-300
+    hover:text-amber-600
     ${extra}
     ${style || ""}
   `
@@ -702,8 +745,8 @@ function symbolSpan(
 function extraStyleForSymbol(funtag: string): string {
   switch (funtag) {
     case "jet": return "font-medium"
-    case "fun": return "text-slate-600 dark:text-slate-300"
-    case "mac": return "text-cyan-600 dark:text-cyan-300"
+    case "fun": return "text-slate-300"
+    case "mac": return "text-cyan-300"
   }
 
   return ""
@@ -761,7 +804,7 @@ const Form = ({ done, placeholder, autoFocus }: {
   return (
     <form onSubmit={onSubmit} >
       <input type="text"
-        className="w-full bg-white dark:bg-neutral-800 dark:text-neutral-100 py-0 focus:ring-0 focus:outline-0 focus:border-gray-600 border rounded"
+        className="w-full bg-neutral-800 text-neutral-100 py-0 focus:ring-0 focus:outline-0 focus:border-gray-600 border rounded"
         autoFocus={autoFocus} autoComplete="off"
         placeholder={placeholder}
         value={history[historyCursor]}
@@ -777,55 +820,6 @@ const Form = ({ done, placeholder, autoFocus }: {
   //   exec("(+ 1 2 3)")
   //   exec("(run '(request 'fetch \"https://httpbin.org/uuid\"))");
   // }, [])
-
-const Home: React.FC = () => {
-  const { data, refresh, ctx, tape, noteOrder, notes, loadNotes, newEmptyNote } = useStore()
-
-  const noteViews = noteOrder.map((key: string) => {
-    const note = notes[key]
-    return <Note note={note} key={`${tape}-${note.key}`} />
-  })
-
-  const saveTape = async () => {
-    const book = noteOrder.map((key: string) => {
-      const { run, editorState } = notes[key]
-      return {
-        key,
-        run,
-        editorState: {
-          doc: editorState.doc,
-        },
-      }
-    })
-
-    await Tape.save(Tape.make(ctx, book), "save")
-  }
-
-  const loadTape = async () => {
-    const result = await Tape.load("save")
-    if (result) {
-      const { tape } = result
-      console.log("playing tape", tape)
-      Tape.play(ctx, tape)
-      loadNotes(tape.book)
-    }
-  }
-
-  return (
-    <div className="absolute inset-0 flex flex-col bg-gray-100 dark:bg-black">
-      <Titlebar saveTape={saveTape} loadTape={loadTape} />
-      <div className="flex flex-col gap-2">
-        {noteViews}
-        <button
-          onClick={() => newEmptyNote()}
-          className="mx-auto text-gray-400 hover:text-gray-500 mt-1"
-        >
-          <IoAddCircleOutline size={30} title="Add new code block" />
-        </button>
-      </div>
-    </div>
-  )
-}
 
 const Note = ({ note }: { note: Note }) => {
   const { key, run } = note
@@ -867,8 +861,8 @@ const Note = ({ note }: { note: Note }) => {
   }
 
   return (
-    <div className="flex gap-2 m-2 flex-col md:flex-row">
-      <div className="w-full bg-white border-gray-300 dark:bg-neutral-900 dark:border-neutral-600 dark:text-neutral-400">
+    <div className="flex flex-col md:flex-row justify-around h-full">
+      <div className="w-full text-yellow-50/80">
         <Editor exec={exec} genkey={genkey} initialState={note.editorState} onChange={onChange} />
       </div>
       {evaluation()}
@@ -876,13 +870,14 @@ const Note = ({ note }: { note: Note }) => {
   )
 }
 
-const Titlebar = ({ saveTape, loadTape }) => {
+const Titlebar = () => {
   const classes = `
     flex justify-between items-center
     border-b
     pl-4 pr-2 py-1
-    bg-slate-50 dark:bg-stone-800
-    border-gray-300 dark:border-neutral-600 dark:border-b-neutral-700
+    bg-stone-800
+    border-neutral-600
+    border-b-neutral-700
   `
 
   const { user, isAuthenticated, isLoading, loginWithRedirect } = useAuth0()
@@ -891,35 +886,16 @@ const Titlebar = ({ saveTape, loadTape }) => {
 
   return (
     <header className={classes}>
-      <span className="tracking-tight text-gray-800 dark:text-neutral-400 flex items-center gap-4">
+      <span className="tracking-tight text-neutral-400 flex items-center gap-4">
         <span className="flex items-center gap-1">
           <a href="https://github.com/mbrock/wisp"
-             className="tracking-tight text-blue-900 dark:text-stone-500 flex column items-center"
+             className="tracking-tight text-stone-500 flex column items-center"
              target="_blank">
             <VscGithub />
           </a>
         </span>
-        <span className="font-semibold">Wisp.<span className="font-normal">Town</span></span>
-      <span className="text-stone-500">v{wispPackageJSON.version}</span>
+        <span className="font-semibold">Wisp</span>
       </span>
-      <div className="flex items-center">
-        {
-          isLoading
-            ? null
-            : (
-              isAuthenticated
-                ? (
-                  <div className="flex gap-2 items-center dark:text-stone-400/80 text-xs font-medium">
-                    {user.name}
-                  </div>
-                ) : (
-                  <IconButton action={() => loginWithRedirect()} left right>
-                    {"Log in"}
-                  </IconButton>
-                )
-            )
-        }
-      </div>
     </header>
   )
 }

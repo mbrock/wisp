@@ -29,6 +29,7 @@ import { history, historyKeymap } from '@codemirror/history';
 import { defaultKeymap, emacsStyleKeymap, indentWithTab } from '@codemirror/commands';
 import { bracketMatching } from '@codemirror/matchbrackets';
 import { defaultHighlightStyle } from '@codemirror/highlight';
+import { HighlightStyle, tags } from '@codemirror/highlight';
 import { rectangularSelection } from "@codemirror/rectangular-selection";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/closebrackets";
 import { foldGutter, foldKeymap } from "@codemirror/fold";
@@ -77,9 +78,21 @@ export const Editor: React.FC<{
               ".cm-scroller, .cm-content, .cm-tooltip.cm-tooltip-autocomplete > ul": {
                 fontFamily: "dm mono, ui-monospace, SFMono-Regular, Menlo, monospace",
                 fontWeight: "normal",
-              }
+              },
+
+              ".cm-gutters": {
+                  backgroundColor: "#2223 !important",
+              },
+
+              ".cm-activeLineGutter": {
+                  backgroundColor: "#2228 !important"
+              },
+
+              ".cm-activeLine": {
+                  backgroundColor: "#1119 !important"
+              },
             }, {
-              dark: window.matchMedia('(prefers-color-scheme: dark)').matches
+              dark: true,
             }),
             lineNumbers(),
             highlightActiveLineGutter(),
@@ -91,11 +104,16 @@ export const Editor: React.FC<{
             EditorState.allowMultipleSelections.of(true),
             indentOnInput(),
             defaultHighlightStyle.fallback,
+            HighlightStyle.define([{
+              tag: tags.keyword,
+              color: "yellow",
+            }]).extension,
             bracketMatching(),
             closeBrackets(),
             autocompletion(),
             rectangularSelection(),
             highlightActiveLine(),
+            EditorView.lineWrapping,
             keymap.of([
               {
                 key: "Ctrl-Enter",
@@ -130,22 +148,28 @@ export const Editor: React.FC<{
 
             wisp(),
 
+                  // <div>
+                  //   <IconButton action={() => runCode(view, "run")} left>
+                  //     <VscDebugContinue title="Run code" />
+                  //   </IconButton>
+                  //   <IconButton action={() => runCode(view, "debug")} right>
+                  //     <VscDebug title="Debug code" />
+                  //   </IconButton>
+                  // </div>
+                  // <div className="hidden">
+                  //   <IconButton action={() => insertGenkey(view)} right>
+                  //     <VscRuby title="Insert new key" />
+                  //   </IconButton>
+                  // </div>
+
             showPanel.of(() => {
               let dom = document.createElement("div")
               ReactDOM.render(
-                <div className="p-1 bg-gray-50 dark:bg-neutral-800 dark:text-neutral-200 flex justify-between">
-                  <div>
-                    <IconButton action={() => runCode(view, "run")} left>
-                      <VscDebugContinue title="Run code" />
-                    </IconButton>
-                    <IconButton action={() => runCode(view, "debug")} right>
-                      <VscDebug title="Debug code" />
-                    </IconButton>
-                  </div>
-                  <div className="hidden">
-                    <IconButton action={() => insertGenkey(view)} right>
-                      <VscRuby title="Insert new key" />
-                    </IconButton>
+                <div className="p-1 leading-tight bg-stone-900 text-amber-100/90 flex justify-between font-mono px-2">
+                  <div className="flex gap">
+                    <div className="font-medium pr-1">wisp:</div>
+                    <div className="text-amber-100/70">/core/wisp/</div>
+                    <div className="font-medium">stdlib.wisp</div>
                   </div>
                 </div>,
                 dom)
@@ -187,6 +211,6 @@ export const Editor: React.FC<{
   }
 
   return (
-    <div className="border h-full border-gray-300 dark:border-neutral-600" ref={install} />
+    <div className="border border-neutral-900" ref={install} />
   )
 }
