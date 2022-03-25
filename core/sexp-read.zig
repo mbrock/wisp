@@ -419,28 +419,14 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
         }
 
         fn isSymbolCharacter(c: u21) bool {
-            if (ziglyph.isLetter(c) or ziglyph.emoji_data.isEmojiPresentation(c)) {
-                return true;
-            } else {
-                return switch (c) {
-                    '!',
-                    '$',
-                    '%',
-                    '&',
-                    '*',
-                    '+',
-                    '-',
-                    '/',
-                    '<',
-                    '=',
-                    '>',
-                    '?',
-                    '@',
-                    '^',
-                    => true,
-                    else => false,
-                };
-            }
+            if (ziglyph.isLetter(c)) return true;
+            if (c == '`') return false;
+            if (ziglyph.isSymbol(c)) return true;
+            if (ziglyph.emoji_data.isEmojiPresentation(c)) return true;
+            return switch (c) {
+                '/', '-', '!', '%', '&', '*', '?', '@' => true,
+                else => false,
+            };
         }
 
         fn isSymbolCharacterOrDigit(c: u21) bool {
