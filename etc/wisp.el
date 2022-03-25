@@ -24,4 +24,6 @@
 
   (common-lisp-set-style "wisp"))
 
+(add-to-list 'auto-mode-alist '("\\.wisp\\'" . wisp-mode))
+
 (provide 'wisp)

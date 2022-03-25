@@ -352,17 +352,17 @@ pub const Heap = struct {
     }
 
     pub fn cookBase(heap: *Heap) !void {
-        _ = try heap.load(@embedFile("./lisp/base-0-prelude.lisp"));
-        _ = try heap.load(@embedFile("./lisp/base-1-backquote.lisp"));
-        _ = try heap.load(@embedFile("./lisp/base-2-stdlib.lisp"));
+        _ = try heap.load(@embedFile("./lisp/base-0-prelude.wisp"));
+        _ = try heap.load(@embedFile("./lisp/base-1-backquote.wisp"));
+        _ = try heap.load(@embedFile("./lisp/base-2-stdlib.wisp"));
     }
 
     pub fn cookRepl(heap: *Heap) !void {
-        _ = try heap.load(@embedFile("./lisp/base-3-repl.lisp"));
+        _ = try heap.load(@embedFile("./lisp/base-3-repl.wisp"));
     }
 
     pub fn cookTest(heap: *Heap) !void {
-        _ = try heap.load(@embedFile("./lisp/base-x-test.lisp"));
+        _ = try heap.load(@embedFile("./lisp/base-x-test.wisp"));
     }
 
     fn initvar(heap: *Heap, txt: []const u8, val: u32) !void {

@@ -1133,20 +1133,6 @@ test "MAP with FN" {
     );
 }
 
-// test "quasiquote" {
-//     try expectEval("(foo 1)",
-//         \\ (let ((x 1))
-//         \\   `(foo ,x))
-//     );
-// }
-
-// test "prty.lisp" {
-//     var heap = try newTestHeap();
-//     defer heap.deinit();
-
-//     try heap.load(@embedFile("../lisp/pretty.lisp"));
-// }
-
 test "GENKEY!" {
     var heap = try newTestHeap();
     defer heap.deinit();
