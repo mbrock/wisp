@@ -619,9 +619,9 @@ pub fn @"READ-LINE"(step: *Step) anyerror!void {
     }
 }
 
-pub fn @"READ"(step: *Step, src: u32) anyerror!void {
-    const bytes = try step.heap.v08slice(src);
-    const val = try Sexp.read(step.heap, bytes);
+pub fn @"READ"(step: *Step) anyerror!void {
+    const stdin = std.io.getStdIn().reader();
+    const val = try Sexp.readValueFromStream(step.heap, stdin);
     step.give(.val, val);
 }
 

@@ -70,24 +70,21 @@
 
 (defun repl ()
   (write "> ")
-  (let ((src (read-line)))
-    (if (nil? src)
-        'bye
-        (let ((exp (try (read src)
-                     (catch (e k)
-                       (returning nil
-                         (print (list 'read-error e)))))))
-          (cond
-            ((eq? exp 'quit) 'bye)
-            (t
-             (progn
-               (try (print (eval exp))
-                 (catch (e k)
-                   (print (list 'error e))
-                   (print (list 'context (show-ktx k)))
-                   (ask k)))
-               (gc)
-               (repl))))))))
+  (let ((exp (try (read)
+               (catch (e k)
+                 (returning nil
+                   (print (list 'read-error e)))))))
+    (cond
+      ((eq? exp 'quit) 'bye)
+      (t
+       (progn
+         (try (print (eval exp))
+           (catch (e k)
+             (print (list 'error e))
+             (print (list 'context (show-ktx k)))
+             (ask k)))
+         (gc)
+         (repl))))))
 
 (defmacro with-simple-error-handler (dummy &rest body)
   `(try ,(prognify body)
