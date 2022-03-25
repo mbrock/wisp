@@ -46,11 +46,6 @@ fn intword(x: i31) u32 {
     return @intCast(u32, @bitCast(u31, x));
 }
 
-pub fn @"RETURNING"(step: *Step, xs: []u32) anyerror!void {
-    _ = step;
-    step.give(.val, xs[0]);
-}
-
 pub fn @"+"(step: *Step, xs: []u32) anyerror!void {
     _ = step;
 

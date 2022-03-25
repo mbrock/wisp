@@ -27,6 +27,11 @@
 (defmacro assert (x)
   `(if ,x nil (error ',x)))
 
+(defmacro returning (x &rest body)
+  (let ((x-var (fresh-symbol!)))
+    `(let ((,x-var ,x))
+       (progn ,@body ,x-var))))
+
 (defmacro with-trace (&rest body)
   `(progn
      (wtf t)
