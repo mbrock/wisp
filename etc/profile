@@ -1,4 +1,4 @@
 #!/bin/sh
 set -e
-perf record -g ./core/zig-out/bin/wisp < etc/loop-demo.wisp
+perf record -g ./core/zig-out/bin/wisp eval nil
 perf report --branch-history

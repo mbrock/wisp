@@ -1,5 +1,5 @@
 all: core web
-core: test; cd core && zig build
+core: test; cd core && zig build -Drelease-fast=true
 test:; cd core && zig build test
 
 .PHONY: web
