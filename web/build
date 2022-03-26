@@ -17,5 +17,5 @@ subhash() {
   sed -i.bak -e "s|$2.$3|$result|" $1
 }
 
-subhash index.html index js
-subhash index.html index css
+subhash index.html wapp js
+subhash index.html wapp css

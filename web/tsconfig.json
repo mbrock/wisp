@@ -5,7 +5,6 @@
       "wisp.wasm": ["../core/zig-out/lib/wisp.wasm", "./wisp.wasm"]
     },
     "target": "es2017",
-    "jsx": "react",
     "moduleResolution": "node",
     "esModuleInterop": true,
     "resolveJsonModule": true

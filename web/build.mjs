@@ -6,7 +6,7 @@ import autoprefixer from "autoprefixer"
 import esbuild from "esbuild"
 
 esbuild.build({
-  entryPoints: ["src/index.tsx"],
+  entryPoints: ["src/wapp.ts"],
   outdir: "dist",
   bundle: true,
   sourcemap: true,
