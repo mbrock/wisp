@@ -1,8 +1,8 @@
 all: core web
-core: test; cd core && zig build -Drelease-fast=true
+core:; cd core && zig build -Drelease-fast=true
 test:; cd core && zig build test
 
-.PHONY: web
+.PHONY: web core
 
 web:; cd web && ./build
 clean:; rm -rf web/dist/* core/zig-*

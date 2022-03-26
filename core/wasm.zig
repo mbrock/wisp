@@ -67,6 +67,11 @@ export fn wisp_heap_init() ?*Wisp.Heap {
     return heap_init() catch null;
 }
 
+export fn wisp_start_web(heap: *Wisp.Heap) u32 {
+    heap.cookWeb() catch return Wisp.nil;
+    return Wisp.t;
+}
+
 export fn wisp_read(heap: *Wisp.Heap, str: [*:0]const u8) u32 {
     return Read.read(heap, std.mem.span(str)) catch Wisp.zap;
 }
@@ -327,6 +332,27 @@ export fn wisp_tape_save(
     ) catch return Wisp.zap;
 
     return Wisp.nil;
+}
+
+export fn wisp_call_package_function(
+    heap: *Wisp.Heap,
+    pkgname_ptr: [*]const u8,
+    pkgname_len: usize,
+    funname_ptr: [*]const u8,
+    funname_len: usize,
+    data: u32,
+) u32 {
+    const pkgname = pkgname_ptr[0..pkgname_len];
+    const funname = funname_ptr[0..funname_len];
+
+    if (heap.pkgmap.get(pkgname)) |pkg| {
+        const sym = heap.intern(funname, pkg) catch return Wisp.zap;
+        const explist: [2]u32 = .{ sym, data };
+        const exp = Wisp.list(heap, explist) catch return Wisp.zap;
+        return wisp_eval(heap, exp, 0);
+    } else {
+        return Wisp.nil;
+    }
 }
 
 test "sanity" {

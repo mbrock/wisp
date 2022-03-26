@@ -19,8 +19,12 @@
 
 pub const Funs = @import("./jets-fun.zig");
 pub const Ctls = @import("./jets-ctl.zig");
+pub const Webs = @import("./jets-web.zig");
 
-pub const jets = makeOpArray(Ctls, .ctl) ++ makeOpArray(Funs, .fun);
+pub const jets =
+    makeOpArray(Ctls, .ctl) ++
+    makeOpArray(Funs, .fun) ++
+    makeOpArray(Webs, .fun);
 
 const std = @import("std");
 const assert = std.debug.assert;

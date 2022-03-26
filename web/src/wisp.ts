@@ -55,6 +55,7 @@ export interface WispAPI {
   wisp_destroy(heap: number, x: number): void
 
   wisp_heap_init(): number
+  wisp_start_web(heap: number): number
   
   wisp_heap_load_tab_col(
     heap: number, tag: number, col: number, len: number
@@ -76,6 +77,13 @@ export interface WispAPI {
   
   wisp_eval(heap: number, exp: number, max: number): number
   wisp_eval_step(heap: number, run: number, mode: number): number
+  
+  wisp_call_package_function(
+    heap: number,
+    pkgname_ptr: number, pkgname_len: number,
+    funname_ptr: number, funname_len: number,
+    data: number,
+  ): number
 
   wisp_run_init(heap: number, exp: number): number
   wisp_run_eval(heap: number, run: number, max: number): number

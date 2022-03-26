@@ -20,6 +20,7 @@
      (for-each 1)
      (if 2)
      (when-result 2)
+     (tag (4 2 &rest (&whole 2 &rest 1)))
      ))
 
   (common-lisp-set-style "wisp"))

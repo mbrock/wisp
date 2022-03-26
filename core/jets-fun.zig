@@ -734,3 +734,15 @@ pub fn @"SET-TAIL!"(step: *Step, duo: u32, val: u32) anyerror!void {
     try step.heap.set(.duo, .cdr, duo, val);
     step.give(.val, duo);
 }
+
+pub fn @"PACKAGE-NAME"(step: *Step, pkg: u32) anyerror!void {
+    step.give(.val, try step.heap.get(.pkg, .nam, pkg));
+}
+
+pub fn @"SYMBOL-PACKAGE"(step: *Step, sym: u32) anyerror!void {
+    step.give(.val, try step.heap.get(.sym, .pkg, sym));
+}
+
+pub fn @"SYMBOL-NAME"(step: *Step, sym: u32) anyerror!void {
+    step.give(.val, try step.heap.get(.sym, .str, sym));
+}

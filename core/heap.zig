@@ -361,6 +361,11 @@ pub const Heap = struct {
         _ = try heap.load(@embedFile("./lisp/base-3-repl.wisp"));
     }
 
+    pub fn cookWeb(heap: *Heap) !void {
+        _ = try heap.load(@embedFile("./lisp/web.wisp"));
+        std.log.warn("cooked web.wisp", .{});
+    }
+
     pub fn cookTest(heap: *Heap) !void {
         _ = try heap.load(@embedFile("./lisp/base-x-test.wisp"));
     }

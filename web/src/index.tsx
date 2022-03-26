@@ -29,6 +29,8 @@ import "../vendor/inter/inter.css"
 import wispWasmPath from "wisp.wasm"
 
 import { WASI } from "./wasi"
+import { WASD, Callback } from "./wasd"
+
 import { Wisp, WispAPI, Data, tagOf, getRow, getUtf8String, getV32 } from "./wisp"
 
 import { Editor } from "./edit"
@@ -42,7 +44,7 @@ import { IconButton } from "./button"
 import { Auth0Provider, useAuth0 } from "@auth0/auth0-react"
 
 const Home: React.FC = () => {
-  const { tape, noteOrder, notes, openedFile } = useStore()
+  const { tape, noteOrder, notes } = useStore()
 
   // React.useEffect(() => {
   //   async function load() {
@@ -67,7 +69,7 @@ const Home: React.FC = () => {
         // </button>
 
   return (
-    <div className="absolute inset-0 flex flex-col bg-black">
+    <div className="flex flex-col bg-black">
       <div className="flex flex-col gap-2 h-full">
         {noteViews}
       </div>
@@ -75,12 +77,21 @@ const Home: React.FC = () => {
   )
 }
 
-const initialDocument = `(cons 'ok
-      (handle 'tag
-              (fn () (* 2 (send! 'tag 5)))
-              (fn (v k)
-                (list (list 'continuation k)
-                      (list 'result (call k (+ 1 v)))))))`
+const initialDocument = `(defun render-hello (data)
+  (tag :div
+    '((:style "color: ivory; padding: 5px"))
+    (text "Hello, world! ")
+    (for-each '(foo bar baz yes)
+      (fn (x)
+        (tag :div '((style "color: darkslateblue"))
+          (text (symbol-name x)) (text " "))))
+    (tag :div '((:style "color: salmon; font-weight: bold"))
+      (text "Yeah!"))))
+
+(dom-patch!
+ (query-selector "#wisp-app")
+ (make-callback 'render-hello) nil)
+`
 
 const uuid = new ShortUniqueId({ length: 8 })
 
@@ -830,7 +841,7 @@ const Note = ({ note }: { note: Note }) => {
     const run = ctx.api.wisp_run_init(ctx.heap, src)
 
     if (how == "run")
-      ctx.api.wisp_run_eval(ctx.heap, run, 100_000)
+      ctx.api.wisp_run_eval(ctx.heap, run, 4_000_000)
 
     refresh()
     setNoteRun(key, run)
@@ -865,7 +876,6 @@ const Note = ({ note }: { note: Note }) => {
       <div className="w-full text-yellow-50/80">
         <Editor exec={exec} genkey={genkey} initialState={note.editorState} onChange={onChange} />
       </div>
-      {evaluation()}
     </div>
   )
 }
@@ -900,18 +910,43 @@ const Titlebar = () => {
   )
 }
 
+type U32 = number
+
 onload = async () => {
   const wasi = new WASI
+  const wasd = new WASD
+
   const { instance } = await WebAssembly.instantiateStreaming(
     fetch(wispWasmPath), {
-    wasi_snapshot_preview1: wasi.exports()
-  })
+      wasi_snapshot_preview1: wasi.exports(),
+      dom: wasd.exports(),
+    }
+  )
 
   const exports = instance.exports as unknown as WispAPI
 
   wasi.setMemory(exports.memory)
+  wasd.setMemory(exports.memory)
 
-  let ctx = new Wisp(instance)
+  let ctx: Wisp | null = null
+
+  wasd.setCallbackOperation(
+    ({ packageName, functionName }: Callback, data: U32) => {
+      let pkgname = ctx.allocString(packageName)
+      let funname = ctx.allocString(functionName)
+      ctx.api.wisp_call_package_function(
+        ctx.heap,
+        pkgname, packageName.length,
+        funname, functionName.length,
+        data,
+      )
+
+      ctx.free(pkgname, funname)
+    })
+
+  ctx = new Wisp(instance)
+  if (ctx.api.wisp_start_web(ctx.heap) >>> 0 != ctx.sys.t)
+    throw new Error("wisp start web failed")
 
   ReactDOM.render(
     <Provider createStore={createStore(ctx)}>
@@ -922,6 +957,6 @@ onload = async () => {
         <Home />
       </Auth0Provider>
     </Provider>,
-    document.querySelector("#app")
+    document.querySelector("#wisp-editor")
   )
 }

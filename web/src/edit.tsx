@@ -166,11 +166,9 @@ export const Editor: React.FC<{
               let dom = document.createElement("div")
               ReactDOM.render(
                 <div className="p-1 leading-tight bg-stone-900 text-amber-100/90 flex justify-between font-mono px-2">
-                  <div className="flex gap">
-                    <div className="font-medium pr-1">wisp:</div>
-                    <div className="text-amber-100/70">/core/wisp/</div>
-                    <div className="font-medium">stdlib.wisp</div>
-                  </div>
+                  <div className="font-medium pr-1">*scratch*</div>
+                  <div className="text-amber-100/70">Wisp</div>
+                  <div>{"Ctrl-Enter to run"} </div>
                 </div>,
                 dom)
 
