@@ -2,7 +2,7 @@ const defaultTheme = require("tailwindcss/defaultTheme")
 
 module.exports = {
   content: [
-    "./src/*.tsx",
+    "./src/*.ts",
     "./index.html", "./index.css",
     "../core/lisp/web.wisp",
   ],

@@ -19,6 +19,8 @@
 
 import { wisp } from "./lang"
 
+import * as DOM from "incremental-dom"
+
 import { drawSelection, dropCursor, EditorView, highlightActiveLine, highlightSpecialChars, keymap } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { lineNumbers, highlightActiveLineGutter } from '@codemirror/gutter';
@@ -33,6 +35,7 @@ import { foldGutter, foldKeymap } from "@codemirror/fold";
 import { indentOnInput } from "@codemirror/language";
 import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { commentKeymap } from "@codemirror/comment";
+import { Panel, showPanel } from "@codemirror/panel"
 
 export type RunMode = "run" | "debug"
 
@@ -48,7 +51,30 @@ export function startEditor(
   const view = new EditorView({
     parent: element,
     dispatch: tx => view.update([tx]),
-    state: EditorState.create({
+    state: makeEditorState(doc),
+  })
+
+  view.focus()
+
+  async function openFile(view: EditorView) {
+    console.log("open file clicked")
+    let [handle] = await window.showOpenFilePicker({
+      types: [{
+        description: "Wisp Source Files",
+        accept: {
+          "text/plain": [".wisp"],
+        },
+      }],
+    })
+
+    let file = await handle.getFile()
+    let data = await file.text()
+
+    view.setState(makeEditorState(data))
+  }
+
+  function makeEditorState(doc: string) {
+    return EditorState.create({
       doc,
       extensions: [
         EditorView.theme({
@@ -79,6 +105,13 @@ export function startEditor(
 
           ".cm-activeLine": {
               backgroundColor: "#1119 !important"
+          },
+
+          ".cm-panels": {
+            backgroundColor: "#222 !important",
+            zIndex: 2,
+            borderBottom: "1px solid #555",
+            padding: 5,
           },
         }, {
           dark: true,
@@ -128,10 +161,26 @@ export function startEditor(
           ...completionKeymap,
         ]),
 
+        showPanel.of(view => {
+          let div = document.createElement("div")
+
+          DOM.patch(div, () => {
+            DOM.elementOpen(
+              "button", null, null,
+              "class", "bg-stone-700 border border-stone-500 m-1 px-2 text-sm",
+              "onclick", () => openFile(view))
+            DOM.text("Open file")
+            DOM.elementClose("button")
+          })
+
+          return {
+            dom: div,
+            top: true,
+          }
+        }),
+
         wisp(),
       ],
-    }),
-  })
-
-  view.focus()
+    })
+  }
 }
