@@ -78,6 +78,7 @@ pub fn main() anyerror!void {
         try @import("./repl.zig").repl();
     } else if (std.mem.eql(u8, cmd, "repl")) {
         var heap = try makeHeap(orb);
+
         _ = try heap.load("(repl)");
 
         try stderr.print(";; repl finished\n", .{});

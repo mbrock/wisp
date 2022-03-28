@@ -1156,3 +1156,11 @@ test "CALL-WITH-PROMPT" {
 
     try std.testing.expectEqual(x, 1);
 }
+
+test "SYMBOL-NAME" {
+    try expectEval(
+        \\("FOO" "NIL" "T")
+    ,
+        \\(map #'symbol-name '(foo nil t))
+    );
+}

@@ -173,6 +173,31 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
             return list;
         }
 
+        fn readStringContents(
+            self: *@This(),
+        ) !std.ArrayList(u8) {
+            var list = std.ArrayList(u8).init(self.allocator);
+            var buf: [4]u8 = undefined;
+
+            while (try self.skip()) |c| {
+                if (c == '"') {
+                    break;
+                } else if (c == '\\') {
+                    switch (try self.skip()) {
+                        'n' => try list.appendSlice("\n"),
+                        '"' => try list.appendSlice("\""),
+                        '\\' => try list.appendSlice("\\"),
+                        _ => return error.BadEscapeChar,
+                    }
+                } else {
+                    const len = try std.unicode.utf8Encode(c, &buf);
+                    try list.appendSlice(buf[0..len]);
+                }
+            }
+
+            return list;
+        }
+
         fn readQuote(self: *@This()) !u32 {
             try self.skipOnly('\'');
             const x = try self.readValue();
@@ -325,6 +350,7 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
 
         fn readString(self: *@This()) !u32 {
             try self.skipOnly('"');
+
             const text = try self.readWhile(isNotEndOfString);
             defer text.deinit();
             try self.skipOnly('"');

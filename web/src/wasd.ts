@@ -91,7 +91,7 @@ export class WASD {
 
       open_start: (tagptr: U32, taglen: U32) => {
         let tag = this.getString(tagptr, taglen)
-        DOM.elementOpenStart(tag)
+        DOM.elementOpenStart(tag.toLowerCase())
       },
 
       open_end: () => {
@@ -103,12 +103,12 @@ export class WASD {
       ) => {
         let attr = this.getString(attrptr, attrlen)
         let val = this.getString(valptr, vallen)
-        DOM.attr(attr, val)
+        DOM.attr(attr.toLowerCase(), val)
       },
 
       close: (tagptr: U32, taglen: U32) => {
         let tag = this.getString(tagptr, taglen)
-        DOM.elementClose(tag)
+        DOM.elementClose(tag.toLowerCase())
       },
 
       text: (ptr: U32, len: U32) => {

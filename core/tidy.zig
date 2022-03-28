@@ -57,6 +57,7 @@ pub fn init(old: *Heap) !Tidy {
             .orb = old.orb,
             .v08 = old.v08,
             .kwd = old.kwd,
+            .commonStrings = old.commonStrings,
             .base = old.base,
             .keywordPackage = old.keywordPackage,
             .keyPackage = old.keyPackage,
@@ -83,6 +84,10 @@ pub fn root(tidy: *Tidy) !void {
 
     inline for (std.meta.fields(@TypeOf(tidy.new.kwd))) |s| {
         try tidy.move(&@field(tidy.new.kwd, s.name));
+    }
+
+    inline for (std.meta.fields(@TypeOf(tidy.new.commonStrings))) |s| {
+        try tidy.move(&@field(tidy.new.commonStrings, s.name));
     }
 
     for (tidy.new.pkgmap.entries.items(.value)) |*pkg| {

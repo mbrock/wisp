@@ -27,21 +27,7 @@ import { WASI } from "./wasi"
 import { WASD, Callback } from "./wasd"
 import { startEditor } from "./edit"
 
-const initialDocument = `(defun render-hello (data)
-  (tag :div
-    '((:style "color: ivory; padding: 5px"))
-    (text "Hello, world! ")
-    (for-each '(foo bar baz yes)
-      (fn (x)
-        (tag :div '((style "color: darkslateblue"))
-          (text (symbol-name x)) (text " "))))
-    (tag :div '((:style "color: salmon; font-weight: bold"))
-      (text "Yeah!"))))
-
-(dom-patch!
- (query-selector "#wisp-app")
- (make-callback 'render-hello) nil)
-`
+import initialDocument from "./dexp.wisp" 
 
 type U32 = number
 

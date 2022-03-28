@@ -12,6 +12,7 @@ esbuild.build({
   sourcemap: true,
   entryNames: "[dir]/[name]-[hash]",
   loader: {
+    ".wisp": "text",
     ".wasm": "file",
     ".ttf": "file",
     ".woff2": "file",

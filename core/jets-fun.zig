@@ -137,7 +137,10 @@ pub fn @"TAIL"(step: *Step, x: u32) anyerror!void {
 }
 
 pub fn @"SYMBOL-FUNCTION"(step: *Step, sym: u32) anyerror!void {
-    step.give(.val, try step.heap.get(.sym, .fun, sym));
+    if (tagOf(sym) == .sys)
+        step.give(.val, nil)
+    else
+        step.give(.val, try step.heap.get(.sym, .fun, sym));
 }
 
 pub fn @"SET-SYMBOL-FUNCTION!"(
@@ -739,10 +742,31 @@ pub fn @"PACKAGE-NAME"(step: *Step, pkg: u32) anyerror!void {
     step.give(.val, try step.heap.get(.pkg, .nam, pkg));
 }
 
+pub fn @"SYMBOL?"(step: *Step, sym: u32) anyerror!void {
+    step.give(
+        .val,
+        if (sym == nil or sym == t or tagOf(sym) == .sym) t else nil,
+    );
+}
+
 pub fn @"SYMBOL-PACKAGE"(step: *Step, sym: u32) anyerror!void {
-    step.give(.val, try step.heap.get(.sym, .pkg, sym));
+    step.give(
+        .val,
+        if (sym == nil or sym == t)
+            step.heap.base
+        else
+            try step.heap.get(.sym, .pkg, sym),
+    );
 }
 
 pub fn @"SYMBOL-NAME"(step: *Step, sym: u32) anyerror!void {
-    step.give(.val, try step.heap.get(.sym, .str, sym));
+    step.give(
+        .val,
+        if (sym == nil)
+            step.heap.commonStrings.NIL
+        else if (sym == t)
+            step.heap.commonStrings.T
+        else
+            try step.heap.get(.sym, .str, sym),
+    );
 }

@@ -233,6 +233,11 @@ pub const MsgTag = enum(u8) {
 
 pub const Log = std.ArrayList(u8);
 
+pub const CommonStrings = struct {
+    NIL: u32,
+    T: u32,
+};
+
 pub const Heap = struct {
     /// A heap can emit a mutation log for replication.
     log: ?*Log,
@@ -248,6 +253,8 @@ pub const Heap = struct {
     base: u32,
     keywordPackage: u32,
     keyPackage: u32,
+
+    commonStrings: CommonStrings = undefined,
 
     pkg: u32,
     pkgmap: std.StringArrayHashMapUnmanaged(u32) = .{},
@@ -290,7 +297,13 @@ pub const Heap = struct {
 
         // Make symbols in WISP for the keyword cache.
         inline for (std.meta.fields(Kwd)) |s| {
-            @field(heap.kwd, s.name) = try heap.intern(s.name, heap.base);
+            const sym = try heap.intern(s.name, heap.base);
+            @field(heap.kwd, s.name) = sym;
+        }
+
+        inline for (std.meta.fields(CommonStrings)) |s| {
+            const v08 = try heap.newv08(s.name);
+            @field(heap.commonStrings, s.name) = v08;
         }
 
         return heap;

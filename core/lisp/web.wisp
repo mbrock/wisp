@@ -17,26 +17,6 @@
 ;; <https://www.gnu.org/licenses/>.
 ;;
 
-(defun make-callback (symbol)
-  (dom-make-callback
-   (package-name (symbol-package symbol))
-   (symbol-name symbol)))
-
-(defmacro tag (tag-symbol attrs &rest body)
-  (let ((tag-name (symbol-name tag-symbol)))
-    `(progn
-       (dom-open-start! ,tag-name)
-       (for-each ,attrs
-         (fn (attr)
-           (dom-attr! (symbol-name (head attr))
-                      (second attr))))
-       (dom-open-end!)
-       ,@body
-       (dom-close! ,tag-name))))
-
-(defun text (text)
-  (dom-text! text))
-
 ;; (defun render-hello (data)
 ;;   (tag :div
 ;;     '((:class "bg-blue-400 text-yellow-50/80 border rounded p-2"))

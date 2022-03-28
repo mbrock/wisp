@@ -53,15 +53,21 @@
 (defun atom? (x)
   (not (eq? 'cons (type-of x))))
 
+(defun pair? (x)
+  (eq? 'cons (type-of x)))
+
+(defun list? (x)
+  (or (pair? x) (nil? x)))
+
 (defun equal? (x y)
   (if (eq? x y) t
-      (let ((xt (type-of x))
-            (yt (type-of y)))
-        (if (not (eq? xt yt))
-            nil
-            (if (eq? xt 'cons)
-                (equal-lists? x y)
-                (error xt))))))
+    (let ((xt (type-of x))
+          (yt (type-of y)))
+      (if (not (eq? xt yt))
+          nil
+        (if (eq? xt 'cons)
+            (equal-lists? x y)
+          (error xt))))))
 
 (defun equal-lists? (x y)
   (if (eq? x nil)

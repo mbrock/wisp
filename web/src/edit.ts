@@ -171,6 +171,13 @@ export function startEditor(
               "onclick", () => openFile(view))
             DOM.text("Open file")
             DOM.elementClose("button")
+
+            DOM.elementOpen(
+              "button", null, null,
+              "class", "bg-stone-700 border border-stone-500 m-1 px-2 text-sm",
+              "onclick", () => runCode(view, "run"))
+            DOM.text("Evaluate buffer")
+            DOM.elementClose("button")
           })
 
           return {

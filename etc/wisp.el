@@ -1,7 +1,8 @@
 (define-derived-mode wisp-mode
   lisp-mode "Wisp"
   "Major mode for Wisp code."
-  (setq-local inferior-lisp-program "zig build run -- repl")
+  (setq-local inferior-lisp-program
+              "zig build run -- repl")
 
   (define-common-lisp-style "wisp"
     "This style is for Wisp."

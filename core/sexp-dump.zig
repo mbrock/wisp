@@ -94,7 +94,6 @@ pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
 
         .v08 => {
             const s = heap.v08slice(x) catch "<bad string>";
-            try out.print("[v08 {d}]", .{s.len});
             try out.print("\"{s}\"", .{s});
         },
 
