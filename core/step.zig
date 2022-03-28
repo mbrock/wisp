@@ -96,7 +96,7 @@ pub fn attemptOneStep(step: *Step) !void {
     if (val == nah) {
         if (wtf) try Sexp.warn("exp", heap, exp);
         switch (tagOf(exp)) {
-            .int, .v08, .sys => step.give(.val, exp),
+            .int, .v08, .v32, .sys => step.give(.val, exp),
             .sym => return step.findVariable(exp),
             .duo => return step.intoPair(exp),
             else => return Oof.Bug,

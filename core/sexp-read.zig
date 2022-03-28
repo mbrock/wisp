@@ -90,6 +90,7 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
             if (next) |c| {
                 return switch (try classifyInitial(c)) {
                     .leftParen => try self.readList(),
+                    .leftBracket => try self.readVector(),
                     .hash => try self.readHash(),
                     .colon => try self.readKeyword(),
                     .doubleQuote => try self.readString(),
@@ -113,6 +114,7 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
 
         const InitialCharType = enum {
             leftParen,
+            leftBracket,
             hash,
             colon,
             symbolChar,
@@ -127,6 +129,8 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
         fn classifyInitial(c: u21) !InitialCharType {
             if (c == '(') {
                 return .leftParen;
+            } else if (c == '[') {
+                return .leftBracket;
             } else if (c == '#') {
                 return .hash;
             } else if (c == ':') {
@@ -355,6 +359,27 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
             defer text.deinit();
             try self.skipOnly('"');
             return try self.heap.newv08(text.items);
+        }
+
+        fn readVector(self: *@This()) !u32 {
+            try self.skipOnly('[');
+            var list = std.ArrayList(u32).init(self.allocator);
+            defer list.deinit();
+            while (true) {
+                try self.skipSpace();
+                if (try self.peek()) |c| {
+                    if (c == ']') {
+                        try self.skipOnly(']');
+                        if (list.items.len > 0) {
+                            return try self.heap.newv32(list.items);
+                        } else {
+                            return try self.heap.emptyv32();
+                        }
+                    } else {
+                        try list.append(try self.readValue());
+                    }
+                }
+            }
         }
 
         fn readList(self: *@This()) !u32 {
