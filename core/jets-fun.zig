@@ -774,3 +774,8 @@ pub fn @"SYMBOL-NAME"(step: *Step, sym: u32) anyerror!void {
             try step.heap.get(.sym, .str, sym),
     );
 }
+
+pub fn @"DEBUGGER"(step: *Step) anyerror!void {
+    @breakpoint();
+    step.give(.val, nil);
+}
