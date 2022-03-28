@@ -99,7 +99,7 @@ pub fn attemptOneStep(step: *Step) !void {
             .int, .v08, .v32, .sys => step.give(.val, exp),
             .sym => return step.findVariable(exp),
             .duo => return step.intoPair(exp),
-            else => return Oof.Bug,
+            else => return error.UnknownExpressionTag,
         }
     } else {
         if (wtf) try Sexp.warn("val", heap, val);
@@ -166,7 +166,7 @@ fn intoCall(step: *Step, fun: u32, arg: u32) !void {
         .jet => intoJet(step, fun, arg),
         .fun => intoFunction(step, fun, arg),
         .mac => intoMacro(step, fun, arg),
-        else => Oof.Bug,
+        else => error.BadCallTag,
     };
 }
 
@@ -241,7 +241,7 @@ pub fn proceed(step: *Step, x: u32) !void {
                 .{tag},
             );
 
-            return Oof.Bug;
+            return error.BadContinuationTag;
         },
     }
 }
@@ -369,13 +369,13 @@ pub fn call(
                     try step.proceed(vals.items[0]);
                 }
             } else {
-                return Oof.Bug;
+                return error.BadContinuationSys;
             }
         },
 
         else => {
             try Sexp.warn("oof", step.heap, funptr);
-            return Oof.Bug;
+            return error.BadFunctionTag;
         },
     }
 }
@@ -394,7 +394,7 @@ pub fn composeContinuation(step: *Step, way: u32) !u32 {
         while (cur != top) {
             cur = switch (tagOf(cur)) {
                 .ktx => try lookForTop(step, cur),
-                else => return Oof.Bug,
+                else => return error.BadContinuationTag,
             };
         }
 
@@ -836,7 +836,7 @@ pub fn getParentContinuation(heap: *Heap, way: u32) !u32 {
     return switch (tagOf(way)) {
         .ktx => heap.get(.ktx, .hop, way),
         .duo => heap.get(.duo, .cdr, way),
-        else => Oof.Bug,
+        else => error.BadParentContinuation,
     };
 }
 
@@ -856,7 +856,7 @@ pub fn evaluateUntilSpecificContinuation(
     limit: u32,
     breakpoint: u32,
 ) !u32 {
-    if (run.err != nil) return Oof.Bug;
+    if (run.err != nil) return error.ErrorAlreadyPresent;
 
     var step = Step{ .heap = heap, .run = run };
 
@@ -898,8 +898,8 @@ pub fn evaluateUntilSpecificContinuation(
             if (run.err == nil) {
                 run.err = try heap.newv32(
                     &[_]u32{
-                        heap.kwd.@"PROGRAM-ERROR",
-                        try step.heap.newv08("unknown error??"),
+                        heap.kwd.@"LOW-LEVEL-ERROR",
+                        try step.heap.newv08(@errorName(err)),
                     },
                 );
             }

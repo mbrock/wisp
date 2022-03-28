@@ -77,6 +77,8 @@
 
 (defun draw-app ()
   (tag :style () (text "
+    #wisp-app { margin: 10px; }
+
     .symbol { text-transform: lowercase; }
 
     .string { font-family: 'DM Mono', monospace; }
@@ -96,7 +98,8 @@
     .list { border-color: #555; border-width: 0 2px; border-radius: 10px; }
     .vector { border-color: #558; border-width: 1px; }
   "))
-  (render-sexp `(type some stuff))
+  (render-sexp `(defun render-list-contents (sexp)
+                  ,@(code #'render-list-contents)))
   (vector-each *buffer* #'text))
 
 (defvar *buffer* [])
@@ -109,36 +112,43 @@
              'render-callback *render-callback*))
 
 (defun render-app ()
-  (dom-patch! *root-element* *render-callback* nil))
+  (with-simple-error-handler ()
+    (dom-patch! *root-element* *render-callback* nil)))
 
 (defun on-keydown (key)
-  (set! *buffer* (vector-append *buffer* (vector key)))
-  (print (list 'keydown key))
-  (render-app))
+  (with-simple-error-handler ()
+    (set! *buffer* (vector-append *buffer* (vector key)))
+    (print (list 'keydown key))
+    (render-app)))
 
 (with-simple-error-handler ()
   (dom-on-keydown! *key-callback*)
   (render-app))
 
-(defun mock-dom! ()
-  (defun dom-open-start! (tag-name)
-    (write "<")
-    (write tag-name)
-    (write " "))
 
-  (defun dom-attr! (attr value)
-    (write attr)
-    (write "='")
-    (write value)
-    (write "' "))
+
+;;; * Structural cursors as delimited continuations
 
-  (defun dom-open-end! ()
-    (write ">"))
+(defun cursor-handler (value continuation)
+  (fn (command)
+      (case (head command)
+        (render
+         (make-cursor (fn () (call continuation value))))
+        (change
+         (make-cursor (fn () (call continuation (second command)))))
+        (forward
+         ))
+      )
+    )
 
-  (defun dom-text! (text)
-    (write text))
+(defun make-cursor (maker)
+  (call-with-prompt :cursor maker cursor-handler))
 
-  (defun dom-close! (tag-name)
-    (write "</")
-    (write tag-name)
-    (write ">")))
+(defun cursor! (value) (send! :cursor value))
+
+(defun cursor-demo ()
+  (make-cursor
+   (fn ()
+     (map (fn (x)
+            (cursor! x))
+          (list 'foo 'bar 'baz)))))

@@ -169,7 +169,7 @@ pub fn Tab(comptime tag: Tag) type {
 
         pub fn get(tab: This, era: Era, ptr: u32) !Row(tag) {
             const p = Ptr.from(ptr);
-            if (p.tag != tag) return Oof.Bug;
+            if (p.tag != tag) return error.UnexpectedPointerTag;
 
             if (p.era != era) {
                 @breakpoint();
@@ -454,7 +454,7 @@ pub const Heap = struct {
 
     pub fn row(heap: *Heap, comptime tag: Tag, ptr: u32) !Row(tag) {
         if (Wisp.tagOf(ptr) != tag)
-            return Oof.Bug;
+            return error.UnexpectedPointerTag;
 
         return heap.tab(tag).get(heap.era, ptr);
     }
@@ -474,7 +474,7 @@ pub const Heap = struct {
         p: u32,
     ) !u32 {
         if (Wisp.tagOf(p) != tag)
-            return Oof.Bug;
+            return error.UnexpectedPointerTag;
 
         return heap.col(tag, c)[ref(p)];
     }
@@ -487,7 +487,7 @@ pub const Heap = struct {
         v: u32,
     ) !void {
         if (Wisp.tagOf(p) != tag)
-            return Oof.Bug;
+            return error.UnexpectedPointerTag;
 
         if (heap.log) |log| {
             const out = log.writer();
@@ -510,7 +510,7 @@ pub const Heap = struct {
         val: Row(tag),
     ) !void {
         if (Wisp.tagOf(ptr) != tag)
-            return Oof.Bug;
+            return error.UnexpectedPointerTag;
 
         if (heap.log) |log| {
             const out = log.writer();

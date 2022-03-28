@@ -125,7 +125,7 @@
      (catch (e k)
        (print (list 'error e))
        (print (list 'context (show-ktx k)))
-       (unhandled-error e))))
+       (error e))))
 
 (defun show-ktx (k)
   (ktx-show k '⦿))
