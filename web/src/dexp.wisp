@@ -48,7 +48,10 @@
        (render-list-contents sexp)))
     ((eq? 'string (type-of sexp))
      (tag :div '((:class "string"))
-       (text sexp)))))
+       (text sexp)))
+    ((eq? 'vector (type-of sexp))
+     (tag :div '((:class "vector"))
+       (render-vector-contents sexp 0)))))
 
 (defun render-list-contents (sexp)
   (unless (nil? sexp)
@@ -61,7 +64,18 @@
             (text "·"))
           (render-sexp tail))))))
 
-(defun render-app ()
+(defun vector-each (vector function)
+  (vector-each-loop vector function 0))
+
+(defun vector-each-loop (vector function i)
+  (when (< i (vector-length vector))
+    (call function (vector-get vector i))
+    (vector-each-loop vector function (+ i 1))))
+
+(defun render-vector-contents (vector i)
+  (vector-each vector #'render-sexp))
+
+(defun draw-app ()
   (tag :style () (text "
     .symbol { text-transform: lowercase; }
 
@@ -72,30 +86,39 @@
     [data-function-kind=jet] { color: goldenrod; }
     [data-function-kind=fun] { color: lightsalmon; }
 
-    .list {
+    .vector, .list {
       display: flex; flex-wrap: wrap; align-items: center;
       gap: 5px; margin: 0 5px; padding: 0 5px;
-      border-color: #555; border-width: 0 2px; border-radius: 10px;
       max-width: 60ch;
+      min-height: 1em;
     }
+
+    .list { border-color: #555; border-width: 0 2px; border-radius: 10px; }
+    .vector { border-color: #558; border-width: 1px; }
   "))
-  (render-sexp (code #'render-sexp)))
+  (render-sexp `(type some stuff))
+  (vector-each *buffer* #'text))
+
+(defvar *buffer* [])
+(defvar *root-element* (query-selector "#wisp-app"))
+(defvar *key-callback* (make-callback 'on-keydown))
+(defvar *render-callback* (make-callback 'draw-app))
+
+(print (list 'root *root-element*
+             'key-callback *key-callback*
+             'render-callback *render-callback*))
+
+(defun render-app ()
+  (dom-patch! *root-element* *render-callback* nil))
 
 (defun on-keydown (key)
-  (print (list 'keydown key)))
-
-(defvar *key-callback* nil)
-(unless *key-callback*
-  (set! *key-callback* (make-callback 'on-keydown)))
-
-(defun hello-world ()
-  (dom-on-keydown! *key-callback*)
-  (dom-patch!
-   (query-selector "#wisp-app")
-   (make-callback 'render-app) nil))
+  (set! *buffer* (vector-append *buffer* (vector key)))
+  (print (list 'keydown key))
+  (render-app))
 
 (with-simple-error-handler ()
-  (hello-world))
+  (dom-on-keydown! *key-callback*)
+  (render-app))
 
 (defun mock-dom! ()
   (defun dom-open-start! (tag-name)

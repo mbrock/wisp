@@ -82,9 +82,11 @@ onload = async () => {
       ctx.api.wisp_run_eval(ctx.heap, run, 4_000_000)
   }
 
-  startEditor(
-    document.querySelector("#wisp-editor"),
-    exec,
-    initialDocument,
-  )
+  exec(initialDocument, "run")
+
+  // startEditor(
+  //   document.querySelector("#wisp-editor"),
+  //   exec,
+  //   initialDocument,
+  // )
 }

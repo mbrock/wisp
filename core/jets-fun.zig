@@ -46,9 +46,14 @@ fn intword(x: i31) u32 {
     return @intCast(u32, @bitCast(u31, x));
 }
 
-pub fn @"+"(step: *Step, xs: []u32) anyerror!void {
-    _ = step;
+pub fn @"<"(step: *Step, x: u32, y: u32) anyerror!void {
+    if ((try wordint(x)) < (try wordint(y)))
+        step.give(.val, t)
+    else
+        step.give(.val, nil);
+}
 
+pub fn @"+"(step: *Step, xs: []u32) anyerror!void {
     var result: i31 = 0;
     for (xs) |x| {
         if (@addWithOverflow(i31, result, try wordint(x), &result)) {
@@ -60,8 +65,6 @@ pub fn @"+"(step: *Step, xs: []u32) anyerror!void {
 }
 
 pub fn @"*"(step: *Step, xs: []u32) anyerror!void {
-    _ = step;
-
     var result: i31 = 1;
     for (xs) |x| {
         if (@mulWithOverflow(i31, result, try wordint(x), &result)) {
@@ -286,15 +289,6 @@ pub fn @"CALL/CC"(step: *Step, function: u32) anyerror!void {
 pub fn WTF(step: *Step, wtf: u32) anyerror!void {
     Step.wtf = wtf != nil;
     step.give(.val, wtf);
-}
-
-pub fn CONCATENATE(step: *Step, typ: u32, rest: Rest) anyerror!void {
-    _ = rest;
-    if (typ == step.heap.kwd.STRING) {
-        try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"});
-    } else {
-        try step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"});
-    }
 }
 
 pub fn LOAD(step: *Step, src: u32) anyerror!void {
@@ -778,4 +772,45 @@ pub fn @"SYMBOL-NAME"(step: *Step, sym: u32) anyerror!void {
 pub fn @"DEBUGGER"(step: *Step) anyerror!void {
     @breakpoint();
     step.give(.val, nil);
+}
+
+pub fn @"STRING-EQUAL?"(step: *Step, s1: u32, s2: u32) anyerror!void {
+    if (tagOf(s1) != .v08)
+        return step.failTypeMismatch(s1, step.heap.kwd.@"STRING");
+
+    if (tagOf(s2) != .v08)
+        return step.failTypeMismatch(s2, step.heap.kwd.@"STRING");
+
+    const s1b = try step.heap.v08slice(s1);
+    const s2b = try step.heap.v08slice(s2);
+
+    step.give(.val, if (std.mem.eql(u8, s1b, s2b)) t else nil);
+}
+
+pub fn @"STRING-APPEND"(step: *Step, rest: []u32) anyerror!void {
+    var result = std.ArrayList(u8).init(step.heap.orb);
+    defer result.deinit();
+
+    for (rest) |x| {
+        var piece = try step.heap.v08slice(x);
+        try result.appendSlice(piece);
+    }
+
+    step.give(.val, try step.heap.newv08(result.items));
+}
+
+pub fn @"VECTOR-APPEND"(step: *Step, rest: []u32) anyerror!void {
+    var result = std.ArrayList(u32).init(step.heap.orb);
+    defer result.deinit();
+
+    for (rest) |x| {
+        var piece = try step.heap.v32slice(x);
+        try result.appendSlice(piece);
+    }
+
+    step.give(.val, try step.heap.newv32(result.items));
+}
+
+pub fn @"VECTOR-LENGTH"(step: *Step, v32: u32) anyerror!void {
+    step.give(.val, try step.heap.get(.v32, .len, v32));
 }

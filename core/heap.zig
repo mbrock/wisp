@@ -541,6 +541,10 @@ pub const Heap = struct {
         });
     }
 
+    pub fn emptyv32(heap: *Heap) !u32 {
+        return heap.new(.v32, .{ .idx = 0, .len = 0 });
+    }
+
     pub fn newv32(heap: *Heap, dat: []const u32) !u32 {
         if (heap.log) |log| {
             const writer = log.writer();
