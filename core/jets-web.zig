@@ -40,22 +40,30 @@ fn realDomInterface() type {
     return struct {
         extern "dom" fn make_callback(
             pkgname_ptr: [*]const u8,
-            pkgname_len: u32,
+            pkgname_len: usize,
             funname_ptr: [*]const u8,
-            funname_len: u32,
+            funname_len: usize,
         ) u32;
 
-        extern "dom" fn query_selector(ptr: [*]const u8, len: u32) u32;
+        extern "dom" fn query_selector(ptr: [*]const u8, len: usize) u32;
         extern "dom" fn patch(element: u32, callback: u32, data: u32) u32;
-        extern "dom" fn open_start(tagptr: [*]const u8, taglen: u32) void;
+        extern "dom" fn open_start(tagptr: [*]const u8, taglen: usize) void;
         extern "dom" fn open_end() void;
-        extern "dom" fn close(tagptr: [*]const u8, taglen: u32) void;
-        extern "dom" fn text(ptr: [*]const u8, len: u32) void;
+        extern "dom" fn close(tagptr: [*]const u8, taglen: usize) void;
+        extern "dom" fn text(ptr: [*]const u8, len: usize) void;
         extern "dom" fn attr(
             attrptr: [*]const u8,
-            attrlen: u32,
+            attrlen: usize,
             valptr: [*]const u8,
-            vallen: u32,
+            vallen: usize,
+        ) void;
+        extern "dom" fn attr_callback(
+            attrptr: [*]const u8,
+            attrlen: usize,
+            callback: usize,
+        ) void;
+        extern "dom" fn on_keydown(
+            callback: u32,
         ) void;
     };
 }
@@ -64,9 +72,9 @@ fn fakeDomInterface() type {
     return struct {
         fn make_callback(
             pkgname_ptr: [*]const u8,
-            pkgname_len: u32,
+            pkgname_len: usize,
             funname_ptr: [*]const u8,
-            funname_len: u32,
+            funname_len: usize,
         ) u32 {
             _ = pkgname_ptr;
             _ = pkgname_len;
@@ -75,7 +83,7 @@ fn fakeDomInterface() type {
             return 0;
         }
 
-        fn query_selector(ptr: [*]const u8, len: u32) u32 {
+        fn query_selector(ptr: [*]const u8, len: usize) u32 {
             _ = ptr;
             _ = len;
             return 0;
@@ -88,33 +96,49 @@ fn fakeDomInterface() type {
             return 1;
         }
 
-        fn open_start(tagptr: [*]const u8, taglen: u32) void {
+        fn open_start(tagptr: [*]const u8, taglen: usize) void {
             _ = tagptr;
             _ = taglen;
         }
 
         fn open_end() void {}
 
-        fn close(tagptr: [*]const u8, taglen: u32) void {
+        fn close(tagptr: [*]const u8, taglen: usize) void {
             _ = tagptr;
             _ = taglen;
         }
 
-        fn text(ptr: [*]const u8, len: u32) void {
+        fn text(ptr: [*]const u8, len: usize) void {
             _ = ptr;
             _ = len;
         }
 
         fn attr(
             attrptr: [*]const u8,
-            attrlen: u32,
+            attrlen: usize,
             valptr: [*]const u8,
-            vallen: u32,
+            vallen: usize,
         ) void {
             _ = attrptr;
             _ = attrlen;
             _ = valptr;
             _ = vallen;
+        }
+
+        fn attr_callback(
+            attrptr: [*]const u8,
+            attrlen: usize,
+            callback: u32,
+        ) void {
+            _ = attrptr;
+            _ = attrlen;
+            _ = callback;
+        }
+
+        fn on_keydown(
+            callback: u32,
+        ) void {
+            _ = callback;
         }
     };
 }
@@ -128,9 +152,9 @@ pub fn @"DOM-MAKE-CALLBACK"(
     const funstr = try step.heap.v08slice(fun);
     const id = DOM.make_callback(
         pkgstr.ptr,
-        @intCast(u32, pkgstr.len),
+        pkgstr.len,
         funstr.ptr,
-        @intCast(u32, funstr.len),
+        funstr.len,
     );
 
     step.give(.val, id);
@@ -138,7 +162,7 @@ pub fn @"DOM-MAKE-CALLBACK"(
 
 pub fn @"QUERY-SELECTOR"(step: *Step, selector: u32) anyerror!void {
     const str = try step.heap.v08slice(selector);
-    const id = DOM.query_selector(str.ptr, @intCast(u32, str.len));
+    const id = DOM.query_selector(str.ptr, str.len);
     step.give(.val, id);
 }
 
@@ -160,7 +184,7 @@ pub fn @"DOM-OPEN-START!"(
     tag: u32,
 ) anyerror!void {
     const str = try step.heap.v08slice(tag);
-    _ = DOM.open_start(str.ptr, @intCast(u32, str.len));
+    _ = DOM.open_start(str.ptr, str.len);
     step.give(.val, nil);
 }
 
@@ -176,7 +200,7 @@ pub fn @"DOM-CLOSE!"(
     tag: u32,
 ) anyerror!void {
     const str = try step.heap.v08slice(tag);
-    DOM.close(str.ptr, @intCast(u32, str.len));
+    DOM.close(str.ptr, str.len);
     step.give(.val, nil);
 }
 
@@ -189,9 +213,23 @@ pub fn @"DOM-ATTR!"(
     const valstr = try step.heap.v08slice(val);
     DOM.attr(
         attrstr.ptr,
-        @intCast(u32, attrstr.len),
+        attrstr.len,
         valstr.ptr,
-        @intCast(u32, valstr.len),
+        valstr.len,
+    );
+    step.give(.val, nil);
+}
+
+pub fn @"DOM-ATTR-CALLBACK!"(
+    step: *Step,
+    attr: u32,
+    val: u32,
+) anyerror!void {
+    const attrstr = try step.heap.v08slice(attr);
+    DOM.attr_callback(
+        attrstr.ptr,
+        attrstr.len,
+        val,
     );
     step.give(.val, nil);
 }
@@ -201,6 +239,14 @@ pub fn @"DOM-TEXT!"(
     text: u32,
 ) anyerror!void {
     const str = try step.heap.v08slice(text);
-    DOM.text(str.ptr, @intCast(u32, str.len));
+    DOM.text(str.ptr, str.len);
+    step.give(.val, nil);
+}
+
+pub fn @"DOM-ON-KEYDOWN!"(
+    step: *Step,
+    callback: u32,
+) anyerror!void {
+    DOM.on_keydown(callback);
     step.give(.val, nil);
 }

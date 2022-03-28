@@ -355,6 +355,17 @@ export fn wisp_call_package_function(
     }
 }
 
+export fn wisp_intern_keyword(
+    heap: *Wisp.Heap,
+    ptr: [*]const u8,
+    len: usize,
+) u32 {
+    return heap.intern(
+        ptr[0..len],
+        heap.keywordPackage,
+    ) catch Wisp.zap;
+}
+
 test "sanity" {
     try std.testing.expectEqual(0x88000000, wisp_sys_nil);
 }

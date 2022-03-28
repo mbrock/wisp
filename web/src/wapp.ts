@@ -45,7 +45,6 @@ onload = async () => {
   const exports = instance.exports as unknown as WispAPI
 
   wasi.setMemory(exports.memory)
-  wasd.setMemory(exports.memory)
 
   let ctx: Wisp | null = null
 
@@ -53,6 +52,7 @@ onload = async () => {
     ({ packageName, functionName }: Callback, data: U32) => {
       let pkgname = ctx.allocString(packageName)
       let funname = ctx.allocString(functionName)
+      console.info("callback", packageName, functionName, data)
       ctx.api.wisp_call_package_function(
         ctx.heap,
         pkgname, packageName.length,
@@ -64,6 +64,9 @@ onload = async () => {
     })
 
   ctx = new Wisp(instance)
+  
+  wasd.setWisp(ctx)
+
   if (ctx.api.wisp_start_web(ctx.heap) >>> 0 != ctx.sys.t)
     throw new Error("wisp start web failed")
 

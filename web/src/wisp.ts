@@ -47,6 +47,8 @@ export interface WispAPI {
     data: number,
   ): number
 
+  wisp_intern_keyword(heap: number, ptr: number, len: number): number
+  
   wisp_run_init(heap: number, exp: number): number
   wisp_run_eval(heap: number, run: number, max: number): number
   wisp_run_restart(heap: number, run: number, exp: number): number
@@ -81,6 +83,12 @@ export class Wisp {
     }
   }
 
+  getString(ptr: number, len: number): string {
+    let buffer = new Uint8Array(this.api.memory.buffer, ptr, len)
+    let decoder = new TextDecoder
+    return decoder.decode(buffer)
+  }
+
   allocString(s: string): number {
     const arr = new TextEncoder().encode(s)
     const buf = this.api.wisp_alloc(this.heap, arr.length + 1)
@@ -90,6 +98,13 @@ export class Wisp {
     mem[arr.length] = 0
 
     return buf
+  }
+
+  internKeyword(s: string): number {
+    const buf = this.allocString(s)
+    const x = this.api.wisp_intern_keyword(this.heap, buf, s.length)
+    this.free(buf)
+    return x >>> 0
   }
 
   free(...xs: number[]): void {

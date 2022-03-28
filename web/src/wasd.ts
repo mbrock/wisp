@@ -1,4 +1,5 @@
 import * as DOM from "incremental-dom"
+import { Wisp } from "./wisp"
 
 type U32 = number
 
@@ -13,7 +14,7 @@ export interface Callback {
 // to update DOM nodes which we can very easily bind to Wisp.
 //
 export class WASD {
-  memory: WebAssembly.Memory
+  wisp: Wisp
   callbackOperation: (cb: Callback, data: U32) => void
 
   elements: Map<U32, Element>
@@ -27,8 +28,8 @@ export class WASD {
     this.callbacks = new Map
   }
 
-  setMemory(memory: WebAssembly.Memory) {
-    this.memory = memory
+  setWisp(wisp: Wisp) {
+    this.wisp = wisp
   }
 
   setCallbackOperation(
@@ -37,34 +38,24 @@ export class WASD {
     this.callbackOperation = operation
   }
 
-  getDataView(): DataView {
-    return new DataView(this.memory.buffer)
-  }
-
-  getString(ptr: U32, len: U32): string {
-    let buffer = new Uint8Array(this.memory.buffer, ptr, len)
-    let decoder = new TextDecoder
-    return decoder.decode(buffer)
-  }
-
   exports() {
     return {
       make_callback: (
         pkgptr: U32, pkglen: U32,
         funptr: U32, funlen: U32,
       ) => {
+        const packageName = this.wisp.getString(pkgptr, pkglen)
+        const functionName = this.wisp.getString(funptr, funlen)
+
         this.callbacks.set(this.nextCallbackId, (data: U32) => {
-          this.callbackOperation({
-            packageName: this.getString(pkgptr, pkglen),
-            functionName: this.getString(funptr, funlen),
-          }, data)
+          this.callbackOperation({ packageName, functionName }, data)
         })
 
         return this.nextCallbackId++
       },
 
       query_selector: (selectorPointer: U32, selectorLength: U32) => {
-        let selector = this.getString(selectorPointer, selectorLength)
+        let selector = this.wisp.getString(selectorPointer, selectorLength)
         let element = document.querySelector(selector)
         if (element !== null) {
           this.elements.set(this.nextElementId, element)
@@ -90,7 +81,7 @@ export class WASD {
       },
 
       open_start: (tagptr: U32, taglen: U32) => {
-        let tag = this.getString(tagptr, taglen)
+        let tag = this.wisp.getString(tagptr, taglen)
         DOM.elementOpenStart(tag.toLowerCase())
       },
 
@@ -101,19 +92,37 @@ export class WASD {
       attr: (
         attrptr: U32, attrlen: U32, valptr: U32, vallen: U32
       ) => {
-        let attr = this.getString(attrptr, attrlen)
-        let val = this.getString(valptr, vallen)
+        let attr = this.wisp.getString(attrptr, attrlen)
+        let val = this.wisp.getString(valptr, vallen)
         DOM.attr(attr.toLowerCase(), val)
       },
 
+      attr_callback: (
+        attrptr: U32, attrlen: U32, callbackId: U32
+      ) => {
+        let attr = this.wisp.getString(attrptr, attrlen)
+        let callback = this.callbacks.get(callbackId)
+        DOM.attr(attr.toLowerCase(), callback)
+      },
+
       close: (tagptr: U32, taglen: U32) => {
-        let tag = this.getString(tagptr, taglen)
+        let tag = this.wisp.getString(tagptr, taglen)
         DOM.elementClose(tag.toLowerCase())
       },
 
       text: (ptr: U32, len: U32) => {
-        let text = this.getString(ptr, len)
+        let text = this.wisp.getString(ptr, len)
         DOM.text(text)
+      },
+
+      on_keydown: (callbackId: U32) => {
+        let callback = this.callbacks.get(callbackId)
+        window.addEventListener(
+          "keydown",
+          key => {
+            callback(this.wisp.internKeyword(key.key))
+          },
+        )
       },
     }
   }

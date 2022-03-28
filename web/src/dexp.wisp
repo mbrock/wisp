@@ -81,7 +81,15 @@
   "))
   (render-sexp (code #'render-sexp)))
 
+(defun on-keydown (key)
+  (print (list 'key key)))
+
+(defvar *key-callback* nil)
+(unless *key-callback*
+  (set! *key-callback* (make-callback 'on-keydown)))
+
 (defun hello-world ()
+  (dom-on-keydown! *key-callback*)
   (dom-patch!
    (query-selector "#wisp-app")
    (make-callback 'render-app) nil))
