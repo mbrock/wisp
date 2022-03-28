@@ -100,9 +100,9 @@
   "))
   (render-sexp `(defun render-list-contents (sexp)
                   ,@(code #'render-list-contents)))
-  (vector-each *buffer* #'text))
+  (render-sexp `(notes ,(reverse *buffer*))))
 
-(defvar *buffer* [])
+(defvar *buffer* ())
 (defvar *root-element* (query-selector "#wisp-app"))
 (defvar *key-callback* (make-callback 'on-keydown))
 (defvar *render-callback* (make-callback 'draw-app))
@@ -117,8 +117,11 @@
 
 (defun on-keydown (key)
   (with-simple-error-handler ()
-    (set! *buffer* (vector-append *buffer* (vector key)))
     (print (list 'keydown key))
+    (when (string-equal? key "Enter")
+      (progn
+        (set! *buffer*
+              (cons (dom-prompt "Enter a line.") *buffer*))))
     (render-app)))
 
 (with-simple-error-handler ()

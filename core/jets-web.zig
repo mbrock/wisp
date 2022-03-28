@@ -65,6 +65,7 @@ fn realDomInterface() type {
         extern "dom" fn on_keydown(
             callback: u32,
         ) void;
+        extern "dom" fn prompt(ptr: [*]const u8, len: usize) u32;
     };
 }
 
@@ -139,6 +140,12 @@ fn fakeDomInterface() type {
             callback: u32,
         ) void {
             _ = callback;
+        }
+
+        fn prompt(ptr: [*]const u8, len: usize) u32 {
+            _ = ptr;
+            _ = len;
+            return nil;
         }
     };
 }
@@ -249,4 +256,9 @@ pub fn @"DOM-ON-KEYDOWN!"(
 ) anyerror!void {
     DOM.on_keydown(callback);
     step.give(.val, nil);
+}
+
+pub fn @"DOM-PROMPT"(step: *Step, v08: u32) anyerror!void {
+    const text = try step.heap.v08slice(v08);
+    step.give(.val, DOM.prompt(text.ptr, text.len));
 }

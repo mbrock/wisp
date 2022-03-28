@@ -124,6 +124,15 @@ export class WASD {
           },
         )
       },
+
+      prompt: (ptr: U32, len: U32) => {
+        let text = this.wisp.getString(ptr, len)
+        let result = prompt(text)
+        if (result === null)
+          return this.wisp.sys.nil
+        else
+          return this.wisp.newv08(result)
+      },
     }
   }
 }
