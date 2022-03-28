@@ -82,7 +82,7 @@
   (render-sexp (code #'render-sexp)))
 
 (defun on-keydown (key)
-  (print (list 'key key)))
+  (print (list 'keydown key)))
 
 (defvar *key-callback* nil)
 (unless *key-callback*

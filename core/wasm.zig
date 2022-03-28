@@ -21,6 +21,7 @@ const std = @import("std");
 
 const Wisp = @import("./wisp.zig");
 const Read = @import("./sexp-read.zig");
+const Sexp = @import("./sexp.zig");
 const Step = @import("./step.zig");
 const Jets = @import("./jets.zig");
 const Keys = @import("./keys.zig");
@@ -78,7 +79,13 @@ export fn wisp_read(heap: *Wisp.Heap, str: [*:0]const u8) u32 {
 
 export fn wisp_eval(heap: *Wisp.Heap, exp: u32, max: u32) u32 {
     var run = Step.initRun(exp);
-    return Step.evaluate(heap, &run, max) catch Wisp.zap;
+    if (Step.evaluate(heap, &run, max)) |result| {
+        return result;
+    } else |e| {
+        std.io.getStdErr().writer().print(";; error {any}\n", .{e}) catch return Wisp.zap;
+        Sexp.warn("error", heap, run.err) catch return Wisp.zap;
+        return Wisp.zap;
+    }
 }
 
 export fn wisp_run_init(heap: *Wisp.Heap, exp: u32) u32 {

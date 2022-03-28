@@ -33,6 +33,7 @@ export interface WispAPI {
   wisp_destroy(heap: number, x: number): void
 
   wisp_heap_init(): number
+  wisp_heap_v08_new(heap: number, ptr: number, len: number): number
   wisp_start_web(heap: number): number
   
   wisp_read(heap: number, buf: number): number
@@ -98,6 +99,13 @@ export class Wisp {
     mem[arr.length] = 0
 
     return buf
+  }
+
+  newv08(s: string): number {
+    const buf = this.allocString(s)
+    const v08 = this.api.wisp_heap_v08_new(this.heap, buf, s.length)
+    this.free(buf)
+    return v08 >>> 0
   }
 
   internKeyword(s: string): number {

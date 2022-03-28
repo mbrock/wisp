@@ -120,7 +120,7 @@ export class WASD {
         window.addEventListener(
           "keydown",
           key => {
-            callback(this.wisp.internKeyword(key.key))
+            callback(this.wisp.newv08(key.key))
           },
         )
       },
