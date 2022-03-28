@@ -501,7 +501,11 @@ pub fn @"SEND-WITH-DEFAULT!"(
         return step.call(result.handler, args, false);
     } else {
         if (DEFAULT == Wisp.nah) {
-            try step.fail(&.{step.heap.kwd.@"UNHANDLED-ERROR"});
+            try step.fail(&.{
+                step.heap.kwd.@"UNHANDLED-ERROR",
+                TAG,
+                VALUE,
+            });
         } else {
             step.give(.val, DEFAULT);
         }
