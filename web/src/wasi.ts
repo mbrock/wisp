@@ -11,6 +11,14 @@ const CLOCK = {
 
 export class WASI {
   memory: WebAssembly.Memory
+  buffers: Record<number, Uint8Array[]>
+
+  constructor() {
+    this.buffers = {
+      [WASI_STDOUT_FILENO]: [],
+      [WASI_STDERR_FILENO]: [],
+    }
+  }
 
   setMemory(memory: WebAssembly.Memory) {
     this.memory = memory
@@ -30,7 +38,6 @@ export class WASI {
       fd_write: (fd: U32, iovs: U32, iovsLen: U32, nwritten: U32) => {
         const view = this.getDataView()
         let written = 0
-        let bufferBytes = []
 
         const buffers = Array.from({ length: iovsLen }, (_, i) => {
           const ptr = iovs + i * 8
@@ -42,17 +49,27 @@ export class WASI {
           )
         })
 
+        // XXX: I don't think this handles multiline prints correctly?
         for (const iov of buffers) {
-          for (var b = 0; b < iov.byteLength; b++)
-            bufferBytes.push(iov[b])
+          const newline = 10
+          let newlineIndex = iov.indexOf(newline)
+          if (newlineIndex > -1) {
+            let line = "", decoder = new TextDecoder
+            for (let buffer of this.buffers[fd])
+              line += decoder.decode(buffer, { stream: true })
+            line += decoder.decode(iov.slice(0, newlineIndex))
 
-          written += b
+            if (fd === WASI_STDOUT_FILENO) console.log(line)
+            else if (fd === WASI_STDERR_FILENO) console.warn(line)
+
+            this.buffers[fd] = [iov.slice(newlineIndex + 1)]
+          } else {
+            this.buffers[fd].push(new Uint8Array(iov))
+          }
+
+          written += iov.byteLength
         }
 
-        if (fd === WASI_STDOUT_FILENO)
-          console.log(String.fromCharCode.apply(null, bufferBytes))
-        else if (fd === WASI_STDERR_FILENO)
-          console.warn(String.fromCharCode.apply(null, bufferBytes))
 
         view.setUint32(nwritten, written, !0)
 
