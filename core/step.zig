@@ -108,6 +108,13 @@ pub fn attemptOneStep(step: *Step) !void {
 }
 
 fn findVariable(step: *Step, sym: u32) !void {
+    var pkg = try step.heap.get(.sym, .pkg, sym);
+    if (pkg == step.heap.keywordPackage) {
+        step.run.exp = nah;
+        step.run.val = sym;
+        return;
+    }
+
     var cur = step.run.env;
     while (cur != nil) {
         var curduo = try step.heap.row(.duo, cur);
