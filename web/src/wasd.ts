@@ -194,6 +194,16 @@ function step(e: HTMLElement, direction: number): boolean {
       e.previousElementSibling.insertAdjacentElement("beforebegin", e)
       return true
     }
+  } else if (direction === 5) {
+    if (e.nextElementSibling) {
+      e.nextElementSibling.remove()
+      return true
+    }
+  } else if (direction == 6) {
+    if (e.nextElementSibling) {
+      e.parentNode.insertBefore(e.nextElementSibling.cloneNode(true), e.nextElementSibling)
+      return true
+    }
   }
 
   return false

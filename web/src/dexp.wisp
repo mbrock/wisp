@@ -140,7 +140,11 @@
            (string-equal? key "n"))
        (dom-cursor-step! *cursor-element* 3))
       ((string-equal? key "t")
-       (dom-cursor-step! *cursor-element* 4)))))
+       (dom-cursor-step! *cursor-element* 4))
+      ((string-equal? key "k")
+       (dom-cursor-step! *cursor-element* 5))
+      ((string-equal? key "d")
+       (dom-cursor-step! *cursor-element* 6)))))
 
 (with-simple-error-handler ()
   (dom-on-keydown! *key-callback*)
