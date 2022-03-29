@@ -218,7 +218,10 @@ function step(e: HTMLElement, direction: number, ctrl: boolean, shift: boolean):
       return true
     }
   } else if (direction === 5) {
-    if (e.nextElementSibling) {
+    if (e.childNodes.length > 0) {
+      e.replaceChildren()
+      return true
+    } else if (e.nextElementSibling) {
       e.nextElementSibling.remove()
       return true
     }
