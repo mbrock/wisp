@@ -187,6 +187,13 @@ function step(e: HTMLElement, direction: number): boolean {
       }
     }
     return moved
+  } else if (direction === 4) {
+    if (e.previousElementSibling && e.nextElementSibling) {
+      let p = e.previousElementSibling
+      p.insertAdjacentElement("beforebegin", e.nextElementSibling)
+      e.previousElementSibling.insertAdjacentElement("beforebegin", e)
+      return true
+    }
   }
 
   return false
