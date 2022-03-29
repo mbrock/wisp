@@ -17,7 +17,7 @@ export class WASD {
   wisp: Wisp
   callbackOperation: (cb: Callback, data: U32) => void
 
-  elements: Map<U32, Element>
+  elements: Map<U32, HTMLElement>
   callbacks: Map<U32, (data: U32) => void>
 
   nextElementId = 1
@@ -58,7 +58,7 @@ export class WASD {
         let selector = this.wisp.getString(selectorPointer, selectorLength)
         let element = document.querySelector(selector)
         if (element !== null) {
-          this.elements.set(this.nextElementId, element)
+          this.elements.set(this.nextElementId, element as HTMLElement)
           return this.nextElementId++
         } else {
           return 0
@@ -136,21 +136,58 @@ export class WASD {
 
       step: (elementId: U32, direction: U32) => {
         let e = this.elements.get(elementId)
-        let forward = direction === 0
-        let next = forward ? e.nextElementSibling : e.previousElementSibling
-        if (next) {
-          if (next.tagName === "DIV") {
-            next.insertAdjacentElement(forward ? "afterbegin" : "beforeend", e)
-          } else {
-            next.insertAdjacentElement(forward ? "afterend" : "beforebegin", e)
-          }
-        } else if (e.parentElement) {
-          let up = e.parentElement.closest("div")
-          if (up) {
-            up.insertAdjacentElement(forward ? "afterend" : "beforebegin", e)
-          }
-        }
+        step(e, direction)
       }
     }
   }
+}
+
+function step(e: HTMLElement, direction: number): boolean {
+  if (direction === 0 || direction === 1) {
+    let forward = direction === 0
+    let next = forward ? e.nextElementSibling : e.previousElementSibling
+    if (next) {
+      if (next.tagName === "DIV") {
+        next.insertAdjacentElement(forward ? "afterbegin" : "beforeend", e)
+        return true
+      } else {
+        next.insertAdjacentElement(forward ? "afterend" : "beforebegin", e)
+        return true
+      }
+    } else {
+      let up = e.parentElement.closest("div")
+      if (up) {
+        up.insertAdjacentElement(forward ? "afterend" : "beforebegin", e)
+        return true
+      }
+    }
+  } else if (direction === 2) {
+    let y = e.offsetTop
+    let moved = false
+    while (true) {
+      if (step(e, 1)) {
+        moved = true
+        if (e.offsetTop < y)
+          break
+      } else {
+        break
+      }
+    }
+    return moved
+  } else if (direction === 3) {
+    let y = e.offsetTop
+    let moved = false
+    while (true) {
+      if (step(e, 0)) {
+        moved = true
+        if (e.offsetTop > y)
+          break
+      } else {
+        break
+      }
+    }
+    return moved
+  }
+
+  return false
 }

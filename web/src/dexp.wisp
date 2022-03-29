@@ -130,7 +130,11 @@
       ((string-equal? key "ArrowRight")
        (dom-cursor-step! *cursor-element* 0))
       ((string-equal? key "ArrowLeft")
-       (dom-cursor-step! *cursor-element* 1)))))
+       (dom-cursor-step! *cursor-element* 1))
+      ((string-equal? key "ArrowUp")
+       (dom-cursor-step! *cursor-element* 2))
+      ((string-equal? key "ArrowDown")
+       (dom-cursor-step! *cursor-element* 3)))))
 
 (with-simple-error-handler ()
   (dom-on-keydown! *key-callback*)
