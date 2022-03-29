@@ -142,24 +142,32 @@ export class WASD {
           return this.wisp.newv08(result)
       },
 
-      step: (elementId: U32, direction: U32) => {
+      step: (elementId: U32, direction: U32, ctrl: U32) => {
         let e = this.elements.get(elementId)
-        step(e, direction)
+        step(e, direction, (ctrl >>> 0) !== this.wisp.sys.nil)
       }
     }
   }
 }
 
-function step(e: HTMLElement, direction: number): boolean {
+function step(e: HTMLElement, direction: number, ctrl: boolean): boolean {
   if (direction === 0 || direction === 1) {
     let forward = direction === 0
     let next = forward ? e.nextElementSibling : e.previousElementSibling
     if (next) {
       if (next.tagName === "DIV") {
-        next.insertAdjacentElement(forward ? "afterbegin" : "beforeend", e)
+        next.insertAdjacentElement(
+          forward
+            ? (ctrl ? "afterend" : "afterbegin")
+            : (ctrl ? "beforebegin" : "beforeend"),
+          e)
         return true
       } else {
-        next.insertAdjacentElement(forward ? "afterend" : "beforebegin", e)
+        next.insertAdjacentElement(
+          forward
+            ? "afterend"
+            : "beforebegin",
+          e)
         return true
       }
     } else {
@@ -173,7 +181,7 @@ function step(e: HTMLElement, direction: number): boolean {
     let y = e.offsetTop
     let moved = false
     while (true) {
-      if (step(e, 1)) {
+      if (step(e, 1, false)) {
         moved = true
         if (e.offsetTop < y)
           break
@@ -186,7 +194,7 @@ function step(e: HTMLElement, direction: number): boolean {
     let y = e.offsetTop
     let moved = false
     while (true) {
-      if (step(e, 0)) {
+      if (step(e, 0, false)) {
         moved = true
         if (e.offsetTop > y)
           break
