@@ -38,6 +38,7 @@ const DOM = struct {
         callback: u32,
     ) void;
     extern "dom" fn prompt(ptr: [*]const u8, len: usize) u32;
+    extern "dom" fn step(element: u32, direction: u32) void;
 };
 
 const IDOM = struct {
@@ -170,4 +171,9 @@ pub fn @"DOM-ON-KEYDOWN!"(
 pub fn @"DOM-PROMPT"(step: *Step, v08: u32) anyerror!void {
     const text = try step.heap.v08slice(v08);
     step.give(.val, DOM.prompt(text.ptr, text.len));
+}
+
+pub fn @"DOM-CURSOR-STEP!"(step: *Step, cursor: u32, direction: u32) anyerror!void {
+    DOM.step(cursor, direction);
+    step.give(.val, nil);
 }

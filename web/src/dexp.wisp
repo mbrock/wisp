@@ -31,7 +31,7 @@
 (defun render-sexp (sexp)
   (cond
     ((symbol? sexp)
-     (tag :div `((:class "symbol")
+     (tag :span `((:class "symbol")
                  (:data-package-name
                   ,(package-name
                     (symbol-package sexp)))
@@ -47,7 +47,7 @@
      (tag :div '((:class "list"))
        (render-list-contents sexp)))
     ((eq? 'string (type-of sexp))
-     (tag :div '((:class "string"))
+     (tag :span '((:class "string"))
        (text sexp)))
     ((eq? 'vector (type-of sexp))
      (tag :div '((:class "vector"))
@@ -97,15 +97,23 @@
 
     .list { border-color: #555; border-width: 0 2px; border-radius: 10px; }
     .vector { border-color: #558; border-width: 1px; }
+
+    .cursor { height: 5px; width: 5px; border-radius: 100%; }
+    .cursor { background: goldenrod; }
   "))
+  (tag :span '((:class "cursor")) nil)
   (render-sexp `(defun render-list-contents (sexp)
                   ,@(code #'render-list-contents)))
-  (render-sexp `(notes ,(reverse *buffer*))))
+  (progn
+      (set! *cursor-element* (query-selector ".cursor"))
+      (dom-cursor-step! *cursor-element* 0)
+      (print (list :cursor-element *cursor-element*))))
 
 (defvar *buffer* ())
 (defvar *root-element* (query-selector "#wisp-app"))
 (defvar *key-callback* (make-callback 'on-keydown))
 (defvar *render-callback* (make-callback 'draw-app))
+(defvar *cursor-element* nil)
 
 (print (list 'root *root-element*
              'key-callback *key-callback*
@@ -118,40 +126,12 @@
 (defun on-keydown (key)
   (with-simple-error-handler ()
     (print (list 'keydown key))
-    (when (string-equal? key "Enter")
-      (progn
-        (set! *buffer*
-              (cons (dom-prompt "Enter a line.") *buffer*))))
-    (render-app)))
+    (cond
+      ((string-equal? key "ArrowRight")
+       (dom-cursor-step! *cursor-element* 0))
+      ((string-equal? key "ArrowLeft")
+       (dom-cursor-step! *cursor-element* 1)))))
 
 (with-simple-error-handler ()
   (dom-on-keydown! *key-callback*)
   (render-app))
-
-
-
-;;; * Structural cursors as delimited continuations
-
-(defun cursor-handler (value continuation)
-  (fn (command)
-      (case (head command)
-        (render
-         (make-cursor (fn () (call continuation value))))
-        (change
-         (make-cursor (fn () (call continuation (second command)))))
-        (forward
-         ))
-      )
-    )
-
-(defun make-cursor (maker)
-  (call-with-prompt :cursor maker cursor-handler))
-
-(defun cursor! (value) (send! :cursor value))
-
-(defun cursor-demo ()
-  (make-cursor
-   (fn ()
-     (map (fn (x)
-            (cursor! x))
-          (list 'foo 'bar 'baz)))))

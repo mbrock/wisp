@@ -133,6 +133,24 @@ export class WASD {
         else
           return this.wisp.newv08(result)
       },
+
+      step: (elementId: U32, direction: U32) => {
+        let e = this.elements.get(elementId)
+        let forward = direction === 0
+        let next = forward ? e.nextElementSibling : e.previousElementSibling
+        if (next) {
+          if (next.tagName === "DIV") {
+            next.insertAdjacentElement(forward ? "afterbegin" : "beforeend", e)
+          } else {
+            next.insertAdjacentElement(forward ? "afterend" : "beforebegin", e)
+          }
+        } else if (e.parentElement) {
+          let up = e.parentElement.closest("div")
+          if (up) {
+            up.insertAdjacentElement(forward ? "afterend" : "beforebegin", e)
+          }
+        }
+      }
     }
   }
 }
