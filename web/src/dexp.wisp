@@ -98,15 +98,19 @@
     .list { border-color: #555; border-width: 0 2px; border-radius: 10px; }
     .vector { border-color: #558; border-width: 1px; }
 
-    .cursor { height: 5px; width: 5px; border-radius: 100%; }
-    .cursor { display: inline-block; background: goldenrod; }
+    .cursor:empty { height: 5px; width: 5px; border-radius: 100%; }
+    .cursor { background: #63ffeb80; }
+    .cursor { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+
+    .cursor:not(:empty) { background: #63ffeb40; border-radius: 5px; }
+    .cursor:not(:empty) { margin: 0 5px; padding: 0 5px; }
   "))
   (tag :span '((:class "cursor")) nil)
   (render-sexp `(defun render-list-contents (sexp)
                   ,(code #'render-list-contents)))
   (progn
     (set! *cursor-element* (query-selector ".cursor"))
-    (dom-cursor-step! *cursor-element* 0)
+    (dom-cursor-step! *cursor-element* 0 nil nil)
     (print (list :cursor-element *cursor-element*))))
 
 (defvar *buffer* ())
@@ -141,23 +145,27 @@
       (print (list 'keydown key control? shift? alt? meta? repeat?))
       (cond
         ((or (string-equal? key "ArrowRight")
-             (string-equal? key "f"))
-         (dom-cursor-step! *cursor-element* 0 control?))
+             (string-equal? key "f")
+             (string-equal? key "F"))
+         (dom-cursor-step! *cursor-element* 0 control? shift?))
         ((or (string-equal? key "ArrowLeft")
-             (string-equal? key "b"))
-         (dom-cursor-step! *cursor-element* 1 control?))
+             (string-equal? key "b")
+             (string-equal? key "B"))
+         (dom-cursor-step! *cursor-element* 1 control? shift?))
         ((or (string-equal? key "ArrowUp")
              (string-equal? key "p"))
-         (dom-cursor-step! *cursor-element* 2 nil))
+         (dom-cursor-step! *cursor-element* 2 nil nil))
         ((or (string-equal? key "ArrowDown")
              (string-equal? key "n"))
-         (dom-cursor-step! *cursor-element* 3 nil))
+         (dom-cursor-step! *cursor-element* 3 nil nil))
         ((string-equal? key "t")
-         (dom-cursor-step! *cursor-element* 4 nil))
+         (dom-cursor-step! *cursor-element* 4 nil nil))
         ((string-equal? key "k")
-         (dom-cursor-step! *cursor-element* 5 nil))
+         (dom-cursor-step! *cursor-element* 5 nil nil))
         ((string-equal? key "d")
-         (dom-cursor-step! *cursor-element* 6 nil))))))
+         (dom-cursor-step! *cursor-element* 6 nil nil))
+        ((string-equal? key "Escape")
+         (dom-cursor-step! *cursor-element* 7 nil nil))))))
 
 (with-simple-error-handler ()
   (dom-on-keydown! *key-callback*)

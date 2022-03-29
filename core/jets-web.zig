@@ -27,18 +27,33 @@ const Heap = Wisp.Heap;
 const nil = Wisp.nil;
 
 const DOM = struct {
-    extern "dom" fn query_selector(ptr: [*]const u8, len: usize) u32;
+    extern "dom" fn query_selector(
+        ptr: [*]const u8,
+        len: usize,
+    ) u32;
+
     extern "dom" fn make_callback(
         pkgname_ptr: [*]const u8,
         pkgname_len: usize,
         funname_ptr: [*]const u8,
         funname_len: usize,
     ) u32;
+
     extern "dom" fn on_keydown(
         callback: u32,
     ) void;
-    extern "dom" fn prompt(ptr: [*]const u8, len: usize) u32;
-    extern "dom" fn step(element: u32, direction: u32, ctrl: u32) void;
+
+    extern "dom" fn prompt(
+        ptr: [*]const u8,
+        len: usize,
+    ) u32;
+
+    extern "dom" fn step(
+        element: u32,
+        direction: u32,
+        ctrl: u32,
+        shift: u32,
+    ) void;
 };
 
 const IDOM = struct {
@@ -173,7 +188,13 @@ pub fn @"DOM-PROMPT"(step: *Step, v08: u32) anyerror!void {
     step.give(.val, DOM.prompt(text.ptr, text.len));
 }
 
-pub fn @"DOM-CURSOR-STEP!"(step: *Step, cursor: u32, direction: u32, ctrl: u32) anyerror!void {
-    DOM.step(cursor, direction, ctrl);
+pub fn @"DOM-CURSOR-STEP!"(
+    step: *Step,
+    cursor: u32,
+    direction: u32,
+    ctrl: u32,
+    shift: u32,
+) anyerror!void {
+    DOM.step(cursor, direction, ctrl, shift);
     step.give(.val, nil);
 }

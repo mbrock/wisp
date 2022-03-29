@@ -58,6 +58,7 @@ pub const FnTag = enum {
     f1r,
     f2,
     f3,
+    f4,
 
     pub fn from(comptime T: type) FnTag {
         return switch (T) {
@@ -65,6 +66,7 @@ pub const FnTag = enum {
             fn (*Step, u32) anyerror!void => .f1,
             fn (*Step, u32, u32) anyerror!void => .f2,
             fn (*Step, u32, u32, u32) anyerror!void => .f3,
+            fn (*Step, u32, u32, u32, u32) anyerror!void => .f4,
 
             fn (*Step, Rest) anyerror!void => .f0r,
             fn (*Step, u32, Rest) anyerror!void => .f1r,
@@ -81,6 +83,7 @@ pub const FnTag = enum {
             .f1 => fn (*Step, u32) anyerror!void,
             .f2 => fn (*Step, u32, u32) anyerror!void,
             .f3 => fn (*Step, u32, u32, u32) anyerror!void,
+            .f4 => fn (*Step, u32, u32, u32, u32) anyerror!void,
 
             .f0r => fn (*Step, Rest) anyerror!void,
             .f0x => fn (*Step, []u32) anyerror!void,

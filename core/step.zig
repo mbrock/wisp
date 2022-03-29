@@ -817,6 +817,20 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
                 try step.invalidArgumentCount(jet);
             }
         },
+
+        .f4 => {
+            const list = try scanListAlloc(step.heap, tmp.get(), arg);
+            const args = list.items;
+            defer list.deinit();
+
+            if (args.len == 4) {
+                if (rev) std.mem.reverse(u32, args);
+                const fun = cast(.f4, def);
+                try fun(step, args[0], args[1], args[2], args[3]);
+            } else {
+                try step.invalidArgumentCount(jet);
+            }
+        },
     }
 }
 
