@@ -21,10 +21,16 @@ pub const Funs = @import("./jets-fun.zig");
 pub const Ctls = @import("./jets-ctl.zig");
 pub const Webs = @import("./jets-web.zig");
 
-pub const jets =
-    makeOpArray(Ctls, .ctl) ++
-    makeOpArray(Funs, .fun) ++
-    makeOpArray(Webs, .fun);
+pub const jets = blk: {
+    if (@import("builtin").os.tag == .wasi) {
+        break :blk makeOpArray(Webs, .fun) ++
+            makeOpArray(Ctls, .ctl) ++
+            makeOpArray(Funs, .fun);
+    } else {
+        break :blk makeOpArray(Ctls, .ctl) ++
+            makeOpArray(Funs, .fun);
+    }
+};
 
 const std = @import("std");
 const assert = std.debug.assert;
