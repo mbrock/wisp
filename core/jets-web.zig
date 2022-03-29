@@ -27,14 +27,20 @@ const Heap = Wisp.Heap;
 const nil = Wisp.nil;
 
 const DOM = struct {
+    extern "dom" fn query_selector(ptr: [*]const u8, len: usize) u32;
     extern "dom" fn make_callback(
         pkgname_ptr: [*]const u8,
         pkgname_len: usize,
         funname_ptr: [*]const u8,
         funname_len: usize,
     ) u32;
+    extern "dom" fn on_keydown(
+        callback: u32,
+    ) void;
+    extern "dom" fn prompt(ptr: [*]const u8, len: usize) u32;
+};
 
-    extern "dom" fn query_selector(ptr: [*]const u8, len: usize) u32;
+const IDOM = struct {
     extern "dom" fn patch(element: u32, callback: u32, data: u32) u32;
     extern "dom" fn open_start(tagptr: [*]const u8, taglen: usize) void;
     extern "dom" fn open_end() void;
@@ -51,10 +57,6 @@ const DOM = struct {
         attrlen: usize,
         callback: usize,
     ) void;
-    extern "dom" fn on_keydown(
-        callback: u32,
-    ) void;
-    extern "dom" fn prompt(ptr: [*]const u8, len: usize) u32;
 };
 
 pub fn @"DOM-MAKE-CALLBACK"(
@@ -80,52 +82,52 @@ pub fn @"QUERY-SELECTOR"(step: *Step, selector: u32) anyerror!void {
     step.give(.val, id);
 }
 
-pub fn @"DOM-PATCH!"(
+pub fn @"IDOM-PATCH!"(
     step: *Step,
     element: u32,
     callback: u32,
     data: u32,
 ) anyerror!void {
-    if (DOM.patch(element, callback, data) == 0) {
+    if (IDOM.patch(element, callback, data) == 0) {
         step.give(.val, nil);
     } else {
         return error.DomPatchError;
     }
 }
 
-pub fn @"DOM-OPEN-START!"(
+pub fn @"IDOM-OPEN-START!"(
     step: *Step,
     tag: u32,
 ) anyerror!void {
     const str = try step.heap.v08slice(tag);
-    _ = DOM.open_start(str.ptr, str.len);
+    _ = IDOM.open_start(str.ptr, str.len);
     step.give(.val, nil);
 }
 
-pub fn @"DOM-OPEN-END!"(
+pub fn @"IDOM-OPEN-END!"(
     step: *Step,
 ) anyerror!void {
-    DOM.open_end();
+    IDOM.open_end();
     step.give(.val, nil);
 }
 
-pub fn @"DOM-CLOSE!"(
+pub fn @"IDOM-CLOSE!"(
     step: *Step,
     tag: u32,
 ) anyerror!void {
     const str = try step.heap.v08slice(tag);
-    DOM.close(str.ptr, str.len);
+    IDOM.close(str.ptr, str.len);
     step.give(.val, nil);
 }
 
-pub fn @"DOM-ATTR!"(
+pub fn @"IDOM-ATTR!"(
     step: *Step,
     attr: u32,
     val: u32,
 ) anyerror!void {
     const attrstr = try step.heap.v08slice(attr);
     const valstr = try step.heap.v08slice(val);
-    DOM.attr(
+    IDOM.attr(
         attrstr.ptr,
         attrstr.len,
         valstr.ptr,
@@ -134,13 +136,13 @@ pub fn @"DOM-ATTR!"(
     step.give(.val, nil);
 }
 
-pub fn @"DOM-ATTR-CALLBACK!"(
+pub fn @"IDOM-ATTR-CALLBACK!"(
     step: *Step,
     attr: u32,
     val: u32,
 ) anyerror!void {
     const attrstr = try step.heap.v08slice(attr);
-    DOM.attr_callback(
+    IDOM.attr_callback(
         attrstr.ptr,
         attrstr.len,
         val,
@@ -148,12 +150,12 @@ pub fn @"DOM-ATTR-CALLBACK!"(
     step.give(.val, nil);
 }
 
-pub fn @"DOM-TEXT!"(
+pub fn @"IDOM-TEXT!"(
     step: *Step,
     text: u32,
 ) anyerror!void {
     const str = try step.heap.v08slice(text);
-    DOM.text(str.ptr, str.len);
+    IDOM.text(str.ptr, str.len);
     step.give(.val, nil);
 }
 

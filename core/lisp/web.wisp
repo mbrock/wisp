@@ -16,20 +16,3 @@
 ;; Public License along with Wisp. If not, see
 ;; <https://www.gnu.org/licenses/>.
 ;;
-
-;; (defun render-hello (data)
-;;   (tag :div
-;;     '((:class "bg-blue-400 text-yellow-50/80 border rounded p-2"))
-;;     (text "Hello, world!")
-;;     (tag :div '((:class "bg-blue-600 border rounded p-2"))
-;;       (text "Yeah!"))))
-
-;; (compile! #'render-hello)
-
-;; (defun hello-world ()
-;;   (dom-patch!
-;;    (query-selector "#wisp-app")
-;;    (make-callback 'render-hello) nil))
-
-;; (with-simple-error-handler ()
-;;   (hello-world))

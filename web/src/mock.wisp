@@ -1,22 +1,22 @@
-(defun mock-dom! ()
-  (defun dom-open-start! (tag-name)
+(defun mock-idom! ()
+  (defun idom-open-start! (tag-name)
     (write "<")
     (write tag-name)
     (write " "))
 
-  (defun dom-attr! (attr value)
+  (defun idom-attr! (attr value)
     (write attr)
     (write "='")
     (write value)
     (write "' "))
 
-  (defun dom-open-end! ()
+  (defun idom-open-end! ()
     (write ">"))
 
-  (defun dom-text! (text)
+  (defun idom-text! (text)
     (write text))
 
-  (defun dom-close! (tag-name)
+  (defun idom-close! (tag-name)
     (write "</")
     (write tag-name)
     (write ">")))

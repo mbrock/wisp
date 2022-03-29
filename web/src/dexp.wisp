@@ -13,17 +13,17 @@
 (defmacro tag (tag-symbol attrs &rest body)
   (let ((tag-name (symbol-name tag-symbol)))
     `(progn
-       (dom-open-start! ,tag-name)
+       (idom-open-start! ,tag-name)
        (for-each ,attrs
          (fn (attr)
-           (dom-attr! (symbol-name (head attr))
+           (idom-attr! (symbol-name (head attr))
                       (second attr))))
-       (dom-open-end!)
+       (idom-open-end!)
        ,@body
-       (dom-close! ,tag-name))))
+       (idom-close! ,tag-name))))
 
 (defun text (text)
-  (dom-text! text))
+  (idom-text! text))
 
 
 ;;; * D-expressions
@@ -113,7 +113,7 @@
 
 (defun render-app ()
   (with-simple-error-handler ()
-    (dom-patch! *root-element* *render-callback* nil)))
+    (idom-patch! *root-element* *render-callback* nil)))
 
 (defun on-keydown (key)
   (with-simple-error-handler ()
