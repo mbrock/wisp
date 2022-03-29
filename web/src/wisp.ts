@@ -34,6 +34,7 @@ export interface WispAPI {
 
   wisp_heap_init(): number
   wisp_heap_v08_new(heap: number, ptr: number, len: number): number
+  wisp_heap_v32_new(heap: number, ptr: number, len: number): number
   wisp_start_web(heap: number): number
   
   wisp_read(heap: number, buf: number): number
@@ -106,6 +107,18 @@ export class Wisp {
     const v08 = this.api.wisp_heap_v08_new(this.heap, buf, s.length)
     this.free(buf)
     return v08 >>> 0
+  }
+  
+  newv32(arr: number[]): number {
+    const buf = this.api.wisp_alloc(this.heap, 4 * arr.length)
+    const mem = new Uint32Array(this.api.memory.buffer, buf, arr.length)
+    mem.set(arr)
+    mem[arr.length] = 0
+    
+    const v32 = this.api.wisp_heap_v32_new(this.heap, buf, arr.length)
+    this.free(buf)
+    
+    return v32 >>> 0
   }
 
   internKeyword(s: string): number {

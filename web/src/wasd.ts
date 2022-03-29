@@ -120,7 +120,15 @@ export class WASD {
         window.addEventListener(
           "keydown",
           key => {
-            callback(this.wisp.newv08(key.key))
+            let truth = (x: any) => x ? this.wisp.sys.t : this.wisp.sys.nil
+            callback(this.wisp.newv32([
+              this.wisp.newv08(key.key),
+              truth(key.ctrlKey),
+              truth(key.shiftKey),
+              truth(key.altKey),
+              truth(key.metaKey),
+              truth(key.repeat),
+            ]))
           },
         )
       },
