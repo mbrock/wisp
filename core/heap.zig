@@ -262,6 +262,7 @@ pub const Heap = struct {
     roots: std.ArrayListUnmanaged(*u32) = .{},
 
     please_tidy: bool = false,
+    inhibit_gc: bool = false,
 
     pub fn init(orb: Orb, era: Era) !Heap {
         return initWithLog(orb, era, null);

@@ -373,6 +373,9 @@ export fn wisp_call_package_function(
             [_]u32{ sym, quote },
         ) catch return Wisp.zap;
 
+        const was_inhibited = heap.inhibit_gc;
+        defer heap.inhibit_gc = was_inhibited;
+        heap.inhibit_gc = true;
         return wisp_eval(heap, exp, 0);
     } else {
         return Wisp.nil;

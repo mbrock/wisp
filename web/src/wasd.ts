@@ -71,9 +71,10 @@ export class WASD {
           let element = this.elements.get(elementId)
           let callback = this.callbacks.get(callbackId)
 
-          queueMicrotask(() => {
-            DOM.patch(element, callback, data)
-          })
+          // We now run this synchronously, reentrantly.  This only
+          // works because we inhibit garbage collection
+          // during callbacks.
+          DOM.patch(element, callback, data)
 
           return 0
         } catch (e) {

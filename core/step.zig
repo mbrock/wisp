@@ -878,7 +878,7 @@ pub fn evaluateUntilSpecificContinuation(
     while (true) {
         if (limit > 0 and i >= limit) break;
 
-        if (heap.please_tidy or (limit == 0 and i > 0 and @mod(i, 100_000) == 0)) {
+        if (!heap.inhibit_gc and (heap.please_tidy or (limit == 0 and i > 0 and @mod(i, 100_000) == 0))) {
             var timer = try std.time.Timer.start();
             const s0 = heap.bytesize();
 
@@ -888,6 +888,7 @@ pub fn evaluateUntilSpecificContinuation(
             const s1 = heap.bytesize();
             const nanoseconds = timer.read();
 
+            // if (s0 - s1 > 1_000) {
             try std.io.getStdErr().writer().print(
                 ";; [gc took {d}ms; {d} KB to {d} KB]\n",
                 .{
@@ -896,6 +897,7 @@ pub fn evaluateUntilSpecificContinuation(
                     s1 / 1024,
                 },
             );
+            // }
 
             heap.please_tidy = false;
         }
