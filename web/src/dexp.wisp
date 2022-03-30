@@ -30,25 +30,27 @@
 
 (defun-noexpand render-sexp (sexp)
   (cond
+    ((nil? sexp)
+     (tag :div '((:class "list")) nil))
     ((symbol? sexp)
      (tag :span `((:class "symbol")
-                 (:data-package-name
-                  ,(package-name
-                    (symbol-package sexp)))
-                 (:data-symbol-name
-                  ,(symbol-name sexp))
-                 (:data-function-kind
-                  ,(if (symbol-function sexp)
-                       (if (jet? (symbol-function sexp))
-                           "jet" "fun")
-                     "")))
-          (cond
-            ((eq? sexp 'todo)
-             (tag :input '((:type "checkbox")) nil))
-            ((eq? sexp 'done)
-             (tag :input '((:type "checkbox")
-                           (:checked "checked")) nil))
-            (t (text (symbol-name sexp))))))
+                  (:data-package-name
+                   ,(package-name
+                     (symbol-package sexp)))
+                  (:data-symbol-name
+                   ,(symbol-name sexp))
+                  (:data-function-kind
+                   ,(if (symbol-function sexp)
+                        (if (jet? (symbol-function sexp))
+                            "jet" "fun")
+                      "")))
+       (cond
+         ((eq? sexp 'todo)
+          (tag :input '((:type "checkbox")) nil))
+         ((eq? sexp 'done)
+          (tag :input '((:type "checkbox")
+                        (:checked "checked")) nil))
+         (t (text (symbol-name sexp))))))
     ((pair? sexp)
      (tag :div '((:class "list"))
        (render-list-contents sexp)))
@@ -140,11 +142,6 @@
 (defvar *render-sexp-callback* (make-callback 'do-render-sexp))
 (defvar *cursor-element* nil)
 
-(defun do-render-sexp (sexp)
-  (with-simple-error-handler ()
-    (print (list 'render sexp))
-    (render-sexp sexp)))
-
 (defun render-app ()
   (with-simple-error-handler ()
     (idom-patch! *root-element* *render-callback* nil)))
@@ -175,7 +172,7 @@
              (string-equal? key "B"))
          (dom-cursor-step! *cursor-element* 1 control? shift?))
         ((or (string-equal? key "ArrowUp")
-             (string-equal? key "p"))
+            (string-equal? key "p"))
          (dom-cursor-step! *cursor-element* 2 nil nil))
         ((or (string-equal? key "ArrowDown")
              (string-equal? key "n"))
@@ -192,13 +189,19 @@
          (dom-cursor-step! *cursor-element* 8 nil nil))
         (t t)))))
 
+(defun do-render-sexp (sexp)
+  (with-simple-error-handler ()
+    (print (list 'render sexp))
+    (render-sexp sexp)))
+
 (defun on-insert (code)
   (with-simple-error-handler ()
     (let ((expr (read-from-string code)))
       (progn
         (print (list 'expr expr))
+        (dom-remove-children! *cursor-element*)
         (idom-patch! *cursor-element* *render-sexp-callback* expr)
-        ))))
+        (dom-cursor-step! *cursor-element* 7 nil nil)))))
 
 (with-simple-error-handler ()
   (dom-on-keydown! *key-callback*)

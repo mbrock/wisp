@@ -32,6 +32,8 @@ const DOM = struct {
         len: usize,
     ) u32;
 
+    extern "dom" fn removeChildren(node: u32) void;
+
     extern "dom" fn make_callback(
         pkgname_ptr: [*]const u8,
         pkgname_len: usize,
@@ -102,6 +104,11 @@ pub fn @"QUERY-SELECTOR"(step: *Step, selector: u32) anyerror!void {
     const str = try step.heap.v08slice(selector);
     const id = DOM.query_selector(str.ptr, str.len);
     step.give(.val, id);
+}
+
+pub fn @"DOM-REMOVE-CHILDREN!"(step: *Step, node: u32) anyerror!void {
+    DOM.removeChildren(node);
+    step.give(.val, node);
 }
 
 pub fn @"IDOM-PATCH!"(

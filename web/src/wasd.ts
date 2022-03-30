@@ -66,6 +66,13 @@ export class WASD {
         }
       },
 
+      removeChildren: (elementId: U32) => {
+        let element = this.elements.get(elementId)
+        if (element) {
+          element.innerHTML = ""
+        }
+      },
+
       patch: (elementId: U32, callbackId: U32, data: U32) => {
         try {
           let element = this.elements.get(elementId)
@@ -260,7 +267,7 @@ function step(
     }
   } else if (direction === 7) {
     if (e.children.length > 0) {
-      e.after(...[].slice.call(e.children))
+      e.before(...[].slice.call(e.children))
       return true
     }
   } else if (direction === 8) {
