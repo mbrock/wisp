@@ -888,16 +888,14 @@ pub fn evaluateUntilSpecificContinuation(
             const s1 = heap.bytesize();
             const nanoseconds = timer.read();
 
-            if (s0 - s1 > 1_000) {
-                try std.io.getStdErr().writer().print(
-                    ";; [gc took {d}ms; {d} KB to {d} KB]\n",
-                    .{
-                        @intToFloat(f64, nanoseconds) / 1_000_000,
-                        s0 / 1024,
-                        s1 / 1024,
-                    },
-                );
-            }
+            try std.io.getStdErr().writer().print(
+                ";; [gc took {d}ms; {d} KB to {d} KB]\n",
+                .{
+                    @intToFloat(f64, nanoseconds) / 1_000_000,
+                    s0 / 1024,
+                    s1 / 1024,
+                },
+            );
 
             heap.please_tidy = false;
         }

@@ -1,5 +1,6 @@
 import * as DOM from "incremental-dom"
 import { Wisp } from "./wisp"
+import { startEditor } from "./edit"
 
 type U32 = number
 
@@ -15,10 +16,10 @@ export interface Callback {
 //
 export class WASD {
   wisp: Wisp
-  callbackOperation: (cb: Callback, data: U32) => void
+  callbackOperation: (cb: Callback, data: U32) => U32
 
   elements: Map<U32, HTMLElement>
-  callbacks: Map<U32, (data: U32) => void>
+  callbacks: Map<U32, (data: U32) => U32>
 
   nextElementId = 1
   nextCallbackId = 1
@@ -33,7 +34,7 @@ export class WASD {
   }
 
   setCallbackOperation(
-    operation: (cb: Callback, data: U32) => void
+    operation: (cb: Callback, data: U32) => U32
   ) {
     this.callbackOperation = operation
   }
@@ -47,9 +48,9 @@ export class WASD {
         const packageName = this.wisp.getString(pkgptr, pkglen)
         const functionName = this.wisp.getString(funptr, funlen)
 
-        this.callbacks.set(this.nextCallbackId, (data: U32) => {
+        this.callbacks.set(this.nextCallbackId, (data: U32) =>
           this.callbackOperation({ packageName, functionName }, data)
-        })
+        )
 
         return this.nextCallbackId++
       },
@@ -120,17 +121,37 @@ export class WASD {
         window.addEventListener(
           "keydown",
           key => {
-            let truth = (x: any) => x ? this.wisp.sys.t : this.wisp.sys.nil
-            callback(this.wisp.newv32([
-              this.wisp.newv08(key.key),
-              truth(key.ctrlKey),
-              truth(key.shiftKey),
-              truth(key.altKey),
-              truth(key.metaKey),
-              truth(key.repeat),
-            ]))
+            let editor = (key.target as HTMLElement).closest(".cm-editor")
+            if (!editor) {
+              let truth = (x: any) => x ? this.wisp.sys.t : this.wisp.sys.nil
+              let result = callback(this.wisp.newv32([
+                this.wisp.newv08(key.key),
+                truth(key.ctrlKey),
+                truth(key.shiftKey),
+                truth(key.altKey),
+                truth(key.metaKey),
+                truth(key.repeat),
+              ]))
+
+              if (result >>> 0 !== this.wisp.sys.t) {
+                console.log({ result }, this.wisp.sys)
+                key.preventDefault()
+                key.stopImmediatePropagation()
+              }
+            }
           },
         )
+      },
+
+      addWindowEventHandler: (ptr: U32, len: U32, callbackId: U32) => {
+        let eventName = this.wisp.getString(ptr, len)
+
+        let callback = this.callbacks.get(callbackId)
+        if (!callback) throw new Error(`no callback ${callbackId}`)
+
+        window.addEventListener(eventName, (event: CustomEvent) => {
+          callback(event.detail)
+        })
       },
 
       prompt: (ptr: U32, len: U32) => {
@@ -144,7 +165,7 @@ export class WASD {
 
       step: (elementId: U32, direction: U32, ctrl: U32, shift: U32) => {
         let e = this.elements.get(elementId)
-        step(e, direction,
+        step(this.wisp, e, direction,
              (ctrl >>> 0) !== this.wisp.sys.nil,
              (shift >>> 0) !== this.wisp.sys.nil)
       }
@@ -152,7 +173,13 @@ export class WASD {
   }
 }
 
-function step(e: HTMLElement, direction: number, ctrl: boolean, shift: boolean): boolean {
+function step(
+  wisp: Wisp,
+  e: HTMLElement,
+  direction: number,
+  ctrl: boolean,
+  shift: boolean,
+): boolean {
   if (direction === 0 || direction === 1) {
     let forward = direction === 0
     let next = forward ? e.nextElementSibling : e.previousElementSibling
@@ -188,7 +215,7 @@ function step(e: HTMLElement, direction: number, ctrl: boolean, shift: boolean):
     let y = e.offsetTop
     let moved = false
     while (true) {
-      if (step(e, 1, false, false)) {
+      if (step(wisp, e, 1, false, false)) {
         moved = true
         if (e.offsetTop < y)
           break
@@ -201,7 +228,7 @@ function step(e: HTMLElement, direction: number, ctrl: boolean, shift: boolean):
     let y = e.offsetTop
     let moved = false
     while (true) {
-      if (step(e, 0, false, false)) {
+      if (step(wisp, e, 0, false, false)) {
         moved = true
         if (e.offsetTop > y)
           break
@@ -225,14 +252,24 @@ function step(e: HTMLElement, direction: number, ctrl: boolean, shift: boolean):
       e.nextElementSibling.remove()
       return true
     }
-  } else if (direction == 6) {
+  } else if (direction === 6) {
     if (e.nextElementSibling) {
       e.parentNode.insertBefore(e.nextElementSibling.cloneNode(true), e.nextElementSibling)
       return true
     }
-  } else if (direction == 7) {
+  } else if (direction === 7) {
     if (e.children.length > 0) {
       e.after(...[].slice.call(e.children))
+      return true
+    }
+  } else if (direction === 8) {
+    if (e.children.length === 0) {
+      startEditor(e, "", (code: string) => {
+        window.dispatchEvent(
+          new CustomEvent("wisp-insert", { detail: wisp.newv08(code) })
+        )
+      })
+
       return true
     }
   }

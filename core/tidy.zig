@@ -69,6 +69,7 @@ pub fn init(old: *Heap) !Tidy {
 }
 
 pub fn done(tidy: *Tidy) Heap {
+    std.log.warn(";; gc era {any}", .{tidy.new.era});
     tidy.old.v08 = .{};
     tidy.old.pkgmap = .{};
     tidy.old.roots = .{};

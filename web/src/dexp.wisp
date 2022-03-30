@@ -135,12 +135,15 @@
 (defvar *buffer* ())
 (defvar *root-element* (query-selector "#wisp-app"))
 (defvar *key-callback* (make-callback 'on-keydown))
+(defvar *insert-callback* (make-callback 'on-insert))
 (defvar *render-callback* (make-callback 'draw-app))
+(defvar *render-sexp-callback* (make-callback 'do-render-sexp))
 (defvar *cursor-element* nil)
 
-(print (list 'root *root-element*
-             'key-callback *key-callback*
-             'render-callback *render-callback*))
+(defun do-render-sexp (sexp)
+  (with-simple-error-handler ()
+    (print (list 'render sexp))
+    (render-sexp sexp)))
 
 (defun render-app ()
   (with-simple-error-handler ()
@@ -184,8 +187,20 @@
         ((string-equal? key "d")
          (dom-cursor-step! *cursor-element* 6 nil nil))
         ((string-equal? key "Escape")
-         (dom-cursor-step! *cursor-element* 7 nil nil))))))
+         (dom-cursor-step! *cursor-element* 7 nil nil))
+        ((string-equal? key "i")
+         (dom-cursor-step! *cursor-element* 8 nil nil))
+        (t t)))))
+
+(defun on-insert (code)
+  (with-simple-error-handler ()
+    (let ((expr (read-from-string code)))
+      (progn
+        (print (list 'expr expr))
+        (idom-patch! *cursor-element* *render-sexp-callback* expr)
+        ))))
 
 (with-simple-error-handler ()
   (dom-on-keydown! *key-callback*)
+  (dom-on-window-event! "wisp-insert" *insert-callback*)
   (render-app))

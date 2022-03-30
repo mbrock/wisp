@@ -362,8 +362,17 @@ export fn wisp_call_package_function(
 
     if (heap.pkgmap.get(pkgname)) |pkg| {
         const sym = heap.intern(funname, pkg) catch return Wisp.zap;
-        const explist: [2]u32 = .{ sym, data };
-        const exp = Wisp.list(heap, explist) catch return Wisp.zap;
+
+        const quote = Wisp.list(
+            heap,
+            [_]u32{ heap.kwd.QUOTE, data },
+        ) catch return Wisp.zap;
+
+        const exp = Wisp.list(
+            heap,
+            [_]u32{ sym, quote },
+        ) catch return Wisp.zap;
+
         return wisp_eval(heap, exp, 0);
     } else {
         return Wisp.nil;

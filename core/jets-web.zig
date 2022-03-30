@@ -43,6 +43,12 @@ const DOM = struct {
         callback: u32,
     ) void;
 
+    extern "dom" fn addWindowEventHandler(
+        ptr: [*]const u8,
+        len: usize,
+        callback: u32,
+    ) void;
+
     extern "dom" fn prompt(
         ptr: [*]const u8,
         len: usize,
@@ -180,6 +186,16 @@ pub fn @"DOM-ON-KEYDOWN!"(
     callback: u32,
 ) anyerror!void {
     DOM.on_keydown(callback);
+    step.give(.val, nil);
+}
+
+pub fn @"DOM-ON-WINDOW-EVENT!"(
+    step: *Step,
+    name: u32,
+    callback: u32,
+) anyerror!void {
+    const text = try step.heap.v08slice(name);
+    DOM.addWindowEventHandler(text.ptr, text.len, callback);
     step.give(.val, nil);
 }
 

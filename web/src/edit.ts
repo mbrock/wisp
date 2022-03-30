@@ -19,11 +19,10 @@
 
 import { wisp } from "./lang"
 
-import * as DOM from "incremental-dom"
+// import * as DOM from "incremental-dom"
 
 import { drawSelection, dropCursor, EditorView, highlightActiveLine, highlightSpecialChars, keymap } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
-import { lineNumbers, highlightActiveLineGutter } from '@codemirror/gutter';
 import { history, historyKeymap } from '@codemirror/history';
 import { defaultKeymap, emacsStyleKeymap, indentWithTab } from '@codemirror/commands';
 import { bracketMatching } from '@codemirror/matchbrackets';
@@ -31,21 +30,19 @@ import { defaultHighlightStyle } from '@codemirror/highlight';
 import { HighlightStyle, tags } from '@codemirror/highlight';
 import { rectangularSelection } from "@codemirror/rectangular-selection";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/closebrackets";
-import { foldGutter, foldKeymap } from "@codemirror/fold";
+import { foldKeymap } from "@codemirror/fold";
 import { indentOnInput } from "@codemirror/language";
 import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { commentKeymap } from "@codemirror/comment";
-import { Panel, showPanel } from "@codemirror/panel"
-
-export type RunMode = "run" | "debug"
+// import { Panel, showPanel } from "@codemirror/panel"
 
 export function startEditor(
   element: HTMLElement,
-  exec: (code: string, how: RunMode) => void,
   doc: string,
+  done: (code: string) => void,
 ) {
-  function runCode(view: EditorView, how: "run" | "debug") {
-    exec(view.state.doc.sliceString(0), how)
+  function onSubmit(view: EditorView) {
+    done(view.state.doc.sliceString(0))
   }
 
   const view = new EditorView({
@@ -56,22 +53,22 @@ export function startEditor(
 
   view.focus()
 
-  async function openFile(view: EditorView) {
-    console.log("open file clicked")
-    let [handle] = await window.showOpenFilePicker({
-      types: [{
-        description: "Wisp Source Files",
-        accept: {
-          "text/plain": [".wisp"],
-        },
-      }],
-    })
+  // async function openFile(view: EditorView) {
+  //   console.log("open file clicked")
+  //   let [handle] = await window.showOpenFilePicker({
+  //     types: [{
+  //       description: "Wisp Source Files",
+  //       accept: {
+  //         "text/plain": [".wisp"],
+  //       },
+  //     }],
+  //   })
 
-    let file = await handle.getFile()
-    let data = await file.text()
+  //   let file = await handle.getFile()
+  //   let data = await file.text()
 
-    view.setState(makeEditorState(data))
-  }
+  //   view.setState(makeEditorState(data))
+  // }
 
   function makeEditorState(doc: string) {
     return EditorState.create({
@@ -116,11 +113,8 @@ export function startEditor(
         }, {
           dark: true,
         }),
-        lineNumbers(),
-        highlightActiveLineGutter(),
         highlightSpecialChars(),
         history(),
-        foldGutter(),
         drawSelection(),
         dropCursor(),
         EditorState.allowMultipleSelections.of(true),
@@ -138,18 +132,11 @@ export function startEditor(
         EditorView.lineWrapping,
         keymap.of([
           {
-            key: "Ctrl-Enter",
+            key: "Enter",
             run(view) {
-              runCode(view, "run")
+              onSubmit(view)
               return true
             }
-          },
-          {
-            key: "Ctrl-Shift-Enter",
-            run(view) {
-              runCode(view, "debug")
-              return true
-            },
           },
           ...closeBracketsKeymap,
           ...defaultKeymap,
@@ -161,30 +148,30 @@ export function startEditor(
           ...completionKeymap,
         ]),
 
-        showPanel.of(view => {
-          let div = document.createElement("div")
+        // showPanel.of(view => {
+        //   let div = document.createElement("div")
 
-          DOM.patch(div, () => {
-            DOM.elementOpen(
-              "button", null, null,
-              "class", "bg-stone-700 border border-stone-500 m-1 px-2 text-sm",
-              "onclick", () => openFile(view))
-            DOM.text("Open file")
-            DOM.elementClose("button")
+        //   DOM.patch(div, () => {
+        //     DOM.elementOpen(
+        //       "button", null, null,
+        //       "class", "bg-stone-700 border border-stone-500 m-1 px-2 text-sm",
+        //       "onclick", () => openFile(view))
+        //     DOM.text("Open file")
+        //     DOM.elementClose("button")
 
-            DOM.elementOpen(
-              "button", null, null,
-              "class", "bg-stone-700 border border-stone-500 m-1 px-2 text-sm",
-              "onclick", () => runCode(view, "run"))
-            DOM.text("Evaluate buffer")
-            DOM.elementClose("button")
-          })
+        //     DOM.elementOpen(
+        //       "button", null, null,
+        //       "class", "bg-stone-700 border border-stone-500 m-1 px-2 text-sm",
+        //       "onclick", () => runCode(view, "run"))
+        //     DOM.text("Evaluate buffer")
+        //     DOM.elementClose("button")
+        //   })
 
-          return {
-            dom: div,
-            top: true,
-          }
-        }),
+        //   return {
+        //     dom: div,
+        //     top: true,
+        //   }
+        // }),
 
         wisp(),
       ],
