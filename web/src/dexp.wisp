@@ -113,21 +113,22 @@
     .cursor:not(:empty) { background: #63ffeb40; border-radius: 5px; }
     .cursor:not(:empty) { margin: 0 5px; padding: 0 5px; }
   "))
-  (tag :span '((:class "cursor")) nil)
-  (render-sexp `(defun render-sexp (sexp)
-                  ,(code #'render-sexp)))
-  (render-sexp
-   '(note "March 29, 2022"
-     (chores
-      (done "implement structural editor")
-      (done "play around")
-      (todo "buy bananas"))))
+  (tag :div '((:style "display: flex; flex-direction: column; gap: 10px"))
+    (tag :span '((:class "cursor")) nil)
+    (render-sexp `(defun render-sexp (sexp)
+                    ,(code #'render-sexp)))
+    (render-sexp
+     '(note "March 29, 2022"
+       (chores
+        (done "implement structural editor")
+        (done "play around")
+        (todo "buy bananas"))))
 
-  (render-sexp
-   '(defun toggle (item)
-     (cond
-       ((eq? item 'todo) 'done)
-       ((eq? item 'done) 'todo))))
+    (render-sexp
+     '(defun toggle (item)
+       (cond
+         ((eq? item 'todo) 'done)
+         ((eq? item 'done) 'todo)))))
 
   (progn
     (set! *cursor-element* (query-selector ".cursor"))
