@@ -28,7 +28,7 @@
 
 ;;; * D-expressions
 
-(defun render-sexp (sexp)
+(defun-noexpand render-sexp (sexp)
   (cond
     ((symbol? sexp)
      (tag :span `((:class "symbol")
@@ -42,7 +42,13 @@
                        (if (jet? (symbol-function sexp))
                            "jet" "fun")
                      "")))
-       (text (symbol-name sexp))))
+          (cond
+            ((eq? sexp 'todo)
+             (tag :input '((:type "checkbox")) nil))
+            ((eq? sexp 'done)
+             (tag :input '((:type "checkbox")
+                           (:checked "checked")) nil))
+            (t (text (symbol-name sexp))))))
     ((pair? sexp)
      (tag :div '((:class "list"))
        (render-list-contents sexp)))
@@ -106,8 +112,21 @@
     .cursor:not(:empty) { margin: 0 5px; padding: 0 5px; }
   "))
   (tag :span '((:class "cursor")) nil)
-  (render-sexp `(defun render-list-contents (sexp)
-                  ,(code #'render-list-contents)))
+  (render-sexp `(defun render-sexp (sexp)
+                  ,(code #'render-sexp)))
+  (render-sexp
+   '(note "March 29, 2022"
+     (chores
+      (done "implement structural editor")
+      (done "play around")
+      (todo "buy bananas"))))
+
+  (render-sexp
+   '(defun toggle (item)
+     (cond
+       ((eq? item 'todo) 'done)
+       ((eq? item 'done) 'todo))))
+
   (progn
     (set! *cursor-element* (query-selector ".cursor"))
     (dom-cursor-step! *cursor-element* 0 nil nil)

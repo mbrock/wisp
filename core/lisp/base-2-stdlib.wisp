@@ -218,6 +218,10 @@
            (prognify body))))
     `(set-symbol-function! ',name (%fn ,name ,args ,expanded-body))))
 
+(defmacro defun-noexpand (name args &rest body)
+  (print (list 'defun name args))
+  `(set-symbol-function! ',name (%fn ,name ,args ,(prognify body))))
+
 ;;; We can also mutate the code of a function or macro.
 (defun compile! (function)
   (set-code! function (macroexpand-completely (code function))))
