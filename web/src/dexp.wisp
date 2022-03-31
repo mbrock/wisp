@@ -103,12 +103,12 @@
 
     .symbol { text-transform: lowercase; }
 
-    .string { font-family: 'DM Mono', monospace; }
+    .string, .number { font-family: 'DM Mono', monospace; }
     .string:before { content: '“'; }
     .string:after { content: '”'; }
 
-    [data-function-kind=jet] { color: goldenrod; }
-    [data-function-kind=fun] { color: lightsalmon; }
+    .list > [data-function-kind=jet]:first-of-type { color: goldenrod; }
+    .list > [data-function-kind=fun]:first-of-type { color: lightsalmon; }
 
     .vector, .list {
       display: flex;
@@ -162,12 +162,15 @@
       background: #63ffeb40; border-radius: 5px;
       margin: 0 5px; padding: 0 5px;
     }
+
+    ins { text-decoration: none; }
   "))
   (tag :div '((:style "display: inline-flex; flex-direction: column; gap: 10px"))
-    (tag :span '((:class "cursor")) nil)
+    (tag :ins '((:class "cursor")) nil)
     (render-sexp
      '(note (:march 31 2022)
        (done implement inserting in structural editor)
+       (todo structure to code string)
        (todo evaluating expressions)
        (todo saving file)))
     (render-sexp
@@ -240,6 +243,8 @@
          (dom-cursor-step! *cursor-element* 7 nil nil))
         ((string-equal? key "i")
          (dom-cursor-step! *cursor-element* 8 nil nil))
+        ((string-equal? key "e")
+         (dom-cursor-step! *cursor-element* 9 nil nil))
         ((string-equal? key "(")
          (progn
            (on-insert "()")
@@ -260,7 +265,15 @@
         (idom-patch! *cursor-element* *render-sexp-callback* expr)
         (dom-cursor-step! *cursor-element* 7 nil nil)))))
 
+(defun note (date &rest notes)
+  (list 'note date notes))
+
+(defun do-eval (expr)
+  (with-simple-error-handler ()
+    (print (eval expr))))
+
 (with-simple-error-handler ()
   (dom-on-keydown! *key-callback*)
   (dom-on-window-event! "wisp-insert" *insert-callback*)
+  (dom-on-window-event! "wisp-eval" (make-callback 'do-eval))
   (render-app))

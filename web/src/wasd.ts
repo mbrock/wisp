@@ -176,7 +176,7 @@ export class WASD {
         step(this.wisp, e, direction,
              (ctrl >>> 0) !== this.wisp.sys.nil,
              (shift >>> 0) !== this.wisp.sys.nil)
-      }
+      },
     }
   }
 }
@@ -280,7 +280,50 @@ function step(
 
       return true
     }
+  } else if (direction === 9) {
+    if (e.children.length === 0) {
+      if (e.nextElementSibling) {
+        window.dispatchEvent(
+          new CustomEvent("wisp-eval", {
+            detail: wisp.read(
+              domCode(e.nextElementSibling as HTMLElement)
+            )
+          })
+        )
+
+        return true
+      }
+    }
   }
 
   return false
+}
+
+function domCode(root: HTMLElement): string {
+  const data = root.dataset
+  if (root.matches(".symbol")) {
+    if (data.packageName === "KEYWORD")
+      return `:${data.symbolName}`
+    else
+      return `${data.symbolName}`
+  } else if (root.matches(".number")) {
+    return root.innerText
+  } else if (root.matches(".string")) {
+    return `"${root.innerText}"`
+  } else if (root.matches(".vector")) {
+    let items = [].slice.call(root.children).map(domCode)
+    return `[${items.join(" ")}]`
+  } else if (root.matches(".list")) {
+    let items = [].slice.call(root.children).map(domCode)
+    return `(${items.join(" ")})`
+  } else if (root.matches("input[type=checkbox]")) {
+    if ((root as HTMLInputElement).checked) {
+      return "wisp:done"
+    } else {
+      return "wisp:todo"
+    }
+  }
+
+  console.error("unknown element", root)
+  throw new Error("unknown element")
 }
