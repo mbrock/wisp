@@ -50,13 +50,27 @@
          ((eq? sexp 'done)
           (tag :input '((:type "checkbox")
                         (:checked "checked")) nil))
-         (t (text (symbol-name sexp))))))
+         (t
+          (progn
+            (tag :span '((:class "package-name"))
+              (text (package-name (symbol-package sexp))))
+            (tag :span '((:class "symbol-name"))
+              (text (symbol-name sexp))))))))
     ((pair? sexp)
-     (tag :div '((:class "list"))
+     (tag :div `((:class "list")
+                 (:data-callee ,(if (symbol? (head sexp))
+                                    (string-append
+                                     (package-name (symbol-package (head sexp)))
+                                     ":"
+                                     (symbol-name (head sexp)))
+                                  "")))
        (render-list-contents sexp)))
-    ((eq? 'string (type-of sexp))
+    ((string? sexp)
      (tag :span '((:class "string"))
        (text sexp)))
+    ((integer? sexp)
+     (tag :span '((:class "number"))
+       (text (print-to-string sexp))))
     ((eq? 'vector (type-of sexp))
      (tag :div '((:class "vector"))
        (render-vector-contents sexp 0)))))
@@ -97,32 +111,70 @@
     [data-function-kind=fun] { color: lightsalmon; }
 
     .vector, .list {
-      display: flex; flex-wrap: wrap; align-items: center;
-      gap: 5px; margin: 0 5px; padding: 0 5px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      align-items: center;
+      margin: 0 5px;
+      padding: 0 5px;
       max-width: 60ch;
       min-height: 1em;
+    }
+
+    .list[data-callee='WISP:COND'] > :not(.cursor) {
+      width: 100%;
+    }
+
+    .list[data-callee='WISP:DEFUN'] > div:first-of-type ~ :not(.cursor),
+    .list[data-callee='WISP:NOTE'] > div:first-of-type ~ :not(.cursor)
+    {
+      width: 100%;
+    }
+
+    .symbol[data-package-name=WISP] > .package-name { display: none; }
+    .symbol[data-package-name=KEYWORD] > .package-name { display: none; }
+
+    .package-name:after,
+    .symbol[data-package-name=KEYWORD] > .symbol-name:before {
+      content: \":\";
+      opacity: 0.7;
+      padding-right: 1px;
     }
 
     .list { border-color: #555; border-width: 0 2px; border-radius: 10px; }
     .vector { border-color: #558; border-width: 1px; }
 
-    .cursor:empty { height: 5px; width: 5px; border-radius: 100%; }
-    .cursor { background: #63ffeb80; }
-    .cursor { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+    @keyframes blink {
+      0%, 100% { background: #ffa8 } 50% { background: #ffaa }
+    }
 
-    .cursor:not(:empty) { background: #63ffeb40; border-radius: 5px; }
-    .cursor:not(:empty) { margin: 0 5px; padding: 0 5px; }
+    .cursor:empty:before {
+      content: ' ';
+      height: 6px; width: 6px; border-radius: 100%;
+      animation: blink 1s infinite;
+    }
+
+    .cursor {
+      display: inline-flex; flex-wrap: wrap; align-items: center; gap: 5px;
+    }
+
+    .cursor:not(:empty) {
+      background: #63ffeb40; border-radius: 5px;
+      margin: 0 5px; padding: 0 5px;
+    }
   "))
-  (tag :div '((:style "display: flex; flex-direction: column; gap: 10px"))
+  (tag :div '((:style "display: inline-flex; flex-direction: column; gap: 10px"))
     (tag :span '((:class "cursor")) nil)
-    (render-sexp `(defun render-sexp (sexp)
-                    ,(code #'render-sexp)))
     (render-sexp
-     '(note "March 29, 2022"
-       (chores
-        (done "implement structural editor")
-        (done "play around")
-        (todo "buy bananas"))))
+     '(note (:march 31 2022)
+       (done implement inserting in structural editor)
+       (todo evaluating expressions)
+       (todo saving file)))
+    (render-sexp
+      '(note (:march 29 2002)
+        (done implement structural editor)
+        (done play around)
+        (todo buy bananas)))
 
     (render-sexp
      '(defun toggle (item)
@@ -188,6 +240,10 @@
          (dom-cursor-step! *cursor-element* 7 nil nil))
         ((string-equal? key "i")
          (dom-cursor-step! *cursor-element* 8 nil nil))
+        ((string-equal? key "(")
+         (progn
+           (on-insert "()")
+           (dom-cursor-step! *cursor-element* 1 nil nil)))
         (t t)))))
 
 (defun do-render-sexp (sexp)

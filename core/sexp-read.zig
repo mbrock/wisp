@@ -177,13 +177,18 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
             return list;
         }
 
-        fn readStringContents(
+        fn readString(
             self: *@This(),
-        ) !std.ArrayList(u8) {
+        ) !u32 {
+            try self.skipOnly('"');
+
             var list = std.ArrayList(u8).init(self.allocator);
+            defer list.deinit();
+
             var buf: [4]u8 = undefined;
 
-            while (try self.skip()) |c| {
+            while (true) {
+                const c = try self.skip();
                 if (c == '"') {
                     break;
                 } else if (c == '\\') {
@@ -191,7 +196,7 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
                         'n' => try list.appendSlice("\n"),
                         '"' => try list.appendSlice("\""),
                         '\\' => try list.appendSlice("\\"),
-                        _ => return error.BadEscapeChar,
+                        else => return error.BadEscapeChar,
                     }
                 } else {
                     const len = try std.unicode.utf8Encode(c, &buf);
@@ -199,7 +204,7 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
                 }
             }
 
-            return list;
+            return try self.heap.newv08(list.items);
         }
 
         fn readQuote(self: *@This()) !u32 {
@@ -350,15 +355,6 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
             }
 
             return @intCast(u32, result);
-        }
-
-        fn readString(self: *@This()) !u32 {
-            try self.skipOnly('"');
-
-            const text = try self.readWhile(isNotEndOfString);
-            defer text.deinit();
-            try self.skipOnly('"');
-            return try self.heap.newv08(text.items);
         }
 
         fn readVector(self: *@This()) !u32 {

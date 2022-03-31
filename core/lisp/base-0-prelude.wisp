@@ -59,6 +59,12 @@
 (defun list? (x)
   (or (pair? x) (nil? x)))
 
+(defun string? (x)
+  (eq? 'string (type-of x)))
+
+(defun integer? (x)
+  (eq? 'integer (type-of x)))
+
 (defun equal? (x y)
   (if (eq? x y) t
     (let ((xt (type-of x))
