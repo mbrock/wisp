@@ -75,8 +75,10 @@
      (tag :div '((:class "vector"))
        (render-vector-contents sexp 0)))
     ((eq? 'function (type-of sexp))
-     (tag :i () (text "function")))
-    ))
+     (tag :i ()
+          (if (function-name sexp)
+              (text (symbol-name (function-name sexp)))
+            (text "#<anonymous-function>")) ))))
 
 (defun render-list-contents (sexp)
   (unless (nil? sexp)
@@ -183,20 +185,14 @@
         (render-sexp
          '(note (:march 31 2022)
            (done implement inserting in structural editor)
-           (todo structure to code string)
-           (todo evaluating expressions)
+           (done structure to code string)
+           (done evaluating expressions)
            (todo saving file)))
         (render-sexp
          '(note (:march 29 2002)
            (done implement structural editor)
            (done play around)
-           (todo buy bananas)))
-
-        (render-sexp
-         '(defun toggle (item)
-           (cond
-             ((eq? item 'todo) 'done)
-             ((eq? item 'done) 'todo))))))
+           (todo buy bananas)))))
 
     (tag :header '((:id "eval-output")) nil))
 
@@ -208,7 +204,7 @@
     (dom-cursor-step! *cursor-element* 0 nil nil)
     (print (list :cursor-element *cursor-element*))))
 
-(defvar *eval-output* '(1 2 3))
+(defvar *eval-output* '())
 (defvar *root-element* (query-selector "#wisp-app"))
 (defvar *key-callback* (make-callback 'on-keydown))
 (defvar *insert-callback* (make-callback 'on-insert))

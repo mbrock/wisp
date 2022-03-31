@@ -171,6 +171,14 @@ pub fn @"SET-SYMBOL-VALUE!"(
     step.give(.val, val);
 }
 
+pub fn @"FUNCTION-NAME"(step: *Step, fun: u32) anyerror!void {
+    step.give(.val, switch (tagOf(fun)) {
+        .fun => try step.heap.get(.fun, .sym, fun),
+        .mac => try step.heap.get(.mac, .sym, fun),
+        else => nil,
+    });
+}
+
 pub fn @"SET-FUNCTION-NAME!"(
     step: *Step,
     fun: u32,
