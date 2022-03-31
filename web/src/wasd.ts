@@ -196,7 +196,7 @@ function step(
         e.appendChild(next)
         return true
       } else {
-        if (next.tagName === "DIV") {
+        if (next.matches("div, article, header, main")) {
           next.insertAdjacentElement(
             forward
               ? (ctrl ? "afterend" : "afterbegin")
@@ -213,7 +213,7 @@ function step(
         }
       }
     } else {
-      let up = e.parentElement.closest("div")
+      let up = e.parentElement.closest("div, article, header, main")
       if (up) {
         up.insertAdjacentElement(forward ? "afterend" : "beforebegin", e)
         return true

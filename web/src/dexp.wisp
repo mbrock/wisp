@@ -73,7 +73,10 @@
        (text (print-to-string sexp))))
     ((eq? 'vector (type-of sexp))
      (tag :div '((:class "vector"))
-       (render-vector-contents sexp 0)))))
+       (render-vector-contents sexp 0)))
+    ((eq? 'function (type-of sexp))
+     (tag :i () (text "function")))
+    ))
 
 (defun render-list-contents (sexp)
   (unless (nil? sexp)
@@ -164,33 +167,48 @@
     }
 
     ins { text-decoration: none; }
-  "))
-  (tag :div '((:style "display: inline-flex; flex-direction: column; gap: 10px"))
-    (tag :ins '((:class "cursor")) nil)
-    (render-sexp
-     '(note (:march 31 2022)
-       (done implement inserting in structural editor)
-       (todo structure to code string)
-       (todo evaluating expressions)
-       (todo saving file)))
-    (render-sexp
-      '(note (:march 29 2002)
-        (done implement structural editor)
-        (done play around)
-        (todo buy bananas)))
 
-    (render-sexp
-     '(defun toggle (item)
-       (cond
-         ((eq? item 'todo) 'done)
-         ((eq? item 'done) 'todo)))))
+    article {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    header > .list { flex-direction: column; align-items: end; }
+  "))
+  (tag :article ()
+    (tag :main ()
+      (tag :div '((:style "display: inline-flex; flex-direction: column; gap: 10px"))
+        (tag :ins '((:class "cursor")) nil)
+        (render-sexp '(defun foo () (+ 1 2 (* 3 4))))
+        (render-sexp
+         '(note (:march 31 2022)
+           (done implement inserting in structural editor)
+           (todo structure to code string)
+           (todo evaluating expressions)
+           (todo saving file)))
+        (render-sexp
+         '(note (:march 29 2002)
+           (done implement structural editor)
+           (done play around)
+           (todo buy bananas)))
+
+        (render-sexp
+         '(defun toggle (item)
+           (cond
+             ((eq? item 'todo) 'done)
+             ((eq? item 'done) 'todo))))))
+
+    (tag :header '((:id "eval-output")) nil))
 
   (progn
+    (idom-patch!
+     (query-selector "#eval-output")
+     *render-sexp-callback* *eval-output*)
     (set! *cursor-element* (query-selector ".cursor"))
     (dom-cursor-step! *cursor-element* 0 nil nil)
     (print (list :cursor-element *cursor-element*))))
 
-(defvar *buffer* ())
+(defvar *eval-output* '(1 2 3))
 (defvar *root-element* (query-selector "#wisp-app"))
 (defvar *key-callback* (make-callback 'on-keydown))
 (defvar *insert-callback* (make-callback 'on-insert))
@@ -265,12 +283,15 @@
         (idom-patch! *cursor-element* *render-sexp-callback* expr)
         (dom-cursor-step! *cursor-element* 7 nil nil)))))
 
-(defun note (date &rest notes)
-  (list 'note date notes))
+(defmacro note (date &rest notes)
+  `(quote (note ,date ,@notes)))
 
 (defun do-eval (expr)
   (with-simple-error-handler ()
-    (print (eval expr))))
+    (set! *eval-output* (cons (eval expr) *eval-output*))
+    (idom-patch!
+     (query-selector "#eval-output")
+     *render-sexp-callback* *eval-output*)))
 
 (with-simple-error-handler ()
   (dom-on-keydown! *key-callback*)
