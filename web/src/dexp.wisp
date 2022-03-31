@@ -147,7 +147,7 @@
     }
 
     .list { border-color: #555; border-width: 0 2px; border-radius: 10px; }
-    .vector { border-color: #558; border-width: 1px; }
+    .vector { border-color: #556a; border-width: 1px 3px; border-radius: 10px; padding: 5px }
 
     @keyframes blink {
       0%, 100% { background: #ffa8 } 50% { background: #ffaa }
@@ -181,7 +181,23 @@
     (tag :main ()
       (tag :div '((:style "display: inline-flex; flex-direction: column; gap: 10px"))
         (tag :ins '((:class "cursor")) nil)
-        (render-sexp '(defun foo () (+ 1 2 (* 3 4))))
+        (render-sexp '(defun foo (x) (+ x 2 (* 3 4))))
+        (render-sexp '(foo 10))
+        (render-sexp
+         '(note (wisp keymap)
+           [((f) forward-into)
+           ((b) backward-into)
+           ((ctrl f) forward-over)
+           ((ctrl b) backward-over)
+           ((n) forward-line)
+           ((p) backward-line)
+           ((shift f) select-forward)
+           ((escape) unselect)
+           ((t) transpose!)
+           ((k) delete!)
+           ((d) duplicate!)
+           ((i) insert!)
+           ((e) evaluate!)]))
         (render-sexp
          '(note (:march 31 2022)
            (done implement inserting in structural editor)
@@ -201,7 +217,7 @@
      (query-selector "#eval-output")
      *render-sexp-callback* *eval-output*)
     (set! *cursor-element* (query-selector ".cursor"))
-    (dom-cursor-step! *cursor-element* 0 nil nil)
+    ;(dom-cursor-step! *cursor-element* 0 nil nil)
     (print (list :cursor-element *cursor-element*))))
 
 (defvar *eval-output* '())
