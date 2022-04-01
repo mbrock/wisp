@@ -171,11 +171,13 @@ export class WASD {
           return this.wisp.newv08(result)
       },
 
-      step: (elementId: U32, direction: U32, ctrl: U32, shift: U32) => {
+      step: (elementId: U32, direction: U32, ctrl: U32, shift: U32, alt: U32) => {
         let e = this.elements.get(elementId)
         step(this.wisp, e, direction,
              (ctrl >>> 0) !== this.wisp.sys.nil,
-             (shift >>> 0) !== this.wisp.sys.nil)
+             (shift >>> 0) !== this.wisp.sys.nil,
+             (alt >>> 0) !== this.wisp.sys.nil,
+            )
         e.scrollIntoView({
           behavior: "smooth",
           block: "center",
@@ -191,6 +193,7 @@ function step(
   direction: number,
   ctrl: boolean,
   shift: boolean,
+  _alt: boolean,
 ): boolean {
   if (direction === 0 || direction === 1) {
     let forward = direction === 0

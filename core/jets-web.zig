@@ -61,6 +61,7 @@ const DOM = struct {
         direction: u32,
         ctrl: u32,
         shift: u32,
+        alt: u32,
     ) void;
 };
 
@@ -217,7 +218,8 @@ pub fn @"DOM-CURSOR-STEP!"(
     direction: u32,
     ctrl: u32,
     shift: u32,
+    alt: u32,
 ) anyerror!void {
-    DOM.step(cursor, direction, ctrl, shift);
+    DOM.step(cursor, direction, ctrl, shift, alt);
     step.give(.val, nil);
 }
