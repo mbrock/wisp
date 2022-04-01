@@ -77,6 +77,12 @@ export fn wisp_read(heap: *Wisp.Heap, str: [*:0]const u8) u32 {
     return Read.read(heap, std.mem.span(str)) catch Wisp.zap;
 }
 
+export fn wisp_read_many(heap: *Wisp.Heap, str: [*:0]const u8) u32 {
+    const list = Read.readMany(heap, std.mem.span(str)) catch return Wisp.zap;
+    defer list.deinit();
+    return Wisp.list(heap, list.items) catch Wisp.zap;
+}
+
 export fn wisp_eval(heap: *Wisp.Heap, exp: u32, max: u32) u32 {
     var run = Step.initRun(exp);
     if (Step.evaluate(heap, &run, max)) |result| {

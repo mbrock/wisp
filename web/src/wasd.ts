@@ -298,6 +298,9 @@ function step(
         return true
       }
     }
+  } else if (direction === 10) {
+    let code = domCode(document.querySelector("#file"))
+    localStorage.setItem("wisp-file", code)
   }
 
   return false
@@ -305,7 +308,12 @@ function step(
 
 function domCode(root: HTMLElement): string {
   const data = root.dataset
-  if (root.matches(".symbol")) {
+  if (root.matches(".cursor")) {
+    return " "
+  } else if (root.matches("#file")) {
+    let items = [].slice.call(root.children).map(domCode)
+    return `${items.join("\n")}`
+  } else if (root.matches(".symbol")) {
     if (data.packageName === "KEYWORD")
       return `:${data.symbolName}`
     else
@@ -322,9 +330,9 @@ function domCode(root: HTMLElement): string {
     return `(${items.join(" ")})`
   } else if (root.matches("input[type=checkbox]")) {
     if ((root as HTMLInputElement).checked) {
-      return "wisp:done"
+      return "done"
     } else {
-      return "wisp:todo"
+      return "todo"
     }
   }
 

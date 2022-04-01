@@ -38,6 +38,7 @@ export interface WispAPI {
   wisp_start_web(heap: number): number
   
   wisp_read(heap: number, buf: number): number
+  wisp_read_many(heap: number, buf: number): number
   
   wisp_eval(heap: number, exp: number, max: number): number
   wisp_eval_step(heap: number, run: number, mode: number): number
@@ -137,6 +138,13 @@ export class Wisp {
   read(sexp: string): number {
     const buf = this.allocString(sexp)
     const x = this.api.wisp_read(this.heap, buf)
+    this.free(buf)
+    return x >>> 0
+  }
+
+  readMany(sexp: string): number {
+    const buf = this.allocString(sexp)
+    const x = this.api.wisp_read_many(this.heap, buf)
     this.free(buf)
     return x >>> 0
   }

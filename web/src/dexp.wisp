@@ -28,7 +28,7 @@
 
 ;;; * D-expressions
 
-(defun-noexpand render-sexp (sexp)
+(defun render-sexp (sexp)
   (cond
     ((nil? sexp)
      (tag :div '((:class "list")) nil))
@@ -102,7 +102,7 @@
 (defun render-vector-contents (vector i)
   (vector-each vector #'render-sexp))
 
-(defun draw-app ()
+(defun draw-app (forms)
   (tag :style () (text "
     body { font: 16px 'berkeley mono', 'dm mono', 'inconsolata', monospace; }
     #wisp-app { margin: 10px; }
@@ -187,41 +187,10 @@
   (tag :article ()
     (tag :main ()
       (tag :div
-        '((:style "display: inline-flex; flex-direction: column; gap: 10px"))
-        (render-sexp
-         '(note (metadata)
-           (spdx-license-identifier "AGPL-3.0-or-later")
-           (source-code-url "https://github.com/mbrock/wisp")
-           ))
+        '((:style "display: inline-flex; flex-direction: column; gap: 10px")
+          (:id "file"))
         (tag :ins '((:class "cursor")) nil)
-        (render-sexp '(defun foo (x) (+ x 2 (* 3 4))))
-        (render-sexp '(foo 10))
-        (render-sexp
-         '(note (wisp keymap)
-           [((f) forward-into)
-           ((b) backward-into)
-           ((ctrl f) forward-over)
-           ((ctrl b) backward-over)
-           ((n) forward-line)
-           ((p) backward-line)
-           ((shift f) select-forward)
-           ((escape) unselect)
-           ((t) transpose!)
-           ((k) delete!)
-           ((d) duplicate!)
-           ((i) insert!)
-           ((e) evaluate!)]))
-        (render-sexp
-         '(note (:march 31 2022)
-           (done implement inserting in structural editor)
-           (done structure to code string)
-           (done evaluating expressions)
-           (todo saving file)))
-        (render-sexp
-         '(note (:march 29 2002)
-           (done implement structural editor)
-           (done play around)
-           (todo buy bananas)))))
+        (for-each forms #'render-sexp)))
 
     (tag :header '((:id "eval-output")) nil))
 
@@ -232,6 +201,36 @@
     (set! *cursor-element* (query-selector ".cursor"))
     (print (list :cursor-element *cursor-element*))))
 
+(defvar *initial-forms*
+  '((note (metadata)
+     (spdx-license-identifier "AGPL-3.0-or-later")
+     (source-code-url "https://github.com/mbrock/wisp"))
+    (defun foo (x) (+ x 2 (* 3 4)))
+    (foo 10)
+    (note (wisp keymap)
+     [((f) forward-into)
+     ((b) backward-into)
+     ((ctrl f) forward-over)
+     ((ctrl b) backward-over)
+     ((n) forward-line)
+     ((p) backward-line)
+     ((shift f) select-forward)
+     ((escape) unselect)
+     ((t) transpose!)
+     ((k) delete!)
+     ((d) duplicate!)
+     ((i) insert!)
+     ((e) evaluate!)])
+    (note (:march 31 2022)
+     (done implement inserting in structural editor)
+     (done structure to code string)
+     (done evaluating expressions)
+     (todo saving file))
+    (note (:march 29 2002)
+     (done implement structural editor)
+     (done play around)
+     (todo buy bananas))))
+
 (defvar *eval-output* '())
 (defvar *root-element* (query-selector "#wisp-app"))
 (defvar *key-callback* (make-callback 'on-keydown))
@@ -240,9 +239,9 @@
 (defvar *render-sexp-callback* (make-callback 'do-render-sexp))
 (defvar *cursor-element* nil)
 
-(defun render-app ()
+(defun render-app (forms)
   (with-simple-error-handler ()
-    (idom-patch! *root-element* *render-callback* nil)))
+    (idom-patch! *root-element* *render-callback* forms)))
 
 (defun %vector-element-bindings (vector names)
   (let ((i 0))
@@ -291,6 +290,8 @@
          (progn
            (on-insert "()")
            (dom-cursor-step! *cursor-element* 1 nil nil)))
+        ((string-equal? key "s")
+         (dom-cursor-step! *cursor-element* 10 nil nil))
         (t t)))))
 
 (defun do-render-sexp (sexp)
@@ -317,8 +318,10 @@
      (query-selector "#eval-output")
      *render-sexp-callback* *eval-output*)))
 
-(with-simple-error-handler ()
-  (dom-on-keydown! *key-callback*)
-  (dom-on-window-event! "wisp-insert" *insert-callback*)
-  (dom-on-window-event! "wisp-eval" (make-callback 'do-eval))
-  (render-app))
+(defun wisp-boot (forms)
+  (print (list 'booting forms))
+  (with-simple-error-handler ()
+    (dom-on-keydown! *key-callback*)
+    (dom-on-window-event! "wisp-insert" *insert-callback*)
+    (dom-on-window-event! "wisp-eval" (make-callback 'do-eval))
+    (render-app (or forms *initial-forms*))))

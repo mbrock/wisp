@@ -23,7 +23,7 @@ import { Wisp, WispAPI } from "./wisp"
 import { WASI } from "./wasi"
 import { WASD, Callback } from "./wasd"
 
-import initialDocument from "./dexp.wisp" 
+import initialDocument from "./dexp.wisp"
 
 type U32 = number
 
@@ -78,4 +78,21 @@ onload = async () => {
   }
 
   exec(initialDocument)
+  const file = localStorage.getItem("wisp-file")
+  const forms = file ? ctx.readMany(file) : ctx.sys.nil
+  let packageName = "WISP"
+  let functionName = "WISP-BOOT"
+  let pkgname = ctx.allocString(packageName)
+  let funname = ctx.allocString(functionName)
+  let result = ctx.api.wisp_call_package_function(
+    ctx.heap,
+    pkgname, packageName.length,
+    funname, functionName.length,
+    forms,
+  )
+
+  if (result === ctx.sys.zap)
+    throw new Error
+
+  ctx.free(pkgname, funname)
 }
