@@ -36,6 +36,9 @@ export interface WispAPI {
 
   wisp_heap_new_ext(heap: number, idx: number): number
   
+  wisp_heap_new_pin(heap: number, val: number): number
+  wisp_heap_free_pin(heap: number, pin: number): number
+  
   wisp_heap_get_v08_ptr(heap: number, v08: number): number
   wisp_heap_get_v08_len(heap: number, v08: number): number
 
@@ -58,6 +61,9 @@ export interface WispAPI {
     funname_ptr: number, funname_len: number,
     data: number,
   ): number
+
+  wisp_call(heap: number, funptr: number, args: number): number
+  wisp_cons(heap: number, car: number, cdr: number): number
 
   wisp_intern_keyword(heap: number, ptr: number, len: number): number
   
@@ -96,11 +102,15 @@ export class Wisp {
   }
 
   newExt(idx: number): number {
-    return this.api.wisp_heap_new_ext(this.heap, idx)
+    return this.api.wisp_heap_new_ext(this.heap, idx) >>> 0
   }
 
   extidx(ext: number): number {
-    return this.api.wisp_heap_get_ext_idx(this.heap, ext)
+    return this.api.wisp_heap_get_ext_idx(this.heap, ext) >>> 0
+  }
+
+  freePin(pin: number): void {
+    this.api.wisp_heap_free_pin(this.heap, pin)
   }
 
   loadString(v08: number): string {

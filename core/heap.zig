@@ -38,7 +38,7 @@ const nah = Wisp.nah;
 /// Each pointer type has a set of columns.
 pub fn ColEnum(comptime t: Tag) type {
     return switch (t) {
-        .int, .sys, .chr, .jet => void,
+        .int, .sys, .chr, .jet, .pin => void,
         .duo => enum { car, cdr },
         .sym => enum { str, pkg, val, fun },
         .fun => enum { env, par, exp, sym },
@@ -89,6 +89,7 @@ pub const Kwd = enum {
     MACRO,
     NULL,
     PACKAGE,
+    PIN,
     PROMPT,
     STRING,
     SYMBOL,
@@ -262,6 +263,9 @@ pub const Heap = struct {
 
     pkg: u32,
     pkgmap: std.StringArrayHashMapUnmanaged(u32) = .{},
+
+    pins: std.AutoArrayHashMapUnmanaged(u27, u32) = .{},
+    nextPinId: u27 = 1,
 
     roots: std.ArrayListUnmanaged(*u32) = .{},
 
@@ -444,7 +448,7 @@ pub const Heap = struct {
 
     pub fn copyAny(heap: *Heap, x: u32) !u32 {
         return switch (Wisp.tagOf(x)) {
-            .int, .chr, .sys, .jet => x,
+            .int, .chr, .sys, .jet, .pin => x,
             .sym => heap.copy(.sym, x),
             .duo => heap.copy(.duo, x),
             .fun => heap.copy(.fun, x),
@@ -641,6 +645,16 @@ pub const Heap = struct {
     pub fn symstrslice(heap: *Heap, sym: u32) ![]const u8 {
         var str = try heap.get(.sym, .str, sym);
         return try heap.v08slice(str);
+    }
+
+    pub fn newPin(heap: *Heap, val: u32) !u32 {
+        try heap.pins.put(heap.orb, heap.nextPinId, val);
+        defer heap.nextPinId += 1;
+        return Wisp.Imm.make(.pin, heap.nextPinId).word();
+    }
+
+    pub fn releasePin(heap: *Heap, pin: u32) void {
+        _ = heap.pins.swapRemove(Wisp.Imm.from(pin).idx);
     }
 };
 

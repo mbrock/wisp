@@ -208,6 +208,7 @@ const Dat = packed struct {
     pkg: TabDat(.pkg),
     ktx: TabDat(.ktx),
     run: TabDat(.run),
+    ext: TabDat(.ext),
 };
 
 export fn wisp_dat_init(heap: *Wisp.Heap) ?*Dat {
@@ -291,7 +292,7 @@ export fn wisp_heap_load_tab_col(
         .run => loadColumn(.run, params),
         .ext => loadColumn(.ext, params),
 
-        .int, .sys, .chr, .jet => null,
+        .int, .sys, .chr, .jet, .pin => null,
     } catch null;
 }
 
@@ -309,6 +310,10 @@ export fn wisp_heap_v32_new(heap: *Wisp.Heap, x: [*]u32, n: usize) u32 {
 
 export fn wisp_heap_get_ext_idx(heap: *Wisp.Heap, ext: u32) u32 {
     return heap.get(.ext, .idx, ext) catch Wisp.zap;
+}
+
+export fn wisp_heap_free_pin(heap: *Wisp.Heap, pin: u32) void {
+    heap.releasePin(pin);
 }
 
 export fn wisp_heap_get_v08_ptr(heap: *Wisp.Heap, v08: u32) ?[*]const u8 {
@@ -370,6 +375,53 @@ export fn wisp_tape_save(
     ) catch return Wisp.zap;
 
     return Wisp.nil;
+}
+
+export fn wisp_call(
+    heap: *Wisp.Heap,
+    callee: u32,
+    argptr: u32,
+) u32 {
+    const was_inhibited = heap.inhibit_gc;
+    defer heap.inhibit_gc = was_inhibited;
+    heap.inhibit_gc = true;
+
+    std.io.getStdErr().writer().print(
+        ";; calling {any} {any}\n",
+        .{ callee, argptr },
+    ) catch return Wisp.zap;
+
+    const pinidx = Wisp.Imm.from(callee).idx;
+    const funptr = heap.pins.get(pinidx) orelse return Wisp.zap;
+
+    var run = Step.initRun(Wisp.nil);
+    var step = Step{ .heap = heap, .run = &run };
+
+    if (step.call(funptr, argptr, false)) {} else |e| {
+        std.io.getStdErr().writer().print(
+            ";; couldn't call {any} {any}\n",
+            .{ funptr, e },
+        ) catch return Wisp.zap;
+        Sexp.warn("err", heap, run.err) catch return Wisp.zap;
+        return Wisp.zap;
+    }
+
+    if (Step.evaluate(heap, &run, 0)) |result| {
+        return result;
+    } else |e| {
+        std.io.getStdErr().writer().print(";; error {any}\n", .{e}) catch return Wisp.zap;
+        if (run.exp == Wisp.nah)
+            Sexp.warn("val", heap, run.val) catch return Wisp.zap
+        else
+            Sexp.warn("exp", heap, run.exp) catch return Wisp.zap;
+
+        Sexp.warn("ktx", heap, run.way) catch return Wisp.zap;
+        return Wisp.zap;
+    }
+}
+
+export fn wisp_cons(heap: *Wisp.Heap, car: u32, cdr: u32) u32 {
+    return heap.cons(car, cdr) catch Wisp.zap;
 }
 
 export fn wisp_call_package_function(

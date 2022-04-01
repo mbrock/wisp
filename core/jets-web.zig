@@ -50,13 +50,6 @@ const DOM = struct {
 
     extern "dom" fn removeChildren(node: u32) void;
 
-    extern "dom" fn make_callback(
-        pkgname_ptr: [*]const u8,
-        pkgname_len: usize,
-        funname_ptr: [*]const u8,
-        funname_len: usize,
-    ) u32;
-
     extern "dom" fn on_keydown(
         callback: u32,
     ) void;
@@ -93,29 +86,7 @@ const IDOM = struct {
         valptr: [*]const u8,
         vallen: usize,
     ) void;
-    extern "dom" fn attr_callback(
-        attrptr: [*]const u8,
-        attrlen: usize,
-        callback: usize,
-    ) void;
 };
-
-pub fn @"DOM-MAKE-CALLBACK"(
-    step: *Step,
-    pkg: u32,
-    fun: u32,
-) anyerror!void {
-    const pkgstr = try step.heap.v08slice(pkg);
-    const funstr = try step.heap.v08slice(fun);
-    const id = DOM.make_callback(
-        pkgstr.ptr,
-        pkgstr.len,
-        funstr.ptr,
-        funstr.len,
-    );
-
-    step.give(.val, id);
-}
 
 pub fn @"QUERY-SELECTOR"(step: *Step, selector: u32) anyerror!void {
     const str = try step.heap.v08slice(selector);
@@ -178,20 +149,6 @@ pub fn @"IDOM-ATTR!"(
         attrstr.len,
         valstr.ptr,
         valstr.len,
-    );
-    step.give(.val, nil);
-}
-
-pub fn @"IDOM-ATTR-CALLBACK!"(
-    step: *Step,
-    attr: u32,
-    val: u32,
-) anyerror!void {
-    const attrstr = try step.heap.v08slice(attr);
-    IDOM.attr_callback(
-        attrstr.ptr,
-        attrstr.len,
-        val,
     );
     step.give(.val, nil);
 }

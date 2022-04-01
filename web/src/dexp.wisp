@@ -6,9 +6,9 @@
 ;;; * Basic binding to Incremental DOM
 
 (defun make-callback (symbol)
-  (dom-make-callback
-   (package-name (symbol-package symbol))
-   (symbol-name symbol)))
+  (make-pinned-value
+   (fn (&rest args)
+     (apply (symbol-function symbol) args))))
 
 (defmacro tag (tag-symbol attrs &rest body)
   (let ((tag-name (symbol-name tag-symbol)))
@@ -234,13 +234,14 @@
      (done play around)
      (todo buy bananas))))
 
-(defvar *eval-output* '())
-(defvar *root-element* (query-selector "#wisp-app"))
-(defvar *key-callback* (make-callback 'on-keydown))
-(defvar *insert-callback* (make-callback 'on-insert))
-(defvar *render-callback* (make-callback 'draw-app))
-(defvar *render-sexp-callback* (make-callback 'do-render-sexp))
-(defvar *cursor-element* nil)
+(with-simple-error-handler ()
+  (defvar *eval-output* '())
+  (defvar *root-element* (query-selector "#wisp-app"))
+  (defvar *key-callback* (make-callback 'on-keydown))
+  (defvar *insert-callback* (make-callback 'on-insert))
+  (defvar *render-callback* (make-callback 'draw-app))
+  (defvar *render-sexp-callback* (make-callback 'do-render-sexp))
+  (defvar *cursor-element* nil))
 
 (defun render-app (forms)
   (with-simple-error-handler ()

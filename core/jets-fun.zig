@@ -250,6 +250,7 @@ pub fn @"TYPE-OF"(step: *Step, x: u32) anyerror!void {
             .ktx => kwd.CONTINUATION,
             .run => kwd.EVALUATOR,
             .ext => kwd.EXTERNAL,
+            .pin => kwd.PIN,
             .sys => unreachable,
         });
     }
@@ -828,4 +829,8 @@ pub fn @"VECTOR-APPEND"(step: *Step, rest: []u32) anyerror!void {
 
 pub fn @"VECTOR-LENGTH"(step: *Step, v32: u32) anyerror!void {
     step.give(.val, try step.heap.get(.v32, .len, v32));
+}
+
+pub fn @"MAKE-PINNED-VALUE"(step: *Step, val: u32) anyerror!void {
+    step.give(.val, try step.heap.newPin(val));
 }

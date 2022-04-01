@@ -222,6 +222,11 @@
   (print (list 'defun name args))
   `(set-symbol-function! ',name (%fn ,name ,args ,(prognify body))))
 
+(defmacro defvar (var val)
+  `(progn
+     (print (list 'defvar ',var))
+     (set-symbol-value! ',var ,val)))
+
 ;;; We can also mutate the code of a function or macro.
 (defun compile! (function)
   (set-code! function (macroexpand-completely (code function))))

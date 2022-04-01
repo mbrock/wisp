@@ -44,26 +44,6 @@ onload = async () => {
 
   let ctx: Wisp | null = null
 
-  wasd.setCallbackOperation(
-    ({ packageName, functionName }: Callback, data: U32) => {
-      console.info({ packageName, functionName, data })
-      let pkgname = ctx.allocString(packageName)
-      let funname = ctx.allocString(functionName)
-      let result = ctx.api.wisp_call_package_function(
-        ctx.heap,
-        pkgname, packageName.length,
-        funname, functionName.length,
-        data,
-      )
-
-      if (result === ctx.sys.zap)
-        throw new Error
-
-      ctx.free(pkgname, funname)
-
-      return result
-    })
-
   ctx = new Wisp(instance)
 
   wasd.setWisp(ctx)

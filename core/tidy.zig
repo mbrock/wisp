@@ -64,6 +64,7 @@ pub fn init(old: *Heap) !Tidy {
             .pkg = old.pkg,
             .pkgmap = old.pkgmap,
             .roots = old.roots,
+            .pins = old.pins,
         },
     };
 }
@@ -77,6 +78,7 @@ pub fn done(tidy: *Tidy) Heap {
     tidy.old.v08 = .{};
     tidy.old.pkgmap = .{};
     tidy.old.roots = .{};
+    tidy.old.pins = .{};
 
     // Release unreachable external objects.
     if (@import("builtin").os.tag == .wasi) {
@@ -88,6 +90,7 @@ pub fn done(tidy: *Tidy) Heap {
     }
 
     tidy.old.deinit();
+
     return tidy.new;
 }
 
@@ -108,6 +111,10 @@ pub fn root(tidy: *Tidy) !void {
     for (tidy.new.pkgmap.entries.items(.value)) |*pkg| {
         try tidy.move(pkg);
     }
+
+    for (tidy.new.pins.entries.items(.value)) |*val| {
+        try tidy.move(val);
+    }
 }
 
 /// We use an `anytype` because the pointer might have some
@@ -118,7 +125,7 @@ pub fn move(tidy: *Tidy, x: anytype) !void {
 
 fn copy(tidy: *Tidy, x: u32) !u32 {
     return switch (Wisp.tagOf(x)) {
-        .int, .chr, .sys, .jet => x,
+        .int, .chr, .sys, .jet, .pin => x,
         .sym => tidy.push(.sym, x),
         .duo => tidy.push(.duo, x),
         .fun => tidy.push(.fun, x),

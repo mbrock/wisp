@@ -27,6 +27,7 @@ pub const Tag = enum(u5) {
     sys = 0x11, // static constant value
     chr = 0x12, // unicode codepoint
     jet = 0x13, // builtin operator
+    pin = 0x1f, // gc-pinned value
 
     duo = 0x15, // cons pair pointer
     sym = 0x16, // symbol pointer
@@ -52,6 +53,7 @@ pub const pointerTags = .{
     .pkg,
     .run,
     .ktx,
+    .ext,
 };
 
 pub const Era = enum(u1) {
@@ -108,7 +110,7 @@ pub const Imm = packed struct {
 pub fn Word(comptime tag: Tag) type {
     return switch (tag) {
         .int => unreachable,
-        .sys, .chr, .jet => Imm,
+        .sys, .chr, .jet, .pin => Imm,
         else => Ptr,
     };
 }

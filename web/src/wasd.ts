@@ -4,11 +4,6 @@ import { startEditor } from "./edit"
 
 type U32 = number
 
-export interface Callback {
-  packageName: string,
-  functionName: string,
-}
-
 // I couldn't resist the name.  It's like WASI but for the DOM.
 //
 // We use the "Incremental DOM" library for a simple but efficient way
@@ -16,30 +11,20 @@ export interface Callback {
 //
 export class WASD {
   wisp: Wisp
-  callbackOperation: (cb: Callback, data: U32) => U32
 
   ext: Map<U32, any>
   elements: Map<U32, HTMLElement>
-  callbacks: Map<U32, (data: U32) => U32>
 
   nextExt = 1
   nextElementId = 1
-  nextCallbackId = 1
 
   constructor() {
     this.ext = new Map
     this.elements = new Map
-    this.callbacks = new Map
   }
 
   setWisp(wisp: Wisp) {
     this.wisp = wisp
-  }
-
-  setCallbackOperation(
-    operation: (cb: Callback, data: U32) => U32
-  ) {
-    this.callbackOperation = operation
   }
 
   newExt(x: any): U32 {
@@ -51,7 +36,7 @@ export class WASD {
     if (Number.isInteger(x)) {
       return x
     } else if (typeof x === "string") {
-      return this.wisp.allocString(x)
+      return this.wisp.newv08(x)
     } else if (x === null || x === undefined) {
       return this.wisp.sys.nil
     } else {
@@ -114,26 +99,12 @@ export class WASD {
         if (Number.isInteger(x)) {
           return x
         } else if (typeof x === "string") {
-          return this.wisp.allocString(x)
+          return this.wisp.newv08(x)
         } else if (x === null) {
           return this.wisp.sys.nil
         } else {
           return this.newExt(x)
         }
-      },
-
-      make_callback: (
-        pkgptr: U32, pkglen: U32,
-        funptr: U32, funlen: U32,
-      ) => {
-        const packageName = this.wisp.getString(pkgptr, pkglen)
-        const functionName = this.wisp.getString(funptr, funlen)
-
-        this.callbacks.set(this.nextCallbackId, (data: U32) =>
-          this.callbackOperation({ packageName, functionName }, data)
-        )
-
-        return this.nextCallbackId++
       },
 
       query_selector: (selectorPointer: U32, selectorLength: U32) => {
@@ -154,15 +125,20 @@ export class WASD {
         }
       },
 
-      patch: (elementId: U32, callbackId: U32, data: U32) => {
+      patch: (elementId: U32, funptr: U32, data: U32) => {
         try {
           let element = this.elements.get(elementId)
-          let callback = this.callbacks.get(callbackId)
+
+          let fun = (data: U32) => {
+            this.wisp.api.wisp_call(
+              this.wisp.heap, funptr, this.wisp.api.wisp_cons(this.wisp.heap, data, this.wisp.sys.nil)
+            )
+          }
 
           // We now run this synchronously, reentrantly.  This only
           // works because we inhibit garbage collection
           // during callbacks.
-          DOM.patch(element, callback, data)
+          DOM.patch(element, fun, data)
 
           return 0
         } catch (e) {
@@ -187,13 +163,13 @@ export class WASD {
         DOM.attr(attr.toLowerCase(), val)
       },
 
-      attr_callback: (
-        attrptr: U32, attrlen: U32, callbackId: U32
-      ) => {
-        let attr = this.wisp.getString(attrptr, attrlen)
-        let callback = this.callbacks.get(callbackId)
-        DOM.attr(attr.toLowerCase(), callback)
-      },
+      // attr_callback: (
+      //   attrptr: U32, attrlen: U32, callbackId: U32
+      // ) => {
+        // let attr = this.wisp.getString(attrptr, attrlen)
+        // let callback = this.callbacks.get(callbackId)
+        // DOM.attr(attr.toLowerCase(), callback)
+      // },
 
       close: (tagptr: U32, taglen: U32) => {
         let tag = this.wisp.getString(tagptr, taglen)
@@ -205,8 +181,12 @@ export class WASD {
         DOM.text(text)
       },
 
-      on_keydown: (callbackId: U32) => {
-        let callback = this.callbacks.get(callbackId)
+      on_keydown: (funptr: U32) => {
+        let callback = (x: U32) =>
+          this.wisp.api.wisp_call(
+            this.wisp.heap, funptr,
+            this.wisp.api.wisp_cons(this.wisp.heap, x, this.wisp.sys.nil))
+
         window.addEventListener(
           "keydown",
           key => {
@@ -232,13 +212,15 @@ export class WASD {
         )
       },
 
-      addWindowEventHandler: (ptr: U32, len: U32, callbackId: U32) => {
+      addWindowEventHandler: (ptr: U32, len: U32, funptr: U32) => {
         let eventName = this.wisp.getString(ptr, len)
 
-        let callback = this.callbacks.get(callbackId)
-        if (!callback) throw new Error(`no callback ${callbackId}`)
-
         window.addEventListener(eventName, (event: CustomEvent) => {
+          let callback = (x: U32) =>
+            this.wisp.api.wisp_call(
+              this.wisp.heap, funptr,
+              this.wisp.api.wisp_cons(this.wisp.heap, x, this.wisp.sys.nil))
+
           callback(event.detail)
         })
       },
@@ -311,7 +293,7 @@ function step(
     let y = e.offsetTop
     let moved = false
     while (true) {
-      if (step(wisp, e, 1, false, false, false)) {
+      if (step(wisp, e, 1, true, false, false)) {
         moved = true
         if (e.offsetTop < y)
           break
@@ -324,7 +306,7 @@ function step(
     let y = e.offsetTop
     let moved = false
     while (true) {
-      if (step(wisp, e, 0, false, false, false)) {
+      if (step(wisp, e, 0, true, false, false)) {
         moved = true
         if (e.offsetTop > y)
           break
