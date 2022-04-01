@@ -17,15 +17,11 @@
 // <https://www.gnu.org/licenses/>.
 //
 
-import "./index.css"
-import "../vendor/inter/inter.css"
-
 import wispWasmPath from "wisp.wasm"
 
 import { Wisp, WispAPI } from "./wisp"
 import { WASI } from "./wasi"
 import { WASD, Callback } from "./wasd"
-import { startEditor } from "./edit"
 
 import initialDocument from "./dexp.wisp" 
 
@@ -70,26 +66,16 @@ onload = async () => {
 
   ctx = new Wisp(instance)
 
-  console.log(ctx)
-  
   wasd.setWisp(ctx)
 
   if (ctx.api.wisp_start_web(ctx.heap) >>> 0 != ctx.sys.t)
     throw new Error("wisp start web failed")
 
-  function exec(code: string, how: "run" | "debug") {
+  function exec(code: string) {
     const src = ctx.read(`(progn\n${code}\n)`)
     const run = ctx.api.wisp_run_init(ctx.heap, src)
-
-    if (how == "run")
-      ctx.api.wisp_run_eval(ctx.heap, run, 4_000_000)
+    ctx.api.wisp_run_eval(ctx.heap, run, 4_000_000)
   }
 
-  exec(initialDocument, "run")
-
-  // startEditor(
-  //   document.querySelector("#wisp-editor"),
-  //   exec,
-  //   initialDocument,
-  // )
+  exec(initialDocument)
 }

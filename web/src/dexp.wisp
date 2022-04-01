@@ -104,13 +104,15 @@
 
 (defun draw-app ()
   (tag :style () (text "
+    body { font: 16px 'berkeley mono', 'dm mono', 'inconsolata', monospace; }
     #wisp-app { margin: 10px; }
 
     .symbol { text-transform: lowercase; }
 
-    .string, .number { font-family: 'DM Mono', monospace; }
     .string:before { content: '“'; }
     .string:after { content: '”'; }
+
+    .string { color: lightgray; }
 
     .list > [data-function-kind=jet]:first-of-type { color: goldenrod; }
     .list > [data-function-kind=fun]:first-of-type { color: lightsalmon; }
@@ -146,8 +148,13 @@
       padding-right: 1px;
     }
 
-    .list { border-color: #555; border-width: 0 2px; border-radius: 10px; }
-    .vector { border-color: #556a; border-width: 1px 3px; border-radius: 10px; padding: 5px }
+    .list { border: 0 solid #555; border-width: 0 2px; border-radius: 10px; }
+    .vector {
+      border: 0 solid #556a;
+      border-width: 1px 3px;
+      border-radius: 10px;
+      padding: 5px;
+    }
 
     @keyframes blink {
       0%, 100% { background: #ffa8 } 50% { background: #ffaa }
@@ -179,7 +186,13 @@
   "))
   (tag :article ()
     (tag :main ()
-      (tag :div '((:style "display: inline-flex; flex-direction: column; gap: 10px"))
+      (tag :div
+        '((:style "display: inline-flex; flex-direction: column; gap: 10px"))
+        (render-sexp
+         '(note (metadata)
+           (spdx-license-identifier "AGPL-3.0-or-later")
+           (source-code-url "https://github.com/mbrock/wisp")
+           ))
         (tag :ins '((:class "cursor")) nil)
         (render-sexp '(defun foo (x) (+ x 2 (* 3 4))))
         (render-sexp '(foo 10))
@@ -217,7 +230,6 @@
      (query-selector "#eval-output")
      *render-sexp-callback* *eval-output*)
     (set! *cursor-element* (query-selector ".cursor"))
-    ;(dom-cursor-step! *cursor-element* 0 nil nil)
     (print (list :cursor-element *cursor-element*))))
 
 (defvar *eval-output* '())

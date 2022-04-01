@@ -18,4 +18,3 @@ subhash() {
 }
 
 subhash index.html wapp js
-subhash index.html wapp css
