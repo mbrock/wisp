@@ -643,6 +643,12 @@ pub fn @"READ-FROM-STRING"(step: *Step, v08: u32) anyerror!void {
     step.give(.val, try Sexp.read(step.heap, try step.heap.v08slice(v08)));
 }
 
+pub fn @"READ-MANY-FROM-STRING"(step: *Step, v08: u32) anyerror!void {
+    var list = try Sexp.readMany(step.heap, try step.heap.v08slice(v08));
+    defer list.deinit();
+    step.give(.val, try Wisp.list(step.heap, list.items));
+}
+
 pub fn @"READ-BYTES"(step: *Step, n: u32) anyerror!void {
     var buffer = try step.heap.orb.alloc(u8, n);
     defer step.heap.orb.free(buffer);

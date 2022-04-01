@@ -287,16 +287,14 @@ function step(
   } else if (direction === 9) {
     if (e.children.length === 0) {
       if (e.nextElementSibling) {
-        window.dispatchEvent(
-          new CustomEvent("wisp-eval", {
-            detail: wisp.read(
-              domCode(e.nextElementSibling as HTMLElement)
-            )
-          })
-        )
-
+        evalDexp(wisp, e.nextElementSibling as HTMLElement)
         return true
       }
+    } else {
+      for (let d of [].slice.call(e.children)) {
+        evalDexp(wisp, d as HTMLElement)
+      }
+      return true
     }
   } else if (direction === 10) {
     let code = domCode(document.querySelector("#file"))
@@ -338,4 +336,14 @@ function domCode(root: HTMLElement): string {
 
   console.error("unknown element", root)
   throw new Error("unknown element")
+}
+
+function evalDexp(wisp: Wisp, e: HTMLElement) {
+  window.dispatchEvent(
+    new CustomEvent("wisp-eval", {
+      detail: wisp.read(
+        domCode(e)
+      )
+    })
+  )
 }

@@ -182,7 +182,7 @@
       justify-content: space-between;
     }
 
-    header > .list { flex-direction: column; align-items: end; }
+    header { display: flex; flex-direction: column; align-items: end; }
   "))
   (tag :article ()
     (tag :main ()
@@ -294,18 +294,18 @@
          (dom-cursor-step! *cursor-element* 10 nil nil))
         (t t)))))
 
-(defun do-render-sexp (sexp)
+(defun do-render-sexp (forms)
   (with-simple-error-handler ()
-    (print (list 'render sexp))
-    (render-sexp sexp)))
+    (print (list 'render forms))
+    (for-each forms #'render-sexp)))
 
 (defun on-insert (code)
   (with-simple-error-handler ()
-    (let ((expr (read-from-string code)))
+    (let ((forms (read-many-from-string code)))
       (progn
-        (print (list 'expr expr))
+        (print (list 'forms forms))
         (dom-remove-children! *cursor-element*)
-        (idom-patch! *cursor-element* *render-sexp-callback* expr)
+        (idom-patch! *cursor-element* *render-sexp-callback* forms)
         (dom-cursor-step! *cursor-element* 7 nil nil)))))
 
 (defmacro note (date &rest notes)
