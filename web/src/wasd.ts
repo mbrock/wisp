@@ -203,8 +203,8 @@ function step(
         if (next.matches("div, article, header, main")) {
           next.insertAdjacentElement(
             forward
-              ? (ctrl ? "afterend" : "afterbegin")
-              : (ctrl ? "beforebegin" : "beforeend"),
+              ? (!ctrl ? "afterend" : "afterbegin")
+              : (!ctrl ? "beforebegin" : "beforeend"),
             e)
           return true
         } else {
