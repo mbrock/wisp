@@ -42,6 +42,23 @@ export class WASD {
     this.callbackOperation = operation
   }
 
+  newExt(x: any): U32 {
+    this.ext.set(this.nextExt, x)
+    return this.wisp.newExt(this.nextExt++)
+  }
+
+  convert(x: any): U32 {
+    if (Number.isInteger(x)) {
+      return x
+    } else if (typeof x === "string") {
+      return this.wisp.allocString(x)
+    } else if (x === null || x === undefined) {
+      return this.wisp.sys.nil
+    } else {
+      return this.newExt(x)
+    }
+  }
+
   exports() {
     return {
       release: (idx: number) => {
@@ -50,8 +67,7 @@ export class WASD {
       },
 
       globalThis: () => {
-        this.ext.set(this.nextExt, globalThis)
-        return this.nextExt++
+        return this.newExt(globalThis)
       },
 
       call: (id: U32, strptr: U32, strlen: U32, argptr: U32, arglen: U32) => {
@@ -60,6 +76,8 @@ export class WASD {
         let args = v32.map(x => {
           if (0 === (x & ((1 << 31) >>> 0))) {
             return x
+          } else if (x === this.wisp.sys.nil) {
+            return null
           } else {
             const tags = {
               v08: 0x1a
@@ -76,7 +94,25 @@ export class WASD {
         let functionName = this.wisp.getString(strptr, strlen)
         let x = (o[functionName] as Function).apply(o, args)
 
-        return x
+        console.log("converting", x)
+
+        return this.convert(x)
+      },
+
+      get: (id: U32, strptr: U32, strlen: U32) => {
+        let o = this.ext.get(id)
+        let name = this.wisp.getString(strptr, strlen)
+        let x = o[name]
+
+        if (Number.isInteger(x)) {
+          return x
+        } else if (typeof x === "string") {
+          return this.wisp.allocString(x)
+        } else if (x === null) {
+          return this.wisp.sys.nil
+        } else {
+          return this.newExt(x)
+        }
       },
 
       make_callback: (

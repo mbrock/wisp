@@ -37,6 +37,12 @@ const DOM = struct {
         args_len: usize,
     ) u32;
 
+    extern "dom" fn get(
+        object: u32,
+        prop_ptr: [*]const u8,
+        prop_len: u32,
+    ) u32;
+
     extern "dom" fn query_selector(
         ptr: [*]const u8,
         len: usize,
@@ -235,10 +241,7 @@ pub fn @"DOM-CURSOR-STEP!"(
 }
 
 pub fn @"JS-GLOBAL-THIS"(step: *Step) anyerror!void {
-    step.give(.val, try step.heap.new(.ext, .{
-        .idx = DOM.globalThis(),
-        .val = step.heap.kwd.@"GLOBAL-THIS",
-    }));
+    step.give(.val, DOM.globalThis());
 }
 
 pub fn @"JS-CALL"(
@@ -254,6 +257,21 @@ pub fn @"JS-CALL"(
         v08.len,
         arg.ptr,
         arg.len,
+    );
+
+    step.give(.val, x);
+}
+
+pub fn @"JS-GET"(
+    step: *Step,
+    ext: u32,
+    str: u32,
+) anyerror!void {
+    const v08 = try step.heap.v08slice(str);
+    const x = DOM.get(
+        try step.heap.get(.ext, .idx, ext),
+        v08.ptr,
+        v08.len,
     );
 
     step.give(.val, x);

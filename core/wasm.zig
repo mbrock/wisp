@@ -295,6 +295,10 @@ export fn wisp_heap_load_tab_col(
     } catch null;
 }
 
+export fn wisp_heap_new_ext(heap: *Wisp.Heap, idx: u32) u32 {
+    return heap.new(.ext, .{ .idx = idx, .val = Wisp.nil }) catch Wisp.zap;
+}
+
 export fn wisp_heap_v08_new(heap: *Wisp.Heap, x: [*]u8, n: usize) u32 {
     return heap.newv08(x[0..n]) catch Wisp.zap;
 }

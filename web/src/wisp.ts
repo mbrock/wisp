@@ -33,6 +33,8 @@ export interface WispAPI {
   wisp_destroy(heap: number, x: number): void
 
   wisp_heap_init(): number
+
+  wisp_heap_new_ext(heap: number, idx: number): number
   
   wisp_heap_get_v08_ptr(heap: number, v08: number): number
   wisp_heap_get_v08_len(heap: number, v08: number): number
@@ -89,6 +91,10 @@ export class Wisp {
       zap: sys("zap"),
       top: sys("top")
     }
+  }
+
+  newExt(idx: number): number {
+    return this.api.wisp_heap_new_ext(this.heap, idx)
   }
 
   loadString(v08: number): string {
