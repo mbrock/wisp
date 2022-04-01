@@ -38,6 +38,8 @@ pub const Tag = enum(u5) {
 
     run = 0x1c, // evaluation state
     ktx = 0x1d, // evaluation context
+
+    ext = 0x1e, // external object
 };
 
 pub const pointerTags = .{

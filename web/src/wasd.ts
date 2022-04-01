@@ -18,13 +18,16 @@ export class WASD {
   wisp: Wisp
   callbackOperation: (cb: Callback, data: U32) => U32
 
+  ext: Map<U32, any>
   elements: Map<U32, HTMLElement>
   callbacks: Map<U32, (data: U32) => U32>
 
+  nextExt = 1
   nextElementId = 1
   nextCallbackId = 1
 
   constructor() {
+    this.ext = new Map
     this.elements = new Map
     this.callbacks = new Map
   }
@@ -41,6 +44,41 @@ export class WASD {
 
   exports() {
     return {
+      release: (idx: number) => {
+        console.log("releasing", idx, this.ext.get(idx >>> 0))
+        this.ext.delete(idx >>> 0)
+      },
+
+      globalThis: () => {
+        this.ext.set(this.nextExt, globalThis)
+        return this.nextExt++
+      },
+
+      call: (id: U32, strptr: U32, strlen: U32, argptr: U32, arglen: U32) => {
+        let o = this.ext.get(id)
+        let v32 = this.wisp.getVector(argptr, arglen)
+        let args = v32.map(x => {
+          if (0 === (x & ((1 << 31) >>> 0))) {
+            return x
+          } else {
+            const tags = {
+              v08: 0x1a
+            }
+            let tag = (x & ((0b11111 << (32 - 5)) >>> 0)) >>> (32 - 5)
+            if (tag === tags.v08) {
+              return this.wisp.loadString(x >>> 0)
+            } else {
+              throw new Error(`unknown pointer type 0x${tag.toString(16)}`)
+            }
+          }
+        })
+
+        let functionName = this.wisp.getString(strptr, strlen)
+        let x = (o[functionName] as Function).apply(o, args)
+
+        return x
+      },
+
       make_callback: (
         pkgptr: U32, pkglen: U32,
         funptr: U32, funlen: U32,

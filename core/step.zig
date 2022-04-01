@@ -768,6 +768,23 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
             try fun(step, args.items[0], args.items[1..args.items.len]);
         },
 
+        .f2x => {
+            const args = try scanListAlloc(step.heap, tmp.get(), arg);
+            defer args.deinit();
+            if (args.items.len < 2) {
+                return step.invalidArgumentCount(jet);
+            } else {
+                if (rev) std.mem.reverse(u32, args.items);
+                const fun = cast(.f2x, def);
+                try fun(
+                    step,
+                    args.items[0],
+                    args.items[1],
+                    args.items[2..args.items.len],
+                );
+            }
+        },
+
         .f0 => {
             if (arg == nil) {
                 const fun = cast(.f0, def);

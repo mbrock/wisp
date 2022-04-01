@@ -249,6 +249,7 @@ pub fn @"TYPE-OF"(step: *Step, x: u32) anyerror!void {
             .pkg => kwd.PACKAGE,
             .ktx => kwd.CONTINUATION,
             .run => kwd.EVALUATOR,
+            .ext => kwd.EXTERNAL,
             .sys => unreachable,
         });
     }

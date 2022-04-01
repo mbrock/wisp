@@ -33,8 +33,13 @@ export interface WispAPI {
   wisp_destroy(heap: number, x: number): void
 
   wisp_heap_init(): number
+  
+  wisp_heap_get_v08_ptr(heap: number, v08: number): number
+  wisp_heap_get_v08_len(heap: number, v08: number): number
+  
   wisp_heap_v08_new(heap: number, ptr: number, len: number): number
   wisp_heap_v32_new(heap: number, ptr: number, len: number): number
+  
   wisp_start_web(heap: number): number
   
   wisp_read(heap: number, buf: number): number
@@ -86,10 +91,21 @@ export class Wisp {
     }
   }
 
+  loadString(v08: number): string {
+    let ptr = this.api.wisp_heap_get_v08_ptr(this.heap, v08)
+    let len = this.api.wisp_heap_get_v08_len(this.heap, v08)
+    return this.getString(ptr, len)
+  }
+  
   getString(ptr: number, len: number): string {
     let buffer = new Uint8Array(this.api.memory.buffer, ptr, len)
     let decoder = new TextDecoder
     return decoder.decode(buffer)
+  }
+
+  getVector(ptr: number, len: number): number[] {
+    let buffer = new Uint32Array(this.api.memory.buffer, ptr, len)
+    return [].slice.call(Array.from(buffer)).map((x: number) => x >>> 0)
   }
 
   allocString(s: string): number {

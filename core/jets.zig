@@ -55,6 +55,7 @@ pub const FnTag = enum {
     f0,
     f1,
     f1x,
+    f2x,
     f1r,
     f2,
     f3,
@@ -74,6 +75,7 @@ pub const FnTag = enum {
             fn (*Step, u32, Rest) anyerror!void => .f1r,
             fn (*Step, []u32) anyerror!void => .f0x,
             fn (*Step, u32, []u32) anyerror!void => .f1x,
+            fn (*Step, u32, u32, []u32) anyerror!void => .f2x,
 
             else => @compileLog("unhandled op type", T),
         };
@@ -92,6 +94,7 @@ pub const FnTag = enum {
             .f0x => fn (*Step, []u32) anyerror!void,
             .f1r => fn (*Step, u32, Rest) anyerror!void,
             .f1x => fn (*Step, u32, []u32) anyerror!void,
+            .f2x => fn (*Step, u32, u32, []u32) anyerror!void,
         };
     }
 

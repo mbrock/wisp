@@ -289,6 +289,7 @@ export fn wisp_heap_load_tab_col(
         .pkg => loadColumn(.pkg, params),
         .ktx => loadColumn(.ktx, params),
         .run => loadColumn(.run, params),
+        .ext => loadColumn(.ext, params),
 
         .int, .sys, .chr, .jet => null,
     } catch null;
@@ -300,6 +301,14 @@ export fn wisp_heap_v08_new(heap: *Wisp.Heap, x: [*]u8, n: usize) u32 {
 
 export fn wisp_heap_v32_new(heap: *Wisp.Heap, x: [*]u32, n: usize) u32 {
     return heap.newv32(x[0..n]) catch Wisp.zap;
+}
+
+export fn wisp_heap_get_v08_ptr(heap: *Wisp.Heap, v08: u32) ?[*]const u8 {
+    return (heap.v08slice(v08) catch return null).ptr;
+}
+
+export fn wisp_heap_get_v08_len(heap: *Wisp.Heap, v08: u32) usize {
+    return (heap.v08slice(v08) catch return Wisp.zap).len;
 }
 
 export fn wisp_heap_v08_len(heap: *Wisp.Heap) usize {

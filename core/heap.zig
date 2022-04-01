@@ -48,6 +48,7 @@ pub fn ColEnum(comptime t: Tag) type {
         .pkg => enum { nam, sym, use },
         .ktx => enum { hop, env, fun, acc, arg },
         .run => enum { exp, val, err, env, way },
+        .ext => enum { idx, val },
     };
 }
 
@@ -75,12 +76,14 @@ pub const Kwd = enum {
 
     ERROR,
     REQUEST,
+    @"GLOBAL-THIS",
 
     BOOLEAN,
     CHARACTER,
     CONS,
     CONTINUATION,
     EVALUATOR,
+    EXTERNAL,
     FUNCTION,
     INTEGER,
     MACRO,
@@ -206,6 +209,7 @@ pub const Vat = struct {
     pkg: Tab(.pkg) = .{},
     run: Tab(.run) = .{},
     ktx: Tab(.ktx) = .{},
+    ext: Tab(.ext) = .{},
 
     pub fn bytesize(vat: Vat) usize {
         var n: usize = 0;
@@ -450,6 +454,7 @@ pub const Heap = struct {
             .pkg => heap.copy(.pkg, x),
             .run => heap.copy(.run, x),
             .ktx => heap.copy(.ktx, x),
+            .ext => heap.copy(.ext, x),
         };
     }
 

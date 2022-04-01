@@ -27,6 +27,16 @@ const Heap = Wisp.Heap;
 const nil = Wisp.nil;
 
 const DOM = struct {
+    extern "dom" fn globalThis() u32;
+
+    extern "dom" fn call(
+        object: u32,
+        prop_ptr: [*]const u8,
+        prop_len: u32,
+        args_ptr: [*]const u32,
+        args_len: usize,
+    ) u32;
+
     extern "dom" fn query_selector(
         ptr: [*]const u8,
         len: usize,
@@ -222,4 +232,29 @@ pub fn @"DOM-CURSOR-STEP!"(
 ) anyerror!void {
     DOM.step(cursor, direction, ctrl, shift, alt);
     step.give(.val, nil);
+}
+
+pub fn @"JS-GLOBAL-THIS"(step: *Step) anyerror!void {
+    step.give(.val, try step.heap.new(.ext, .{
+        .idx = DOM.globalThis(),
+        .val = step.heap.kwd.@"GLOBAL-THIS",
+    }));
+}
+
+pub fn @"JS-CALL"(
+    step: *Step,
+    ext: u32,
+    str: u32,
+    arg: []u32,
+) anyerror!void {
+    const v08 = try step.heap.v08slice(str);
+    const x = DOM.call(
+        try step.heap.get(.ext, .idx, ext),
+        v08.ptr,
+        v08.len,
+        arg.ptr,
+        arg.len,
+    );
+
+    step.give(.val, x);
 }

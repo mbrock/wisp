@@ -68,11 +68,25 @@ pub fn init(old: *Heap) !Tidy {
     };
 }
 
+const JS = struct {
+    extern "dom" fn release(x: u32) void;
+};
+
 pub fn done(tidy: *Tidy) Heap {
     std.log.warn(";; gc era {any}", .{tidy.new.era});
     tidy.old.v08 = .{};
     tidy.old.pkgmap = .{};
     tidy.old.roots = .{};
+
+    // Release unreachable external objects.
+    if (@import("builtin").os.tag == .wasi) {
+        for (tidy.old.tab(.ext).col(.idx)) |extidx| {
+            if (extidx != Wisp.zap) {
+                JS.release(extidx);
+            }
+        }
+    }
+
     tidy.old.deinit();
     return tidy.new;
 }
@@ -114,6 +128,7 @@ fn copy(tidy: *Tidy, x: u32) !u32 {
         .pkg => tidy.push(.pkg, x),
         .run => tidy.push(.run, x),
         .ktx => tidy.push(.ktx, x),
+        .ext => tidy.push(.ext, x),
     };
 }
 
