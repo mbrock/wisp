@@ -38,6 +38,8 @@ export interface WispAPI {
   
   wisp_heap_get_v08_ptr(heap: number, v08: number): number
   wisp_heap_get_v08_len(heap: number, v08: number): number
+
+  wisp_heap_get_ext_idx(heap: number, ext: number): number
   
   wisp_heap_v08_new(heap: number, ptr: number, len: number): number
   wisp_heap_v32_new(heap: number, ptr: number, len: number): number
@@ -95,6 +97,10 @@ export class Wisp {
 
   newExt(idx: number): number {
     return this.api.wisp_heap_new_ext(this.heap, idx)
+  }
+
+  extidx(ext: number): number {
+    return this.api.wisp_heap_get_ext_idx(this.heap, ext)
   }
 
   loadString(v08: number): string {

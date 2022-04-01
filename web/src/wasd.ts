@@ -80,11 +80,18 @@ export class WASD {
             return null
           } else {
             const tags = {
-              v08: 0x1a
+              v08: 0x1a,
+              ext: 0x1e,
             }
             let tag = (x & ((0b11111 << (32 - 5)) >>> 0)) >>> (32 - 5)
             if (tag === tags.v08) {
               return this.wisp.loadString(x >>> 0)
+            } else if (tag === tags.ext) {
+              let y = this.ext.get(this.wisp.extidx(x))
+              if (y === undefined) {
+                throw new Error(`unknown foreign object ${x}`)
+              }
+              return y
             } else {
               throw new Error(`unknown pointer type 0x${tag.toString(16)}`)
             }
@@ -304,7 +311,7 @@ function step(
     let y = e.offsetTop
     let moved = false
     while (true) {
-      if (step(wisp, e, 1, false, false)) {
+      if (step(wisp, e, 1, false, false, false)) {
         moved = true
         if (e.offsetTop < y)
           break
@@ -317,7 +324,7 @@ function step(
     let y = e.offsetTop
     let moved = false
     while (true) {
-      if (step(wisp, e, 0, false, false)) {
+      if (step(wisp, e, 0, false, false, false)) {
         moved = true
         if (e.offsetTop > y)
           break

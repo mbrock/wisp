@@ -307,6 +307,10 @@ export fn wisp_heap_v32_new(heap: *Wisp.Heap, x: [*]u32, n: usize) u32 {
     return heap.newv32(x[0..n]) catch Wisp.zap;
 }
 
+export fn wisp_heap_get_ext_idx(heap: *Wisp.Heap, ext: u32) u32 {
+    return heap.get(.ext, .idx, ext) catch Wisp.zap;
+}
+
 export fn wisp_heap_get_v08_ptr(heap: *Wisp.Heap, v08: u32) ?[*]const u8 {
     return (heap.v08slice(v08) catch return null).ptr;
 }

@@ -223,11 +223,6 @@ pub fn @"DOM-ON-WINDOW-EVENT!"(
     step.give(.val, nil);
 }
 
-pub fn @"DOM-PROMPT"(step: *Step, v08: u32) anyerror!void {
-    const text = try step.heap.v08slice(v08);
-    step.give(.val, DOM.prompt(text.ptr, text.len));
-}
-
 pub fn @"DOM-CURSOR-STEP!"(
     step: *Step,
     cursor: u32,

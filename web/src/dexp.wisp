@@ -190,7 +190,7 @@
   (tag :article ()
     (tag :main ()
       (tag :div
-        '((:style "display: inline-flex; flex-direction: column; gap: 10px")
+        '((:style "display: inline-flex; flex-direction: column; gap: 20px")
           (:id "file"))
         (tag :ins '((:class "cursor")) nil)
         (for-each forms #'render-sexp)))
@@ -278,7 +278,7 @@
              (string-equal? key "n"))
          (dom-cursor-step! *cursor-element* 3 nil nil nil))
         ((string-equal? key "t")
-         (dom-cursor-step! *cursor-element* 4 nil nil nil))
+         (transpose!))
         ((string-equal? key "k")
          (dom-cursor-step! *cursor-element* 5 nil nil nil))
         ((string-equal? key "d")
@@ -296,6 +296,9 @@
         ((string-equal? key "s")
          (dom-cursor-step! *cursor-element* 10 nil nil nil))
         (t t)))))
+
+(defun transpose! ()
+  (dom-cursor-step! *cursor-element* 4 nil nil nil))
 
 (defun do-render-sexp (forms)
   (with-simple-error-handler ()
