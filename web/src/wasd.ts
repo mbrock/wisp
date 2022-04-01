@@ -176,6 +176,10 @@ export class WASD {
         step(this.wisp, e, direction,
              (ctrl >>> 0) !== this.wisp.sys.nil,
              (shift >>> 0) !== this.wisp.sys.nil)
+        e.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        })
       },
     }
   }
