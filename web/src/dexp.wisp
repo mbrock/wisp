@@ -303,14 +303,12 @@
 
 (defun do-render-sexp (forms)
   (with-simple-error-handler ()
-    (print (list 'render forms))
     (for-each forms #'render-sexp)))
 
 (defun on-insert (code)
   (with-simple-error-handler ()
     (let ((forms (read-many-from-string code)))
       (progn
-        (print (list 'forms forms))
         (dom-remove-children! *cursor-element*)
         (idom-patch! *cursor-element* *render-sexp-callback* forms)
         (dom-cursor-step! *cursor-element* 7 nil nil nil)))))
@@ -326,7 +324,6 @@
      *render-sexp-callback* *eval-output*)))
 
 (defun wisp-boot (forms)
-  (print (list 'booting forms))
   (with-simple-error-handler ()
     (dom-on-keydown! *key-callback*)
     (dom-on-window-event! "wisp-insert" *insert-callback*)

@@ -67,6 +67,7 @@ export class WASD {
             const tags = {
               v08: 0x1a,
               ext: 0x1e,
+              pin: 0x1f,
             }
             let tag = (x & ((0b11111 << (32 - 5)) >>> 0)) >>> (32 - 5)
             if (tag === tags.v08) {
@@ -77,6 +78,17 @@ export class WASD {
                 throw new Error(`unknown foreign object ${x}`)
               }
               return y
+            } else if (tag === tags.pin) {
+              // assuming this is a callback
+              return (data: any) => {
+                this.wisp.api.wisp_call(
+                  this.wisp.heap, x, this.wisp.api.wisp_cons(
+                    this.wisp.heap,
+                    this.convert(data),
+                    this.wisp.sys.nil)
+                )
+              }
+
             } else {
               throw new Error(`unknown pointer type 0x${tag.toString(16)}`)
             }
@@ -84,6 +96,7 @@ export class WASD {
         })
 
         let functionName = this.wisp.getString(strptr, strlen)
+        console.log(functionName, args)
         let x = (o[functionName] as Function).apply(o, args)
 
         console.log("converting", x)
@@ -203,7 +216,6 @@ export class WASD {
               ]))
 
               if (result >>> 0 !== this.wisp.sys.t) {
-                console.log({ result }, this.wisp.sys)
                 key.preventDefault()
                 key.stopImmediatePropagation()
               }
