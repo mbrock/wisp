@@ -27,6 +27,8 @@ const Heap = Wisp.Heap;
 const nil = Wisp.nil;
 
 const DOM = struct {
+    extern "dom" fn object(ptr: [*]const u32, len: usize) u32;
+
     extern "dom" fn globalThis() u32;
 
     extern "dom" fn call(
@@ -227,4 +229,8 @@ pub fn @"JS-GET"(
     );
 
     step.give(.val, x);
+}
+
+pub fn @"JS-OBJECT"(step: *Step, xs: []u32) anyerror!void {
+    step.give(.val, DOM.object(xs.ptr, xs.len));
 }

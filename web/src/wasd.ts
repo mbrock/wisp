@@ -51,6 +51,18 @@ export class WASD {
         this.ext.delete(idx >>> 0)
       },
 
+      object: (ptr: number, len: number) => {
+        let v32 = this.wisp.getVector(ptr, len)
+        let args = v32.map(x => this.convertFromWisp(x >>> 0))
+
+        let result = {}
+        for (let i = 0; i < args.length; i += 2) {
+          result[args[i]] = args[i + 1]
+        }
+
+        return this.newExt(result)
+      },
+
       globalThis: () => {
         return this.newExt(globalThis)
       },
