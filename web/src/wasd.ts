@@ -143,9 +143,13 @@ export class WASD {
           let element = this.elements.get(elementId)
 
           let fun = (data: U32) => {
-            this.wisp.api.wisp_call(
-              this.wisp.heap, funptr, this.wisp.api.wisp_cons(this.wisp.heap, data, this.wisp.sys.nil)
-            )
+            try {
+              this.wisp.api.wisp_call(
+                this.wisp.heap, funptr, this.wisp.api.wisp_cons(this.wisp.heap, data, this.wisp.sys.nil)
+              )
+            } catch (e) {
+              console.error("patch callback error", e)
+            }
           }
 
           // We now run this synchronously, reentrantly.  This only
