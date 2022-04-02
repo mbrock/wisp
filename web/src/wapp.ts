@@ -21,11 +21,27 @@ import wispWasmPath from "wisp.wasm"
 
 import { Wisp, WispAPI } from "./wisp"
 import { WASI } from "./wasi"
-import { WASD, Callback } from "./wasd"
+import { WASD } from "./wasd"
 
 import initialDocument from "./dexp.wisp"
 
-type U32 = number
+import FS from "@isomorphic-git/lightning-fs"
+import * as Git from "isomorphic-git"
+import http from "isomorphic-git/http/web"
+import { Buffer } from "buffer"
+
+declare global {
+    interface Window {
+      fs: FS
+      git: typeof Git
+      git_http: typeof http
+    }
+}
+
+window.fs = new FS("wisp")
+window.git = Git
+window.git_http = http
+window.Buffer = Buffer
 
 onload = async () => {
   const wasi = new WASI

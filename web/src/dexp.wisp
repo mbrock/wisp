@@ -316,6 +316,11 @@
 (defmacro note (date &rest notes)
   `(quote (note ,date ,@notes)))
 
+(defun output (x)
+  (set! *eval-output* (cons x *eval-output*))
+  (idom-patch! (query-selector "#eval-output")
+               *render-sexp-callback* *eval-output*))
+
 (defun do-eval (expr)
   (with-simple-error-handler ()
     (set! *eval-output* (cons (eval expr) *eval-output*))
