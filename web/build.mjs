@@ -1,8 +1,5 @@
 import { lezerPlugin } from "@nota-lang/esbuild-lezer"
-import style from "esbuild-style-plugin"
 
-import tailwindcss from "tailwindcss"
-import autoprefixer from "autoprefixer"
 import esbuild from "esbuild"
 
 esbuild.build({
