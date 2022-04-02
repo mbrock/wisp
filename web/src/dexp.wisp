@@ -289,7 +289,7 @@
         ((string-equal? key "i")
          (dom-cursor-step! *cursor-element* 8 nil nil nil))
         ((string-equal? key "e")
-         (dom-cursor-step! *cursor-element* 9 nil nil nil))
+         (dom-cursor-step! *cursor-element* 9 control? nil nil))
         ((string-equal? key "(")
          (progn
            (on-insert "()")

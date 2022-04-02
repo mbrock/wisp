@@ -366,6 +366,9 @@ function step(
     if (e.children.length === 0) {
       if (e.nextElementSibling) {
         evalDexp(wisp, e.nextElementSibling as HTMLElement)
+        if (ctrl) {
+          step(wisp, e, 0, false, false, false)
+        }
         return true
       }
     } else {
