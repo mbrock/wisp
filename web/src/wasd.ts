@@ -46,6 +46,43 @@ export class WASD {
     }
   }
 
+  convertFromWisp(x: U32): any {
+    if (0 === (x & ((1 << 31) >>> 0))) {
+      return x
+    } else if (x === this.wisp.sys.nil) {
+      return null
+    } else {
+      const tags = {
+        v08: 0x1a,
+        ext: 0x1e,
+        pin: 0x1f,
+      }
+      let tag = (x & ((0b11111 << (32 - 5)) >>> 0)) >>> (32 - 5)
+      if (tag === tags.v08) {
+        return this.wisp.loadString(x >>> 0)
+      } else if (tag === tags.ext) {
+        let y = this.ext.get(this.wisp.extidx(x))
+        if (y === undefined) {
+          throw new Error(`unknown foreign object ${x}`)
+        }
+        return y
+      } else if (tag === tags.pin) {
+        // assuming this is a callback
+        return (data: any) => {
+          this.wisp.api.wisp_call(
+            this.wisp.heap, x, this.wisp.api.wisp_cons(
+              this.wisp.heap,
+              this.convert(data),
+              this.wisp.sys.nil)
+          )
+        }
+
+      } else {
+        throw new Error(`unknown pointer type 0x${tag.toString(16)}`)
+      }
+    }
+  }
+
   exports() {
     return {
       release: (idx: number) => {
@@ -72,42 +109,7 @@ export class WASD {
       call: (id: U32, strptr: U32, strlen: U32, argptr: U32, arglen: U32) => {
         let o = this.ext.get(id)
         let v32 = this.wisp.getVector(argptr, arglen)
-        let args = v32.map(x => {
-          if (0 === (x & ((1 << 31) >>> 0))) {
-            return x
-          } else if (x === this.wisp.sys.nil) {
-            return null
-          } else {
-            const tags = {
-              v08: 0x1a,
-              ext: 0x1e,
-              pin: 0x1f,
-            }
-            let tag = (x & ((0b11111 << (32 - 5)) >>> 0)) >>> (32 - 5)
-            if (tag === tags.v08) {
-              return this.wisp.loadString(x >>> 0)
-            } else if (tag === tags.ext) {
-              let y = this.ext.get(this.wisp.extidx(x))
-              if (y === undefined) {
-                throw new Error(`unknown foreign object ${x}`)
-              }
-              return y
-            } else if (tag === tags.pin) {
-              // assuming this is a callback
-              return (data: any) => {
-                this.wisp.api.wisp_call(
-                  this.wisp.heap, x, this.wisp.api.wisp_cons(
-                    this.wisp.heap,
-                    this.convert(data),
-                    this.wisp.sys.nil)
-                )
-              }
-
-            } else {
-              throw new Error(`unknown pointer type 0x${tag.toString(16)}`)
-            }
-          }
-        })
+        let args = v32.map(x => this.convertFromWisp(x))
 
         let functionName = this.wisp.getString(strptr, strlen)
         console.log(functionName, args)
