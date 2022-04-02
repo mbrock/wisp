@@ -37,6 +37,8 @@ export class WASD {
       return x
     } else if (typeof x === "string") {
       return this.wisp.newv08(x)
+    } else if (Array.isArray(x)) {
+      return this.wisp.newv32(x.map(x => this.convert(x)))
     } else if (x === null || x === undefined) {
       return this.wisp.sys.nil
     } else {
