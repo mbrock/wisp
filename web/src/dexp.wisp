@@ -131,7 +131,8 @@
       min-height: 1em;
     }
 
-    .list[data-callee='WISP:COND'] > :not(.cursor) {
+    .list[data-callee='WISP:COND'] > :not(.cursor),
+    .list[data-callee='WISP:MAKE-KEYMAP'] > :not(.cursor) {
       width: 100%;
     }
 
@@ -265,51 +266,69 @@
        (let ,(%vector-element-bindings $vector names)
          ,(prognify body)))))
 
+(defun key-info-string (key-info)
+  (with-vector-elements key-info (key ctrl shift alt meta repeat)
+    (string-append (if ctrl "C-" "")
+                   (if meta "M-" "")
+                   (if shift "S-" "")
+                   key)))
+
+(defun keymap-select (key-info keymap)
+  (let ((key-string (key-info-string key-info)))
+    (call-with-prompt :break
+        (fn ()
+          (for-each keymap
+            (fn (binding)
+              (let ((keys (if (string? (head binding))
+                              (list (head binding))
+                            (head binding))))
+                (for-each keys
+                  (fn (candidate)
+                    (when (string-equal? candidate key-string)
+                      (print binding)
+                      (send! :break (second binding)))))))))
+      (fn (v k) v))))
+
+(defmacro make-keymap (&rest clauses)
+  `(list ,@(map (fn (clause)
+                  (progn
+                    (print `(list (quote ,(head clause))))
+                    `(list ',(head clause) ,(second clause))
+                    ))
+                clauses)))
+
+;(defmacro make-keymap (&rest clauses) nil)
+
+(defun forward-sexp! ()
+  (forward! :forward nil))
+(defun backward-sexp! ()
+  (forward! :backward nil))
+(defun forward-into-sexp! ()
+  (forward! :forward t))
+(defun backward-into-sexp! ()
+  (forward! :backward t))
+(defun select-forward-sexp! ()
+  (select! :forward))
+(defun select-backward-sexp! ()
+  (select! :backward))
+(defun forward-line! ()
+  (goto-next-line! :forward))
+(defun backward-line! ()
+  (goto-next-line! :backward))
+(defun evaluate-sexp! ()
+  (eval! nil))
+
 (defun on-keydown (key-info)
   (with-simple-error-handler ()
-    (with-vector-elements key-info (key control? shift? alt? meta? repeat?)
-      (print (list 'keydown key control? shift? alt? meta? repeat?))
-      (cond
-        ((or (string-equal? key "ArrowRight")
-             (string-equal? key "f"))
-         (forward! :forward control?))
-        ((or (string-equal? key "ArrowLeft")
-             (string-equal? key "b"))
-         (forward! :backward control?))
-        ((or (string-equal? key "F")
-             (and shift? (string-equal? key "ArrowRight")))
-         (select! :forward))
-        ((or (string-equal? key "B")
-             (and shift? (string-equal? key "ArrowLeft")))
-         (select! :backward))
-        ((or (string-equal? key "ArrowUp")
-            (string-equal? key "p"))
-         (goto-next-line! :backward))
-        ((or (string-equal? key "ArrowDown")
-             (string-equal? key "n"))
-         (goto-next-line! :forward))
-        ((string-equal? key "t")
-         (transpose!))
-        ((string-equal? key "k")
-         (delete!))
-        ((string-equal? key "d")
-         (duplicate!))
-        ((string-equal? key "Escape")
-         (unselect!))
-        ((string-equal? key "i")
-         (start-editor!))
-        ((string-equal? key "e")
-         (eval! control?))
-        ((string-equal? key "(")
-         (progn
-           (insert-code! "()")
-           (forward! :backward nil)))
-        ((string-equal? key "s")
-         (save!))
-        (t t))
-
-      (js-call *cursor* "scrollIntoView"
-               (js-object "behavior" "smooth" "block" "center")))))
+    (let ((function (keymap-select key-info *wisp-keymap*)))
+      (if function
+          (returning nil
+            (progn
+              (call function)
+              (js-call *cursor* "scrollIntoView"
+                       (js-object "behavior" "smooth"
+                                  "block" "center"))))
+        t))))
 
 (defun element-next-sibling (x)
   (js-get x "nextElementSibling"))
@@ -461,6 +480,24 @@
     (idom-patch!
      (query-selector "#eval-output")
      *render-sexp-callback* *eval-output*)))
+
+(defvar *wisp-keymap*
+  (make-keymap
+   (("f" "ArrowRight") #'forward-sexp!)
+   (("b" "ArrowLeft")  #'backward-sexp!)
+   (("C-f" "C-ArrowRight") #'forward-into-sexp!)
+   (("C-b" "C-ArrowLeft") #'backward-into-sexp!)
+   (("S-F" "S-ArrowRight") #'select-forward-sexp!)
+   (("S-B" "S-ArrowLeft") #'select-backward-sexp!)
+   (("p" "ArrowUp") #'backward-line!)
+   (("n" "ArrowDown") #'forward-line!)
+   ("t" #'transpose!)
+   ("k" #'delete!)
+   ("d" #'duplicate!)
+   (("C-g" "Escape") #'unselect!)
+   ("i" #'start-editor!)
+   ("e" #'evaluate-sexp!)
+   ("s" #'save!)))
 
 (defun wisp-boot (forms)
   (with-simple-error-handler ()
