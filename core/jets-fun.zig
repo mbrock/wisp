@@ -53,6 +53,13 @@ pub fn @"<"(step: *Step, x: u32, y: u32) anyerror!void {
         step.give(.val, nil);
 }
 
+pub fn @">"(step: *Step, x: u32, y: u32) anyerror!void {
+    if ((try wordint(x)) > (try wordint(y)))
+        step.give(.val, t)
+    else
+        step.give(.val, nil);
+}
+
 pub fn @"+"(step: *Step, xs: []u32) anyerror!void {
     var result: i31 = 0;
     for (xs) |x| {

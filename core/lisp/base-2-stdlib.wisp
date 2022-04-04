@@ -58,6 +58,14 @@
         (call f (head xs))
         (for-each (tail xs) f))))
 
+(defun vector-for-each (xs f)
+  (%vector-for-each xs f 0))
+
+(defun %vector-for-each (xs f i)
+  (when (< i (vector-length xs))
+    (call f (vector-get xs i))
+    (%vector-for-each xs f (+ i 1))))
+
 (defmacro when (test &rest body)
   `(if ,test ,(prognify body) nil))
 

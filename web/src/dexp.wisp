@@ -201,8 +201,8 @@
     (idom-patch!
      (query-selector "#eval-output")
      *render-sexp-callback* *eval-output*)
-    (set! *cursor-element* (query-selector ".cursor"))
-    (print (list :cursor-element *cursor-element*))))
+    (set! *cursor* (query-selector ".cursor"))
+    (print (list :cursor *cursor*))))
 
 (defvar *initial-forms*
   '((note (metadata)
@@ -234,6 +234,9 @@
      (done play around)
      (todo buy bananas))))
 
+(defun query-selector (selector)
+  (js-call *document* "querySelector" selector))
+
 (with-simple-error-handler ()
   (defvar *window* (js-global-this))
   (defvar *document* (js-get *window* "document"))
@@ -244,7 +247,7 @@
   (defvar *insert-callback* (make-callback 'on-insert))
   (defvar *render-callback* (make-callback 'draw-app))
   (defvar *render-sexp-callback* (make-callback 'do-render-sexp))
-  (defvar *cursor-element* nil))
+  (defvar *cursor* nil))
 
 (defun render-app (forms)
   (with-simple-error-handler ()
@@ -268,48 +271,168 @@
       (print (list 'keydown key control? shift? alt? meta? repeat?))
       (cond
         ((or (string-equal? key "ArrowRight")
-             (string-equal? key "f")
-             (string-equal? key "F"))
-         (dom-cursor-step! *cursor-element* 0 control? shift? alt?))
+             (string-equal? key "f"))
+         (forward! :forward control?))
         ((or (string-equal? key "ArrowLeft")
-             (string-equal? key "b")
-             (string-equal? key "B"))
-         (dom-cursor-step! *cursor-element* 1 control? shift? alt?))
+             (string-equal? key "b"))
+         (forward! :backward control?))
+        ((or (string-equal? key "F")
+             (and shift? (string-equal? key "ArrowRight")))
+         (select! :forward))
+        ((or (string-equal? key "B")
+             (and shift? (string-equal? key "ArrowLeft")))
+         (select! :backward))
         ((or (string-equal? key "ArrowUp")
             (string-equal? key "p"))
-         (dom-cursor-step! *cursor-element* 2 nil nil nil))
+         (goto-next-line! :backward))
         ((or (string-equal? key "ArrowDown")
              (string-equal? key "n"))
-         (dom-cursor-step! *cursor-element* 3 nil nil nil))
+         (goto-next-line! :forward))
         ((string-equal? key "t")
          (transpose!))
         ((string-equal? key "k")
-         (dom-cursor-step! *cursor-element* 5 nil nil nil))
+         (delete!))
         ((string-equal? key "d")
-         (dom-cursor-step! *cursor-element* 6 nil nil nil))
+         (duplicate!))
         ((string-equal? key "Escape")
-         (dom-cursor-step! *cursor-element* 7 nil nil nil))
+         (unselect!))
         ((string-equal? key "i")
          (start-editor!))
         ((string-equal? key "e")
-         (dom-cursor-step! *cursor-element* 9 control? nil nil))
+         (eval! control?))
         ((string-equal? key "(")
          (progn
            (insert-code! "()")
-           (dom-cursor-step! *cursor-element* 1 nil nil nil)))
+           (forward! :backward nil)))
         ((string-equal? key "s")
-         (dom-cursor-step! *cursor-element* 10 nil nil nil))
-        (t t)))))
+         (save!))
+        (t t))
+
+      (js-call *cursor* "scrollIntoView"
+               (js-object "behavior" "smooth" "block" "center")))))
+
+(defun element-next-sibling (x)
+  (js-get x "nextElementSibling"))
+
+(defun element-previous-sibling (x)
+  (js-get x "previousElementSibling"))
+
+(defun element-sibling (x direction)
+  (ecase direction
+    (:forward (element-next-sibling x))
+    (:backward (element-previous-sibling x))))
+
+(defun element-matches? (x selector)
+  (js-call x "matches" selector))
+
+(defun element-insert-adjacent! (x place y)
+  (print (list :insert-adjacent x place y))
+  (js-call x "insertAdjacentElement" (symbol-name place) y))
+
+(defun element-closest (x selector)
+  (js-call x "closest" selector))
+
+(defun element-parent (x)
+  (js-get x "parentElement"))
+
+(defun forward! (direction into?)
+  (let ((next (element-sibling *cursor* direction)))
+    (if next
+        (let ((place
+                (if (element-matches? next "div, article, header, main")
+                    (progn (print :matched)
+                           (if (eq? direction :forward)
+                               (if into? :afterbegin :afterend)
+                             (if into? :beforeend :beforebegin)))
+                  (if (eq? direction :forward)
+                      :afterend
+                    :beforebegin))))
+          (returning t
+            (element-insert-adjacent! next place *cursor*)))
+      (let ((up (element-closest (element-parent *cursor*)
+                                 "div, article, header, main"))
+            (place (if (eq? direction :forward) :afterend :beforebegin)))
+        (if (element-closest (element-parent up) "#file")
+            (returning t
+              (element-insert-adjacent! up place *cursor*))
+          nil)))))
+
+(defun goto-next-line! (direction)
+  (when (element-closest (element-parent *cursor*)
+                         "#file")
+    (let* ((y0 (js-get *cursor* "offsetTop"))
+           (y1 (and
+                 (forward! direction t)
+                 (js-get *cursor* "offsetTop"))))
+      (when (eq? y0 y1)
+        (goto-next-line! direction)))))
+
+(defun select! (direction)
+  (element-insert-adjacent! *cursor* :beforeend
+                            (element-sibling *cursor* direction)))
+
+(defun element-children (x)
+  (js-get x "children"))
+
+(defun element-insert-many-before! (x xs)
+  (js-call-with-vector x "before" (element-children x)))
+
+(defun unselect! ()
+  (element-insert-many-before! *cursor*
+                               (element-children *cursor*)))
 
 (defun transpose! ()
-  (dom-cursor-step! *cursor-element* 4 nil nil nil))
+  (let ((next (element-sibling *cursor* :forward))
+        (prev (element-sibling *cursor* :backward)))
+    (progn
+      (element-insert-adjacent! prev :beforebegin next)
+      (forward! :backward nil))))
+
+(defun eval! (skip?)
+  (let ((kids (element-children *cursor*)))
+    (if (> (vector-length kids) 0)
+        (vector-for-each kids #'eval-dexp!)
+      (let ((next (element-sibling *cursor* :forward)))
+        (when next
+          (eval-dexp! next)
+          (when skip?
+            (forward! :forward nil)))))))
+
+(defun save! ()
+  (let ((code (js-call *wisp* "domCode" (query-selector "#file"))))
+    (js-call (js-get *window* "localStorage") "setItem" "wisp-file" code)))
+
+(defun eval-dexp! (x)
+  (do-eval (read-from-string (js-call *wisp* "domCode" x))))
+
+(defun element-remove! (x)
+  (js-call x "remove"))
+
+(defun element-replace-children! (x xs)
+  (js-call-with-vector x "replaceChildren" xs))
+
+(defun delete! ()
+  (if (> (vector-length (element-children *cursor*)) 0)
+      (element-replace-children! *cursor* [])
+    (let ((next (element-sibling *cursor* :forward)))
+      (when next
+        (element-remove! next)))))
+
+(defun element-deep-clone (x)
+  (js-call x "cloneNode" t))
+
+(defun duplicate! ()
+  (let* ((next (element-sibling *cursor* :forward))
+         (copy (element-deep-clone next)))
+    (when next
+      (element-insert-adjacent! next :beforebegin copy))))
 
 (defun insert-code! (code)
   (let ((forms (read-many-from-string code)))
     (progn
-      (dom-remove-children! *cursor-element*)
-      (idom-patch! *cursor-element* *render-sexp-callback* forms)
-      (dom-cursor-step! *cursor-element* 7 nil nil nil))))
+      (element-replace-children! *cursor* [])
+      (idom-patch! *cursor* *render-sexp-callback* forms)
+      (unselect!))))
 
 (defun start-editor! ()
   (js-call *wisp* "startEditor"

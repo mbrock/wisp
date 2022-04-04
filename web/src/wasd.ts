@@ -33,14 +33,19 @@ export class WASD {
   }
 
   convert(x: any): U32 {
+    console.log("converting", x)
     if (Number.isInteger(x)) {
       return x
     } else if (typeof x === "string") {
       return this.wisp.newv08(x)
     } else if (Array.isArray(x)) {
       return this.wisp.newv32(x.map(x => this.convert(x)))
-    } else if (x === null || x === undefined) {
+    } else if (x === null || x === undefined || x === false) {
       return this.wisp.sys.nil
+    } else if (x === true) {
+      return this.wisp.sys.t
+    } else if (x instanceof NodeList || x instanceof HTMLCollection) {
+      return this.convert(Array.from(x))
     } else {
       return this.newExt(x)
     }
@@ -51,6 +56,8 @@ export class WASD {
       return x
     } else if (x === this.wisp.sys.nil) {
       return null
+    } else if (x === this.wisp.sys.t) {
+      return true
     } else {
       const tags = {
         v08: 0x1a,
@@ -117,10 +124,9 @@ export class WASD {
         let functionName = this.wisp.getString(strptr, strlen)
         console.log(functionName, args)
         let x = (o[functionName] as Function).apply(o, args)
+        let y = this.convert(x)
 
-        console.log("converting", x)
-
-        return this.convert(x)
+        return y
       },
 
       get: (id: U32, strptr: U32, strlen: U32) => {
@@ -128,48 +134,13 @@ export class WASD {
         let name = this.wisp.getString(strptr, strlen)
         let x = o[name]
 
-        if (Number.isInteger(x)) {
-          return x
-        } else if (typeof x === "string") {
-          return this.wisp.newv08(x)
-        } else if (x === null) {
-          return this.wisp.sys.nil
-        } else {
-          return this.newExt(x)
-        }
-      },
-
-      query_selector: (selectorPointer: U32, selectorLength: U32) => {
-        let selector = this.wisp.getString(selectorPointer, selectorLength)
-        let element = document.querySelector(selector)
-        if (element !== null) {
-          this.elements.set(this.nextElementId, element as HTMLElement)
-          return this.nextElementId++
-        } else {
-          return 0
-        }
-      },
-
-      removeChildren: (elementId: U32) => {
-        let element = this.elements.get(elementId)
-        if (element) {
-          element.innerHTML = ""
-        }
+        return this.convert(x)
       },
 
       patch: (elementId: U32, funptr: U32, data: U32) => {
         try {
-          let element = this.elements.get(elementId)
-
-          let fun = (data: U32) => {
-            try {
-              this.wisp.api.wisp_call(
-                this.wisp.heap, funptr, this.wisp.api.wisp_cons(this.wisp.heap, data, this.wisp.sys.nil)
-              )
-            } catch (e) {
-              console.error("patch callback error", e)
-            }
-          }
+          let element = this.convertFromWisp(elementId)
+          let fun = this.convertFromWisp(funptr)
 
           // We now run this synchronously, reentrantly.  This only
           // works because we inhibit garbage collection
@@ -259,156 +230,11 @@ export class WASD {
           callback(event.detail)
         })
       },
-
-      prompt: (ptr: U32, len: U32) => {
-        let text = this.wisp.getString(ptr, len)
-        let result = prompt(text)
-        if (result === null)
-          return this.wisp.sys.nil
-        else
-          return this.wisp.newv08(result)
-      },
-
-      step: (elementId: U32, direction: U32, ctrl: U32, shift: U32, alt: U32) => {
-        let e = this.elements.get(elementId)
-        step(this.wisp, e, direction,
-             (ctrl >>> 0) !== this.wisp.sys.nil,
-             (shift >>> 0) !== this.wisp.sys.nil,
-             (alt >>> 0) !== this.wisp.sys.nil,
-            )
-        e.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        })
-      },
     }
   }
 }
 
-function step(
-  wisp: Wisp,
-  e: HTMLElement,
-  direction: number,
-  ctrl: boolean,
-  shift: boolean,
-  _alt: boolean,
-): boolean {
-  if (direction === 0 || direction === 1) {
-    let forward = direction === 0
-    let next = forward ? e.nextElementSibling : e.previousElementSibling
-    if (next) {
-      if (shift) {
-        e.appendChild(next)
-        return true
-      } else {
-        if (next.matches("div, article, header, main")) {
-          next.insertAdjacentElement(
-            forward
-              ? (!ctrl ? "afterend" : "afterbegin")
-              : (!ctrl ? "beforebegin" : "beforeend"),
-            e)
-          return true
-        } else {
-          next.insertAdjacentElement(
-            forward
-              ? "afterend"
-              : "beforebegin",
-            e)
-          return true
-        }
-      }
-    } else {
-      let up = e.parentElement.closest("div, article, header, main")
-      if (up) {
-        up.insertAdjacentElement(forward ? "afterend" : "beforebegin", e)
-        return true
-      }
-    }
-  } else if (direction === 2) {
-    let y = e.offsetTop
-    let moved = false
-    while (true) {
-      if (step(wisp, e, 1, true, false, false)) {
-        moved = true
-        if (e.offsetTop < y)
-          break
-      } else {
-        break
-      }
-    }
-    return moved
-  } else if (direction === 3) {
-    let y = e.offsetTop
-    let moved = false
-    while (true) {
-      if (step(wisp, e, 0, true, false, false)) {
-        moved = true
-        if (e.offsetTop > y)
-          break
-      } else {
-        break
-      }
-    }
-    return moved
-  } else if (direction === 4) {
-    if (e.previousElementSibling && e.nextElementSibling) {
-      let p = e.previousElementSibling
-      p.insertAdjacentElement("beforebegin", e.nextElementSibling)
-      e.previousElementSibling.insertAdjacentElement("beforebegin", e)
-      return true
-    }
-  } else if (direction === 5) {
-    if (e.childNodes.length > 0) {
-      e.replaceChildren()
-      return true
-    } else if (e.nextElementSibling) {
-      e.nextElementSibling.remove()
-      return true
-    }
-  } else if (direction === 6) {
-    if (e.nextElementSibling) {
-      e.parentNode.insertBefore(e.nextElementSibling.cloneNode(true), e.nextElementSibling)
-      return true
-    }
-  } else if (direction === 7) {
-    if (e.children.length > 0) {
-      e.before(...[].slice.call(e.children))
-      return true
-    }
-  } else if (direction === 8) {
-    if (e.children.length === 0) {
-      startEditor(e, "", (code: string) => {
-        window.dispatchEvent(
-          new CustomEvent("wisp-insert", { detail: wisp.newv08(code) })
-        )
-      })
-
-      return true
-    }
-  } else if (direction === 9) {
-    if (e.children.length === 0) {
-      if (e.nextElementSibling) {
-        evalDexp(wisp, e.nextElementSibling as HTMLElement)
-        if (ctrl) {
-          step(wisp, e, 0, false, false, false)
-        }
-        return true
-      }
-    } else {
-      for (let d of [].slice.call(e.children)) {
-        evalDexp(wisp, d as HTMLElement)
-      }
-      return true
-    }
-  } else if (direction === 10) {
-    let code = domCode(document.querySelector("#file"))
-    localStorage.setItem("wisp-file", code)
-  }
-
-  return false
-}
-
-function domCode(root: HTMLElement): string {
+export function domCode(root: HTMLElement): string {
   const data = root.dataset
   if (root.matches(".cursor")) {
     return " "

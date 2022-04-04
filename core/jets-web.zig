@@ -45,13 +45,6 @@ const DOM = struct {
         prop_len: u32,
     ) u32;
 
-    extern "dom" fn query_selector(
-        ptr: [*]const u8,
-        len: usize,
-    ) u32;
-
-    extern "dom" fn removeChildren(node: u32) void;
-
     extern "dom" fn on_keydown(
         callback: u32,
     ) void;
@@ -60,19 +53,6 @@ const DOM = struct {
         ptr: [*]const u8,
         len: usize,
         callback: u32,
-    ) void;
-
-    extern "dom" fn prompt(
-        ptr: [*]const u8,
-        len: usize,
-    ) u32;
-
-    extern "dom" fn step(
-        element: u32,
-        direction: u32,
-        ctrl: u32,
-        shift: u32,
-        alt: u32,
     ) void;
 };
 
@@ -89,17 +69,6 @@ const IDOM = struct {
         vallen: usize,
     ) void;
 };
-
-pub fn @"QUERY-SELECTOR"(step: *Step, selector: u32) anyerror!void {
-    const str = try step.heap.v08slice(selector);
-    const id = DOM.query_selector(str.ptr, str.len);
-    step.give(.val, id);
-}
-
-pub fn @"DOM-REMOVE-CHILDREN!"(step: *Step, node: u32) anyerror!void {
-    DOM.removeChildren(node);
-    step.give(.val, node);
-}
 
 pub fn @"IDOM-PATCH!"(
     step: *Step,
@@ -182,18 +151,6 @@ pub fn @"DOM-ON-WINDOW-EVENT!"(
     step.give(.val, nil);
 }
 
-pub fn @"DOM-CURSOR-STEP!"(
-    step: *Step,
-    cursor: u32,
-    direction: u32,
-    ctrl: u32,
-    shift: u32,
-    alt: u32,
-) anyerror!void {
-    DOM.step(cursor, direction, ctrl, shift, alt);
-    step.give(.val, nil);
-}
-
 pub fn @"JS-GLOBAL-THIS"(step: *Step) anyerror!void {
     step.give(.val, DOM.globalThis());
 }
@@ -205,6 +162,25 @@ pub fn @"JS-CALL"(
     arg: []u32,
 ) anyerror!void {
     const v08 = try step.heap.v08slice(str);
+    const x = DOM.call(
+        try step.heap.get(.ext, .idx, ext),
+        v08.ptr,
+        v08.len,
+        arg.ptr,
+        arg.len,
+    );
+
+    step.give(.val, x);
+}
+
+pub fn @"JS-CALL-WITH-VECTOR"(
+    step: *Step,
+    ext: u32,
+    str: u32,
+    v32: u32,
+) anyerror!void {
+    const v08 = try step.heap.v08slice(str);
+    const arg = try step.heap.v32slice(v32);
     const x = DOM.call(
         try step.heap.get(.ext, .idx, ext),
         v08.ptr,
