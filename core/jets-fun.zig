@@ -834,3 +834,11 @@ pub fn @"VECTOR-LENGTH"(step: *Step, v32: u32) anyerror!void {
 pub fn @"MAKE-PINNED-VALUE"(step: *Step, val: u32) anyerror!void {
     step.give(.val, try step.heap.newPin(val));
 }
+
+pub fn @"VECTOR-FROM-LIST"(step: *Step, list: u32) anyerror!void {
+    const len = try Wisp.length(step.heap, list);
+    var buf = try step.heap.orb.alloc(u32, len);
+    defer step.heap.orb.free(buf);
+    try Wisp.listItemsIntoSlice(step.heap, list, buf);
+    step.give(.val, try step.heap.newv32(buf));
+}

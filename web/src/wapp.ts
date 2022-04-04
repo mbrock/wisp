@@ -22,6 +22,7 @@ import wispWasmPath from "wisp.wasm"
 import { Wisp, WispAPI } from "./wisp"
 import { WASI } from "./wasi"
 import { WASD } from "./wasd"
+import { startEditor } from "./edit"
 
 import initialDocument from "./dexp.wisp"
 
@@ -35,6 +36,9 @@ declare global {
       fs: FS
       git: typeof Git
       git_http: typeof http
+      wisp: {
+        startEditor: typeof startEditor
+      }
     }
 }
 
@@ -42,6 +46,9 @@ window.fs = new FS("wisp")
 window.git = Git
 window.git_http = http
 window.Buffer = Buffer
+window.wisp = {
+  startEditor: startEditor
+}
 
 onload = async () => {
   const wasi = new WASI

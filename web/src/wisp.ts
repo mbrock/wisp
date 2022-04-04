@@ -41,6 +41,8 @@ export interface WispAPI {
   
   wisp_heap_get_v08_ptr(heap: number, v08: number): number
   wisp_heap_get_v08_len(heap: number, v08: number): number
+  wisp_heap_get_v32_ptr(heap: number, v32: number): number
+  wisp_heap_get_v32_len(heap: number, v32: number): number
 
   wisp_heap_get_ext_idx(heap: number, ext: number): number
   
@@ -125,6 +127,12 @@ export class Wisp {
     return decoder.decode(buffer)
   }
 
+  loadVector(v32: number): number[] {
+    let ptr = this.api.wisp_heap_get_v32_ptr(this.heap, v32)
+    let len = this.api.wisp_heap_get_v32_len(this.heap, v32)
+    return this.getVector(ptr, len)
+  }
+  
   getVector(ptr: number, len: number): number[] {
     let buffer = new Uint32Array(this.api.memory.buffer, ptr, len)
     return [].slice.call(Array.from(buffer)).map((x: number) => x >>> 0)

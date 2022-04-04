@@ -324,6 +324,14 @@ export fn wisp_heap_get_v08_len(heap: *Wisp.Heap, v08: u32) usize {
     return (heap.v08slice(v08) catch return Wisp.zap).len;
 }
 
+export fn wisp_heap_get_v32_ptr(heap: *Wisp.Heap, v32: u32) ?[*]const u32 {
+    return (heap.v32slice(v32) catch return null).ptr;
+}
+
+export fn wisp_heap_get_v32_len(heap: *Wisp.Heap, v32: u32) usize {
+    return (heap.v32slice(v32) catch return Wisp.zap).len;
+}
+
 export fn wisp_heap_v08_len(heap: *Wisp.Heap) usize {
     return heap.v08.items.len;
 }

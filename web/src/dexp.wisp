@@ -235,6 +235,9 @@
      (todo buy bananas))))
 
 (with-simple-error-handler ()
+  (defvar *window* (js-global-this))
+  (defvar *document* (js-get *window* "document"))
+  (defvar *wisp* (js-get *window* "wisp"))
   (defvar *eval-output* '())
   (defvar *root-element* (query-selector "#wisp-app"))
   (defvar *key-callback* (make-callback 'on-keydown))
@@ -287,12 +290,12 @@
         ((string-equal? key "Escape")
          (dom-cursor-step! *cursor-element* 7 nil nil nil))
         ((string-equal? key "i")
-         (dom-cursor-step! *cursor-element* 8 nil nil nil))
+         (start-editor!))
         ((string-equal? key "e")
          (dom-cursor-step! *cursor-element* 9 control? nil nil))
         ((string-equal? key "(")
          (progn
-           (on-insert "()")
+           (insert-code! "()")
            (dom-cursor-step! *cursor-element* 1 nil nil nil)))
         ((string-equal? key "s")
          (dom-cursor-step! *cursor-element* 10 nil nil nil))
@@ -301,17 +304,25 @@
 (defun transpose! ()
   (dom-cursor-step! *cursor-element* 4 nil nil nil))
 
+(defun insert-code! (code)
+  (let ((forms (read-many-from-string code)))
+    (progn
+      (dom-remove-children! *cursor-element*)
+      (idom-patch! *cursor-element* *render-sexp-callback* forms)
+      (dom-cursor-step! *cursor-element* 7 nil nil nil))))
+
+(defun start-editor! ()
+  (js-call *wisp* "startEditor"
+           (js-call *document* "querySelector" ".cursor")
+           ""
+           (vector-from-list
+            (map #'symbol-name
+                 (package-symbols (find-package "WISP"))))
+           (make-pinned-value #'insert-code!)))
+
 (defun do-render-sexp (forms)
   (with-simple-error-handler ()
     (for-each forms #'render-sexp)))
-
-(defun on-insert (code)
-  (with-simple-error-handler ()
-    (let ((forms (read-many-from-string code)))
-      (progn
-        (dom-remove-children! *cursor-element*)
-        (idom-patch! *cursor-element* *render-sexp-callback* forms)
-        (dom-cursor-step! *cursor-element* 7 nil nil nil)))))
 
 (defmacro note (date &rest notes)
   `(quote (note ,date ,@notes)))
@@ -331,6 +342,5 @@
 (defun wisp-boot (forms)
   (with-simple-error-handler ()
     (dom-on-keydown! *key-callback*)
-    (dom-on-window-event! "wisp-insert" *insert-callback*)
     (dom-on-window-event! "wisp-eval" (make-callback 'do-eval))
     (render-app (or forms *initial-forms*))))

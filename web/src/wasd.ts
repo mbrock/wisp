@@ -54,12 +54,15 @@ export class WASD {
     } else {
       const tags = {
         v08: 0x1a,
+        v32: 0x19,
         ext: 0x1e,
         pin: 0x1f,
       }
       let tag = (x & ((0b11111 << (32 - 5)) >>> 0)) >>> (32 - 5)
       if (tag === tags.v08) {
         return this.wisp.loadString(x >>> 0)
+      } else if (tag === tags.v32) {
+        return this.wisp.loadVector(x >>> 0).map(x => this.convertFromWisp(x))
       } else if (tag === tags.ext) {
         let y = this.ext.get(this.wisp.extidx(x))
         if (y === undefined) {

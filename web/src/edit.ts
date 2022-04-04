@@ -39,6 +39,7 @@ import { commentKeymap } from "@codemirror/comment";
 export function startEditor(
   element: HTMLElement,
   doc: string,
+  symbols: string[],
   done: (code: string) => void,
 ) {
   function onSubmit(view: EditorView) {
@@ -173,7 +174,7 @@ export function startEditor(
         //   }
         // }),
 
-        wisp(),
+        wisp(symbols),
       ],
     })
   }

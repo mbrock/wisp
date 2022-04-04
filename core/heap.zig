@@ -678,6 +678,15 @@ pub fn length(heap: *Heap, x: u32) !u32 {
     return i;
 }
 
+pub fn listItemsIntoSlice(heap: *Heap, x: u32, dst: []u32) !void {
+    var cur = x;
+    var i: u32 = 0;
+    while (cur != nil) : (i += 1) {
+        dst[i] = try heap.get(.duo, .car, cur);
+        cur = try heap.get(.duo, .cdr, cur);
+    }
+}
+
 test "heap" {
     var heap = try Heap.init(std.testing.allocator, .e0);
     defer heap.deinit();

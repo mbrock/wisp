@@ -75,24 +75,15 @@ export const wispLanguage = LRLanguage.define({
   },
 })
 
-export const wispCompletion = wispLanguage.data.of({
-  autocomplete: completeFromList([
-    {label: "run", type: "keyword"},
+export const wispCompletion = (symbols: string[]) =>
+  wispLanguage.data.of({
+    autocomplete: completeFromList(
+      symbols.map(x => ({
+        label: x, type: "function",
+      }))
+    )
+  })
 
-    {label: "defun", type: "keyword"},
-    {label: "defvar", type: "keyword"},
-    {label: "let", type: "keyword"},
-    {label: "call/cc", type: "keyword"},
-    {label: "fn", type: "keyword"},
-
-    {label: "list", type: "function"},
-    {label: "append", type: "function"},
-    {label: "cons", type: "function"},
-    {label: "head", type: "function"},
-    {label: "tail", type: "function"},
-  ])
-})
-
-export function wisp() {
-  return new LanguageSupport(wispLanguage, [wispCompletion])
+export function wisp(symbols: string[]) {
+  return new LanguageSupport(wispLanguage, [wispCompletion(symbols)])
 }
