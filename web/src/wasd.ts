@@ -1,6 +1,5 @@
 import * as DOM from "incremental-dom"
 import { Wisp } from "./wisp"
-import { startEditor } from "./edit"
 
 type U32 = number
 
@@ -52,6 +51,7 @@ export class WASD {
   }
 
   convertFromWisp(x: U32): any {
+    x = x >>> 0
     if (0 === (x & ((1 << 31) >>> 0))) {
       return x
     } else if (x === this.wisp.sys.nil) {
@@ -64,6 +64,7 @@ export class WASD {
         v32: 0x19,
         ext: 0x1e,
         pin: 0x1f,
+        duo: 0x15,
       }
       let tag = (x & ((0b11111 << (32 - 5)) >>> 0)) >>> (32 - 5)
       if (tag === tags.v08) {
@@ -79,13 +80,18 @@ export class WASD {
       } else if (tag === tags.pin) {
         // assuming this is a callback
         return (data: any) => {
-          this.wisp.api.wisp_call(
+          let result = this.wisp.api.wisp_call(
             this.wisp.heap, x, this.wisp.api.wisp_cons(
               this.wisp.heap,
               this.convert(data),
               this.wisp.sys.nil)
           )
+
+          return this.convertFromWisp(result)
         }
+      } else if (tag === tags.duo) {
+        console.warn("ignoring cons return")
+        return null
 
       } else {
         throw new Error(`unknown pointer type 0x${tag.toString(16)}`)
@@ -122,10 +128,10 @@ export class WASD {
         let args = v32.map(x => this.convertFromWisp(x))
 
         let functionName = this.wisp.getString(strptr, strlen)
-        console.log(functionName, args)
         let x = (o[functionName] as Function).apply(o, args)
         let y = this.convert(x)
 
+        console.log({ functionName, args, id, ext: this.ext, o, y })
         return y
       },
 
@@ -133,8 +139,10 @@ export class WASD {
         let o = this.ext.get(id)
         let name = this.wisp.getString(strptr, strlen)
         let x = o[name]
+        let y = this.convert(x)
+        console.info("get", { id, name, o, x, y, ext: this.ext })
 
-        return this.convert(x)
+        return y
       },
 
       patch: (elementId: U32, funptr: U32, data: U32) => {

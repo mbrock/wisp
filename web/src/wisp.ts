@@ -29,7 +29,8 @@ export interface WispAPI {
   wisp_sys_top: WebAssembly.Global
 
   wisp_alloc(heap: number, n: number): number
-  wisp_free(heap: number, x: number): void
+  wisp_free_0(heap: number, x: number): void
+  wisp_free_n(heap: number, x: number, n: number): void
   wisp_destroy(heap: number, x: number): void
 
   wisp_heap_init(): number
@@ -152,7 +153,7 @@ export class Wisp {
   newv08(s: string): number {
     const buf = this.allocString(s)
     const v08 = this.api.wisp_heap_v08_new(this.heap, buf, s.length)
-    this.free(buf)
+    this.free_n(buf, s.length)
     return v08 >>> 0
   }
   
@@ -163,7 +164,7 @@ export class Wisp {
     mem[arr.length] = 0
     
     const v32 = this.api.wisp_heap_v32_new(this.heap, buf, arr.length)
-    this.free(buf)
+    this.free_n(buf, 4 * arr.length)
     
     return v32 >>> 0
   }
@@ -171,27 +172,31 @@ export class Wisp {
   internKeyword(s: string): number {
     const buf = this.allocString(s)
     const x = this.api.wisp_intern_keyword(this.heap, buf, s.length)
-    this.free(buf)
+    this.free_0(buf)
     return x >>> 0
   }
 
-  free(...xs: number[]): void {
+  free_0(...xs: number[]): void {
     for (const x of xs) {
-      this.api.wisp_free(this.heap, x)
+      this.api.wisp_free_0(this.heap, x)
     }
+  }
+
+  free_n(x: number, n: number): void {
+    this.api.wisp_free_n(this.heap, x, n)
   }
 
   read(sexp: string): number {
     const buf = this.allocString(sexp)
     const x = this.api.wisp_read(this.heap, buf)
-    this.free(buf)
+    this.free_0(buf)
     return x >>> 0
   }
 
   readMany(sexp: string): number {
     const buf = this.allocString(sexp)
     const x = this.api.wisp_read_many(this.heap, buf)
-    this.free(buf)
+    this.free_0(buf)
     return x >>> 0
   }
 

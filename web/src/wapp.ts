@@ -99,5 +99,5 @@ onload = async () => {
   if (result === ctx.sys.zap)
     throw new Error
 
-  ctx.free(pkgname, funname)
+  ctx.free_0(pkgname, funname)
 }

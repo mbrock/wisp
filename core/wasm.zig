@@ -353,8 +353,12 @@ export fn wisp_alloc(heap: *Wisp.Heap, n: u32) usize {
     return @ptrToInt(buf.ptr);
 }
 
-export fn wisp_free(heap: *Wisp.Heap, x: [*:0]u8) void {
+export fn wisp_free_0(heap: *Wisp.Heap, x: [*:0]u8) void {
     heap.orb.free(std.mem.span(x));
+}
+
+export fn wisp_free_n(heap: *Wisp.Heap, x: [*]u8, n: usize) void {
+    heap.orb.free(x[0..n]);
 }
 
 export fn wisp_destroy(heap: *Wisp.Heap, x: [*]u8) void {

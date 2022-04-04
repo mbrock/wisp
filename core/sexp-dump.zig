@@ -177,6 +177,11 @@ pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
             try out.print(">", .{});
         },
 
+        .ext => {
+            const ext = try heap.row(.ext, x);
+            try out.print("#<ext {d}>", .{ext.idx});
+        },
+
         else => |t| try out.print("<{any}>", .{t}),
     }
 }
