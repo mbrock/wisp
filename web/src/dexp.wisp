@@ -106,88 +106,6 @@
   (vector-each vector #'render-sexp))
 
 (defun draw-app (forms)
-  (tag :style () (text "
-    body { font: 16px 'berkeley mono', 'dm mono', 'inconsolata', monospace; }
-    #wisp-app { margin: 10px; }
-
-    .symbol { text-transform: lowercase; }
-
-    .string:before { content: '“'; }
-    .string:after { content: '”'; }
-
-    .string { color: lightgray; }
-
-    .list > [data-function-kind=jet]:first-of-type { color: goldenrod; }
-    .list > [data-function-kind=fun]:first-of-type { color: lightsalmon; }
-
-    .vector, .list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 5px;
-      align-items: center;
-      margin: 0 5px;
-      padding: 0 5px;
-      max-width: 60ch;
-      min-height: 1em;
-    }
-
-    .list[data-callee='WISP:COND'] > :not(.cursor),
-    .list[data-callee='WISP:MAKE-KEYMAP'] > :not(.cursor) {
-      width: 100%;
-    }
-
-    .list[data-callee='WISP:DEFUN'] > div:first-of-type ~ :not(.cursor),
-    .list[data-callee='WISP:NOTE'] > div:first-of-type ~ :not(.cursor)
-    {
-      width: 100%;
-    }
-
-    .symbol[data-package-name=WISP] > .package-name { display: none; }
-    .symbol[data-package-name=KEYWORD] > .package-name { display: none; }
-
-    .package-name:after,
-    .symbol[data-package-name=KEYWORD] > .symbol-name:before {
-      content: \":\";
-      opacity: 0.7;
-      padding-right: 1px;
-    }
-
-    .list { border: 0 solid #555; border-width: 0 2px; border-radius: 10px; }
-    .vector {
-      border: 0 solid #556a;
-      border-width: 1px 3px;
-      border-radius: 10px;
-      padding: 5px;
-    }
-
-    @keyframes blink {
-      0%, 100% { background: #ffa8 } 50% { background: #ffaa }
-    }
-
-    .cursor:empty:before {
-      content: ' ';
-      height: 6px; width: 6px; border-radius: 100%;
-      animation: blink 1s infinite;
-    }
-
-    .cursor {
-      display: inline-flex; flex-wrap: wrap; align-items: center; gap: 5px;
-    }
-
-    .cursor:not(:empty) {
-      background: #63ffeb40; border-radius: 5px;
-      margin: 0 5px; padding: 0 5px;
-    }
-
-    ins { text-decoration: none; }
-
-    article {
-      display: flex;
-      justify-content: space-between;
-    }
-
-    header { display: flex; flex-direction: column; align-items: end; }
-  "))
   (tag :article ()
     (tag :main ()
       (tag :div
@@ -204,36 +122,6 @@
      *render-sexp-callback* *eval-output*)
     (set! *cursor* (query-selector ".cursor"))
     (print (list :cursor *cursor*))))
-
-(defvar *initial-forms*
-  '((note (metadata)
-     (spdx-license-identifier "AGPL-3.0-or-later")
-     (source-code-url "https://github.com/mbrock/wisp"))
-    (defun foo (x) (+ x 2 (* 3 4)))
-    (foo 10)
-    (note (wisp keymap)
-     [((f) forward-over)
-     ((b) backward-over)
-     ((ctrl f) forward-into)
-     ((ctrl b) backward-into)
-     ((n) forward-line)
-     ((p) backward-line)
-     ((shift f) select-forward)
-     ((escape) unselect)
-     ((t) transpose!)
-     ((k) delete!)
-     ((d) duplicate!)
-     ((i) insert!)
-     ((e) evaluate!)])
-    (note (:march 31 2022)
-     (done implement inserting in structural editor)
-     (done structure to code string)
-     (done evaluating expressions)
-     (todo saving file))
-    (note (:march 29 2002)
-     (done implement structural editor)
-     (done play around)
-     (todo buy bananas))))
 
 (defun query-selector (selector)
   (js-call *document* "querySelector" selector))
@@ -296,8 +184,6 @@
                     `(list ',(head clause) ,(second clause))
                     ))
                 clauses)))
-
-;(defmacro make-keymap (&rest clauses) nil)
 
 (defun forward-sexp! ()
   (forward! :forward nil))
@@ -503,4 +389,4 @@
   (with-simple-error-handler ()
     (dom-on-keydown! *key-callback*)
     (dom-on-window-event! "wisp-eval" (make-callback 'do-eval))
-    (render-app (or forms *initial-forms*))))
+    (render-app forms)))

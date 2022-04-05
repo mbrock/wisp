@@ -18,3 +18,4 @@ perf.data
 wisp-tapes
 tmp
 .DS_Store
+web/cors-proxy.pid

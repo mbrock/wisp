@@ -24,7 +24,8 @@ import { WASI } from "./wasi"
 import { WASD, domCode } from "./wasd"
 import { startEditor } from "./edit"
 
-import initialDocument from "./dexp.wisp"
+import dexpBase from "./dexp.wisp"
+import initialDocument from "./user.wisp"
 
 import FS from "@isomorphic-git/lightning-fs"
 import * as Git from "isomorphic-git"
@@ -82,8 +83,9 @@ onload = async () => {
     ctx.api.wisp_run_eval(ctx.heap, run, 4_000_000)
   }
 
+  exec(dexpBase)
   exec(initialDocument)
-  const file = localStorage.getItem("wisp-file")
+  const file = localStorage.getItem("wisp-file") || initialDocument
   const forms = file ? ctx.readMany(file) : ctx.sys.nil
   let packageName = "WISP"
   let functionName = "WISP-BOOT"
