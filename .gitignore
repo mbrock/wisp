@@ -2,7 +2,6 @@ wisp
 *.wasm
 *.heap
 .direnv
-*.js
 node_modules
 *.dSYM
 /README.html

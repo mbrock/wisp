@@ -1,20 +1,4 @@
 #!/bin/sh
 set -ex
-rm -rf dist/*
 node ./build.mjs
-cd dist
-cp ../index.html .
-
-mvhash() {
-  hash=$(sha256sum "$1")
-  hash=$(echo "$hash" | head -c 8)
-  name=$(echo "$1" | sed "s/\./-$hash./")
-  mv "$1" "$name"
-}
-
-subhash() {
-  result=$(ls $2*.$3)
-  sed -i.bak -e "s|$2.$3|$result|" $1
-}
-
-subhash index.html wapp js
+cp ../core/zig-out/lib/wisp.wasm dist/

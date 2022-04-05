@@ -1,9 +1,6 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
-    "paths": {
-      "wisp.wasm": ["../core/zig-out/lib/wisp.wasm", "./wisp.wasm"]
-    },
     "target": "es2017",
     "moduleResolution": "node",
     "esModuleInterop": true,

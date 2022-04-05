@@ -3,11 +3,16 @@ import { lezerPlugin } from "@nota-lang/esbuild-lezer"
 import esbuild from "esbuild"
 
 esbuild.build({
-  entryPoints: ["src/wapp.ts"],
-  outdir: "dist",
+  entryPoints: [
+    "lib/codemirror.ts",
+    "lib/git.ts",
+    "lib/idom.ts",
+    "lib/wisplang.grammar",
+  ],
+  outdir: "lib",
   bundle: true,
   sourcemap: true,
-  entryNames: "[dir]/[name]-[hash]",
+  format: "esm",
   loader: {
     ".wisp": "text",
     ".wasm": "file",
