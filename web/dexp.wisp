@@ -422,11 +422,27 @@
 
 (defun auth0-login ()
   (set! *auth0* (new-auth0-client))
-  (await (js-call *auth0* "loginWithPopup"))
+  (await (js-call *auth0* "loginWithPopup"
+                  (js-object "audience" "https://api.wisp.town"
+                             "scope" "create:repositories")))
   (set! *user* (await (js-call *auth0* "getUser")))
   (when *user*
     (vector "email" (js-get *user* "email")
             "name" (js-get *user* "name"))))
 
 (defun auth0-get-token ()
-  (await (js-call *auth0* "getTokenSilently")))
+  (when (not *user*)
+    (auth0-login))
+  (await (js-call *auth0* "getTokenSilently"
+                  (js-object "audience" "https://api.wisp.town"
+                             "scope" "create:repositories"))))
+
+(defun town-request (method path)
+  (fetch (string-append "http://localhost:8000" path)
+         "method" method
+         "headers"
+         (js-object "Authorization"
+                    (string-append "Bearer " (auth0-get-token)))))
+
+(defun town-create-repo ()
+  (response-text (town-request "POST" "/git")))

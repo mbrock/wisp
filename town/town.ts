@@ -1,4 +1,4 @@
-import { Wisp } from "../web/src/wisp.ts"
+import { Wisp } from "../web/index.js"
 
 import Context
 from "https://deno.land/std@0.130.0/wasi/snapshot_preview1.ts"
@@ -8,6 +8,8 @@ import { format }
 from "https://deno.land/std@0.130.0/datetime/mod.ts"
 import { encode as encodeAsBase32 }
 from "https://deno.land/std@0.130.0/encoding/base32.ts"
+
+import * as jose from 'https://deno.land/x/jose@v4.6.0/index.ts'
 
 interface Heap {
   wisp: Wisp
@@ -100,7 +102,7 @@ class Town {
     const wisp = new Wisp(instance)
     this.heapsByKey[key] = { wisp }
 
-    wisp.saveTape("tape")
+    // wisp.saveTape("tape")
 
     console.info(key, "started")
 

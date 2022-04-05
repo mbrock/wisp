@@ -23,7 +23,7 @@ import cm from "./lib/codemirror.js"
 
 import * as grammar from "./lib/wisplang.js"
 
-class Wisp {
+export class Wisp {
   instance
   api
   heap
