@@ -130,6 +130,7 @@
   (defvar *window* (js-global-this))
   (defvar *document* (js-get *window* "document"))
   (defvar *wisp* (js-get *window* "wisp"))
+  (defvar <promise> (js-get *window* "Promise"))
   (defvar *eval-output* '())
   (defvar *root-element* (query-selector "#wisp-app"))
   (defvar *key-callback* (make-callback 'on-keydown))
@@ -137,6 +138,12 @@
   (defvar *render-callback* (make-callback 'draw-app))
   (defvar *render-sexp-callback* (make-callback 'do-render-sexp))
   (defvar *cursor* nil))
+
+(defun promise? (x)
+  (if (and (eq? 'external (type-of x))
+           (js-get x "then"))
+      t
+    nil))
 
 (defun render-app (forms)
   (with-simple-error-handler ()
@@ -360,12 +367,27 @@
   (idom-patch! (query-selector "#eval-output")
                *render-sexp-callback* *eval-output*))
 
+(defun render-eval-output ()
+  (idom-patch!
+   (query-selector "#eval-output")
+   *render-sexp-callback* *eval-output*))
+
 (defun do-eval (expr)
   (with-simple-error-handler ()
-    (set! *eval-output* (cons (eval expr) *eval-output*))
-    (idom-patch!
-     (query-selector "#eval-output")
-     *render-sexp-callback* *eval-output*)))
+    (let* ((result (async (fn () (eval expr))))
+           (thing (if (promise? result)
+                      (let ((cell (vector 'pending result)))
+                        (returning cell
+                          (async (fn ()
+                                   (print :awaiting-result)
+                                   (vector-set! cell 1 (await result))
+                                   (vector-set! cell 0 :done)
+                                   (print (list :got cell))
+                                   (log (vector-get cell 1))
+                                   (render-eval-output)))))
+                    result)))
+      (set! *eval-output* (cons thing *eval-output*))
+      (render-eval-output))))
 
 (defvar *wisp-keymap*
   (make-keymap
@@ -388,5 +410,23 @@
 (defun wisp-boot (forms)
   (with-simple-error-handler ()
     (dom-on-keydown! *key-callback*)
-    (dom-on-window-event! "wisp-eval" (make-callback 'do-eval))
     (render-app forms)))
+
+(defun new-auth0-client ()
+  (await (js-call *window* "createAuth0Client"
+                  (js-object "domain" "dev-wnks73rd.us.auth0.com"
+                             "client_id" "tJwSob2zIUMr0Di0sHM46CsYcLz70r10"))))
+
+(defvar *auth0* nil)
+(defvar *user* nil)
+
+(defun auth0-login ()
+  (set! *auth0* (new-auth0-client))
+  (await (js-call *auth0* "loginWithPopup"))
+  (set! *user* (await (js-call *auth0* "getUser")))
+  (when *user*
+    (vector "email" (js-get *user* "email")
+            "name" (js-get *user* "name"))))
+
+(defun auth0-get-token ()
+  (await (js-call *auth0* "getTokenSilently")))
