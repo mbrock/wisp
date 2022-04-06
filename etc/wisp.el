@@ -13,6 +13,7 @@
      (fill-column 64))
     (:indentation
      (fn (as lambda))
+     (callback (as lambda))
      (handle (4 &rest (&whole 2 &rest 1)))
      (try (2 &rest (&whole 2 &rest 1)))
      (call-with-prompt 2)

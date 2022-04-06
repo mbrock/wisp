@@ -20,9 +20,6 @@
 import Context
   from "https://deno.land/std@0.127.0/wasi/snapshot_preview1.ts"
 
-import { serve }
-  from "https://deno.land/std@0.133.0/http/server.ts"
-
 import * as DOM
   from "https://deno.land/x/deno_dom/deno-dom-wasm.ts"
 
@@ -37,11 +34,12 @@ globalThis.document = (new DOM.DOMParser()).parseFromString(
 )
 
 globalThis.wisp = {
-  serve,
+  "import": x => import(x),
 }
 
 const wasd = new WASD
-const wasmCode = await Deno.readFile("../core/zig-out/lib/wisp.wasm")
+const wasmCode = await Deno.readFile(
+  "../core/zig-out/lib/wisp.wasm")
 const wasmModule = new WebAssembly.Module(wasmCode)
 const wasiContext = new Context({ args: [], env: {} })
 const wasmInstance = new WebAssembly.Instance(wasmModule, {
