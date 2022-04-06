@@ -220,19 +220,19 @@
 
 ;;; Now we redefine DEFUN to use macroexpansion.
 (defmacro defun (name args &rest body)
-  (print (list 'defun name args))
+;  (print (list 'defun name args))
   (let ((expanded-body
           (macroexpand-completely
            (prognify body))))
     `(set-symbol-function! ',name (%fn ,name ,args ,expanded-body))))
 
 (defmacro defun-noexpand (name args &rest body)
-  (print (list 'defun name args))
+;  (print (list 'defun name args))
   `(set-symbol-function! ',name (%fn ,name ,args ,(prognify body))))
 
 (defmacro defvar (var val)
   `(progn
-     (print (list 'defvar ',var))
+;     (print (list 'defvar ',var))
      (set-symbol-value! ',var ,val)))
 
 ;;; We can also mutate the code of a function or macro.
@@ -246,5 +246,5 @@
       (let ((function (symbol-function symbol)))
         (when (and function
                    (not (jet? function)))
-          (print (list 'macroexpanding symbol))
+;          (print (list 'macroexpanding symbol))
           (compile! function))))))

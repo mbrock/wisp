@@ -398,11 +398,6 @@ export fn wisp_call(
     defer heap.inhibit_gc = was_inhibited;
     heap.inhibit_gc = true;
 
-    std.io.getStdErr().writer().print(
-        ";; calling {any} {any}\n",
-        .{ callee, argptr },
-    ) catch return Wisp.zap;
-
     const pinidx = Wisp.Imm.from(callee).idx;
     const funptr = heap.pins.get(pinidx) orelse return Wisp.zap;
 

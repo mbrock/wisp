@@ -145,6 +145,15 @@
       t
     nil))
 
+(DEFUN LOG (X) (JS-CALL *CONSOLE* "log" X))
+(DEFUN JSON (STR) (JS-CALL (JS-GET *WINDOW* "JSON") "parse" STR))
+(DEFUN THEN (P F) (JS-CALL P "then" (MAKE-PINNED-VALUE F)))
+(DEFUN CATCH (P F) (JS-CALL P "catch" (MAKE-PINNED-VALUE F)))
+(DEFUN ASYNC (F) (CALL-WITH-PROMPT :ASYNC F (FN (V K) (THEN V (FN (X) (ASYNC (FN () (CALL K X))))))))
+(DEFUN AWAIT (X) (SEND! :ASYNC X))
+(DEFMACRO FETCH (URL &REST OPTS) `(AWAIT (JS-CALL *WINDOW* "fetch" ,URL (JS-OBJECT ,@OPTS))))
+(DEFUN RESPONSE-TEXT (X) (AWAIT (JS-CALL X "text")))
+
 (defun render-app (forms)
   (with-simple-error-handler ()
     (idom-patch! *root-element* *render-callback* forms)))
@@ -180,16 +189,12 @@
                 (for-each keys
                   (fn (candidate)
                     (when (string-equal? candidate key-string)
-                      (print binding)
                       (send! :break (second binding)))))))))
       (fn (v k) v))))
 
 (defmacro make-keymap (&rest clauses)
   `(list ,@(map (fn (clause)
-                  (progn
-                    (print `(list (quote ,(head clause))))
-                    `(list ',(head clause) ,(second clause))
-                    ))
+                  `(list ',(head clause) ,(second clause)))
                 clauses)))
 
 (defun forward-sexp! ()

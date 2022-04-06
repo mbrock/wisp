@@ -22,6 +22,7 @@
      (if 2)
      (when-result 2)
      (tag (4 2 &rest (&whole 2 &rest 1)))
+     (response 2)
      ))
 
   (common-lisp-set-style "wisp"))

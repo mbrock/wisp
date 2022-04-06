@@ -21,6 +21,7 @@ const std = @import("std");
 const Wisp = @import("./wisp.zig");
 const Jets = @import("./jets.zig");
 const Step = @import("./step.zig");
+const Sexp = @import("./sexp.zig");
 
 const Heap = Wisp.Heap;
 
@@ -30,6 +31,12 @@ const DOM = struct {
     extern "dom" fn object(ptr: [*]const u32, len: usize) u32;
 
     extern "dom" fn globalThis() u32;
+
+    extern "dom" fn new(
+        constructor: u32,
+        args_ptr: [*]const u32,
+        args_len: usize,
+    ) u32;
 
     extern "dom" fn call(
         object: u32,
@@ -166,6 +173,20 @@ pub fn @"JS-CALL"(
         try step.heap.get(.ext, .idx, ext),
         v08.ptr,
         v08.len,
+        arg.ptr,
+        arg.len,
+    );
+
+    step.give(.val, x);
+}
+
+pub fn @"JS-NEW"(
+    step: *Step,
+    ext: u32,
+    arg: []u32,
+) anyerror!void {
+    const x = DOM.new(
+        try step.heap.get(.ext, .idx, ext),
         arg.ptr,
         arg.len,
     );
