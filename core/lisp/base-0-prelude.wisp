@@ -73,7 +73,9 @@
           nil
         (if (eq? xt 'cons)
             (equal-lists? x y)
-          (error xt))))))
+          (if (eq? xt 'string)
+              (string-equal? x y)
+            (eq? x y)))))))
 
 (defun equal-lists? (x y)
   (if (eq? x nil)

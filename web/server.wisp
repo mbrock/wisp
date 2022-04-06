@@ -7,6 +7,7 @@
 
   (defvar <url> (js-get *window* "URL"))
   (defvar <response> (js-get *window* "Response"))
+  (defvar <deno> (js-get *window* "Deno"))
 
   (defmacro callback (args &rest body)
     `(make-pinned-value
@@ -114,16 +115,45 @@
                        (authentication-error!)))))
       (js-get* result '("https://wisp.town" "key"))))
 
+  (defun authenticate! (req f)
+    (call f (jwt-authenticate! req)))
+
+  (defun run-command! (cwd &rest cmd)
+    (print `(run-command! ,cwd ,cmd))
+    (let* ((process (js-call <deno> "run"
+                      (js-object "cwd" cwd "cmd"
+                                 (vector-from-list cmd))))
+           (status (await (js-call process "status"))))
+      (if (eq? 0 (js-get status "code"))
+          t
+        (error `(command-error (cwd ,cwd) (cmd ,cmd))))))
+
+  (defun mkdir-recursive! (path)
+    (await-call <deno> "mkdir" path (js-object "recursive" t)))
+
+  (defun parse-request (req)
+    (list (js-get req "method")
+          (js-get (new <url> (js-get req "url"))
+                  "pathname")))
+
   (serve 8000
     (fn (req)
-      (progn
-        (print `(http ,(js-get req "method")
-                      ,(js-get req "url")))
-        (let ((user-key (jwt-authenticate! req)))
-          (returning
-              (response 200 '("content-type" "text/plain")
-                (string-append "hello " user-key "\n"))
-            (print (list 'authenticated user-key))))))))
+      (let* ((request (parse-request req)))
+        (print `(request ,request))
+        (cond
+          ((equal? request '("POST" "/git"))
+           (authenticate! req
+             (fn (user-key)
+               (let* ((repo-key (symbol-name (genkey!)))
+                      (repo-path (string-append "git/" repo-key)))
+                 (mkdir-recursive! repo-path)
+                 (run-command! repo-path
+                   "git" "init" "--bare")
+                 (run-command! repo-path
+                   "git" "config" "wisp.auth.push" user-key)
+                 (response 200 ()
+                   (string-append repo-key "\n"))))))
+          (t (response 404 () "not found\n")))))))
 
 (with-simple-error-handler ()
   (async #'main))

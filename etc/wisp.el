@@ -26,6 +26,8 @@
      (response 2)
      (js-call 2)
      (serve 1)
+     (run-command! 1)
+     (authenticate! 1)
      ))
 
   (common-lisp-set-style "wisp"))
