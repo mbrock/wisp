@@ -153,6 +153,19 @@
                    "git" "config" "wisp.auth.push" user-key)
                  (response 200 ()
                    (string-append repo-key "\n"))))))
+          ((equal? request '("POST" "/eval"))
+           (authenticate! req
+             (fn (user-key)
+               (progn
+                 (when (not (equal? user-key "~20220405.DAJC4YMX9R"))
+                   (authentication-error!))
+                 (let ((code (await (js-call req "text"))))
+                   (response 200 ()
+                     (string-append
+                      (print-to-string
+                       (eval
+                        (read-from-string code)))
+                      "\n")))))))
           (t (response 404 () "not found\n")))))))
 
 (with-simple-error-handler ()
