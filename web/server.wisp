@@ -6,13 +6,22 @@
                  (with-simple-error-handler ()
                    ,@body))))))
 
-  (defun deno-import (path)
+  (defun deno-import-module (path)
     (await
      (js-call *wisp* "import" path)))
 
-  (defvar <server>
-    (deno-import
-     "https://deno.land/std@0.133.0/http/server.ts"))
+  (defun %deno-import (clauses)
+    (map (fn (clause)
+           `(defvar ,(head clause)
+              (deno-import-module ,(second clause))))
+         clauses))
+
+  (defmacro deno-import (&rest clauses)
+    `(progn ,@(%deno-import clauses)))
+
+  (deno-import
+   (<server> "https://deno.land/std@0.133.0/http/server.ts")
+   (<jose> "https://deno.land/x/jose@v4.6.0/index.ts"))
 
   (defun serve (port handler)
     (await
