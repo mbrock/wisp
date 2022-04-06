@@ -24,6 +24,8 @@
      (when-result 2)
      (tag (4 2 &rest (&whole 2 &rest 1)))
      (response 2)
+     (js-call 2)
+     (serve 1)
      ))
 
   (common-lisp-set-style "wisp"))

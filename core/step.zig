@@ -1217,3 +1217,19 @@ test "SYMBOL-NAME" {
         \\(map #'symbol-name '(foo nil t))
     );
 }
+
+test "STRING-SEARCH" {
+    try expectEval(
+        \\3
+    ,
+        \\(string-search "FOOBAR!" "BAR")
+    );
+}
+
+test "STRING-SLICE" {
+    try expectEval(
+        \\"BAR"
+    ,
+        \\(string-slice "FOOBAR!" 3 3)
+    );
+}

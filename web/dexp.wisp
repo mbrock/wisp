@@ -2,6 +2,20 @@
 ;;
 ;; SPDX-License-Identifier: AGPL-3.0-or-later
 
+(defun %split-string (string separator acc)
+  (let* ((idx (string-search string separator)))
+    (if idx
+        (%split-string
+         (string-slice string
+                        (+ idx (string-length separator))
+                        (string-length string))
+         separator
+         (cons (string-slice string 0 idx) acc))
+        (reverse (cons string acc)))))
+
+(defun split-string (string separator)
+  (%split-string string separator nil))
+
 
 ;;; * Basic binding to Incremental DOM
 
@@ -145,11 +159,22 @@
       t
     nil))
 
+(DEFVAR *CONSOLE* (JS-GET *WINDOW* "console"))
 (DEFUN LOG (X) (JS-CALL *CONSOLE* "log" X))
 (DEFUN JSON (STR) (JS-CALL (JS-GET *WINDOW* "JSON") "parse" STR))
-(DEFUN THEN (P F) (JS-CALL P "then" (MAKE-PINNED-VALUE F)))
-(DEFUN CATCH (P F) (JS-CALL P "catch" (MAKE-PINNED-VALUE F)))
-(DEFUN ASYNC (F) (CALL-WITH-PROMPT :ASYNC F (FN (V K) (THEN V (FN (X) (ASYNC (FN () (CALL K X))))))))
+(DEFUN JS-THEN (P F) (JS-CALL P "then" (MAKE-PINNED-VALUE F)))
+(DEFUN JS-CATCH (P F) (JS-CALL P "catch" (MAKE-PINNED-VALUE F)))
+
+(DEFUN ASYNC (F)
+  (CALL-WITH-PROMPT :ASYNC
+      F
+    (FN (V K)
+      (JS-CATCH (JS-THEN V
+                         (FN (X)
+                           (ASYNC (FN () (CALL K X)))))
+                (fn (e)
+                  (nonlocal-error! k e))))))
+
 (DEFUN AWAIT (X) (SEND! :ASYNC X))
 (DEFMACRO FETCH (URL &REST OPTS) `(AWAIT (JS-CALL *WINDOW* "fetch" ,URL (JS-OBJECT ,@OPTS))))
 (DEFUN RESPONSE-TEXT (X) (AWAIT (JS-CALL X "text")))

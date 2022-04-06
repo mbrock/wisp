@@ -96,8 +96,18 @@
         (call function value)
         result)))
 
+(defun send-to-or-invoke (continuation tag value function)
+  (let* ((default (fresh-symbol!))
+         (result (send-to-with-default! continuation tag value default)))
+    (if (eq? result default)
+        (call function value)
+        result)))
+
 (defun error (&rest xs)
   (send-or-invoke 'error xs #'unhandled-error))
+
+(defun nonlocal-error! (continuation &rest xs)
+  (send-to-or-invoke continuation 'error xs #'unhandled-error))
 
 (defun send! (tag value)
   (send-or-invoke tag value

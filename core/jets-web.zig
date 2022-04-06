@@ -168,6 +168,9 @@ pub fn @"JS-CALL"(
     str: u32,
     arg: []u32,
 ) anyerror!void {
+    if (Wisp.tagOf(ext) != .ext)
+        try step.failTypeMismatch(ext, step.heap.kwd.EXTERNAL);
+
     const v08 = try step.heap.v08slice(str);
     const x = DOM.call(
         try step.heap.get(.ext, .idx, ext),
@@ -185,6 +188,9 @@ pub fn @"JS-NEW"(
     ext: u32,
     arg: []u32,
 ) anyerror!void {
+    if (Wisp.tagOf(ext) != .ext)
+        try step.failTypeMismatch(ext, step.heap.kwd.EXTERNAL);
+
     const x = DOM.new(
         try step.heap.get(.ext, .idx, ext),
         arg.ptr,
@@ -200,6 +206,9 @@ pub fn @"JS-CALL-WITH-VECTOR"(
     str: u32,
     v32: u32,
 ) anyerror!void {
+    if (Wisp.tagOf(ext) != .ext)
+        try step.failTypeMismatch(ext, step.heap.kwd.EXTERNAL);
+
     const v08 = try step.heap.v08slice(str);
     const arg = try step.heap.v32slice(v32);
     const x = DOM.call(
@@ -218,6 +227,12 @@ pub fn @"JS-GET"(
     ext: u32,
     str: u32,
 ) anyerror!void {
+    if (Wisp.tagOf(ext) != .ext)
+        try step.failTypeMismatch(ext, step.heap.kwd.EXTERNAL);
+
+    if (Wisp.tagOf(str) != .v08)
+        try step.failTypeMismatch(str, step.heap.kwd.STRING);
+
     const v08 = try step.heap.v08slice(str);
     const x = DOM.get(
         try step.heap.get(.ext, .idx, ext),

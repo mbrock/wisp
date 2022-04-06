@@ -473,6 +473,46 @@ pub fn @"CALL-WITH-PROMPT"(
     try step.call(THUNK, nil, false);
 }
 
+pub fn @"SEND-TO-WITH-DEFAULT!"(
+    step: *Step,
+    CONTINUATION: u32,
+    TAG: u32,
+    VALUE: u32,
+    DEFAULT: u32,
+) anyerror!void {
+    if (try copyContinuationSlice(
+        step.heap,
+        CONTINUATION,
+        TAG,
+    )) |result| {
+        const args = try Wisp.list(
+            step.heap,
+            &[_]u32{ VALUE, result.e2 },
+        );
+
+        const e3 = try step.composeContinuation(result.e1);
+
+        if (e3 == top) {
+            step.run.way = top;
+            step.run.env = nil;
+        } else {
+            step.run.way = e3;
+        }
+
+        return step.call(result.handler, args, false);
+    } else {
+        if (DEFAULT == Wisp.nah) {
+            try step.fail(&.{
+                step.heap.kwd.@"UNHANDLED-ERROR",
+                TAG,
+                VALUE,
+            });
+        } else {
+            step.give(.val, DEFAULT);
+        }
+    }
+}
+
 /// This is a continuation control operator.
 pub fn @"SEND-WITH-DEFAULT!"(
     step: *Step,
@@ -797,6 +837,10 @@ pub fn @"DEBUGGER"(step: *Step) anyerror!void {
     step.give(.val, nil);
 }
 
+pub fn @"STRING-LENGTH"(step: *Step, v08: u32) anyerror!void {
+    step.give(.val, try step.heap.get(.v08, .len, v08));
+}
+
 pub fn @"STRING-EQUAL?"(step: *Step, s1: u32, s2: u32) anyerror!void {
     if (tagOf(s1) != .v08)
         return step.failTypeMismatch(s1, step.heap.kwd.@"STRING");
@@ -820,6 +864,46 @@ pub fn @"STRING-APPEND"(step: *Step, rest: []u32) anyerror!void {
     }
 
     step.give(.val, try step.heap.newv08(result.items));
+}
+
+pub fn @"STRING-SEARCH"(
+    step: *Step,
+    strptr: u32,
+    subptr: u32,
+) anyerror!void {
+    var str = try step.heap.v08slice(strptr);
+    var sub = try step.heap.v08slice(subptr);
+
+    if (std.mem.indexOf(u8, str, sub)) |i| {
+        step.give(.val, intword(@intCast(i31, i)));
+    } else {
+        step.give(.val, nil);
+    }
+}
+
+pub fn @"STRING-SLICE"(
+    step: *Step,
+    strptr: u32,
+    iw: u32,
+    jw: u32,
+) anyerror!void {
+    var str = try step.heap.v08slice(strptr);
+    var i = try wordint(iw);
+    var j = try wordint(jw);
+
+    if (i < 0 or i >= str.len or j < 0 or j > str.len) {
+        return step.fail(&.{
+            step.heap.kwd.@"BOUNDS-ERROR",
+            strptr,
+            iw,
+            jw,
+            intword(@intCast(i31, str.len)),
+        });
+    }
+
+    step.give(.val, try step.heap.newv08(
+        str[@intCast(usize, i)..@intCast(usize, j)],
+    ));
 }
 
 pub fn @"VECTOR-APPEND"(step: *Step, rest: []u32) anyerror!void {

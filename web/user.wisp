@@ -5,8 +5,6 @@
 (DEFVAR *GIT-HTTP* (JS-GET *WINDOW* "git_http"))
 (DEFVAR *FS* (JS-GET *WINDOW* "fs"))
 (DEFVAR *PFS* (JS-GET *FS* "promises"))
-(DEFVAR *DOCUMENT* (JS-GET *WINDOW* "document"))
-(DEFVAR *CONSOLE* (JS-GET *WINDOW* "console"))
 (DEFUN GITHUB-CLONE (DIR URL REF DEPTH) (AWAIT (JS-CALL *PFS* "mkdir" DIR)) (AWAIT (JS-CALL *GIT* "clone" (JS-OBJECT "fs" *FS* "http" *GIT-HTTP* "dir" DIR "corsProxy" "https://cors.node.town" "url" URL "ref" REF "singleBranch" "true" "depth" DEPTH))))
 (DEFUN READDIR (DIR) (AWAIT (JS-CALL *PFS* "readdir" DIR)))
 (DEFUN MKDIR (DIR) (AWAIT (JS-CALL *PFS* "mkdir" DIR)))

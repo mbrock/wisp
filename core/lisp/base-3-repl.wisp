@@ -88,37 +88,37 @@
          (gc)
          (repl))))))
 
-(defun rpc-read ()
-  (let* ((id (read-from-string (read-line)))
-         (len (read-from-string (read-line)))
-         (str (read-bytes len)))
-    (let ((cmd (try (read-from-string str)
-                 (catch (e k)
-                   (returning nil
-                     (rpc-reply id `(error ,e)))))))
-      (cons id cmd))))
+;; (defun rpc-read ()
+;;   (let* ((id (read-from-string (read-line)))
+;;          (len (read-from-string (read-line)))
+;;          (str (read-bytes len)))
+;;     (let ((cmd (try (read-from-string str)
+;;                  (catch (e k)
+;;                    (returning nil
+;;                      (rpc-reply id `(error ,e)))))))
+;;       (cons id cmd))))
 
-(defun communicate-once ()
-  (let* ((req (rpc-read)))
-    (when req
-      (let* ((id (head req))
-             (cmd (tail req))
-             (method (head cmd))
-             (body (tail cmd))
-             (response
-               (try (ecase method
-                      (eval (list 'result (eval (head body)))))
-                 (catch (e k)
-                   (list 'error e)))))
-        (rpc-send id response)))))
+;; (defun communicate-once ()
+;;   (let* ((req (rpc-read)))
+;;     (when req
+;;       (let* ((id (head req))
+;;              (cmd (tail req))
+;;              (method (head cmd))
+;;              (body (tail cmd))
+;;              (response
+;;                (try (ecase method
+;;                       (eval (list 'result (eval (head body)))))
+;;                  (catch (e k)
+;;                    (list 'error e)))))
+;;         (rpc-send id response)))))
 
-(defun rpc-send (id response)
-  (let ((str (print-to-string (list id response))))
-    (print (+ 1 (byte-size str)))
-    (write "\n" str "\n")))
+;; (defun rpc-send (id response)
+;;   (let ((str (print-to-string (list id response))))
+;;     (print (+ 1 (byte-size str)))
+;;     (write "\n" str "\n")))
 
-(defun communicator ()
-  (loop #'communicate-once))
+;; (defun communicator ()
+;;   (loop #'communicate-once))
 
 (defmacro with-simple-error-handler (dummy &rest body)
   `(try ,(prognify body)
@@ -141,71 +141,71 @@
 
 ;;; * Asynchronous event loop using delimited continuation control
 
-(defun function-continuation (function)
-  (call-with-prompt :prompt
-      (fn ()
-        (call function (send-with-default! :prompt nil nil)))
-    (fn (x continuation)
-      continuation)))
+;; (defun function-continuation (function)
+;;   (call-with-prompt :prompt
+;;       (fn ()
+;;         (call function (send-with-default! :prompt nil nil)))
+;;     (fn (x continuation)
+;;       continuation)))
 
-(defun make-actor (function)
-  (let ((pid (fresh-symbol!)))
-    (let ((inbox '())
-          (continuation (function-continuation
-                         (fn (self)
-                          (let ((result (call function self)))
-                            (send! :yield (list :exit result))))))
-          (answer (list pid))
-          (result nil)
-          (state :started))
-      (vector :actor pid inbox continuation answer result state))))
+;; (defun make-actor (function)
+;;   (let ((pid (fresh-symbol!)))
+;;     (let ((inbox '())
+;;           (continuation (function-continuation
+;;                          (fn (self)
+;;                           (let ((result (call function self)))
+;;                             (send! :yield (list :exit result))))))
+;;           (answer (list pid))
+;;           (result nil)
+;;           (state :started))
+;;       (vector :actor pid inbox continuation answer result state))))
 
-(defun actor-pid (actor)
-  (vector-get actor 1))
+;; (defun actor-pid (actor)
+;;   (vector-get actor 1))
 
-(defun actor-inbox (actor) (vector-get actor 2))
-(defun actor-continuation (actor) (vector-get actor 3))
-(defun actor-answer (actor) (vector-get actor 4))
-(defun actor-result (actor) (vector-get actor 5))
-(defun actor-state (actor) (vector-get actor 6))
+;; (defun actor-inbox (actor) (vector-get actor 2))
+;; (defun actor-continuation (actor) (vector-get actor 3))
+;; (defun actor-answer (actor) (vector-get actor 4))
+;; (defun actor-result (actor) (vector-get actor 5))
+;; (defun actor-state (actor) (vector-get actor 6))
 
-(defun set-actor-state! (actor state)
-  (vector-set! actor 6 state))
+;; (defun set-actor-state! (actor state)
+;;   (vector-set! actor 6 state))
 
-(defun actor-push-message! (actor message)
-  (set-actor-inbox! actor (append (actor-inbox actor)
-                                  (list message))))
+;; (defun actor-push-message! (actor message)
+;;   (set-actor-inbox! actor (append (actor-inbox actor)
+;;                                   (list message))))
 
-(defun actor-take-message! (actor)
-  (let ((messages (actor-inbox actor)))
-    (if (nil? messages)
-        (error 'empty-inbox)
-      (returning (head messages)
-        (set-actor-inbox! actor (tail messages))))))
+;; (defun actor-take-message! (actor)
+;;   (let ((messages (actor-inbox actor)))
+;;     (if (nil? messages)
+;;         (error 'empty-inbox)
+;;       (returning (head messages)
+;;         (set-actor-inbox! actor (tail messages))))))
 
-(defun set-actor-inbox! (actor inbox)
-  (vector-set! actor 2 inbox))
+;; (defun set-actor-inbox! (actor inbox)
+;;   (vector-set! actor 2 inbox))
 
-(defun set-actor-continuation! (actor continuation)
-  (vector-set! actor 3 continuation))
+;; (defun set-actor-continuation! (actor continuation)
+;;   (vector-set! actor 3 continuation))
 
-(defun set-actor-answer! (actor answer)
-  (vector-set! actor 4 (list answer)))
+;; (defun set-actor-answer! (actor answer)
+;;   (vector-set! actor 4 (list answer)))
 
-(defun set-actor-result! (actor result)
-  (vector-set! actor 5 (list result)))
+;; (defun set-actor-result! (actor result)
+;;   (vector-set! actor 5 (list result)))
 
-(defun actor-clear-answer! (actor)
-  (returning (head (actor-answer actor))
-    (vector-set! actor 4 nil)))
+;; (defun actor-clear-answer! (actor)
+;;   (returning (head (actor-answer actor))
+;;     (vector-set! actor 4 nil)))
 
-(defun find-actor (actors pid)
-  (if (nil? actors)
-      (error 'no-such-actor pid)
-    (let ((actor (head actors)))
-      (if (eq? (actor-pid actor) pid)
-          actor
-        (find-actor (tail actors) pid)))))
+;; (defun find-actor (actors pid)
+;;   (if (nil? actors)
+;;       (error 'no-such-actor pid)
+;;     (let ((actor (head actors)))
+;;       (if (eq? (actor-pid actor) pid)
+;;           actor
+;;         (find-actor (tail actors) pid)))))
 
 (defun remove (list element)
   (if (nil? list) nil
@@ -222,129 +222,129 @@
           (cons x nil)
         (find (tail list) predicate)))))
 
-(defun make-queue (items)
-  (list items))
+;; (defun make-queue (items)
+;;   (list items))
 
-(defun queue-items (queue)
-  (head queue))
+;; (defun queue-items (queue)
+;;   (head queue))
 
-(defun enqueue! (queue item)
-  (set-head! queue (append (queue-items queue) (list item))))
+;; (defun enqueue! (queue item)
+;;   (set-head! queue (append (queue-items queue) (list item))))
 
-(defun enqueue-first! (queue item)
-  (set-head! queue (cons item (queue-items queue))))
+;; (defun enqueue-first! (queue item)
+;;   (set-head! queue (cons item (queue-items queue))))
 
-(defun queue-remove! (queue item)
-  (set-head! queue (remove (queue-items queue) item)))
+;; (defun queue-remove! (queue item)
+;;   (set-head! queue (remove (queue-items queue) item)))
 
-(defun find-ready-actor (actors)
-  (find (queue-items actors)
-        (fn (actor)
-          (or (actor-answer actor)
-              (and (eq? :receiving (actor-state actor))
-                   (actor-inbox actor))))))
+;; (defun find-ready-actor (actors)
+;;   (find (queue-items actors)
+;;         (fn (actor)
+;;           (or (actor-answer actor)
+;;               (and (eq? :receiving (actor-state actor))
+;;                    (actor-inbox actor))))))
 
-(defun move-to-back-of-queue! (queue thing)
-  (queue-remove! queue thing)
-  (enqueue! queue thing))
+;; (defun move-to-back-of-queue! (queue thing)
+;;   (queue-remove! queue thing)
+;;   (enqueue! queue thing))
 
-(defun make-yield-handler (self actors)
-  (fn (request continuation)
-    (if (atom? request)
-        (error 'invalid-yield-request request)
-      (returning t
-        (set-actor-continuation! self continuation)
-        (ecase (head request)
-          (:spawn
-           (do-spawn actors self request continuation))
-          (:send
-           (do-send actors self request continuation))
-          (:receive
-           (do-receive actors self request continuation))
-          (:exit
-           (do-exit actors self request)))))))
+;; (defun make-yield-handler (self actors)
+;;   (fn (request continuation)
+;;     (if (atom? request)
+;;         (error 'invalid-yield-request request)
+;;       (returning t
+;;         (set-actor-continuation! self continuation)
+;;         (ecase (head request)
+;;           (:spawn
+;;            (do-spawn actors self request continuation))
+;;           (:send
+;;            (do-send actors self request continuation))
+;;           (:receive
+;;            (do-receive actors self request continuation))
+;;           (:exit
+;;            (do-exit actors self request)))))))
 
-(defun do-spawn (actors self request continuation)
-  (let* ((child (make-actor (second request))))
-    (enqueue-first! actors child)
-    (set-actor-answer! self (actor-pid child))))
+;; (defun do-spawn (actors self request continuation)
+;;   (let* ((child (make-actor (second request))))
+;;     (enqueue-first! actors child)
+;;     (set-actor-answer! self (actor-pid child))))
 
-(defun do-send (actors self request continuation)
-  (let* ((pid (second request))
-         (recipient (find-actor (queue-items actors) pid))
-         (message (third request)))
-    (set-actor-answer! self t)
-    (actor-push-message! recipient message)
-    (when (eq? :receiving (actor-state recipient))
-      (enqueue-first! actors recipient))))
+;; (defun do-send (actors self request continuation)
+;;   (let* ((pid (second request))
+;;          (recipient (find-actor (queue-items actors) pid))
+;;          (message (third request)))
+;;     (set-actor-answer! self t)
+;;     (actor-push-message! recipient message)
+;;     (when (eq? :receiving (actor-state recipient))
+;;       (enqueue-first! actors recipient))))
 
-(defun do-receive (actors self request continuation)
-  (if (actor-inbox self)
-      (let ((message (actor-take-message! self)))
-        (progn
-          (set-actor-answer! self message)
-          (set-actor-state! self :running)
-          (enqueue-first! actors self)))
-    (progn
-      (set-actor-state! self :receiving))))
+;; (defun do-receive (actors self request continuation)
+;;   (if (actor-inbox self)
+;;       (let ((message (actor-take-message! self)))
+;;         (progn
+;;           (set-actor-answer! self message)
+;;           (set-actor-state! self :running)
+;;           (enqueue-first! actors self)))
+;;     (progn
+;;       (set-actor-state! self :receiving))))
 
-(defun do-exit (actors self request)
-  (let ((result (second request)))
-    (progn
-      (set-actor-result! self result)
-      (set-actor-state! self :done)
-      (set-actor-continuation! self nil))))
+;; (defun do-exit (actors self request)
+;;   (let ((result (second request)))
+;;     (progn
+;;       (set-actor-result! self result)
+;;       (set-actor-state! self :done)
+;;       (set-actor-continuation! self nil))))
 
-(defmacro when-result (var expr &rest body)
-  `(let ((,var ,expr))
-     (unless (nil? ,var)
-       (set! ,var (head ,var))
-       ,@body)))
+;; (defmacro when-result (var expr &rest body)
+;;   `(let ((,var ,expr))
+;;      (unless (nil? ,var)
+;;        (set! ,var (head ,var))
+;;        ,@body)))
 
-(defun deliver-messages (actors)
-  (for-each (queue-items actors)
-    (fn (actor)
-      (when (and (eq? :receiving (actor-state actor))
-                 (actor-inbox actor))
-        (let ((message (actor-take-message! actor)))
-          (progn
-            (set-actor-answer! actor message)
-            (set-actor-state! actor :ready)))))))
+;; (defun deliver-messages (actors)
+;;   (for-each (queue-items actors)
+;;     (fn (actor)
+;;       (when (and (eq? :receiving (actor-state actor))
+;;                  (actor-inbox actor))
+;;         (let ((message (actor-take-message! actor)))
+;;           (progn
+;;             (set-actor-answer! actor message)
+;;             (set-actor-state! actor :ready)))))))
 
-(with-simple-error-handler ()
-  ;; If any actor has an answer, this function moves that actor
-  ;; to the back of the queue and executes its continuation until
-  ;; it yields again.
-  (defun engine-act (actors)
-    (deliver-messages actors)
-    (when-result self (find-ready-actor actors)
-      (move-to-back-of-queue! actors self)
-      (call-with-prompt :yield
-          (fn () (call (actor-continuation self)
-                       (actor-clear-answer! self)))
-        (make-yield-handler self actors)))))
+;; (with-simple-error-handler ()
+;;   ;; If any actor has an answer, this function moves that actor
+;;   ;; to the back of the queue and executes its continuation until
+;;   ;; it yields again.
+;;   (defun engine-act (actors)
+;;     (deliver-messages actors)
+;;     (when-result self (find-ready-actor actors)
+;;       (move-to-back-of-queue! actors self)
+;;       (call-with-prompt :yield
+;;           (fn () (call (actor-continuation self)
+;;                        (actor-clear-answer! self)))
+;;         (make-yield-handler self actors)))))
 
-(defun make-engine (root)
-  (let* ((self (make-actor root))
-         (actors (make-queue (list self))))
-    actors))
+;; (defun make-engine (root)
+;;   (let* ((self (make-actor root))
+;;          (actors (make-queue (list self))))
+;;     actors))
 
-(defun spawn (function)
-  (send! :yield (list :spawn function)))
+;; (defun spawn (function)
+;;   (send! :yield (list :spawn function)))
 
-(defun send-message (pid message)
-  (send! :yield (list :send pid message)))
+;; (defun send-message (pid message)
+;;   (send! :yield (list :send pid message)))
 
-(defun receive-message ()
-  (send! :yield (list :receive)))
+;; (defun receive-message ()
+;;   (send! :yield (list :receive)))
 
-(defun show-actors (actors)
-  (map (fn (actor)
-         (list :pid (actor-pid actor)
-               :inbox (actor-inbox actor)
-               ;;               (show-ktx (actor-continuation actor))
-               :answer (actor-answer actor)))
-       (queue-items actors)))
+;; (defun show-actors (actors)
+;;   (map (fn (actor)
+;;          (list :pid (actor-pid actor)
+;;                :inbox (actor-inbox actor)
+;;                ;;               (show-ktx (actor-continuation actor))
+;;                :answer (actor-answer actor)))
+;;        (queue-items actors)))
 
 (defun %loop (thunk)
   (call thunk)
@@ -357,48 +357,46 @@
 (defun break (value)
   (send! :break value))
 
-(defun engine-example ()
-  (make-engine
-   (fn (self)
-     (let* ((a (spawn (fn (a)
-                        (returning 'a-done
-                          (print (list 'a :started a))
-                          (let* ((b (receive-message)))
-                            (send-message b '(hello b from a))
-                            (print (list 'a :receive 1 (receive-message)))
-                            (print (list 'a :receive 2 (receive-message)))
-                            (print (list 'a :receive 3 (receive-message))))
-                          ))))
-            (b (spawn (fn (b)
-                        (returning 'b-done
-                          (print (list 'b :started b))
-                          (send-message a b)
-                          (print (list 'b :receive 1 (receive-message)))
-                          (print (list 'b :receive 2 (receive-message)))
-                          (print (list 'b :receive 3 (receive-message))))))))
-       (returning 'root-done
-         (print (list :spawned a b))
-         (for-each '(1 2 3)
-           (fn (i) (send-message a (list 'hello 'a i))))
-         (for-each '(1 2 3)
-           (fn (i) (send-message b (list 'hello 'b i)))))))))
+;; (defun engine-example ()
+;;   (make-engine
+;;    (fn (self)
+;;      (let* ((a (spawn (fn (a)
+;;                         (returning 'a-done
+;;                           (print (list 'a :started a))
+;;                           (let* ((b (receive-message)))
+;;                             (send-message b '(hello b from a))
+;;                             (print (list 'a :receive 1 (receive-message)))
+;;                             (print (list 'a :receive 2 (receive-message)))
+;;                             (print (list 'a :receive 3 (receive-message))))
+;;                           ))))
+;;             (b (spawn (fn (b)
+;;                         (returning 'b-done
+;;                           (print (list 'b :started b))
+;;                           (send-message a b)
+;;                           (print (list 'b :receive 1 (receive-message)))
+;;                           (print (list 'b :receive 2 (receive-message)))
+;;                           (print (list 'b :receive 3 (receive-message))))))))
+;;        (returning 'root-done
+;;          (print (list :spawned a b))
+;;          (for-each '(1 2 3)
+;;            (fn (i) (send-message a (list 'hello 'a i))))
+;;          (for-each '(1 2 3)
+;;            (fn (i) (send-message b (list 'hello 'b i)))))))))
 
-(defun exhaust-engine (engine)
-  (returning nil
-    (loop (fn ()
-            (unless (engine-act engine)
-              (break engine))))))
+;; (defun exhaust-engine (engine)
+;;   (returning nil
+;;     (loop (fn ()
+;;             (unless (engine-act engine)
+;;               (break engine))))))
 
-(defun step-engine-example ()
-  (let ((engine (engine-example)))
-    (loop (fn ()
-            (print (show-actors engine))
-            (write "engine> ")
-            (read-line)
-            (unless (engine-act engine)
-              (break engine))))))
+;; (defun step-engine-example ()
+;;   (let ((engine (engine-example)))
+;;     (loop (fn ()
+;;             (print (show-actors engine))
+;;             (write "engine> ")
+;;             (read-line)
+;;             (unless (engine-act engine)
+;;               (break engine))))))
 
-(defun run-engine-example ()
-  (exhaust-engine (engine-example)))
-
-(+ 1 2 3)
+;; (defun run-engine-example ()
+;;   (exhaust-engine (engine-example)))
