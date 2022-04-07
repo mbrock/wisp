@@ -119,16 +119,40 @@
 (defun render-vector-contents (vector i)
   (vector-each vector #'render-sexp))
 
+(defun css (clauses)
+  (reduce #'string-append
+          (map (fn (clause)
+                 (string-append
+                  (symbol-name (head clause))
+                                ": "
+                                (let ((value (second clause)))
+                                  (if (symbol? value)
+                                      (symbol-name value)
+                                    (if (integer? value)
+                                        (string-append
+                                         (print-to-string value) "px")
+                                      value))) "; "))
+               clauses)
+          ""))
+
+(defun style (clauses)
+  `(:style ,(css clauses)))
+
 (defun draw-app (forms)
-  (tag :article ()
+  (tag :article '()
     (tag :main ()
       (tag :div
-        '((:style "display: inline-flex; flex-direction: column; gap: 20px")
-          (:id "file"))
+        `((:id "file")
+          ,(style '((display inline-flex)
+                    (flex-direction column)
+                    (gap 15))))
         (tag :ins '((:class "cursor")) nil)
         (for-each forms #'render-sexp)))
-
-    (tag :header '((:id "eval-output")) nil))
+    (tag :header `((:id "eval-output")
+                   ,(style '((display "flex")
+                             (flex-direction "column")
+                             (gap 15))))
+      nil))
 
   (progn
     (idom-patch!
