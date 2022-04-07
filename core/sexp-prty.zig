@@ -323,11 +323,7 @@ fn hang(heap: *Wisp.Heap, car: u32) ?usize {
 }
 
 pub fn pretty(gpa: Gpa, heap: *Wisp.Heap, exp: u32) anyerror!Doc {
-    _ = gpa;
-    _ = heap;
-    _ = exp;
-
-    var tmp = std.heap.stackFallback(4096, heap.orb);
+    var tmp = std.heap.stackFallback(32, heap.orb);
 
     switch (Wisp.tagOf(exp)) {
         .duo => {
