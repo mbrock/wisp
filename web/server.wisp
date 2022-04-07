@@ -1,5 +1,9 @@
 (defvar +jwks-url+
   "https://dev-wnks73rd.us.auth0.com/.well-known/jwks.json")
+(defvar +jwt-issuer+ "https://dev-wnks73rd.us.auth0.com/")
+(defvar +jwt-audience+ "https://api.wisp.town")
+(defvar +jwt-params+ (js-object "issuer" +jwt-issuer+
+                                "audience" +jwt-audience+))
 
 (defun main ()
   (defun new (constructor &rest args)
@@ -29,10 +33,6 @@
   (deno-import
    (<server> "https://deno.land/std@0.133.0/http/server.ts")
    (<jose> "https://deno.land/x/jose@v4.6.0/index.ts"))
-
-  ;; const JWKS = jose.createRemoteJWKSet(
-  ;;   new URL("https://dev-wnks73rd.us.auth0.com/.well-known/jwks.json")
-  ;; )
 
   (defvar *jwks*
     (js-call <jose> "createRemoteJWKSet"
@@ -77,23 +77,11 @@
           (second parts)
         nil)))
 
-  ;; const { payload } =
-  ;;   await jose.jwtVerify(jwt, jwks, {
-  ;;     issuer: "https://dev-wnks73rd.us.auth0.com/",
-  ;;     audience: "https://api.wisp.town",
-  ;;   })
-
-  ;; const key = (payload["https://wisp.town"] || { key: null }).key
   (defun await-call (object method &rest args)
     (let ((result (apply #'js-call `(,object ,method ,@args))))
       (if (promise? result)
           (await result)
         result)))
-
-  (defvar +jwt-issuer+ "https://dev-wnks73rd.us.auth0.com/")
-  (defvar +jwt-audience+ "https://api.wisp.town")
-  (defvar +jwt-params+ (js-object "issuer" +jwt-issuer+
-                                  "audience" +jwt-audience+))
 
   (defun authentication-error! ()
     (send! :respond (response 401 () "Unauthorized\n")))
@@ -131,42 +119,92 @@
   (defun mkdir-recursive! (path)
     (await-call <deno> "mkdir" path (js-object "recursive" t)))
 
-  (defun parse-request (req)
-    (list (js-get req "method")
-          (js-get (new <url> (js-get req "url"))
-                  "pathname")))
+  (defun string-drop (n s)
+    (string-slice s n (string-length s)))
 
-  (serve 8000
-    (fn (req)
-      (let* ((request (parse-request req)))
-        (print `(request ,request))
+  (defun parse-request (req)
+    (cons (js-get req "method")
+          (split-string
+           (string-drop 1 (js-get (new <url> (js-get req "url"))
+                                  "pathname"))
+           "/")))
+
+  (defvar *routes* nil)
+
+  (defun install-route (pattern handler)
+    (set! *routes* (cons (list pattern handler) *routes*)))
+
+  (defmacro defroute (pattern req-var &rest body)
+    `(install-route ',pattern (fn (,req-var ,@(filter pattern #'symbol?))
+                                ,(prognify body))))
+
+  ;; (route-match '("POST" "git" repo) ("POST" "git" "xyz"))
+  ;;  => ("xyz")
+  (defun match-route (pattern parts acc)
+    (if (and (nil? pattern) (nil? parts))
+        (reverse acc)
+      (let ((a-head (head pattern))
+            (b-head (head parts))
+            (a-tail (tail pattern))
+            (b-tail (tail parts)))
         (cond
-          ((equal? request '("POST" "/git"))
-           (authenticate! req
-             (fn (user-key)
-               (let* ((repo-key (symbol-name (genkey!)))
-                      (repo-path (string-append "git/" repo-key)))
-                 (mkdir-recursive! repo-path)
-                 (run-command! repo-path
-                   "git" "init" "--bare")
-                 (run-command! repo-path
-                   "git" "config" "wisp.auth.push" user-key)
-                 (response 200 ()
-                   (string-append repo-key "\n"))))))
-          ((equal? request '("POST" "/eval"))
-           (authenticate! req
-             (fn (user-key)
-               (progn
-                 (when (not (equal? user-key "~20220405.DAJC4YMX9R"))
-                   (authentication-error!))
-                 (let ((code (await (js-call req "text"))))
-                   (response 200 ()
-                     (string-append
-                      (print-to-string
-                       (eval
-                        (read-from-string code)))
-                      "\n")))))))
-          (t (response 404 () "not found\n")))))))
+          ((not (eq? (nil? a-tail) (nil? b-tail)))
+           (send! 'route-mismatch (list pattern parts acc)))
+          ((equal? a-head b-head)
+           (match-route a-tail b-tail acc))
+          ((and (symbol? a-head) (string? b-head))
+           (match-route a-tail b-tail (cons b-head acc)))
+          (t
+           (send! 'route-mismatch (list pattern parts acc)))))))
+
+  (defun route-request (req)
+    (let* ((parts (parse-request req)))
+      (print `(request ,parts))
+      (for-each *routes*
+        (fn (route)
+          (let ((pattern (head route))
+                (handler (second route)))
+            (handle
+                (progn
+                  (print `(match-route ,pattern ,parts))
+                  (let* ((bindings (match-route pattern parts ())))
+                    (print `(bindings ,bindings))
+                    (send! :respond (apply handler (cons req bindings)))))
+              (route-mismatch (v k) nil)))))
+      (response 404 () "nope\n")))
+
+  (defroute ("POST" "git") req
+    (authenticate! req
+      (fn (user-key)
+        (let* ((repo-key (symbol-name (genkey!)))
+               (repo-path (string-append "git/" repo-key)))
+          (mkdir-recursive! repo-path)
+          (run-command! repo-path
+            "git" "init" "--bare")
+          (run-command! repo-path
+            "git" "config" "wisp.auth.push" user-key)
+          (response 200 ()
+            (string-append repo-key "\n"))))))
+
+  (defroute ("POST" "eval") req
+    (authenticate! req
+      (fn (user-key)
+        (progn
+          (when (not (equal? user-key "~20220405.DAJC4YMX9R"))
+            (authentication-error!))
+          (let ((code (await (js-call req "text"))))
+            (response 200 ()
+              (string-append
+               (print-to-string
+                (eval
+                 (read-from-string code)))
+               "\n")))))))
+
+  (defroute ("GET" "demo" foo bar "using" baz) req
+    (response 200 () (string-append
+                      (print-to-string (list foo bar baz)) "\n")))
+
+  (serve 8000 #'route-request))
 
 (with-simple-error-handler ()
   (async #'main))

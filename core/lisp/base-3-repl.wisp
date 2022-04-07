@@ -30,30 +30,30 @@
 
 (defun ktx-show (ktx terminus)
   (if (top? ktx) terminus
-      (let ((fun (ktx-fun ktx))
-            (acc (ktx-acc ktx))
-            (arg (ktx-arg ktx))
-            (hop (ktx-hop ktx)))
-        (let ((me (cond
-                    ((eq? fun 'if)
-                     (list 'if terminus (head arg) (tail arg)))
-                    ((eq? fun 'let)
-                     (let ((current-symbol (head acc))
-                           (let-acc (parse-let-acc (tail acc) nil)))
-                       (list 'let
-                             (append (head let-acc)
-                                     (cons (list current-symbol
-                                                 terminus)
-                                           arg))
-                             (tail let-acc))))
-                    ((eq? fun 'prompt)
-                     (list 'prompt acc terminus (list arg)))
-                    (t
-                     (append (list fun)
-                             acc
-                             (list terminus)
-                             arg)))))
-          (ktx-show hop me)))))
+    (let ((fun (ktx-fun ktx))
+          (acc (ktx-acc ktx))
+          (arg (ktx-arg ktx))
+          (hop (ktx-hop ktx)))
+      (let ((me (cond
+                  ((eq? fun 'if)
+                   (list 'if terminus (head arg) (tail arg)))
+                  ((eq? fun 'let)
+                   (let ((current-symbol (head acc))
+                         (let-acc (parse-let-acc (tail acc) nil)))
+                     (list 'let
+                           (append (head let-acc)
+                                   (cons (list current-symbol
+                                               terminus)
+                                         arg))
+                           (tail let-acc))))
+                  ((eq? fun 'prompt)
+                   (list 'prompt acc terminus (list arg)))
+                  (t
+                   (append (list fun)
+                           acc
+                           (list terminus)
+                           arg)))))
+        (ktx-show hop me)))))
 
 (defun ask (continuation)
   (write ";; Restarts:
@@ -210,7 +210,7 @@
 (defun remove (list element)
   (if (nil? list) nil
     (let ((head (head list)))
-      (if (eq? head element)
+      (if (equal? head element)
           (tail list)
         (cons head (remove (tail list) element))))))
 
@@ -221,6 +221,27 @@
       (if (call predicate x)
           (cons x nil)
         (find (tail list) predicate)))))
+
+(defun find-result (list predicate)
+  (if (nil? list)
+      nil
+    (let* ((x (head list))
+           (result (call predicate x)))
+      (if result
+          (cons x result)
+        (find-result (tail list) predicate)))))
+
+(defun %filter (list predicate acc)
+  (if (nil? list)
+      (reverse acc)
+    (let* ((x (head list))
+           (next-acc (if (call predicate x)
+                         (cons x acc)
+                       acc)))
+      (%filter (tail list) predicate next-acc))))
+
+(defun filter (list predicate)
+  (%filter list predicate nil))
 
 ;; (defun make-queue (items)
 ;;   (list items))

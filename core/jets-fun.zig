@@ -933,3 +933,8 @@ pub fn @"VECTOR-FROM-LIST"(step: *Step, list: u32) anyerror!void {
     try Wisp.listItemsIntoSlice(step.heap, list, buf);
     step.give(.val, try step.heap.newv32(buf));
 }
+
+pub fn @"INTERN"(step: *Step, v08: u32, pkg: u32) anyerror!void {
+    var str = try step.heap.v08slice(v08);
+    step.give(.val, try step.heap.intern(str, pkg));
+}

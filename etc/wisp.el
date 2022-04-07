@@ -28,6 +28,10 @@
      (serve 1)
      (run-command! 1)
      (authenticate! 1)
+     (find-result 1)
+     (defroute 2)
+     (authenticate! 1)
+     (find 1)
      ))
 
   (common-lisp-set-style "wisp"))
