@@ -70,22 +70,21 @@ export default class WASI {
         for (let iov of buffers) {
           const newline = 10
           let i = 0
-          while (true) {
-            let newlineIndex = iov.indexOf(newline, i)
-            if (newlineIndex > -1) {
-              let line = "", decoder = new TextDecoder
-              for (let buffer of this.buffers[fd])
-                line += decoder.decode(buffer, { stream: true })
-              line += decoder.decode(iov.slice(0, newlineIndex))
+          let newlineIndex = iov.lastIndexOf(newline, i)
+          if (newlineIndex > -1) {
+            let line = "", decoder = new TextDecoder
 
-              if (fd === WASI_STDOUT_FILENO) console.log(line)
-              else if (fd === WASI_STDERR_FILENO) console.warn(line)
-
-              this.buffers[fd] = [iov.slice(newlineIndex + 1)]
-              i = newlineIndex + 1
-            } else {
-              break
+            for (let buffer of this.buffers[fd]) {
+              line += decoder.decode(buffer, { stream: true })
             }
+
+            line += decoder.decode(iov.slice(0, newlineIndex))
+
+            if (fd === WASI_STDOUT_FILENO) console.log(line)
+            else if (fd === WASI_STDERR_FILENO) console.warn(line)
+
+            this.buffers[fd] = [iov.slice(newlineIndex + 1)]
+            i = newlineIndex + 1
           }
 
           this.buffers[fd].push(new Uint8Array(iov.slice(i)))

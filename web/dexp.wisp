@@ -137,6 +137,12 @@
     (set! *cursor* (query-selector ".cursor"))
     (print (list :cursor *cursor*))))
 
+(defun render-sexp-to-html-string (sexp)
+  (let ((div (js-call *document* "createElement" "div")))
+    (progn
+      (idom-patch! div *render-sexp-callback* (list sexp))
+      (js-get div "innerHTML"))))
+
 (defun query-selector (selector)
   (js-call *document* "querySelector" selector))
 

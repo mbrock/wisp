@@ -71,6 +71,9 @@
   (defun request-header (req header)
     (js-call (js-get req "headers") "get" header))
 
+  (defun request-text (req)
+    (await (js-call req "text")))
+
   (defun bearer-token (authorization)
     (let ((parts (split-string authorization " ")))
       (if (eq? 2 (length parts))
@@ -173,32 +176,38 @@
               (route-mismatch (v k) nil)))))
       (response 404 () "nope\n")))
 
+  (defmacro with-authentication (clause &rest body)
+    `(authenticate! ,(head clause) (fn (,(second clause)) ,(prognify body))))
+
   (defroute ("POST" "git") req
-    (authenticate! req
-      (fn (user-key)
-        (let* ((repo-key (symbol-name (genkey!)))
-               (repo-path (string-append "git/" repo-key)))
-          (mkdir-recursive! repo-path)
-          (run-command! repo-path
-            "git" "init" "--bare")
-          (run-command! repo-path
-            "git" "config" "wisp.auth.push" user-key)
-          (response 200 ()
-            (string-append repo-key "\n"))))))
+    (with-authentication (req user-key)
+      (let* ((repo-key (symbol-name (genkey!)))
+             (repo-path (string-append "git/" repo-key)))
+        (mkdir-recursive! repo-path)
+        (run-command! repo-path "git" "init" "--bare")
+        (run-command! repo-path "git" "config" "wisp.auth.push" user-key)
+        (response 200 ()
+          (string-append repo-key "\n")))))
+
+  (defun request-accept-types (req)
+    (split-string (or (request-header req "accept") "text/plain") ", "))
+
+  (defun request-accepts? (req type)
+    (find (request-accept-types req) (fn (x) (equal? x type))))
 
   (defroute ("POST" "eval") req
-    (authenticate! req
-      (fn (user-key)
-        (progn
-          (when (not (equal? user-key "~20220405.DAJC4YMX9R"))
-            (authentication-error!))
-          (let ((code (await (js-call req "text"))))
-            (response 200 ()
-              (string-append
-               (print-to-string
-                (eval
-                 (read-from-string code)))
-               "\n")))))))
+    (with-authentication (req user-key)
+      (unless (equal? user-key "~20220405.DAJC4YMX9R")
+        (authentication-error!))
+      (let* ((code (request-text req))
+             (value (eval (read-from-string code))))
+        (response 200 ()
+          (string-append
+           (cond
+             ((request-accepts? req "text/html")
+              (render-sexp-to-html-string value))
+             (t (print-to-string value)))
+           "\n")))))
 
   (defroute ("GET" "demo" foo bar "using" baz) req
     (response 200 () (string-append

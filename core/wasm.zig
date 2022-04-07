@@ -89,6 +89,7 @@ export fn wisp_eval(heap: *Wisp.Heap, exp: u32, max: u32) u32 {
         return result;
     } else |e| {
         std.io.getStdErr().writer().print(";; error {any}\n", .{e}) catch return Wisp.zap;
+        Sexp.warn("err", heap, run.err) catch return Wisp.zap;
         if (run.exp == Wisp.nah)
             Sexp.warn("val", heap, run.val) catch return Wisp.zap
         else
@@ -417,6 +418,7 @@ export fn wisp_call(
         return result;
     } else |e| {
         std.io.getStdErr().writer().print(";; error {any}\n", .{e}) catch return Wisp.zap;
+        Sexp.warn("err", heap, run.err) catch return Wisp.zap;
         if (run.exp == Wisp.nah)
             Sexp.warn("val", heap, run.val) catch return Wisp.zap
         else
