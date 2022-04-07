@@ -409,20 +409,24 @@
    *render-sexp-callback* *eval-output*))
 
 (defun do-eval (expr)
-  (with-simple-error-handler ()
-    (let* ((result (async (fn () (eval expr))))
-           (thing (if (promise? result)
-                      (let ((cell (vector 'pending result)))
-                        (returning cell
-                          (async (fn ()
-                                   (print :awaiting-result)
-                                   (vector-set! cell 1 (await result))
-                                   (vector-set! cell 0 :done)
-                                   (print (list :got cell))
-                                   (log (vector-get cell 1))
-                                   (render-eval-output)))))
-                    result)))
-      (set! *eval-output* (cons thing *eval-output*))
+  (try
+    (with-simple-error-handler ()
+      (let* ((result (async (fn () (eval expr))))
+             (thing (if (promise? result)
+                        (let ((cell (vector 'pending result)))
+                          (returning cell
+                            (async (fn ()
+                                     (print :awaiting-result)
+                                     (vector-set! cell 1 (await result))
+                                     (vector-set! cell 0 :done)
+                                     (print (list :got cell))
+                                     (log (vector-get cell 1))
+                                     (render-eval-output)))))
+                      result)))
+        (set! *eval-output* (cons thing *eval-output*))
+        (render-eval-output)))
+    (catch (e k)
+      (set! *eval-output* (cons e *eval-output*))
       (render-eval-output))))
 
 (defvar *wisp-keymap*
