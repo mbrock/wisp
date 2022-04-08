@@ -190,7 +190,7 @@
                        ))
 
 (defmacro defun-save-code (f args body)
-  (list 'progn
+  (list 'do
         (list 'defun f args body)
         (list 'setf
               (list 'get (list 'quote f) (list 'quote 'code))

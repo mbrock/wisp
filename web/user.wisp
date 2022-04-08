@@ -1,6 +1,5 @@
 (NOTE (:COPYRIGHT) (SPDX-LICENSE-IDENTIFIER "AGPL-3.0-or-later") (AUTHOR "mikael@brockman.se") (PROJECT "https://wisp.town"))
 (NOTE (:DEMO) (AUTH0-LOGIN) (AUTH0-GET-TOKEN) (TOWN-REQUEST "/foo") (TOWN-CREATE-REPO))
-(DEFVAR *WINDOW* (JS-GLOBAL-THIS))
 (DEFVAR *GIT* (JS-GET *WINDOW* "git"))
 (DEFVAR *GIT-HTTP* (JS-GET *WINDOW* "git_http"))
 (DEFVAR *FS* (JS-GET *WINDOW* "fs"))
@@ -11,10 +10,8 @@
 (DEFUN CLONE-WISP-REPO (DIR) (GITHUB-CLONE DIR "https://github.com/mbrock/wisp" "master" 5) (READDIR DIR))
 (DEFUN FILE-CODE () (JS-CALL *WISP* "domCode" (QUERY-SELECTOR "#file")))
 (DEFUN SAVE-FILE-CODE (PATH) (AWAIT (JS-CALL *PFS* "writeFile" PATH (FILE-CODE) "utf8")))
- 
 (DEFVAR *WISP-REPO-DIR* "/wisp6")
 (DEFUN GIT-EXAMPLE () (ASYNC (FN () (OUTPUT (CLONE-WISP-REPO "/wisp6")) (SAVE-FILE-CODE "/wisp6/web/src/user.wisp") (LOG (AWAIT (JS-CALL *GIT* "add" (JS-OBJECT "fs" *FS* "dir" "/wisp6" "filepath" "web/src/user.wisp")))) (PRINT (JS-CALL *GIT* "commit" (JS-OBJECT "fs" *FS* "dir" "/wisp6" "message" "First commit from Wisp" "author" (JS-OBJECT "name" "Mikael Brockman" "email" "mikael@brockman.se")))))))
-(DEFUN ALERT (X) (JS-CALL *WINDOW* "alert" X))
 (DEFUN RANDOM-DICE () (READ-MANY-FROM-STRING (RESPONSE-TEXT (FETCH "https://www.random.org/integers/?num=10&min=1&max=6&col=1&base=10&format=plain&rnd=new"))))
 (DEFUN $ (SELECTOR) (JS-CALL *DOCUMENT* "querySelector" SELECTOR))
 (NOTE (:APRIL 4 2022) (TODO GIT COMMIT) (TODO GIT PUSH))

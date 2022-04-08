@@ -271,24 +271,30 @@ fn scan(
     var i: usize = 0;
     var n: usize = 0;
 
+    var optional: bool = false;
+
     loop: while (i < pars.items.len) : (i += 1) {
-        if (i < vals.items.len) {
-            const x = pars.items[i];
-            if (x == step.heap.kwd.@"&REST") {
-                scope[i * 2 + 0] = pars.items[i + 1];
-                scope[i * 2 + 1] = try Wisp.list(
-                    step.heap,
-                    vals.items[i..vals.items.len],
-                );
+        const x = pars.items[i];
+        if (x == step.heap.kwd.@"&REST" or x == step.heap.kwd.@"&BODY") {
+            scope[n * 2 + 0] = pars.items[i + 1];
+            scope[n * 2 + 1] = try Wisp.list(
+                step.heap,
+                vals.items[n..vals.items.len],
+            );
 
-                n = i + 1;
+            n = i + 1;
 
-                break :loop;
-            } else {
-                scope[i * 2 + 0] = x;
-                scope[i * 2 + 1] = vals.items[i];
-                n = i + 1;
-            }
+            break :loop;
+        } else if (x == step.heap.kwd.@"&OPTIONAL") {
+            optional = true;
+        } else if (n < vals.items.len) {
+            scope[n * 2 + 0] = x;
+            scope[n * 2 + 1] = vals.items[n];
+            n = i + 1;
+        } else if (optional) {
+            scope[n * 2 + 0] = x;
+            scope[n * 2 + 1] = nil;
+            n = i + 1;
         } else {
             try step.fail(&[_]u32{
                 step.heap.kwd.@"PROGRAM-ERROR",
@@ -462,7 +468,7 @@ const Ktx = struct {
         step.run.env = ktx.env;
     }
 
-    fn PROGN(step: *Step, ktx: Row(.ktx)) !void {
+    fn DO(step: *Step, ktx: Row(.ktx)) !void {
         if (ktx.arg == nil) {
             step.run.way = ktx.hop;
             step.run.env = ktx.env;
@@ -475,7 +481,7 @@ const Ktx = struct {
                 ktx.hop
             else
                 try step.heap.new(.ktx, .{
-                    .fun = step.heap.kwd.PROGN,
+                    .fun = step.heap.kwd.DO,
                     .env = ktx.env,
                     .acc = nil,
                     .arg = argduo.cdr,
@@ -573,8 +579,8 @@ fn scanLetAcc(
 }
 
 pub fn execKtx(step: *Step, ktx: Row(.ktx)) !void {
-    if (ktx.fun == step.heap.kwd.PROGN)
-        try Ktx.PROGN(step, ktx)
+    if (ktx.fun == step.heap.kwd.DO)
+        try Ktx.DO(step, ktx)
     else if (ktx.fun == step.heap.kwd.IF)
         try Ktx.IF(step, ktx)
     else if (ktx.fun == step.heap.kwd.LET)
@@ -1085,8 +1091,8 @@ test "if" {
     try expectEval("1", "(if t 1 0)");
 }
 
-test "progn" {
-    try expectEval("3", "(progn 1 2 3)");
+test "do" {
+    try expectEval("3", "(do 1 2 3)");
 }
 
 test "returning" {
@@ -1110,7 +1116,7 @@ test "let" {
 
 test "calling a closure" {
     try expectEval("13",
-        \\ (progn
+        \\ (do
         \\   (let ((ten 10))
         \\     (set-symbol-function! 'foo (fn (x y) (+ ten x y))))
         \\   (foo 1 2))
@@ -1119,7 +1125,7 @@ test "calling a closure" {
 
 test "calling a macro closure" {
     try expectEval("3",
-        \\ (progn
+        \\ (do
         \\   (set-symbol-function! 'frob
         \\      (%macro-fn (x y z)
         \\        (list y x z)))
@@ -1140,7 +1146,7 @@ test "EQ?" {
 
 test "DEFUN" {
     try expectEval("(1 . 2)",
-        \\ (progn (defun f (x y) (cons x y)) (f 1 2))
+        \\ (do (defun f (x y) (cons x y)) (f 1 2))
     );
 }
 
@@ -1166,7 +1172,7 @@ test "APPLY" {
 
 test "defun with &rest" {
     try expectEval("(x . (1 2 3))",
-        \\ (progn
+        \\ (do
         \\   (defun foo (x &rest xs) (cons x xs))
         \\   (foo 'x 1 2 3))
     );
@@ -1174,7 +1180,7 @@ test "defun with &rest" {
 
 test "defmacro with &rest" {
     try expectEval("(1 2 3)",
-        \\ (progn
+        \\ (do
         \\   (defmacro foo (x &rest xs) (cons x xs))
         \\   (foo list 1 2 3))
     );

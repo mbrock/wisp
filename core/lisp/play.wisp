@@ -15,7 +15,7 @@
                                          (fix self))))))))))
     (handle 'await
             (fn ()
-              (progn
+              (do
                 (call thread-a)
                 (call thread-b)
                 (set! *suspension* nil)))
@@ -30,7 +30,7 @@
 
 (let ((a nil)
       (b nil))
-  (progn
+  (do
     (engine (fn ()
                 (set! a
                       (+ (send! 'await '(gimme number))
@@ -40,7 +40,7 @@
                       (* (send! 'await '(one more))
                          (send! 'await '(last one))))))
     (with-trace
-        (progn
+        (do
           (resume! 1)
           (resume! 2)
           (resume! 3)

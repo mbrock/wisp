@@ -443,7 +443,7 @@ pub fn @"PROGNIFY"(step: *Step, arg: u32) anyerror!void {
     // (foo) => foo
     // ((foo)) => (foo)
     if ((try Wisp.length(step.heap, arg)) > 1) {
-        step.give(.val, try step.heap.cons(step.heap.kwd.PROGN, arg));
+        step.give(.val, try step.heap.cons(step.heap.kwd.DO, arg));
     } else if (arg == nil) {
         step.give(.val, nil);
     } else {

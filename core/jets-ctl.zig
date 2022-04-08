@@ -91,7 +91,7 @@ pub fn IF(step: *Step, exp: u32, yay: u32, nay: u32) anyerror!void {
     step.give(.exp, exp);
 }
 
-pub fn PROGN(step: *Step, rest: Rest) anyerror!void {
+pub fn DO(step: *Step, rest: Rest) anyerror!void {
     if (rest.arg == Wisp.nil) {
         step.give(.val, Wisp.nil);
     } else {
@@ -99,7 +99,7 @@ pub fn PROGN(step: *Step, rest: Rest) anyerror!void {
         const ktx = try step.heap.new(.ktx, .{
             .hop = step.run.way,
             .env = step.run.env,
-            .fun = step.heap.kwd.PROGN,
+            .fun = step.heap.kwd.DO,
             .acc = Wisp.nil,
             .arg = duo.cdr,
         });

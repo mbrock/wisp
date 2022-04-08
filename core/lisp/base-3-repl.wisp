@@ -65,7 +65,7 @@
   (let ((choice (read)))
     (ecase choice
       (1 nil)
-      (2 (progn
+      (2 (do
            (write "value> ")
            (call continuation (eval (read (read-line))))))
       (3 (error 'quit)))))
@@ -79,7 +79,7 @@
     (cond
       ((eq? exp 'quit) 'bye)
       (t
-       (progn
+       (do
          (try (print (eval exp))
            (catch (e k)
              (print (list 'error e))
@@ -132,7 +132,7 @@
 
 (defun do-step! (run)
   (let ((now (run-exp run)))
-    (progn
+    (do
       (print (list 'context (ktx-show (run-way run)
                                       (list '⦿ (head now) (tail now)))))
       (step! run))))
@@ -302,16 +302,16 @@
 ;; (defun do-receive (actors self request continuation)
 ;;   (if (actor-inbox self)
 ;;       (let ((message (actor-take-message! self)))
-;;         (progn
+;;         (do
 ;;           (set-actor-answer! self message)
 ;;           (set-actor-state! self :running)
 ;;           (enqueue-first! actors self)))
-;;     (progn
+;;     (do
 ;;       (set-actor-state! self :receiving))))
 
 ;; (defun do-exit (actors self request)
 ;;   (let ((result (second request)))
-;;     (progn
+;;     (do
 ;;       (set-actor-result! self result)
 ;;       (set-actor-state! self :done)
 ;;       (set-actor-continuation! self nil))))
@@ -328,7 +328,7 @@
 ;;       (when (and (eq? :receiving (actor-state actor))
 ;;                  (actor-inbox actor))
 ;;         (let ((message (actor-take-message! actor)))
-;;           (progn
+;;           (do
 ;;             (set-actor-answer! actor message)
 ;;             (set-actor-state! actor :ready)))))))
 

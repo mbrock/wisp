@@ -30,10 +30,10 @@
 (defmacro returning (x &rest body)
   (let ((x-var (fresh-symbol!)))
     `(let ((,x-var ,x))
-       (progn ,@body ,x-var))))
+       (do ,@body ,x-var))))
 
 (defmacro with-trace (&rest body)
-  `(progn
+  `(do
      (wtf t)
      (returning ,(prognify body)
        (wtf nil))))
@@ -54,7 +54,7 @@
 
 (defun for-each (xs f)
   (if (nil? xs) nil
-      (progn
+      (do
         (call f (head xs))
         (for-each (tail xs) f))))
 
@@ -193,7 +193,7 @@
       (let ((head (head form)))
         (cond
           ((or (eq? head 'if)
-               (eq? head 'progn))
+               (eq? head 'do))
            (maptree #'macroexpand-completely form))
           ((eq? head 'let)
            (let ((bindings (second form))
@@ -241,7 +241,7 @@
   `(set-symbol-function! ',name (%fn ,name ,args ,(prognify body))))
 
 (defmacro defvar (var val)
-  `(progn
+  `(do
 ;     (print (list 'defvar ',var))
      (set-symbol-value! ',var ,val)))
 
@@ -258,3 +258,25 @@
                    (not (jet? function)))
 ;          (print (list 'macroexpanding symbol))
           (compile! function))))))
+
+(defun %split-string (string separator acc)
+  (let* ((idx (string-search string separator)))
+    (if idx
+        (%split-string
+         (string-slice string
+                        (+ idx (string-length separator))
+                        (string-length string))
+         separator
+         (cons (string-slice string 0 idx) acc))
+        (reverse (cons string acc)))))
+
+(defun split-string (string separator)
+  (%split-string string separator nil))
+
+(defun vector-each (vector function)
+  (vector-each-loop vector function 0))
+
+(defun vector-each-loop (vector function i)
+  (when (< i (vector-length vector))
+    (call function (vector-get vector i))
+    (vector-each-loop vector function (+ i 1))))

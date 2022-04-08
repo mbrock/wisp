@@ -8,7 +8,7 @@
     "This style is for Wisp."
     (:inherit "basic")
     (:eval
-     (whitespace-mode 1))
+     (whitespace-mode -1))
     (:variables
      (fill-column 64))
     (:indentation
@@ -20,6 +20,7 @@
      (call-with-parameter 2)
      (returning 1)
      (for-each 1)
+     (vector-for-each 1)
      (if 2)
      (when-result 2)
      (tag (4 2 &rest (&whole 2 &rest 1)))
@@ -32,6 +33,12 @@
      (defroute 2)
      (authenticate! 1)
      (find 1)
+     (section 1)
+     (article 0)
+     (js-catch 1)
+     (js-then 1)
+     (note 1)
+     (do 0)
      ))
 
   (common-lisp-set-style "wisp"))

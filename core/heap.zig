@@ -61,13 +61,15 @@ pub const Kwd = enum {
     @"UNQUOTE-SPLICING",
 
     @"&REST",
+    @"&BODY",
+    @"&OPTIONAL",
 
     COND,
     DEFUN,
     IF,
     FN,
     LET,
-    PROGN,
+    DO,
     @"CALL/CC",
     EVAL,
 

@@ -282,6 +282,17 @@ export class WASD {
         return y
       },
 
+      callFunction: (id, argptr, arglen) => {
+        let o = this.ext.get(id)
+        let v32 = this.wisp.getVector(argptr, arglen)
+        let args = v32.map(x => this.convertFromWisp(x))
+
+        let x = o.apply(null, args)
+        let y = this.convert(x)
+
+        return y
+      },
+
       get: (id, strptr, strlen) => {
         let o = this.ext.get(id)
         let name = this.wisp.getString(strptr, strlen)
@@ -289,6 +300,12 @@ export class WASD {
         let y = this.convert(x)
 
         return y
+      },
+
+      set: (id, strptr, strlen, val) => {
+        let o = this.ext.get(id)
+        let name = this.wisp.getString(strptr, strlen)
+        o[name] = this.convertFromWisp(val)
       },
 
       patch: (elementId, funptr, data) => {

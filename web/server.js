@@ -51,15 +51,36 @@ wasiContext.initialize(wasmInstance)
 const wisp = new Wisp(wasmInstance)
 wasd.setWisp(wisp)
 
-function exec(code) {
-  const src = wisp.read(`(progn\n${code}\n)`)
+function execAsync(code) {
+  const src = wisp.read(`
+    (with-simple-error-handler ()
+      (async
+        (fn ()
+          ${code}
+        )))
+  `)
   const run = wisp.api.wisp_run_init(wisp.heap, src)
   return wisp.api.wisp_run_eval(wisp.heap, run, 4_000_000)
 }
 
-async function load(filename) {
+function exec(code) {
+  const src = wisp.read(`
+   (do
+     ${code}
+   )
+  `)
+  const run = wisp.api.wisp_run_init(wisp.heap, src)
+  return wisp.api.wisp_run_eval(wisp.heap, run, 4_000_000)
+}
+
+async function load(filename, inAsync) {
   const decoder = new TextDecoder("utf-8")
-  const script = decoder.decode(await Deno.readFile(filename))
+  let script = decoder.decode(await Deno.readFile(filename))
+  if (inAsync) script = `
+    (with-simple-error-handler () (async (fn ()
+      ${script}
+    )))
+  `
   const result = exec(script)
   if (result === wisp.sys.zap)
     throw new Error("zap")
@@ -67,5 +88,5 @@ async function load(filename) {
   else return result >>> 0
 }
 
-await load("dexp.wisp")
-await load(Deno.args[0])
+await load("dexp.wisp", false)
+await load(Deno.args[0], true)

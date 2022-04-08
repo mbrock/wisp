@@ -46,11 +46,24 @@ const DOM = struct {
         args_len: usize,
     ) u32;
 
+    extern "dom" fn callFunction(
+        function: u32,
+        args_ptr: [*]const u32,
+        args_len: usize,
+    ) u32;
+
     extern "dom" fn get(
         object: u32,
         prop_ptr: [*]const u8,
         prop_len: u32,
     ) u32;
+
+    extern "dom" fn set(
+        object: u32,
+        prop_ptr: [*]const u8,
+        prop_len: u32,
+        val: u32,
+    ) void;
 
     extern "dom" fn on_keydown(
         callback: u32,
@@ -183,6 +196,23 @@ pub fn @"JS-CALL"(
     step.give(.val, x);
 }
 
+pub fn @"JS-CALL-FUNCTION"(
+    step: *Step,
+    ext: u32,
+    arg: []u32,
+) anyerror!void {
+    if (Wisp.tagOf(ext) != .ext)
+        try step.failTypeMismatch(ext, step.heap.kwd.EXTERNAL);
+
+    const x = DOM.callFunction(
+        try step.heap.get(.ext, .idx, ext),
+        arg.ptr,
+        arg.len,
+    );
+
+    step.give(.val, x);
+}
+
 pub fn @"JS-NEW"(
     step: *Step,
     ext: u32,
@@ -241,6 +271,29 @@ pub fn @"JS-GET"(
     );
 
     step.give(.val, x);
+}
+
+pub fn @"JS-SET!"(
+    step: *Step,
+    ext: u32,
+    str: u32,
+    val: u32,
+) anyerror!void {
+    if (Wisp.tagOf(ext) != .ext)
+        try step.failTypeMismatch(ext, step.heap.kwd.EXTERNAL);
+
+    if (Wisp.tagOf(str) != .v08)
+        try step.failTypeMismatch(str, step.heap.kwd.STRING);
+
+    const v08 = try step.heap.v08slice(str);
+    DOM.set(
+        try step.heap.get(.ext, .idx, ext),
+        v08.ptr,
+        v08.len,
+        val,
+    );
+
+    step.give(.val, val);
 }
 
 pub fn @"JS-OBJECT"(step: *Step, xs: []u32) anyerror!void {
