@@ -98,11 +98,13 @@ pub const Kwd = enum {
     VECTOR,
 
     @"BAD-FIXNUM-DIVISION",
+    @"BOUNDS-ERROR",
     @"BUG",
     @"CONTINUATION-CALL-ERROR",
     @"EXHAUSTED",
     @"FIXNUM-OVERFLOW",
     @"INVALID-ARGUMENT-COUNT",
+    @"INVALID-CALLEE",
     @"JET-FAILURE",
     @"LOW-LEVEL-ERROR",
     @"PACKAGE-ERROR",
@@ -112,7 +114,6 @@ pub const Kwd = enum {
     @"UNBOUND-VARIABLE",
     @"UNDEFINED-FUNCTION",
     @"UNHANDLED-ERROR",
-    @"BOUNDS-ERROR",
 };
 
 /// The orb is the vat's allocator.  All Lisp values reside in memory

@@ -152,6 +152,13 @@ fn intoPair(step: *Step, p: u32) !void {
     const car = duo.car;
     const kwd = step.heap.kwd;
 
+    if (tagOf(car) != .sym) {
+        return step.fail(&.{
+            kwd.@"INVALID-CALLEE",
+            car,
+        });
+    }
+
     switch (try step.heap.get(.sym, .fun, car)) {
         nil => return fail(step, &[_]u32{
             kwd.@"UNDEFINED-FUNCTION",

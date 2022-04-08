@@ -1,12 +1,10 @@
-(read-key)
-
 (note (milan party 2022)
   (greetings to zig hackers)
   (this stuff is lisp code)
   (this is a structural editor)
   (use the keyboard to move around))
 
-(note (the keymap is here)
+(note (keymap definition)
   (set-keymap!
    (("f" "ArrowRight") next-expr!)
    (("b" "ArrowLeft") prev-expr!)

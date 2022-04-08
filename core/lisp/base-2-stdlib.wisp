@@ -66,6 +66,14 @@
     (call f (vector-get xs i))
     (%vector-for-each xs f (+ i 1))))
 
+(defun vector-for-each-backwards (xs f)
+  (%vector-for-each xs f (vector-length xs) nil))
+
+(defun %vector-for-each-backwards (xs f i)
+  (when (< i (vector-length xs))
+    (call f (vector-get xs i))
+    (%vector-for-each xs f (+ i 1))))
+
 (defmacro when (test &rest body)
   `(if ,test ,(prognify body) nil))
 
