@@ -319,7 +319,16 @@
                    (list 'pending-promise result)
                  result))
              (element (render-sexp-to-element thing)))
-        (element-insert-adjacent! (output-buffer) :beforeend element)))
+        (element-insert-adjacent! (output-buffer) :beforeend element)
+        (when (promise? result)
+          (async (fn ()
+                   (let ((value (await result)))
+                     (do
+                       (element-insert-adjacent!
+                        element :afterend
+                        (render-sexp-to-element
+                         (list 'resolved-promise value)))
+                       (element-remove! element))))))))
     (catch (e k)
       (element-insert-adjacent! (output-buffer) :beforeend
                                 (render-sexp-to-element

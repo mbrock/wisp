@@ -22,7 +22,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   body { background: black; color: ivory; margin: 0 }
-  body { font: 20px/22px 'berkeley mono', 'dm mono', 'inconsolata', monospace; }
+  body { font: 20px/22px 'dm mono', 'inconsolata', monospace; }
 
   .symbol { text-transform: lowercase; }
 
@@ -147,6 +147,7 @@
   .window {
     display: grid;
     grid-template-columns: 3fr 2fr;
+    grid-template-rows: minmax(0, min-content);
     position: absolute;
   }
 
@@ -166,35 +167,38 @@
     border: 1px solid #fff4;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 15px;
+    overflow-y: auto;
   }
 
   article {
     display: grid;
-    grid-template-rows: 1fr minmax(1rem, auto);
+    grid-template-rows: minmax(0, 1fr) minmax(1rem, auto);
   }
+
+  main > * { flex-shrink: 0; }
 
   .list > aside {
     opacity: 0.5;
     font-weight: 100;
   }
 
-  #eval-output .list[data-callee="WISP:PENDING-PROMISE"] > * {
+  .list[data-callee="WISP:PENDING-PROMISE"] > * {
     display: none;
   }
 
-  #eval-output .list[data-callee="WISP:PENDING-PROMISE"]:before {
+  .list[data-callee="WISP:PENDING-PROMISE"]:before {
     display: block;
     content: "☐";
     animation: blink 1s infinite;
     transform: scale(1.25);
   }
 
-  #eval-output .list[data-callee="WISP:RESOLVED-PROMISE"] > [data-symbol-name="RESOLVED-PROMISE"] > * {
+  .list[data-callee="WISP:RESOLVED-PROMISE"] > [data-symbol-name="RESOLVED-PROMISE"] > * {
     display: none;
   }
 
-  #eval-output .list[data-callee="WISP:RESOLVED-PROMISE"] > [data-symbol-name="RESOLVED-PROMISE"]:before {
+  .list[data-callee="WISP:RESOLVED-PROMISE"] > [data-symbol-name="RESOLVED-PROMISE"]:before {
     display: block;
     content: "☑";
     color: limegreen;
