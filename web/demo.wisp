@@ -2,7 +2,34 @@
   (greetings to zig hackers)
   (wisp is a lisp for webassembly)
   (mostly for fun)
-  (map (fn (x) (* x x)) (list 1 2 3)))
+  (live at "https://wisp.town")
+  (source at "https://github.com/mbrock/wisp"))
+
+(map (fn (x) (* x x)) (list 1 2 3))
+
+(defun alert (x)
+  (js-call *window* "alert" x))
+
+(defun prompt (x)
+  (js-call *window* "prompt" x))
+
+(defun sleep (secs)
+  (await
+   (new <promise>
+        (callback (resolve)
+          (js-call *window* "setTimeout" resolve (* 1000 secs))))))
+
+(do (sleep 2) "ok done")
+
+(try
+  (* 2 (/ 1 0))
+  (catch (error continuation)
+    (alert "oh no")
+    (sleep 1)
+    (call continuation
+          (read-from-string
+           (prompt
+            (print-to-string error))))))
 
 (note (todo slide 2)
   (novel emacs with html and css)
@@ -14,15 +41,7 @@
   (interactive restarts)
   (serializable heap))
 
-(note (slide 4)
-  (defun sleep (ms)
-    (await
-     (new <promise>
-          (callback (resolve)
-            (js-call *window* "setTimeout" resolve ms)))))
-  (do (sleep 1000) "ok"))
-
-(note (slide 5)
+(note (todo slide 4)
   (defroute ("POST" "git") req
     (with-authentication (req user-key)
       (let* ((repo-key (symbol-name (genkey!)))
@@ -33,7 +52,7 @@
         (response 200 ()
           (string-append "https://git.wisp.town/" repo-key))))))
 
-(note (slide 6)
+(note (todo slide 5)
   (set-keymap!
    (("f" "ArrowRight") forward-sexp!)
    (("b" "ArrowLeft")  backward-sexp!)
