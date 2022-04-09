@@ -24,7 +24,7 @@
   body { background: black; color: ivory; margin: 0 }
   body { font: 20px/22px 'dm mono', 'inconsolata', monospace; }
 
-  .symbol { text-transform: lowercase; }
+  article:not(.output) .symbol { text-transform: lowercase; }
 
   .string:before { content: '“'; }
   .string:after { content: '”'; }
@@ -42,6 +42,7 @@
     padding: 0 .5rem;
     max-width: 60ch;
     min-height: 1em;
+    align-items: center;
   }
 
   .list[data-callee='WISP:COND'] > :not(.cursor),
@@ -164,10 +165,11 @@
 
   article > main {
     padding: 10px;
+    padding-bottom: 50px;
     border: 1px solid #fff4;
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 20px;
     overflow-y: auto;
   }
 

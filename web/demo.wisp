@@ -1,16 +1,16 @@
-(note (slide 1)
+(note (todo slide 1)
   (greetings to zig hackers)
   (wisp is a lisp for webassembly)
   (mostly for fun)
   )
 
-(note (slide 2)
+(note (todo slide 2)
   (novel emacs with html and css)
   (structure editing)
   (browser and server)
   )
 
-(note (slide 3)
+(note (todo slide 3)
   (delimited continuation control)
   (interactive restarts)
   (serializable heap))
@@ -56,3 +56,5 @@
    ("." goto-place-anywhere!)
    ("C-." goto-place-inside!)
    ("Tab" other-window!)))
+
+(NOTE (:APRIL 1 2022) (DONE JS FFI) (TODO KEY :C TO CHANGE) (TODO PREVENT CURSOR SHENANIGANS) (DONE KEY (CTRL :E) TO EVAL TOP-LEVEL FORM) (TODO AUTOCOMPLETE ALL SYMBOLS) (TODO HANDLE EVALUATION ERRORS) (TODO REFACTOR WASD INTERFACE) (TODO CSS AS SEXP) (DONE READ MANY INSERTED FORMS) (DONE WHOLE DEXP NAVIGATION BY DEFAULT) (DONE LOCALSTORAGE SAVING))

@@ -155,10 +155,10 @@
        (tag :i ()
          (if (function-name sexp)
              (text (symbol-name (function-name sexp)))
-           (text "#<anonymous-function>")) ))
+           (text "#<FUNCTION>")) ))
       ((eq? 'external (type-of sexp))
        (tag :i ()
-         (text "extern")))))
+         (text "EXTERN")))))
 
   (defun render-list-contents (sexp)
     (unless (nil? sexp)

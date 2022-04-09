@@ -311,29 +311,29 @@
   `(quote (note ,date ,@notes)))
 
 (defun do-eval (expr)
-  (try
-    (with-simple-error-handler ()
-      (let* ((result (async (fn () (eval expr))))
-             (thing
-               (if (promise? result)
-                   (list 'pending-promise result)
-                 result))
-             (element (render-sexp-to-element thing)))
-        (element-insert-adjacent! (output-buffer) :beforeend element)
-        (when (promise? result)
-          (async (fn ()
-                   (let ((value (await result)))
-                     (do
-                       (element-insert-adjacent!
-                        element :afterend
-                        (render-sexp-to-element
-                         (list 'resolved-promise value)))
-                       (element-remove! element))))))))
-    (catch (e k)
-      (element-insert-adjacent! (output-buffer) :beforeend
-                                (render-sexp-to-element
-                                 (ktx-show k e)
-                                 ))))
+  (let ((result
+          (try (async (fn ()
+                        (try (eval expr)
+                          (catch (e k)
+                            (ktx-show k (list :🔥 e))))))
+            (catch (e k)
+              (ktx-show k (list :🔥 e))))))
+    (let* ((thing
+             (if (promise? result)
+                 (list 'pending-promise result)
+               result))
+           (element (render-sexp-to-element thing)))
+      (element-insert-adjacent! (output-buffer) :beforeend element)
+      (when (promise? result)
+        (async (fn ()
+                 (let ((value (await result)))
+                   (do
+                     (element-insert-adjacent!
+                      element :afterend
+                      (render-sexp-to-element
+                       (list 'resolved-promise value)))
+                     (element-remove! element))))))))
+
   (element-insert-adjacent! (output-buffer) :beforeend
                             (query-selector "ins" (output-buffer))))
 

@@ -192,6 +192,7 @@ pub fn @"FUNCTION-NAME"(step: *Step, fun: u32) anyerror!void {
     step.give(.val, switch (tagOf(fun)) {
         .fun => try step.heap.get(.fun, .sym, fun),
         .mac => try step.heap.get(.mac, .sym, fun),
+        .jet => try step.heap.intern(Jets.jets[Wisp.Imm.from(fun).idx].txt, step.heap.base),
         else => nil,
     });
 }
