@@ -53,11 +53,6 @@
          (js-object "port" port))
      (print `(http server port ,port)))))
 
-(defun response (status headers body)
-  (new <response> body
-       (js-object "status" status
-                  "headers" (apply #'js-object headers))))
-
 (defun js-get* (object indices)
   (if (nil? indices)
       object
@@ -105,19 +100,6 @@
 (defun authenticate! (req f)
   (call f (jwt-authenticate! req)))
 
-(defun run-command! (cwd &rest cmd)
-  (print `(run-command! ,cwd ,cmd))
-  (let* ((process (js-call <deno> "run"
-                    (js-object "cwd" cwd "cmd"
-                               (vector-from-list cmd))))
-         (status (await (js-call process "status"))))
-    (if (eq? 0 (js-get status "code"))
-        t
-      (error `(command-error (cwd ,cwd) (cmd ,cmd))))))
-
-(defun mkdir-recursive! (path)
-  (await-call <deno> "mkdir" path (js-object "recursive" t)))
-
 (defun string-drop (n s)
   (string-slice s n (string-length s)))
 
@@ -133,12 +115,6 @@
 (defun install-route (pattern handler)
   (set! *routes* (cons (list pattern handler) *routes*)))
 
-(defmacro defroute (pattern req-var &rest body)
-  `(install-route ',pattern (fn (,req-var ,@(filter pattern #'symbol?))
-                              ,(prognify body))))
-
-;; (route-match '("POST" "git" repo) ("POST" "git" "xyz"))
-;;  => ("xyz")
 (defun match-route (pattern parts acc)
   (if (and (nil? pattern) (nil? parts))
       (reverse acc)
@@ -171,9 +147,6 @@
                   (send! :respond (apply handler (cons req bindings)))))
             (route-mismatch (v k) nil)))))
     (response 404 () "nope\n")))
-
-(defmacro with-authentication (clause &rest body)
-  `(authenticate! ,(head clause) (fn (,(second clause)) ,@body)))
 
 (defroute ("POST" "git") req
   (with-authentication (req user-key)

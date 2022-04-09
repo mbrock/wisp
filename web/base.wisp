@@ -177,3 +177,31 @@
   (defun style (clauses)
     `(:style ,(css clauses))))
 
+
+;;;;;
+
+(defmacro defroute (pattern req-var &rest body)
+  `(install-route ',pattern (fn (,req-var ,@(filter pattern #'symbol?))
+                              ,(prognify body))))
+
+(defmacro with-authentication (clause &rest body)
+  `(authenticate! ,(head clause) (fn (,(second clause)) ,@body)))
+
+(defun run-command! (cwd &rest cmd)
+  (print `(run-command! ,cwd ,cmd))
+  (let* ((process (js-call <deno> "run"
+                    (js-object "cwd" cwd "cmd"
+                               (vector-from-list cmd))))
+         (status (await (js-call process "status"))))
+    (if (eq? 0 (js-get status "code"))
+        t
+      (error `(command-error (cwd ,cwd) (cmd ,cmd))))))
+
+(defun mkdir-recursive! (path)
+  (await-call <deno> "mkdir" path (js-object "recursive" t)))
+
+(defun response (status headers body)
+  (new <response> body
+       (js-object "status" status
+                  "headers" (apply #'js-object headers))))
+
