@@ -106,7 +106,7 @@ pub const Kwd = enum {
     @"FIXNUM-OVERFLOW",
     @"INVALID-ARGUMENT-COUNT",
     @"INVALID-CALLEE",
-    @"JET-FAILURE",
+    @"BUILTIN-FAILURE",
     @"LOW-LEVEL-ERROR",
     @"PACKAGE-ERROR",
     @"PROGRAM-ERROR",

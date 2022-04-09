@@ -737,7 +737,7 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
             step.run.err;
 
         step.run.err = try step.heap.newv32(&.{
-            step.heap.kwd.@"JET-FAILURE",
+            step.heap.kwd.@"BUILTIN-FAILURE",
             jet,
             condition,
         });
