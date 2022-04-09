@@ -342,27 +342,6 @@
 (defmacro set-keymap! (&rest clauses)
   `(set! *wisp-keymap* (make-keymap ,@clauses)))
 
-(set-keymap!
- (("f" "ArrowRight") forward-sexp!)
- (("b" "ArrowLeft")  backward-sexp!)
- (("C-f" "C-ArrowRight") forward-into-sexp!)
- (("C-b" "C-ArrowLeft") backward-into-sexp!)
- (("S-F" "S-ArrowRight") select-forward-sexp!)
- (("S-B" "S-ArrowLeft") select-backward-sexp!)
- (("u") up-sexp!)
- (("p" "ArrowUp") backward-line!)
- (("n" "ArrowDown") forward-line!)
- ("t" transpose!)
- ("k" delete!)
- ("d" duplicate!)
- (("C-g" "Escape") unselect!)
- ("i" start-editor!)
- ("e" evaluate-sexp!)
- ("s" save!)
- ("." goto-place-anywhere!)
- ("C-." goto-place-inside!)
- ("Tab" other-window!))
-
 (defun other-window! ()
   (let ((current-window (query-selector "article.active"))
         (other-window (query-selector "article:not(.active)")))
@@ -489,3 +468,43 @@
 
 (defun town-create-repo ()
   (response-text (town-request "POST" "/git")))
+
+(defun dwim! ()
+  (let ((next (element-sibling (cursor) :forward)))
+    (cond
+      ((element-matches? next "[data-symbol-name=TODO]")
+       (do
+         (element-remove! next)
+         (element-insert-adjacent!
+          (cursor)
+          :afterend
+          (render-sexp-to-element 'done))))
+      ((element-matches? next "[data-symbol-name=DONE]")
+       (do
+         (element-remove! next)
+         (element-insert-adjacent!
+          (cursor)
+          :afterend
+          (render-sexp-to-element 'todo)))))))
+
+(set-keymap!
+ (("f" "ArrowRight") forward-sexp!)
+ (("b" "ArrowLeft")  backward-sexp!)
+ (("C-f" "C-ArrowRight") forward-into-sexp!)
+ (("C-b" "C-ArrowLeft") backward-into-sexp!)
+ (("S-F" "S-ArrowRight") select-forward-sexp!)
+ (("S-B" "S-ArrowLeft") select-backward-sexp!)
+ (("u") up-sexp!)
+ (("p" "ArrowUp") backward-line!)
+ (("n" "ArrowDown") forward-line!)
+ ("t" transpose!)
+ ("k" delete!)
+ ("d" duplicate!)
+ (("C-g" "Escape") unselect!)
+ ("i" start-editor!)
+ ("e" evaluate-sexp!)
+ ("s" save!)
+ ("." goto-place-anywhere!)
+ ("C-." goto-place-inside!)
+ ("Tab" other-window!)
+ ("Enter" dwim!))

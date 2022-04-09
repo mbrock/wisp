@@ -31,7 +31,13 @@
 
   .string { color: lightgray; }
 
-  .list > [data-function-kind=jet]:first-child { color: goldenrod; }
+  .list > [data-function-kind=jet]:first-child,
+  .list > .cursor:first-child + [data-function-kind=jet],
+  .list > aside:first-child + [data-function-kind=jet],
+  { color: goldenrod; }
+
+  .list > .cursor:first-child + [data-function-kind=fun],
+  .list > aside:first-child + [data-function-kind=fun],
   .list > [data-function-kind=fun]:first-child { color: lightsalmon; }
 
   .vector, .list {

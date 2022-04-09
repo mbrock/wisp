@@ -2,13 +2,12 @@
   (greetings to zig hackers)
   (wisp is a lisp for webassembly)
   (mostly for fun)
-  )
+  (map (fn (x) (* x x)) (list 1 2 3)))
 
 (note (todo slide 2)
   (novel emacs with html and css)
   (structure editing)
-  (browser and server)
-  )
+  (browser and server))
 
 (note (todo slide 3)
   (delimited continuation control)
@@ -19,9 +18,8 @@
   (defun sleep (ms)
     (await
      (new <promise>
-          (make-pinned-value
-           (fn (ok)
-             (js-call *window* "setTimeout" ok ms))))))
+          (callback (resolve)
+            (js-call *window* "setTimeout" resolve ms)))))
   (do (sleep 1000) "ok"))
 
 (note (slide 5)

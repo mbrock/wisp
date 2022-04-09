@@ -77,10 +77,13 @@
           ""))
 
 (:section (basic binding to incremental dom)
+  (defmacro callback (args &rest body)
+    `(make-pinned-value
+      (fn ,args ,@body)))
+  
   (defun make-callback (symbol)
-    (make-pinned-value
-     (fn (&rest args)
-       (apply (symbol-function symbol) args))))
+    (callback (&rest args)
+      (apply (symbol-function symbol) args)))
 
   (defmacro tag (tag-symbol attrs &rest body)
     (let ((tag-name-var (fresh-symbol!)))
