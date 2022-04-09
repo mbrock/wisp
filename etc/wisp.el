@@ -37,6 +37,8 @@
      (article 0)
      (js-catch 1)
      (js-then 1)
+     (js-call-function 1)
+     (js-set! 2)
      (note 1)
      (do 0)
      (for-each-vector-index 1)

@@ -4,6 +4,12 @@
 (defvar *console* (js-get *window* "console"))
 (defvar <promise> (js-get *window* "Promise"))
 
+(defun js-get* (object indices)
+  (if (nil? indices)
+      object
+    (js-get* (js-get object (head indices))
+             (tail indices))))
+
 (defun new (constructor &rest args)
   (apply #'js-new (cons constructor args)))
 
@@ -208,3 +214,29 @@
        (js-object "status" status
                   "headers" (apply #'js-object headers))))
 
+
+(defvar <speech-recognition> (js-get *window* "webkitSpeechRecognition"))
+(defvar <speech-grammar-list> (js-get *window* "webkitSpeechGrammarList"))
+
+(defun listen ()
+  (let ((recognition (new <speech-recognition>)))
+    (do (js-set! recognition "continuous" nil)
+        (js-set! recognition "lang" "en-US")
+        (js-set! recognition "interimResults" nil)
+        (js-set! recognition "maxAlternatives" 1)
+        (await
+         (returning
+             (new <promise>
+                  (callback (resolve)
+                    (js-set! recognition "onresult"
+                      (callback (event)
+                        (log event)
+                        (js-call-function resolve
+                          (js-get* event '("results" "0" "0" "transcript")))))))
+           (js-call recognition "start"))))))
+
+(defun sleep (secs)
+  (await
+   (new <promise>
+        (callback (resolve)
+          (js-call *window* "setTimeout" resolve (* 1000 secs))))))

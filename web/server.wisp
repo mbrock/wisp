@@ -53,12 +53,6 @@
          (js-object "port" port))
      (print `(http server port ,port)))))
 
-(defun js-get* (object indices)
-  (if (nil? indices)
-      object
-    (js-get* (js-get object (head indices))
-             (tail indices))))
-
 (defun request-header (req header)
   (js-call (js-get req "headers") "get" header))
 

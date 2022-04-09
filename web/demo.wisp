@@ -1,11 +1,17 @@
-(note (todo slide 1)
-  (greetings to zig hackers)
-  (wisp is a lisp for webassembly)
-  (mostly for fun)
-  (live at "https://wisp.town")
-  (source at "https://github.com/mbrock/wisp"))
+(note (slide 1)
+  (todo greetings to zig hackers)
+  (todo wisp is a lisp for webassembly)
+  (todo mostly for fun)
+  (todo live at "https://wisp.town")
+  (todo code at "https://github.com/mbrock/wisp"))
 
 (map (fn (x) (* x x)) (list 1 2 3))
+
+(try (* 2 (/ 1 0))
+  (catch (e k)
+    (vector-from-list (read-many-from-string (listen)))))
+
+(listen)
 
 (defun alert (x)
   (js-call *window* "alert" x))

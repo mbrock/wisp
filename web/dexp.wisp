@@ -310,6 +310,9 @@
 (defmacro note (date &rest notes)
   `(quote (note ,date ,@notes)))
 
+(defun display (value)
+  (do-eval `(quote ,value)))
+
 (defun do-eval (expr)
   (let ((result
           (try (async (fn ()
@@ -470,22 +473,19 @@
   (response-text (town-request "POST" "/git")))
 
 (defun dwim! ()
-  (let ((next (element-sibling (cursor) :forward)))
-    (cond
-      ((element-matches? next "[data-symbol-name=TODO]")
+  (let* ((next (element-sibling (cursor) :forward))
+         (todos (query-selector-all "[data-symbol-name=TODO]" next))
+         (dones (query-selector-all "[data-symbol-name=DONE]" next)))
+    (vector-for-each todos
+      (fn (x)
        (do
-         (element-remove! next)
-         (element-insert-adjacent!
-          (cursor)
-          :afterend
-          (render-sexp-to-element 'done))))
-      ((element-matches? next "[data-symbol-name=DONE]")
+         (element-insert-adjacent! x :afterend (render-sexp-to-element 'done))
+         (element-remove! x))))
+    (vector-for-each dones
+      (fn (x)
        (do
-         (element-remove! next)
-         (element-insert-adjacent!
-          (cursor)
-          :afterend
-          (render-sexp-to-element 'todo)))))))
+         (element-insert-adjacent! x :afterend (render-sexp-to-element 'todo))
+         (element-remove! x))))))
 
 (set-keymap!
  (("f" "ArrowRight") forward-sexp!)
