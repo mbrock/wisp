@@ -22,7 +22,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   body { background: black; color: ivory; margin: 0 }
-  body { font: 20px/22px 'dm mono', 'inconsolata', monospace; }
+  body { font: 20px/22px 'berkeley mono', 'dm mono', 'inconsolata', monospace; }
 
   .symbol { text-transform: lowercase; }
 
@@ -157,7 +157,8 @@
   article > header {
     border: 1px solid #fff4;
     background: #fff1;
-    padding: 5px;
+    padding: 0px 15px;
+    line-height: 2rem;
   }
 
   article > main {
@@ -170,7 +171,7 @@
 
   article {
     display: grid;
-    grid-template-rows: minmax(1rem, auto) 1fr;
+    grid-template-rows: 1fr minmax(1rem, auto);
   }
 
   .list > aside {

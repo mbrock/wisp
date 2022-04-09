@@ -1,4 +1,5 @@
 (defvar *window* (js-global-this))
+(defvar *wisp* (js-get *window* "wisp"))
 (defvar *document* (js-get *window* "document"))
 (defvar *console* (js-get *window* "console"))
 (defvar <promise> (js-get *window* "Promise"))
@@ -74,3 +75,105 @@
                         value))) "; "))
                clauses)
           ""))
+
+(:section (basic binding to incremental dom)
+  (defun make-callback (symbol)
+    (make-pinned-value
+     (fn (&rest args)
+       (apply (symbol-function symbol) args))))
+
+  (defmacro tag (tag-symbol attrs &rest body)
+    (let ((tag-name-var (fresh-symbol!)))
+      `(let* ((,tag-name-var (symbol-name ,tag-symbol)))
+         (idom-open-start! ,tag-name-var)
+         (for-each ,attrs
+           (fn (attr)
+             (idom-attr! (symbol-name (head attr))
+                         (second attr))))
+         (idom-open-end!)
+         ,@body
+         (idom-close! ,tag-name-var))))
+
+  (defun text (text)
+    (idom-text! text)))
+
+(:section (rendering expressions to html)
+  (defun render-sexp (sexp)
+    (cond
+      ((nil? sexp)
+       (tag :div '((:class "wisp value list")) nil))
+      ((symbol? sexp)
+       (tag :span `((:class "wisp value symbol")
+                    (:data-package-name
+                     ,(package-name
+                       (symbol-package sexp)))
+                    (:data-symbol-name
+                     ,(symbol-name sexp))
+                    (:data-function-kind
+                     ,(if (symbol-function sexp)
+                          (if (jet? (symbol-function sexp))
+                              "jet" "fun")
+                        "")))
+         (cond
+           ((eq? sexp 'todo)
+            (tag :input '((:type "checkbox")) nil))
+           ((eq? sexp 'done)
+            (tag :input '((:type "checkbox")
+                          (:checked "checked")) nil))
+           (t
+            (do
+              (tag :span '((:class "package-name"))
+                (text (package-name (symbol-package sexp))))
+              (tag :span '((:class "symbol-name"))
+                (text (symbol-name sexp))))))))
+      ((pair? sexp)
+       (let* ((callee (head sexp))
+              (tag-type (cond
+                          ((eq? callee :section) :section)
+                          ((eq? callee :article) :article)
+                          (t :div))))
+         (tag tag-type
+           `((:class "wisp value list")
+             (:data-callee
+              ,(if (symbol? callee)
+                   (string-append
+                    (package-name (symbol-package callee))
+                    ":"
+                    (symbol-name callee))
+                 "")))
+           (render-list-contents sexp))))
+      ((string? sexp)
+       (tag :span '((:class "wisp value string"))
+         (text sexp)))
+      ((integer? sexp)
+       (tag :span '((:class "wisp value number"))
+         (text (print-to-string sexp))))
+      ((eq? 'vector (type-of sexp))
+       (tag :div '((:class "wisp value vector"))
+         (render-vector-contents sexp 0)))
+      ((eq? 'function (type-of sexp))
+       (tag :i ()
+         (if (function-name sexp)
+             (text (symbol-name (function-name sexp)))
+           (text "#<anonymous-function>")) ))
+      ((eq? 'external (type-of sexp))
+       (tag :i ()
+         (text "extern")))))
+
+  (defun render-list-contents (sexp)
+    (unless (nil? sexp)
+      (render-sexp (head sexp))
+      (let ((tail (tail sexp)))
+        (if (list? tail)
+            (render-list-contents tail)
+          (do
+            (tag :span '((:class "dot"))
+              (text "·"))
+            (render-sexp tail))))))
+
+  (defun render-vector-contents (vector i)
+    (vector-each vector #'render-sexp))
+
+  (defun style (clauses)
+    `(:style ,(css clauses))))
+

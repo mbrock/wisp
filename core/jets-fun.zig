@@ -101,6 +101,16 @@ pub fn @"/"(step: *Step, xs: []u32) anyerror!void {
     }
 }
 
+pub fn @"MOD"(step: *Step, x: u32, y: u32) anyerror!void {
+    const xx = try wordint(x);
+    const yy = try wordint(y);
+    if (yy > 0) {
+        step.give(.val, intword(@mod(xx, yy)));
+    } else {
+        return step.fail(&.{ step.heap.kwd.@"BAD-MODULO", y });
+    }
+}
+
 pub fn @"-"(step: *Step, a: u32, xs: []u32) anyerror!void {
     _ = step;
 

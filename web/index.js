@@ -65,7 +65,7 @@ onload = async () => {
   exec(dexpcode)
   exec(usercode)
 
-  const file = localStorage.getItem("wisp-file") || democode
+  const file = localStorage.getItem("wisp-file") || usercode
   const forms = file ? ctx.readMany(file) : ctx.sys.nil
   let packageName = "WISP"
   let functionName = "WISP-BOOT"

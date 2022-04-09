@@ -2,133 +2,28 @@
 ;;
 ;; SPDX-License-Identifier: AGPL-3.0-or-later
 
-(:section (basic binding to incremental dom)
-  (defun make-callback (symbol)
-    (make-pinned-value
-     (fn (&rest args)
-       (apply (symbol-function symbol) args))))
-
-  (defmacro tag (tag-symbol attrs &rest body)
-    (let ((tag-name-var (fresh-symbol!)))
-      `(let* ((,tag-name-var (symbol-name ,tag-symbol)))
-         (idom-open-start! ,tag-name-var)
-         (for-each ,attrs
-           (fn (attr)
-             (idom-attr! (symbol-name (head attr))
-                         (second attr))))
-         (idom-open-end!)
-         ,@body
-         (idom-close! ,tag-name-var))))
-
-  (defun text (text)
-    (idom-text! text)))
-
-(:section (rendering expressions to html)
-  (defun render-sexp (sexp)
-    (cond
-      ((nil? sexp)
-       (tag :div '((:class "wisp value list")) nil))
-      ((symbol? sexp)
-       (tag :span `((:class "wisp value symbol")
-                    (:data-package-name
-                     ,(package-name
-                       (symbol-package sexp)))
-                    (:data-symbol-name
-                     ,(symbol-name sexp))
-                    (:data-function-kind
-                     ,(if (symbol-function sexp)
-                          (if (jet? (symbol-function sexp))
-                              "jet" "fun")
-                        "")))
-         (cond
-           ((eq? sexp 'todo)
-            (tag :input '((:type "checkbox")) nil))
-           ((eq? sexp 'done)
-            (tag :input '((:type "checkbox")
-                          (:checked "checked")) nil))
-           (t
-            (do
-              (tag :span '((:class "package-name"))
-                (text (package-name (symbol-package sexp))))
-              (tag :span '((:class "symbol-name"))
-                (text (symbol-name sexp))))))))
-      ((pair? sexp)
-       (let* ((callee (head sexp))
-              (tag-type (cond
-                          ((eq? callee :section) :section)
-                          ((eq? callee :article) :article)
-                          (t :div))))
-         (tag tag-type
-           `((:class "wisp value list")
-             (:data-callee
-              ,(if (symbol? callee)
-                   (string-append
-                    (package-name (symbol-package callee))
-                    ":"
-                    (symbol-name callee))
-                 "")))
-           (render-list-contents sexp))))
-      ((string? sexp)
-       (tag :span '((:class "wisp value string"))
-         (text sexp)))
-      ((integer? sexp)
-       (tag :span '((:class "wisp value number"))
-         (text (print-to-string sexp))))
-      ((eq? 'vector (type-of sexp))
-       (tag :div '((:class "wisp value vector"))
-         (render-vector-contents sexp 0)))
-      ((eq? 'function (type-of sexp))
-       (tag :i ()
-         (if (function-name sexp)
-             (text (symbol-name (function-name sexp)))
-           (text "#<anonymous-function>")) ))
-      ((eq? 'external (type-of sexp))
-       (tag :i ()
-         (text "extern")))))
-
-  (defun render-list-contents (sexp)
-    (unless (nil? sexp)
-      (render-sexp (head sexp))
-      (let ((tail (tail sexp)))
-        (if (list? tail)
-            (render-list-contents tail)
-          (do
-            (tag :span '((:class "dot"))
-              (text "·"))
-            (render-sexp tail))))))
-
-  (defun render-vector-contents (vector i)
-    (vector-each vector #'render-sexp))
-
-  (defun style (clauses)
-    `(:style ,(css clauses))))
-
-(defvar *wisp* (js-get *window* "wisp"))
-(defvar *root-element* (query-selector "#wisp-app"))
-(defvar *cursor* nil)
-(defvar *output-buffer* nil)
-(defvar *key-callback* (make-callback 'on-keydown))
-(defvar *insert-callback* (make-callback 'on-insert))
-(defvar *render-callback* (make-callback 'draw-app))
 (defvar *render-sexp-callback* (make-callback 'do-render-sexp))
 
-(:section (wisp editor)
-  (defun draw-app (forms)
-    (tag :article '((:class "active"))
-      (tag :header ()
-        (text "dexp.lisp"))
-      (tag :main ()
-        (tag :ins '((:class "cursor")) nil)
-        (for-each forms #'render-sexp)))
-    (tag :article '((:class "output"))
-      (tag :header ()
-        (text "evaluation"))
-      (tag :main ()
-        (tag :ins '((:class "cursor")) nil)))
-    (do
-      (set! *cursor* (query-selector ".active .cursor"))
-      (set! *output-buffer* (query-selector "article.output > main"))
-      (print (list :cursor *cursor*)))))
+(defun draw-app (forms)
+  (tag :article '((:class "active"))
+    (tag :main ()
+      (tag :ins '((:class "cursor")) nil)
+      (for-each forms #'render-sexp))
+    (tag :header ()
+      (tag :b ()
+        (text "demo.wisp"))))
+  (tag :article '((:class "output"))
+    (tag :main ()
+      (tag :ins '((:class "cursor")) nil))
+    (tag :header ()
+      (tag :i ()
+        (text "*evaluation*")))))
+
+(defun cursor ()
+  (query-selector ".active .cursor"))
+
+(defun output-buffer ()
+  (query-selector "article.output > main"))
 
 (defun create-element (tag-name)
   (js-call *document* "createElement" tag-name))
@@ -150,7 +45,8 @@
 
 (defun render-app (forms)
   (with-simple-error-handler ()
-    (idom-patch! *root-element* *render-callback* forms)))
+    (idom-patch! (query-selector "#wisp-app")
+                 (make-callback 'draw-app) forms)))
 
 (defun %vector-element-bindings (vector names)
   (let ((i 0))
@@ -220,7 +116,7 @@
     (if function-name
         (returning nil
           (do (call (symbol-function function-name))
-              (js-call *cursor* "scrollIntoView"
+              (js-call (cursor) "scrollIntoView"
                 (js-object "behavior" "smooth"
                            "block" "center"))))
       t)))
@@ -272,7 +168,7 @@
   (js-get x "parentElement"))
 
 (defun forward! (direction into? &optional up?)
-  (let ((next (element-sibling *cursor* direction)))
+  (let ((next (element-sibling (cursor) direction)))
     (if (and next (not up?))
         (let ((place
                 (if (element-matches? next "div, article, section, header, main")
@@ -284,28 +180,28 @@
                       :afterend
                     :beforebegin))))
           (returning t
-            (element-insert-adjacent! next place *cursor*)))
-      (let ((up (element-closest (element-parent *cursor*)
+            (element-insert-adjacent! next place (cursor))))
+      (let ((up (element-closest (element-parent (cursor))
                                  "div, article, section, header, main"))
             (place (if (eq? direction :forward) :afterend :beforebegin)))
         (if (element-closest (element-parent up) "main")
             (returning t
-              (element-insert-adjacent! up place *cursor*))
+              (element-insert-adjacent! up place (cursor)))
           nil)))))
 
 (defun goto-next-line! (direction)
-  (when (element-closest (element-parent *cursor*)
+  (when (element-closest (element-parent (cursor))
                          "#file")
-    (let* ((y0 (js-get *cursor* "offsetTop"))
+    (let* ((y0 (js-get (cursor) "offsetTop"))
            (y1 (and
                  (forward! direction t)
-                 (js-get *cursor* "offsetTop"))))
+                 (js-get (cursor) "offsetTop"))))
       (when (eq? y0 y1)
         (goto-next-line! direction)))))
 
 (defun select! (direction)
-  (element-insert-adjacent! *cursor* :beforeend
-                            (element-sibling *cursor* direction)))
+  (element-insert-adjacent! (cursor) :beforeend
+                            (element-sibling (cursor) direction)))
 
 (defun element-children (x)
   (js-get x "children"))
@@ -317,21 +213,21 @@
   (js-call-with-vector x "after" (element-children x)))
 
 (defun unselect! ()
-  (element-insert-many-after! *cursor*
-                              (element-children *cursor*)))
+  (element-insert-many-after! (cursor)
+                              (element-children (cursor))))
 
 (defun transpose! ()
-  (let ((next (element-sibling *cursor* :forward))
-        (prev (element-sibling *cursor* :backward)))
+  (let ((next (element-sibling (cursor) :forward))
+        (prev (element-sibling (cursor) :backward)))
     (do
       (element-insert-adjacent! prev :beforebegin next)
       (forward! :backward nil))))
 
 (defun eval! (skip?)
-  (let ((kids (element-children *cursor*)))
+  (let ((kids (element-children (cursor))))
     (if (> (vector-length kids) 0)
         (vector-for-each kids #'eval-dexp!)
-      (let ((next (element-sibling *cursor* :forward)))
+      (let ((next (element-sibling (cursor) :forward)))
         (when next
           (eval-dexp! next)
           (when skip?
@@ -355,9 +251,9 @@
   (js-call-with-vector x "replaceChildren" xs))
 
 (defun delete! ()
-  (if (> (vector-length (element-children *cursor*)) 0)
-      (element-replace-children! *cursor* [])
-    (let ((next (element-sibling *cursor* :forward)))
+  (if (> (vector-length (element-children (cursor))) 0)
+      (element-replace-children! (cursor) [])
+    (let ((next (element-sibling (cursor) :forward)))
       (when next
         (element-remove! next)))))
 
@@ -365,7 +261,7 @@
   (js-call x "cloneNode" t))
 
 (defun duplicate! ()
-  (let* ((next (element-sibling *cursor* :forward))
+  (let* ((next (element-sibling (cursor) :forward))
          (copy (element-deep-clone next)))
     (when next
       (element-insert-adjacent! next :beforebegin copy))))
@@ -373,8 +269,8 @@
 (defun insert-code! (code)
   (let ((forms (read-many-from-string code)))
     (do
-      (element-replace-children! *cursor* [])
-      (idom-patch! *cursor* *render-sexp-callback* forms)
+      (element-replace-children! (cursor) [])
+      (idom-patch! (cursor) *render-sexp-callback* forms)
       (unselect!))))
 
 (defun join-strings (separator strings)
@@ -382,7 +278,7 @@
         ((nil? (tail strings)) (head strings))
         (t (string-append (head strings)
                           separator
-                          (join-strings (tail strings separator))))))
+                          (join-strings separator (tail strings))))))
 
 (defun %list-from-vector (v i acc)
   (if (eq? (vector-length v) i)
@@ -393,15 +289,15 @@
   (%list-from-vector v 0 ()))
 
 (defun start-editor! ()
-  (let* ((kids (list-from-vector (element-children *cursor*)))
+  (let* ((kids (list-from-vector (element-children (cursor))))
          (code (join-strings "\n" (map (fn (x)
                                          (print-to-string
                                           (read-from-string
                                            (dom-code x))))
                                        kids))))
-    (element-replace-children! *cursor* [])
+    (element-replace-children! (cursor) [])
     (js-call *wisp* "startEditor"
-      *cursor* code
+      (cursor) code
       (vector-from-list
        (map #'symbol-name
             (package-symbols (find-package "WISP"))))
@@ -423,14 +319,14 @@
                    (list 'pending-promise result)
                  result))
              (element (render-sexp-to-element thing)))
-        (element-insert-adjacent! *output-buffer* :beforeend element)))
+        (element-insert-adjacent! (output-buffer) :beforeend element)))
     (catch (e k)
-      (element-insert-adjacent! *output-buffer* :beforeend
+      (element-insert-adjacent! (output-buffer) :beforeend
                                 (render-sexp-to-element
                                  (ktx-show k e)
                                  ))))
-  (element-insert-adjacent! *output-buffer* :beforeend
-                            (query-selector "ins" *output-buffer*)))
+  (element-insert-adjacent! (output-buffer) :beforeend
+                            (query-selector "ins" (output-buffer))))
 
 (defvar *wisp-keymap* nil)
 
@@ -462,8 +358,7 @@
   (let ((current-window (query-selector "article.active"))
         (other-window (query-selector "article:not(.active)")))
     (do (js-call (js-get current-window "classList") "toggle" "active" nil)
-        (js-call (js-get other-window "classList") "toggle" "active" t)
-        (set! *cursor* (query-selector ".cursor" other-window)))))
+        (js-call (js-get other-window "classList") "toggle" "active" t))))
 
 (defun goto-place-anywhere! ()
   (goto-place! t))
@@ -471,37 +366,72 @@
 (defun goto-place-inside! ()
   (goto-place! nil))
 
+(defun string-nth (s i)
+  (string-slice s i (+ i 1)))
+
+(defun radixify (alphabet m i)
+  (if (< i m)
+      (string-nth alphabet i)
+    (string-append
+     (radixify alphabet m (/ i m))
+     (string-nth alphabet (mod i m)))))
+
+(defun string-repeat (c n)
+  (if (eq? n 0) ""
+    (string-append c
+                   (string-repeat c (- n 1)))))
+
+(defun string-pad-left (s n x)
+  (string-append (string-repeat x (- n (string-length s))) s))
+
+(defun read-n-keys (n &optional acc)
+  (if (eq? n 0)
+      (join-strings "" (reverse acc))
+    (read-n-keys (- n 1) (cons (vector-get (read-key) 0) acc))))
+
 (defun goto-place! (anywhere?)
   (let* ((i 0)
          (element (if anywhere?
-                      (element-closest *cursor* "article")
-                    (element-parent *cursor*)))
+                      (element-closest (cursor) "article")
+                    (element-parent (cursor))))
          (alphabet
-           "123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-         (child-vector (query-selector-all ".list" element)))
-    (when (> (vector-length child-vector) 0)
-      (do
-        (vector-for-each child-vector
-          (fn (x)
-            (let ((sticker (create-element "aside")))
-              (do
-                (set-inner-text! sticker (string-slice alphabet i (+ i 1)))
-                (element-insert-adjacent! x :afterbegin sticker)
-                (set! i (+ i 1))))))
-        (let* ((key (vector-get (read-key) 0))
-               (j (string-search alphabet key)))
-          (vector-for-each
-              (query-selector-all "aside" element)
-            #'element-remove!)
-          (when (and j (< j (vector-length child-vector)))
-            (element-insert-adjacent!
-             (vector-get child-vector j)
-             :beforebegin
-             *cursor*)))))))
+           "0123456789abcdefghijklmnopqrstuvwxyz")
+         (alphabet-size (string-length alphabet))
+         (child-vector (query-selector-all ".list" element))
+         (child-count (vector-length child-vector)))
+    (when (> child-count 0)
+      (let ((char-count
+              (string-length
+               (radixify alphabet alphabet-size (- child-count 1)))))
+        (do
+          (vector-for-each child-vector
+            (fn (x)
+              (let ((sticker (create-element "aside"))
+                    (sticker-key (string-pad-left
+                                    (radixify alphabet alphabet-size i)
+                                    char-count
+                                    (string-nth alphabet 0)
+                                    )))
+                (do
+                  (set-inner-text! sticker sticker-key)
+                  (js-set! (js-get x "dataset") "wispStickerKey" sticker-key)
+                  (element-insert-adjacent! x :afterbegin sticker)
+                  (set! i (+ i 1))))))
+          (let* ((key (read-n-keys char-count) 0)
+                 (match (query-selector (string-append "[data-wisp-sticker-key='" key "']"))))
+            (vector-for-each
+                (query-selector-all "aside" element)
+              #'element-remove!)
+            (vector-for-each
+                (query-selector-all "[data-wisp-sticker-key]:not([data-wisp-sticker-key=\"\"])" *document*)
+              (fn (x)
+                (js-set! (js-get x "dataset") "wispStickerKey" "")))
+            (when match
+              (element-insert-adjacent! match :beforebegin (cursor)))))))))
 
 (defun wisp-boot (forms)
   (with-simple-error-handler ()
-    (dom-on-keydown! *key-callback*)
+    (dom-on-keydown! (make-callback 'on-keydown))
     (js-set! *document* "onclick"
              (make-pinned-value
               (fn (x)
@@ -511,8 +441,8 @@
                     (if target
                         (do
                           (unselect!)
-                          (element-insert-adjacent! target :beforebegin *cursor*)
-                          (element-insert-adjacent! *cursor* :afterbegin target))
+                          (element-insert-adjacent! target :beforebegin (cursor))
+                          (element-insert-adjacent! (cursor) :afterbegin target))
                       (unselect!)))))))
     (render-app forms)))
 

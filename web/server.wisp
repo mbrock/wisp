@@ -183,7 +183,7 @@
       (run-command! repo-path "git" "init" "--bare")
       (run-command! repo-path "git" "config" "wisp.auth.push" user-key)
       (response 200 ()
-        (string-append repo-key "\n")))))
+        (string-append "https://git.wisp.town/" repo-key)))))
 
 (defun request-accept-types (req)
   (split-string (or (request-header req "accept") "text/plain") ", "))

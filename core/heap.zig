@@ -98,6 +98,7 @@ pub const Kwd = enum {
     VECTOR,
 
     @"BAD-FIXNUM-DIVISION",
+    @"BAD-MODULO",
     @"BOUNDS-ERROR",
     @"BUG",
     @"CONTINUATION-CALL-ERROR",
