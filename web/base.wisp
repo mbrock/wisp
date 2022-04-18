@@ -240,3 +240,15 @@
    (new <promise>
         (callback (resolve)
           (js-call *window* "setTimeout" resolve (* 1000 secs))))))
+
+(DEFVAR *GIT* (JS-GET *WINDOW* "git"))
+(DEFVAR *GIT-HTTP* (JS-GET *WINDOW* "git_http"))
+(DEFVAR *FS* (JS-GET *WINDOW* "fs"))
+(DEFVAR *FILESYSTEM* (JS-GET *FS* "promises"))
+(DEFUN GITHUB-CLONE (DIR URL REF DEPTH) (AWAIT (JS-CALL *FILESYSTEM* "mkdir" DIR)) (AWAIT (JS-CALL *GIT* "clone" (JS-OBJECT "fs" *FS* "http" *GIT-HTTP* "dir" DIR "corsProxy" "https://cors.node.town" "url" URL "ref" REF "singleBranch" "true" "depth" DEPTH))))
+(DEFUN READDIR (DIR) (AWAIT (JS-CALL *FILESYSTEM* "readdir" DIR)))
+(DEFUN MKDIR (DIR) (AWAIT (JS-CALL *FILESYSTEM* "mkdir" DIR)))
+(DEFUN CLONE-WISP-REPO (DIR) (GITHUB-CLONE DIR "https://github.com/mbrock/wisp" "master" 5) (READDIR DIR))
+(DEFUN FILE-CODE () (JS-CALL *WISP* "domCode" (QUERY-SELECTOR "#file")))
+(DEFUN SAVE-FILE-CODE (PATH) (AWAIT (JS-CALL *FILESYSTEM* "writeFile" PATH (FILE-CODE) "utf8")))
+(defun stat (x) (await (js-call *filesystem* "stat" x)))

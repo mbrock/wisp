@@ -1,3 +1,11 @@
+(vector-for-each (readdir "/wisp6")
+  (fn (x)
+    (let ((stat (stat (string-append "/wisp6/" x))))
+      (display
+       (list (read-from-string (js-get stat "type"))
+             x
+             (js-get stat "size"))))))
+
 (note (slide 1)
   (todo greetings to zig hackers)
   (todo wisp is a lisp for webassembly)
