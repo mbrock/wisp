@@ -18,6 +18,7 @@
      (try (2 &rest (&whole 2 &rest 1)))
      (call-with-prompt 2)
      (call-with-parameter 2)
+     (with 2)
      (returning 1)
      (for-each 1)
      (vector-for-each 1)

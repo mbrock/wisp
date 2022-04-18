@@ -22,7 +22,7 @@ pub const Ctls = @import("./jets-ctl.zig");
 pub const Webs = @import("./jets-web.zig");
 
 pub const jets = blk: {
-    if (@import("builtin").os.tag == .wasi) {
+    if (std.meta.globalOption("wisp_browser", bool) orelse false) {
         break :blk makeOpArray(Webs, .fun) ++
             makeOpArray(Ctls, .ctl) ++
             makeOpArray(Funs, .fun);

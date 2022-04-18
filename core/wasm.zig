@@ -27,6 +27,8 @@ const Jets = @import("./jets.zig");
 const Keys = @import("./keys.zig");
 const Tape = @import("./tape.zig");
 
+pub const wisp_browser: bool = true;
+
 pub fn main() void {}
 
 export fn _initialize() void {}

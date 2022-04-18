@@ -18,6 +18,7 @@
 //
 
 const std = @import("std");
+const glyph = @import("ziglyph");
 
 const Wisp = @import("./wisp.zig");
 
@@ -902,7 +903,7 @@ pub fn @"STRING-SLICE"(
     var i = try wordint(iw);
     var j = try wordint(jw);
 
-    if (i < 0 or i >= str.len or j < 0 or j > str.len) {
+    if (i < 0 or i > str.len or j < 0 or j > str.len) {
         return step.fail(&.{
             step.heap.kwd.@"BOUNDS-ERROR",
             strptr,
@@ -915,6 +916,16 @@ pub fn @"STRING-SLICE"(
     step.give(.val, try step.heap.newv08(
         str[@intCast(usize, i)..@intCast(usize, j)],
     ));
+}
+
+pub fn @"STRING-TO-UPPERCASE"(
+    step: *Step,
+    v08ptr: u32,
+) anyerror!void {
+    var str = try step.heap.v08slice(v08ptr);
+    var upper = try glyph.toUpperStr(step.heap.orb, str);
+    defer step.heap.orb.free(upper);
+    step.give(.val, try step.heap.newv08(upper));
 }
 
 pub fn @"VECTOR-APPEND"(step: *Step, rest: []u32) anyerror!void {

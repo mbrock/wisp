@@ -88,5 +88,6 @@ async function load(filename, inAsync) {
   else return result >>> 0
 }
 
+await load("base.wisp", false)
 await load("dexp.wisp", false)
 await load(Deno.args[0], true)

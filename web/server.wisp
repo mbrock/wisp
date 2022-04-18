@@ -8,10 +8,7 @@
 (defvar <url> (js-get *window* "URL"))
 (defvar <response> (js-get *window* "Response"))
 (defvar <deno> (js-get *window* "Deno"))
-
-(defmacro callback (args &rest body)
-  `(make-pinned-value
-    (fn ,args ,@body)))
+(defvar <headers> (js-get *window* "Headers"))
 
 (defun deno-import-module (path)
   (await
@@ -27,8 +24,12 @@
   `(do ,@(%deno-import clauses)))
 
 (deno-import
- (<server> "https://deno.land/std@0.133.0/http/server.ts")
+ (<server> "https://deno.land/std@0.135.0/http/server.ts")
+ (<buffer> "https://deno.land/std@0.135.0/io/buffer.ts")
+ (<conversion> "https://deno.land/std@0.135.0/streams/conversion.ts")
  (<jose> "https://deno.land/x/jose@v4.6.0/index.ts"))
+
+(defvar <buffered-reader> (js-get <buffer> "BufReader"))
 
 (defvar *jwks*
   (js-call <jose> "createRemoteJWKSet"
@@ -41,6 +42,7 @@
          (callback (req)
            (async
             (fn ()
+              (log (js-get req "url"))
               (let ((response
                         (try (with-simple-error-handler ()
                                (call-with-prompt :respond
@@ -142,22 +144,127 @@
             (route-mismatch (v k) nil)))))
     (response 404 () "nope\n")))
 
-(defroute ("POST" "git") req
-  (with-authentication (req user-key)
-    (let* ((repo-key (symbol-name (genkey!)))
-           (repo-path (string-append "git/" repo-key)))
-      (mkdir-recursive! repo-path)
-      (run-command! repo-path "git" "init" "--bare")
-      (run-command! repo-path "git" "config" "wisp.auth.push" user-key)
-      (response 200 ()
-        (string-append "https://git.wisp.town/" repo-key)))))
-
 (defun request-accept-types (req)
   (split-string (or (request-header req "accept") "text/plain") ", "))
 
 (defun request-accepts? (req type)
   (find (request-accept-types req) (fn (x) (equal? x type))))
 
+
+
+(defroute ("POST" "git") req
+  (with-authentication (req user-key)
+    (let* ((repo-key (symbol-name (genkey!)))
+           (repo-path (string-append "git/" repo-key)))
+      (mkdir-recursive! repo-path)
+      (with *cwd* repo-path
+        (run-command! "git" "init" "--bare")
+        (run-command! "git" "config" "wisp.auth.push" user-key))
+      (response 200 ()
+        (string-append "https://git.wisp.town/" repo-key)))))
+
+
+
+;; we want to be our own git repository backend
+;;
+;; all we need to do is just call git with cgi
+;;
+;; let's see what requests git makes
+;;
+
+(defun cgi-read-headers (headers reader)
+  (let ((line (await (js-call reader "readString" "\n"))))
+    (when (> (string-length line) 2)
+      (print `(line ,line))
+      (let* ((parts (split-string line ": "))
+             (header (head parts))
+             (value
+               (string-slice (second parts)
+                             0
+                             (- (string-length (second parts)) 2))))
+        (print `(header ,header ,value))
+        (js-call headers "append" header value)
+        (cgi-read-headers headers reader)))))
+
+(defun git-cgi-get (req repo path)
+  (let* ((process (js-call <deno> "run"
+                    (js-object "cwd" (string-append "git/" repo)
+                               "env" (js-object
+                                      "REQUEST_METHOD" "GET"
+                                      "GIT_HTTP_EXPORT_ALL" "1"
+                                      "GIT_PROJECT_ROOT" "."
+                                      "PATH_INFO" path)
+                               "cmd" (vector-from-list '("git" "http-backend"))
+                               "stdout" "piped")))
+         (reader (new <buffered-reader> (js-get process "stdout")))
+         (headers (new <headers>)))
+    (cgi-read-headers headers reader)
+    (let* ((stream (js-call <conversion> "readableStreamFromReader" reader)))
+      (new <response> stream (js-object "headers" headers)))))
+
+(defroute ("GET" "git" repo "info" "refs") req
+  (git-cgi-get req repo "/info/refs"))
+
+(defroute ("GET" "git" repo ref) req
+  (git-cgi-get req repo (string-append "/" ref)))
+
+(defroute ("GET" "git" repo "objects" x y) req
+  (git-cgi-get req repo (string-append "/objects/" x "/" y)))
+
+(defun iterator-values (it &optional acc)
+  (let ((next (js-call it "next")))
+    (if (js-get next "done")
+        (reverse acc)
+      (iterator-values it (cons (js-get next "value") acc)))))
+
+(defun cgi-fix-header-name (name)
+  (cond
+    ((equal? name "HTTP_CONTENT_TYPE")
+     "CONTENT_TYPE")
+    ((equal? name "HTTP_CONTENT_LENGTH")
+     "CONTENT_LENGTH")
+    (t name)))
+
+(defroute ("PROPFIND" "git" repo "") req
+  ;; cgi
+  (let* ((cgi-headers
+           (append
+            `("REQUEST_METHOD" "PROPFIND"
+                               "QUERY_STRING" ""
+                               "REMOTE_USER" "mbrock"
+                               "REMOTE_ADDR" "localhost"
+                               "GIT_HTTP_EXPORT_ALL" "1"
+                               "GIT_PROJECT_ROOT" "."
+                               "PATH_INFO" "/")
+            (apply #'append
+                   (map (fn (entry)
+                          (list (cgi-fix-header-name
+                                 (string-append
+                                  "HTTP_"
+                                  (string-to-uppercase
+                                   (join-strings
+                                    "_"
+                                    (split-string (vector-get entry 0) "-")))))
+                                (vector-get entry 1)))
+                        (iterator-values (js-call (js-get req "headers")
+                                             "entries"))))))
+         (process (js-call <deno> "run"
+                    (js-object "env" (apply #'js-object cgi-headers)
+                               "cwd" (string-append "./git/" repo)
+                               "cmd" (vector-from-list '("git" "http-backend"))
+                               "stdout" "piped"
+                               "stdin" "piped"
+                               )))
+         (reader (new <buffered-reader> (js-get process "stdout")))
+         (headers (new <headers>)))
+    (print `(cgi-headers ,cgi-headers))
+    (js-call (js-get req "body") "pipeTo" (js-get* process '("stdin" "writable")))
+    (cgi-read-headers headers reader)
+    (let* ((stream (js-call <conversion> "readableStreamFromReader" reader)))
+      (new <response> stream (js-object "headers" headers)))))
+
+
+
 (defroute ("POST" "eval") req
   (with-authentication (req user-key)
     (unless (equal? user-key "~20220405.DAJC4YMX9R")
@@ -172,8 +279,6 @@
            (t (print-to-string value)))
          "\n")))))
 
-(defroute ("GET" "demo" foo bar "using" baz) req
-  (response 200 () (string-append
-                    (print-to-string (list foo bar baz)) "\n")))
 
+
 (serve 8000 #'route-request)

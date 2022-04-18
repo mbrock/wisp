@@ -49,6 +49,7 @@
             (fn (x)
               (async (fn () (call k x)))))
         (fn (e)
+          (log e)
           (nonlocal-error! k e))))))
 
 (defun await (x)
@@ -196,15 +197,21 @@
 (defmacro with-authentication (clause &rest body)
   `(authenticate! ,(head clause) (fn (,(second clause)) ,@body)))
 
-(defun run-command! (cwd &rest cmd)
-  (print `(run-command! ,cwd ,cmd))
-  (let* ((process (js-call <deno> "run"
-                    (js-object "cwd" cwd "cmd"
-                               (vector-from-list cmd))))
-         (status (await (js-call process "status"))))
-    (if (eq? 0 (js-get status "code"))
-        t
-      (error `(command-error (cwd ,cwd) (cmd ,cmd))))))
+(defvar *env* (make-parameter 'env ()))
+(defvar *cwd* (make-parameter 'cwd "."))
+
+(defun run-command! (&rest cmd)
+  (let ((env (parameter *env*))
+        (cwd (parameter *cwd*)))
+    (print `(run-command! :cwd ,cwd :env ,env :cmd ,cmd))
+    (let* ((process (js-call <deno> "run"
+                      (js-object "cwd" cwd
+                                 "env" (apply #'js-object env)
+                                 "cmd" (vector-from-list cmd))))
+           (status (await (js-call process "status"))))
+      (if (eq? 0 (js-get status "code"))
+          t
+        (error `(command-error (cwd ,cwd) (cmd ,cmd)))))))
 
 (defun mkdir-recursive! (path)
   (await-call <deno> "mkdir" path (js-object "recursive" t)))

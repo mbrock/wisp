@@ -331,6 +331,7 @@
         (async (fn ()
                  (let ((value (await result)))
                    (do
+                     (log value)
                      (element-insert-adjacent!
                       element :afterend
                       (render-sexp-to-element
@@ -458,9 +459,9 @@
 (defun auth0-get-token ()
   (when (not *user*)
     (auth0-login))
-  (await (js-call *auth0* "getTokenSilently"
-                  (js-object "audience" "https://api.wisp.town"
-                             "scope" "create:repositories"))))
+  (await (js-call *auth0* "getTokenWithPopup"
+           (js-object "audience" "https://api.wisp.town"
+                      "scope" "create:repositories"))))
 
 (defun town-request (method path)
   (fetch (string-append "http://localhost:8000" path)

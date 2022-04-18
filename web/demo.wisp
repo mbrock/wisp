@@ -1,3 +1,5 @@
+(auth0-get-token)
+
 (vector-for-each (readdir "/wisp6")
   (fn (x)
     (let ((stat (stat (string-append "/wisp6/" x))))
