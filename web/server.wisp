@@ -42,7 +42,6 @@
          (callback (req)
            (async
             (fn ()
-              (log (js-get req "url"))
               (let ((response
                         (try (with-simple-error-handler ()
                                (call-with-prompt :respond
@@ -130,17 +129,14 @@
 
 (defun route-request (req)
   (let* ((parts (parse-request req)))
-    (print `(request ,parts))
+    (print `(request ,(js-get req "url") ,parts))
     (for-each *routes*
       (fn (route)
         (let ((pattern (head route))
               (handler (second route)))
           (handle
-              (do
-                (print `(match-route ,pattern ,parts))
-                (let* ((bindings (match-route pattern parts ())))
-                  (print `(bindings ,bindings))
-                  (send! :respond (apply handler (cons req bindings)))))
+              (let* ((bindings (match-route pattern parts ())))
+                (send! :respond (apply handler (cons req bindings))))
             (route-mismatch (v k) nil)))))
     (response 404 () "nope\n")))
 
@@ -175,41 +171,82 @@
 (defun cgi-read-headers (headers reader)
   (let ((line (await (js-call reader "readString" "\n"))))
     (when (> (string-length line) 2)
-      (print `(line ,line))
       (let* ((parts (split-string line ": "))
              (header (head parts))
              (value
                (string-slice (second parts)
                              0
                              (- (string-length (second parts)) 2))))
-        (print `(header ,header ,value))
         (js-call headers "append" header value)
         (cgi-read-headers headers reader)))))
 
-(defun git-cgi-get (req repo path)
-  (let* ((process (js-call <deno> "run"
+(defun drop (n xs)
+  (if (eq? n 0)
+      xs
+    (drop (- n 1) (tail xs))))
+
+(defun drop-path-prefix (n req)
+  (string-append "/"
+                 (join-strings
+                  "/"
+                  (drop n (tail (split-string
+                                 (js-get (new <url> (js-get req "url"))
+                                         "pathname")
+                                 "/"))))))
+
+(defun git-cgi-exec (req repo)
+  (let* ((method (js-get req "method"))
+         (post? (equal? method "POST"))
+         (cgi-headers
+           (append
+            (list "REQUEST_METHOD" method
+                  "QUERY_STRING" (if post? ""
+                                   (string-drop 1
+                                                (js-get (new <url> (js-get req "url"))
+                                                        "search")))
+                  "REMOTE_USER" "git"
+                  "REMOTE_ADDR" "wisp.town"
+                  "GIT_HTTP_EXPORT_ALL" "1"
+                  "GIT_PROJECT_ROOT" "."
+                  "PATH_INFO" (drop-path-prefix 2 req))
+            (apply #'append
+                   (map (fn (entry)
+                          (list (cgi-fix-header-name
+                                 (string-append
+                                  "HTTP_"
+                                  (string-to-uppercase
+                                   (join-strings
+                                    "_"
+                                    (split-string (vector-get entry 0) "-")))))
+                                (vector-get entry 1)))
+                        (iterator-values (js-call (js-get req "headers")
+                                             "entries"))))))
+         (process (js-call <deno> "run"
                     (js-object "cwd" (string-append "git/" repo)
-                               "env" (js-object
-                                      "REQUEST_METHOD" "GET"
-                                      "GIT_HTTP_EXPORT_ALL" "1"
-                                      "GIT_PROJECT_ROOT" "."
-                                      "PATH_INFO" path)
+                               "env" (apply #'js-object cgi-headers)
                                "cmd" (vector-from-list '("git" "http-backend"))
-                               "stdout" "piped")))
+                               "stdin" (if post? "piped" nil)
+                               "stdout" "piped"
+                               )))
          (reader (new <buffered-reader> (js-get process "stdout")))
          (headers (new <headers>)))
+    (when post?
+      (js-call (js-get req "body") "pipeTo" (js-get* process '("stdin" "writable"))))
     (cgi-read-headers headers reader)
     (let* ((stream (js-call <conversion> "readableStreamFromReader" reader)))
       (new <response> stream (js-object "headers" headers)))))
 
 (defroute ("GET" "git" repo "info" "refs") req
-  (git-cgi-get req repo "/info/refs"))
+  (git-cgi-exec req repo))
 
 (defroute ("GET" "git" repo ref) req
-  (git-cgi-get req repo (string-append "/" ref)))
+  (git-cgi-exec req repo))
 
-(defroute ("GET" "git" repo "objects" x y) req
-  (git-cgi-get req repo (string-append "/objects/" x "/" y)))
+(defroute ("POST" "git" repo "git-receive-pack") req
+  (git-cgi-exec req repo))
+
+(defroute ("POST" "git" repo "git-upload-pack") req
+  (git-cgi-exec req repo))
 
 (defun iterator-values (it &optional acc)
   (let ((next (js-call it "next")))
@@ -225,46 +262,6 @@
      "CONTENT_LENGTH")
     (t name)))
 
-(defroute ("PROPFIND" "git" repo "") req
-  ;; cgi
-  (let* ((cgi-headers
-           (append
-            `("REQUEST_METHOD" "PROPFIND"
-                               "QUERY_STRING" ""
-                               "REMOTE_USER" "mbrock"
-                               "REMOTE_ADDR" "localhost"
-                               "GIT_HTTP_EXPORT_ALL" "1"
-                               "GIT_PROJECT_ROOT" "."
-                               "PATH_INFO" "/")
-            (apply #'append
-                   (map (fn (entry)
-                          (list (cgi-fix-header-name
-                                 (string-append
-                                  "HTTP_"
-                                  (string-to-uppercase
-                                   (join-strings
-                                    "_"
-                                    (split-string (vector-get entry 0) "-")))))
-                                (vector-get entry 1)))
-                        (iterator-values (js-call (js-get req "headers")
-                                             "entries"))))))
-         (process (js-call <deno> "run"
-                    (js-object "env" (apply #'js-object cgi-headers)
-                               "cwd" (string-append "./git/" repo)
-                               "cmd" (vector-from-list '("git" "http-backend"))
-                               "stdout" "piped"
-                               "stdin" "piped"
-                               )))
-         (reader (new <buffered-reader> (js-get process "stdout")))
-         (headers (new <headers>)))
-    (print `(cgi-headers ,cgi-headers))
-    (js-call (js-get req "body") "pipeTo" (js-get* process '("stdin" "writable")))
-    (cgi-read-headers headers reader)
-    (let* ((stream (js-call <conversion> "readableStreamFromReader" reader)))
-      (new <response> stream (js-object "headers" headers)))))
-
-
-
 (defroute ("POST" "eval") req
   (with-authentication (req user-key)
     (unless (equal? user-key "~20220405.DAJC4YMX9R")
