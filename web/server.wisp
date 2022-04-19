@@ -24,6 +24,7 @@
   `(do ,@(%deno-import clauses)))
 
 (deno-import
+ (<fs> "https://deno.land/std@0.135.0/fs/mod.ts")
  (<server> "https://deno.land/std@0.135.0/http/server.ts")
  (<buffer> "https://deno.land/std@0.135.0/io/buffer.ts")
  (<conversion> "https://deno.land/std@0.135.0/streams/conversion.ts")
@@ -147,6 +148,9 @@
   (find (request-accept-types req) (fn (x) (equal? x type))))
 
 
+(defun copy-file! (src dst)
+  (await (js-call <fs> "copy" src dst)))
+
 
 (defroute ("POST" "git") req
   (with-authentication (req user-key)
@@ -155,7 +159,10 @@
       (mkdir-recursive! repo-path)
       (with *cwd* repo-path
         (run-command! "git" "init" "--bare")
-        (run-command! "git" "config" "wisp.auth.push" user-key))
+        (run-command! "git" "config" "core.hooksPath" "../../git-hooks")
+        (run-command! "git" "config" "wisp.auth.push" user-key)
+        )
+
       (response 200 ()
         (string-append "https://git.wisp.town/" repo-key)))))
 
@@ -168,7 +175,7 @@
 ;; let's see what requests git makes
 ;;
 
-(defun cgi-read-headers (headers reader)
+(defun cgi-read-headers! (headers reader)
   (let ((line (await (js-call reader "readString" "\n"))))
     (when (> (string-length line) 2)
       (let* ((parts (split-string line ": "))
@@ -178,7 +185,7 @@
                              0
                              (- (string-length (second parts)) 2))))
         (js-call headers "append" header value)
-        (cgi-read-headers headers reader)))))
+        (cgi-read-headers! headers reader)))))
 
 (defun drop (n xs)
   (if (eq? n 0)
@@ -194,47 +201,71 @@
                                          "pathname")
                                  "/"))))))
 
-(defun git-cgi-exec (req repo)
-  (let* ((method (js-get req "method"))
-         (post? (equal? method "POST"))
-         (cgi-headers
-           (append
-            (list "REQUEST_METHOD" method
-                  "QUERY_STRING" (if post? ""
-                                   (string-drop 1
-                                                (js-get (new <url> (js-get req "url"))
-                                                        "search")))
-                  "REMOTE_USER" "git"
-                  "REMOTE_ADDR" "wisp.town"
-                  "GIT_HTTP_EXPORT_ALL" "1"
-                  "GIT_PROJECT_ROOT" "."
-                  "PATH_INFO" (drop-path-prefix 2 req))
-            (apply #'append
-                   (map (fn (entry)
-                          (list (cgi-fix-header-name
-                                 (string-append
-                                  "HTTP_"
-                                  (string-to-uppercase
-                                   (join-strings
-                                    "_"
-                                    (split-string (vector-get entry 0) "-")))))
-                                (vector-get entry 1)))
-                        (iterator-values (js-call (js-get req "headers")
-                                             "entries"))))))
+(defun request-url (req)
+  (new <url> (js-get req "url")))
+
+(defun request-query-string (req)
+  (string-drop 1 (js-get (request-url req) "search")))
+
+(defun request-method (req)
+  (js-get req "method"))
+
+(defun post-request? (req)
+  (equal? (request-method req) "POST"))
+
+(defun git-cgi-headers (req &optional user-key)
+  (append
+   (list "REQUEST_METHOD" (request-method req)
+         "QUERY_STRING" (if (post-request? req) ""
+                          (request-query-string req))
+         "WISP_USER_KEY" (or user-key "")
+         "REMOTE_USER" "git"
+         "REMOTE_ADDR" "wisp.town"
+         "GIT_HTTP_EXPORT_ALL" "1"
+         "GIT_PROJECT_ROOT" "."
+         "PATH_INFO" (drop-path-prefix 2 req))
+   (apply #'append
+          (map (fn (entry)
+                 (list (cgi-fix-header-name
+                        (string-append
+                         "HTTP_"
+                         (string-to-uppercase
+                          (join-strings
+                           "_"
+                           (split-string (vector-get entry 0) "-")))))
+                       (vector-get entry 1)))
+               (iterator-values (js-call (js-get req "headers")
+                                    "entries"))))))
+
+(defun pipe-stream! (src dst)
+  (js-call src "pipeTo" dst))
+
+(defun request-body (req)
+  (js-get req "body"))
+
+(defun process-stdin (process)
+  (js-get* process '("stdin" "writable")))
+
+(defun reader-stream (reader)
+  (js-call <conversion> "readableStreamFromReader" reader))
+
+(defun git-cgi-exec (req repo &optional user-key)
+  (let* ((cgi-headers (git-cgi-headers req user-key))
          (process (js-call <deno> "run"
                     (js-object "cwd" (string-append "git/" repo)
                                "env" (apply #'js-object cgi-headers)
                                "cmd" (vector-from-list '("git" "http-backend"))
-                               "stdin" (if post? "piped" nil)
+                               "stdin" (if (post-request? req) "piped" nil)
                                "stdout" "piped"
                                )))
-         (reader (new <buffered-reader> (js-get process "stdout")))
-         (headers (new <headers>)))
-    (when post?
-      (js-call (js-get req "body") "pipeTo" (js-get* process '("stdin" "writable"))))
-    (cgi-read-headers headers reader)
-    (let* ((stream (js-call <conversion> "readableStreamFromReader" reader)))
-      (new <response> stream (js-object "headers" headers)))))
+         (stdout-reader (new <buffered-reader> (js-get process "stdout"))))
+    (when (post-request? req)
+      (pipe-stream! (request-body req)
+                    (process-stdin process)))
+    (let* ((headers (new <headers>)))
+      (cgi-read-headers! headers stdout-reader)
+      (new <response> (reader-stream stdout-reader)
+           (js-object "headers" headers)))))
 
 (defroute ("GET" "git" repo "info" "refs") req
   (git-cgi-exec req repo))
@@ -243,7 +274,8 @@
   (git-cgi-exec req repo))
 
 (defroute ("POST" "git" repo "git-receive-pack") req
-  (git-cgi-exec req repo))
+  (with-authentication (req user-key)
+    (git-cgi-exec req repo user-key)))
 
 (defroute ("POST" "git" repo "git-upload-pack") req
   (git-cgi-exec req repo))

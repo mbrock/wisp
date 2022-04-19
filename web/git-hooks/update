@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+if [ -z "$WISP_USER_KEY" ]; then
+  echo no authentication token provided
+  exit 1
+fi
+
+for x in $(git config --get-all wisp.auth.push); do
+  if [[ "$x" == "$WISP_USER_KEY" ]]; then
+    echo authenticated "$x"
+    exit 0
+  fi
+done
+
+echo user not authorized to push
+exit 1
