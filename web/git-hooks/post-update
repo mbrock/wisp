@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+# Our repositories are not working trees,
+# but Isomorphic-Git seems to want HEADs.
+
+# XXX: configurable main branch
+
+git symbolic-ref HEAD refs/heads/master

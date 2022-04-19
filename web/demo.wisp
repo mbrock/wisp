@@ -1,4 +1,9 @@
-(auth0-get-token)
+(defvar *repo* (new-remote-repository!))
+(git-clone! *repo*)
+(save-file-code! (string-append "/" *repo* "/index.wisp"))
+(git-add! *repo* "index.wisp")
+(git-commit! *repo* "Alice Hacker" "alice@example.org" "first commit")
+(git-push! )
 
 (vector-for-each (readdir "/wisp6")
   (fn (x)

@@ -401,7 +401,7 @@ export function domCode(root) {
   const data = root.dataset
   if (root.matches(".cursor")) {
     return " "
-  } else if (root.matches("#file")) {
+  } else if (root.matches("main")) {
     let items = [].slice.call(root.children).map(domCode)
     return `${items.join("\n")}`
   } else if (root.matches(".symbol")) {

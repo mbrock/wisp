@@ -5,10 +5,19 @@
 (defvar +jwt-params+ (js-object "issuer" +jwt-issuer+
                                 "audience" +jwt-audience+))
 
+(defvar +liberal-cors-headers+
+  '("Access-Control-Allow-Origin" "*"
+    "Access-Control-Allow-Methods" "POST, GET, OPTIONS"
+    "Access-Control-Allow-Credentials" "true"
+    "Access-Control-Allow-Headers" "Content-Type, Authorization"))
+
 (defvar <url> (js-get *window* "URL"))
 (defvar <response> (js-get *window* "Response"))
 (defvar <deno> (js-get *window* "Deno"))
 (defvar <headers> (js-get *window* "Headers"))
+
+(defun getenv (v)
+  (js-call (js-get <deno> "env") "get" v))
 
 (defun deno-import-module (path)
   (await
@@ -160,11 +169,9 @@
       (with *cwd* repo-path
         (run-command! "git" "init" "--bare")
         (run-command! "git" "config" "core.hooksPath" "../../git-hooks")
-        (run-command! "git" "config" "wisp.auth.push" user-key)
-        )
+        (run-command! "git" "config" "wisp.auth.push" user-key))
 
-      (response 200 ()
-        (string-append "https://git.wisp.town/" repo-key)))))
+      (response 200 +liberal-cors-headers+ repo-key))))
 
 
 
@@ -175,6 +182,10 @@
 ;; let's see what requests git makes
 ;;
 
+(defun add-header! (headers key value)
+  (js-call headers "append" key value)
+  )
+
 (defun cgi-read-headers! (headers reader)
   (let ((line (await (js-call reader "readString" "\n"))))
     (when (> (string-length line) 2)
@@ -184,7 +195,7 @@
                (string-slice (second parts)
                              0
                              (- (string-length (second parts)) 2))))
-        (js-call headers "append" header value)
+        (add-header! headers header value)
         (cgi-read-headers! headers reader)))))
 
 (defun drop (n xs)
@@ -264,6 +275,8 @@
                     (process-stdin process)))
     (let* ((headers (new <headers>)))
       (cgi-read-headers! headers stdout-reader)
+      (add-header! headers "Access-Control-Allow-Origin" "*")
+      (add-header! headers "Access-Control-Allow-Credentials" "true")
       (new <response> (reader-stream stdout-reader)
            (js-object "headers" headers)))))
 
@@ -279,6 +292,18 @@
 
 (defroute ("POST" "git" repo "git-upload-pack") req
   (git-cgi-exec req repo))
+
+(defroute ("OPTIONS" "git" repo "git-upload-pack") req
+  (response 204 +liberal-cors-headers+))
+
+(defroute ("OPTIONS" "git" repo "git-receive-pack") req
+  (response 204 +liberal-cors-headers+))
+
+(defroute ("OPTIONS" "git" repo "info" anything) req
+  (response 204 +liberal-cors-headers+))
+
+(defroute ("OPTIONS" "git") req
+  (response 204 +liberal-cors-headers+))
 
 (defun iterator-values (it &optional acc)
   (let ((next (js-call it "next")))

@@ -251,7 +251,7 @@ function wisplang(symbols) {
 }
 
 
-window.fs = new git.fs("wisp")
+window.fs = new git.fs("wisp", { wipe: true })
 window.git = git.git
 window.git_http = git.http
 

@@ -5,7 +5,7 @@
 (defvar *render-sexp-callback* (make-callback 'do-render-sexp))
 
 (defun draw-app (forms)
-  (tag :article '((:class "active"))
+  (tag :article '((:class "file active"))
     (tag :main ()
       (tag :ins '((:class "cursor")) nil)
       (for-each forms #'render-sexp))
@@ -448,30 +448,36 @@
 
 (defun auth0-login ()
   (set! *auth0* (new-auth0-client))
+  (js-set! *window* "auth0" *auth0*)
   (await (js-call *auth0* "loginWithPopup"
-                  (js-object "audience" "https://api.wisp.town"
-                             "scope" "create:repositories")))
+           (js-object "audience" "https://api.wisp.town"
+                      "scope" "create:repositories"
+                      "prompt" "login")))
   (set! *user* (await (js-call *auth0* "getUser")))
+  (log "user")
+  (log *user*)
   (when *user*
     (vector "email" (js-get *user* "email")
             "name" (js-get *user* "name"))))
 
+(defun login! () (auth0-login))
+
 (defun auth0-get-token ()
   (when (not *user*)
-    (auth0-login))
-  (await (js-call *auth0* "getTokenWithPopup"
+    (login!))
+  (await (js-call *auth0* "getTokenSilently"
            (js-object "audience" "https://api.wisp.town"
                       "scope" "create:repositories"))))
 
-(defun town-request (method path)
+(defun api-request! (method path)
   (fetch (string-append "http://localhost:8000" path)
          "method" method
          "headers"
          (js-object "Authorization"
                     (string-append "Bearer " (auth0-get-token)))))
 
-(defun town-create-repo ()
-  (response-text (town-request "POST" "/git")))
+(defun new-remote-repository! ()
+  (response-text (api-request! "POST" "/git")))
 
 (defun dwim! ()
   (let* ((next (element-sibling (cursor) :forward))
