@@ -43,6 +43,7 @@
      (note 1)
      (do 0)
      (for-each-vector-index 1)
+     (with 2)
      ))
 
   (common-lisp-set-style "wisp"))

@@ -45,6 +45,9 @@
   (js-call <jose> "createRemoteJWKSet"
     (new <url> +jwks-url+)))
 
+(defun copy-file! (src dst)
+  (await (js-call <fs> "copy" src dst)))
+
 (defun serve (port handler)
   (await
    (returning
@@ -156,53 +159,6 @@
 (defun request-accepts? (req type)
   (find (request-accept-types req) (fn (x) (equal? x type))))
 
-
-(defun copy-file! (src dst)
-  (await (js-call <fs> "copy" src dst)))
-
-
-(defroute ("POST" "git") req
-  (with-authentication (req user-key)
-    (let* ((repo-key (symbol-name (genkey!)))
-           (repo-path (string-append "git/" repo-key)))
-      (mkdir-recursive! repo-path)
-      (with *cwd* repo-path
-        (run-command! "git" "init" "--bare")
-        (run-command! "git" "config" "core.hooksPath" "../../git-hooks")
-        (run-command! "git" "config" "wisp.auth.push" user-key))
-
-      (response 200 +liberal-cors-headers+ repo-key))))
-
-
-
-;; we want to be our own git repository backend
-;;
-;; all we need to do is just call git with cgi
-;;
-;; let's see what requests git makes
-;;
-
-(defun add-header! (headers key value)
-  (js-call headers "append" key value)
-  )
-
-(defun cgi-read-headers! (headers reader)
-  (let ((line (await (js-call reader "readString" "\n"))))
-    (when (> (string-length line) 2)
-      (let* ((parts (split-string line ": "))
-             (header (head parts))
-             (value
-               (string-slice (second parts)
-                             0
-                             (- (string-length (second parts)) 2))))
-        (add-header! headers header value)
-        (cgi-read-headers! headers reader)))))
-
-(defun drop (n xs)
-  (if (eq? n 0)
-      xs
-    (drop (- n 1) (tail xs))))
-
 (defun drop-path-prefix (n req)
   (string-append "/"
                  (join-strings
@@ -224,17 +180,32 @@
 (defun post-request? (req)
   (equal? (request-method req) "POST"))
 
-(defun git-cgi-headers (req &optional user-key)
+(defun add-header! (headers key value)
+  (js-call headers "append" key value))
+
+(defun drop (n xs)
+  (if (eq? n 0)
+      xs
+    (drop (- n 1) (tail xs))))
+
+(defun cgi-read-headers! (headers reader)
+  (let ((line (await (js-call reader "readString" "\n"))))
+    (when (> (string-length line) 2)
+      (let* ((parts (split-string line ": "))
+             (header (head parts))
+             (value
+               (string-slice (second parts)
+                             0
+                             (- (string-length (second parts)) 2))))
+        (add-header! headers header value)
+        (cgi-read-headers! headers reader)))))
+
+(defun cgi-headers (req path-prefix-drop-count)
   (append
    (list "REQUEST_METHOD" (request-method req)
          "QUERY_STRING" (if (post-request? req) ""
                           (request-query-string req))
-         "WISP_USER_KEY" (or user-key "")
-         "REMOTE_USER" "git"
-         "REMOTE_ADDR" "wisp.town"
-         "GIT_HTTP_EXPORT_ALL" "1"
-         "GIT_PROJECT_ROOT" "."
-         "PATH_INFO" (drop-path-prefix 2 req))
+         "PATH_INFO" (drop-path-prefix path-prefix-drop-count req))
    (apply #'append
           (map (fn (entry)
                  (list (cgi-fix-header-name
@@ -260,25 +231,57 @@
 (defun reader-stream (reader)
   (js-call <conversion> "readableStreamFromReader" reader))
 
-(defun git-cgi-exec (req repo &optional user-key)
-  (let* ((cgi-headers (git-cgi-headers req user-key))
+(defvar *env* (make-parameter 'env nil))
+
+(defun cgi (req path-drop-count cmd)
+  (let* ((cgi-env (append (cgi-headers req path-drop-count)
+                          (parameter *env*)))
          (process (js-call <deno> "run"
-                    (js-object "cwd" (string-append "git/" repo)
-                               "env" (apply #'js-object cgi-headers)
-                               "cmd" (vector-from-list '("git" "http-backend"))
+                    (js-object "cwd" (parameter *cwd*)
+                               "env" (apply #'js-object cgi-env)
+                               "cmd" (vector-from-list cmd)
                                "stdin" (if (post-request? req) "piped" nil)
-                               "stdout" "piped"
-                               )))
+                               "stdout" "piped")))
          (stdout-reader (new <buffered-reader> (js-get process "stdout"))))
     (when (post-request? req)
       (pipe-stream! (request-body req)
                     (process-stdin process)))
     (let* ((headers (new <headers>)))
       (cgi-read-headers! headers stdout-reader)
-      (add-header! headers "Access-Control-Allow-Origin" "*")
-      (add-header! headers "Access-Control-Allow-Credentials" "true")
       (new <response> (reader-stream stdout-reader)
            (js-object "headers" headers)))))
+
+(defun add-cors-headers! (response)
+  (let ((headers (js-get response "headers")))
+    (do (add-header! headers "Access-Control-Allow-Origin" "*")
+        (add-header! headers "Access-Control-Allow-Credentials" "true"))))
+
+
+
+;;; * wisp.town git hosting
+
+(defroute ("POST" "git") req
+  (with-authentication (req user-key)
+    (let* ((repo-key (symbol-name (genkey!)))
+           (repo-path (string-append "git/" repo-key)))
+      (mkdir-recursive! repo-path)
+      (with *cwd* repo-path
+        (run-command! "git" "init" "--bare")
+        (run-command! "git" "config" "core.hooksPath" "../../git-hooks")
+        (run-command! "git" "config" "wisp.auth.push" user-key))
+      (response 200 +liberal-cors-headers+ repo-key))))
+
+(defun git-cgi-exec (req repo &optional user-key)
+  (let ((response
+            (with *env* (list "WISP_USER_KEY" (or user-key "")
+                              "REMOTE_USER" "git"
+                              "REMOTE_ADDR" "wisp.town"
+                              "GIT_HTTP_EXPORT_ALL" "1"
+                              "GIT_PROJECT_ROOT" ".")
+              (with *cwd* (string-append "git/" repo)
+                (cgi req 2 '("git" "http-backend"))))))
+    (returning response
+      (add-cors-headers! response))))
 
 (defroute ("GET" "git" repo "info" "refs") req
   (git-cgi-exec req repo))
