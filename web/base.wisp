@@ -36,10 +36,14 @@
   (js-call (js-get *window* "JSON") "parse" str))
 
 (defun js-then (p f)
-  (js-call p "then" (make-pinned-value f)))
+  (if (promise? p)
+      (js-call p "then" (make-pinned-value f))
+    (call f p)))
 
 (defun js-catch (p f)
-  (js-call p "catch" (make-pinned-value f)))
+  (if (promise? p)
+      (js-call p "catch" (make-pinned-value f))
+    p))
 
 (defun async (f)
   (call-with-prompt :async f
@@ -214,7 +218,7 @@
         (error `(command-error (cwd ,cwd) (cmd ,cmd)))))))
 
 (defun mkdir-recursive! (path)
-  (await-call <deno> "mkdir" path (js-object "recursive" t)))
+  (await (js-call  <deno> "mkdir" path (js-object "recursive" t))))
 
 (defun response (status headers &optional body)
   (new <response> body

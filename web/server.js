@@ -34,7 +34,9 @@ globalThis.document = (new DOM.DOMParser()).parseFromString(
 )
 
 globalThis.wisp = {
-  "import": x => import(x),
+  "import": x => {
+    return import(x)
+  },
 }
 
 const wasd = new WASD
@@ -50,18 +52,6 @@ const wasmInstance = new WebAssembly.Instance(wasmModule, {
 wasiContext.initialize(wasmInstance)
 const wisp = new Wisp(wasmInstance)
 wasd.setWisp(wisp)
-
-function execAsync(code) {
-  const src = wisp.read(`
-    (with-simple-error-handler ()
-      (async
-        (fn ()
-          ${code}
-        )))
-  `)
-  const run = wisp.api.wisp_run_init(wisp.heap, src)
-  return wisp.api.wisp_run_eval(wisp.heap, run, 4_000_000)
-}
 
 function exec(code) {
   const src = wisp.read(`
@@ -79,6 +69,7 @@ async function load(filename, inAsync) {
   if (inAsync) script = `
     (with-simple-error-handler () (async (fn ()
       ${script}
+      nil
     )))
   `
   const result = exec(script)
@@ -90,4 +81,5 @@ async function load(filename, inAsync) {
 
 await load("base.wisp", false)
 await load("dexp.wisp", false)
+await load("deno.wisp", true)
 await load(Deno.args[0], true)

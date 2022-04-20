@@ -207,42 +207,6 @@
 ;;           actor
 ;;         (find-actor (tail actors) pid)))))
 
-(defun remove (list element)
-  (if (nil? list) nil
-    (let ((head (head list)))
-      (if (equal? head element)
-          (tail list)
-        (cons head (remove (tail list) element))))))
-
-(defun find (list predicate)
-  (if (nil? list)
-      nil
-    (let ((x (head list)))
-      (if (call predicate x)
-          (cons x nil)
-        (find (tail list) predicate)))))
-
-(defun find-result (list predicate)
-  (if (nil? list)
-      nil
-    (let* ((x (head list))
-           (result (call predicate x)))
-      (if result
-          (cons x result)
-        (find-result (tail list) predicate)))))
-
-(defun %filter (list predicate acc)
-  (if (nil? list)
-      (reverse acc)
-    (let* ((x (head list))
-           (next-acc (if (call predicate x)
-                         (cons x acc)
-                       acc)))
-      (%filter (tail list) predicate next-acc))))
-
-(defun filter (list predicate)
-  (%filter list predicate nil))
-
 ;; (defun make-queue (items)
 ;;   (list items))
 

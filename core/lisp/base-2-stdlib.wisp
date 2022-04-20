@@ -288,3 +288,42 @@
   (when (< i (vector-length vector))
     (call function (vector-get vector i))
     (vector-each-loop vector function (+ i 1))))
+
+(defun remove (list element)
+  (if (nil? list) nil
+    (let ((head (head list)))
+      (if (equal? head element)
+          (tail list)
+        (cons head (remove (tail list) element))))))
+
+(defun find (list predicate)
+  (if (nil? list)
+      nil
+    (let ((x (head list)))
+      (if (call predicate x)
+          (cons x nil)
+        (find (tail list) predicate)))))
+
+(defun includes? (list item)
+  (find list (fn (x) (equal? x item))))
+
+(defun find-result (list predicate)
+  (if (nil? list)
+      nil
+    (let* ((x (head list))
+           (result (call predicate x)))
+      (if result
+          (cons x result)
+        (find-result (tail list) predicate)))))
+
+(defun %filter (list predicate acc)
+  (if (nil? list)
+      (reverse acc)
+    (let* ((x (head list))
+           (next-acc (if (call predicate x)
+                         (cons x acc)
+                       acc)))
+      (%filter (tail list) predicate next-acc))))
+
+(defun filter (list predicate)
+  (%filter list predicate nil))
