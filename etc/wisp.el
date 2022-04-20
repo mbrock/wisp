@@ -31,7 +31,7 @@
      (run-command! 1)
      (authenticate! 1)
      (find-result 1)
-     (defroute 2)
+     (defroute 1)
      (authenticate! 1)
      (find 1)
      (section 1)
@@ -44,6 +44,7 @@
      (do 0)
      (for-each-vector-index 1)
      (with 2)
+     (binding 1)
      ))
 
   (common-lisp-set-style "wisp"))

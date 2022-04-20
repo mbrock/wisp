@@ -40,7 +40,7 @@ pub fn ColEnum(comptime t: Tag) type {
     return switch (t) {
         .int, .sys, .chr, .jet, .pin => void,
         .duo => enum { car, cdr },
-        .sym => enum { str, pkg, val, fun },
+        .sym => enum { str, pkg, val, fun, dyn },
         .fun => enum { env, par, exp, sym },
         .mac => enum { env, par, exp, sym },
         .v08 => enum { idx, len },
@@ -64,6 +64,7 @@ pub const Kwd = enum {
     @"&BODY",
     @"&OPTIONAL",
 
+    BINDING,
     COND,
     DEFUN,
     IF,
@@ -494,6 +495,18 @@ pub const Heap = struct {
         return heap.col(tag, c)[ref(p)];
     }
 
+    pub fn getptr(
+        heap: *Heap,
+        comptime tag: Tag,
+        comptime c: Col(tag),
+        p: u32,
+    ) !*u32 {
+        if (Wisp.tagOf(p) != tag)
+            return error.UnexpectedPointerTag;
+
+        return &(heap.col(tag, c)[ref(p)]);
+    }
+
     pub fn set(
         heap: *Heap,
         comptime tag: Tag,
@@ -599,6 +612,7 @@ pub const Heap = struct {
             .val = nah,
             .pkg = pkg,
             .fun = nil,
+            .dyn = nil,
         });
     }
 

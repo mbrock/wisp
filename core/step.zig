@@ -115,6 +115,17 @@ fn findVariable(step: *Step, sym: u32) !void {
         return;
     }
 
+    const dyn = try step.heap.get(.sym, .dyn, sym);
+    if (dyn != nil) {
+        if (try step.findDynamicBinding(sym)) |ktx| {
+            step.give(.val, try step.heap.get(.ktx, .arg, ktx));
+            return;
+        }
+
+        // If dynamic variable has no dynamic binding, treat it
+        // as a lexical variable.
+    }
+
     var cur = step.run.env;
     while (cur != nil) {
         var curduo = try step.heap.row(.duo, cur);
@@ -140,6 +151,24 @@ fn findVariable(step: *Step, sym: u32) !void {
             step.give(.val, x);
         },
     }
+}
+
+pub fn findDynamicBinding(step: *Step, name: u32) !?u32 {
+    var cur = step.run.way;
+
+    while (cur != top) {
+        const fun = try step.heap.get(.ktx, .fun, cur);
+        if (fun == step.heap.kwd.BINDING) {
+            const acc = try step.heap.get(.ktx, .acc, cur);
+            if (acc == name) {
+                return cur;
+            }
+        }
+
+        cur = try step.heap.get(.ktx, .hop, cur);
+    }
+
+    return null;
 }
 
 pub fn fail(step: *Step, xs: []const u32) !void {
@@ -475,6 +504,11 @@ const Ktx = struct {
         step.run.env = ktx.env;
     }
 
+    fn BINDING(step: *Step, ktx: Row(.ktx)) !void {
+        step.run.way = ktx.hop;
+        step.run.env = ktx.env;
+    }
+
     fn DO(step: *Step, ktx: Row(.ktx)) !void {
         if (ktx.arg == nil) {
             step.run.way = ktx.hop;
@@ -594,6 +628,8 @@ pub fn execKtx(step: *Step, ktx: Row(.ktx)) !void {
         try Ktx.LET(step, ktx)
     else if (ktx.fun == step.heap.kwd.PROMPT)
         try Ktx.PROMPT(step, ktx)
+    else if (ktx.fun == step.heap.kwd.BINDING)
+        try Ktx.BINDING(step, ktx)
     else if (ktx.fun == step.heap.kwd.EVAL)
         try Ktx.EVAL(step, ktx)
     else switch (tagOf(ktx.fun)) {

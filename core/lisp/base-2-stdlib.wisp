@@ -138,43 +138,19 @@
          (fn () ,body)
        (fn ,handler-args ,@handler-body))))
 
+(defmacro defparameter (parameter value)
+  `(do (defvar ,parameter ,value)
+       (set-symbol-dynamic! ',parameter t)))
 
-
-;;; * Parameters with dynamic scope
-;;;
-;;; A dynamic binding is just a prompt with a handler that
-;;; resumes its continuation with the binding's value.
-;;;
-;;; Each dynamic variable ("parameter") has its own prompt tag.
-;;; The prompt tag is the value returned by ~MAKE-PARAMETER~.
-;;;
-;;; We also allow "mutating" the current dynamic binding of a
-;;; parameter by sending a singleton list to its prompt.
-;;;
-;;; If we had something like ~DEFINE-SYMBOL-MACRO~, we could
-;;; access parameters as if they were variables... that would
-;;; be nice.
+(defun %binding (clauses body)
+  (if (nil? clauses) `(do ,@body)
+    (let ((clause (head clauses)))
+      `(call-with-binding ',(head clause) ,(second clause)
+                          (fn ()
+                            ,(%binding (tail clauses) body))))))
 
-(defun make-parameter (name default-value)
-  (list name default-value))
-
-(defun parameter (parameter)
-  (let ((default (second parameter)))
-    (send-with-default! parameter 'get default)))
-
-(defun call-with-parameter (parameter value function)
-  (call-with-prompt parameter function
-    (fn (request continuation)
-      (let ((next-value (if (eq? request 'get)
-                            value
-                            (head request))))
-        (call-with-parameter parameter next-value
-          (fn () (call continuation next-value)))))))
-
-(defmacro with (parameter value &rest body)
-  `(call-with-parameter ,parameter ,value
-     (fn () ,@body)))
-
+(defmacro binding (clauses &rest body)
+  (%binding clauses body))
 
 
 ;;; * Macroexpansion
@@ -188,7 +164,7 @@
 (defun iterative-fixpoint (f x)
   (let ((y (call f x)))
     (if (eq? x y) x
-        (iterative-fixpoint f y))))
+      (iterative-fixpoint f y))))
 
 (defun macroexpand (form)
   (iterative-fixpoint #'macroexpand-1 form))

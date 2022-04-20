@@ -194,19 +194,19 @@
 
 ;;;;;
 
-(defmacro defroute (pattern req-var &rest body)
-  `(install-route ',pattern (fn (,req-var ,@(filter pattern #'symbol?))
+(defmacro defroute (pattern &rest body)
+  `(install-route ',pattern (fn (,@(filter pattern #'symbol?))
                               ,(prognify body))))
 
 (defmacro with-authentication (clause &rest body)
-  `(authenticate! ,(head clause) (fn (,(second clause)) ,@body)))
+  `(authenticate! (fn (,(head clause)) ,@body)))
 
-(defvar *env* (make-parameter 'env ()))
-(defvar *cwd* (make-parameter 'cwd "."))
+(defparameter *env* nil)
+(defparameter *cwd* ".")
 
 (defun run-command! (&rest cmd)
-  (let ((env (parameter *env*))
-        (cwd (parameter *cwd*)))
+  (let ((env *env*)
+        (cwd *cwd*))
     (print `(run-command! :cwd ,cwd :env ,env :cmd ,cmd))
     (let* ((process (js-call <deno> "run"
                       (js-object "cwd" cwd
@@ -221,10 +221,7 @@
   (await (js-call  <deno> "mkdir" path (js-object "recursive" t))))
 
 (defun response (status headers &optional body)
-  (new <response> body
-       (js-object "status" status
-                  "headers" (apply #'js-object headers))))
-
+  (vector status (apply #'js-object headers) body))
 
 (defvar <speech-recognition> (js-get *window* "webkitSpeechRecognition"))
 (defvar <speech-grammar-list> (js-get *window* "webkitSpeechGrammarList"))

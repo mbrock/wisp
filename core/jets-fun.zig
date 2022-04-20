@@ -189,6 +189,15 @@ pub fn @"SET-SYMBOL-VALUE!"(
     step.give(.val, val);
 }
 
+pub fn @"SET-SYMBOL-DYNAMIC!"(
+    step: *Step,
+    sym: u32,
+    dyn: u32,
+) anyerror!void {
+    try step.heap.set(.sym, .dyn, sym, dyn);
+    step.give(.val, dyn);
+}
+
 pub fn @"FUNCTION-NAME"(step: *Step, fun: u32) anyerror!void {
     step.give(.val, switch (tagOf(fun)) {
         .fun => try step.heap.get(.fun, .sym, fun),
@@ -485,6 +494,25 @@ pub fn @"CALL-WITH-PROMPT"(
     try step.call(THUNK, nil, false);
 }
 
+pub fn @"CALL-WITH-BINDING"(
+    step: *Step,
+    SYMBOL: u32,
+    VALUE: u32,
+    THUNK: u32,
+) anyerror!void {
+    const ktx = try step.heap.new(.ktx, .{
+        .hop = step.run.way,
+        .env = step.run.env,
+        .fun = step.heap.kwd.BINDING,
+        .acc = SYMBOL,
+        .arg = VALUE,
+    });
+
+    step.run.way = ktx;
+
+    try step.call(THUNK, nil, false);
+}
+
 pub fn @"SEND-TO-WITH-DEFAULT!"(
     step: *Step,
     CONTINUATION: u32,
@@ -624,6 +652,13 @@ const ContinuationCopyResult = struct {
 };
 
 pub fn @"%SET!"(step: *Step, sym: u32, val: u32) anyerror!void {
+    if ((try step.heap.get(.sym, .dyn, sym)) != nil) {
+        if (try step.findDynamicBinding(sym)) |ktx| {
+            try step.heap.set(.ktx, .arg, ktx, val);
+            return step.give(.val, val);
+        }
+    }
+
     var cur = step.run.env;
     while (cur != nil) {
         var curduo = try step.heap.row(.duo, cur);

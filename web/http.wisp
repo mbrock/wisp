@@ -13,30 +13,43 @@
 (deno-import
  (<server> "https://deno.land/std@0.135.0/http/server.ts"))
 
+(defparameter *request* nil)
+(defparameter *response* nil)
+
+(defun set-response-status! (status)
+  (vector-set! *response* 0 status))
+
+(defun set-response-body! (body)
+  (vector-set! *response* 2 body))
+
 (defun serve (port handler)
   (await
    (returning
        (js-call <server> "serve"
-         (callback (req)
+         (callback (request)
            (async
             (fn ()
-              (let ((response
-                        (try (with-simple-error-handler ()
+              (binding ((*request* request)
+                        (*response* (vector 200 (new <headers>) nil)))
+                (try (with-simple-error-handler ()
                                (call-with-prompt :respond
-                                   (fn () (call handler req))
-                                 (fn (v k) v)))
+                                   (fn () (call handler))
+                                 (fn (v k) (set! *response* v))))
                           (catch (e k)
-                            (response 500 '() "oops")))))
-                (returning response
-                  (print `(status ,(js-get response "status"))))))))
+                            (set! *response*
+                                  (vector 500 nil "Internal Server Error"))))
+                (returning (new <response> (vector-get *response* 2)
+                                (js-object "status" (vector-get *response* 0)
+                                           "headers" (vector-get *response* 1)))
+                  (print `(status ,(vector-get *response* 0))))))))
          (js-object "port" port))
      (print `(http server port ,port)))))
 
-(defun request-header (req header)
-  (js-call (js-get req "headers") "get" header))
+(defun request-header (header)
+  (js-call (js-get *request* "headers") "get" header))
 
-(defun request-text (req)
-  (await (js-call req "text")))
+(defun request-text ()
+  (await (js-call *request* "text")))
 
 (defun bearer-token (authorization)
   (let ((parts (split-string authorization " ")))
@@ -50,11 +63,10 @@
 (defun string-drop (n s)
   (string-slice s n (string-length s)))
 
-(defun parse-request (req)
-  (cons (js-get req "method")
+(defun parse-request ()
+  (cons (js-get *request* "method")
         (split-string
-         (string-drop 1 (js-get (new <url> (js-get req "url"))
-                                "pathname"))
+         (string-drop 1 (js-get (request-url) "pathname"))
          "/")))
 
 (defvar *routes* nil)
@@ -79,55 +91,55 @@
         (t
          (send! 'route-mismatch (list pattern parts acc)))))))
 
-(defun route-request (req)
-  (let* ((parts (parse-request req)))
-    (print `(request ,(js-get req "url") ,parts))
+(defun route-request ()
+  (let* ((parts (parse-request)))
+    (print `(request ,(js-get *request* "url") ,parts))
     (for-each *routes*
       (fn (route)
         (let ((pattern (head route))
               (handler (second route)))
           (handle
               (let* ((bindings (match-route pattern parts ())))
-                (send! :respond (apply handler (cons req bindings))))
+                (send! :respond (returning *response*
+                                  (apply handler bindings))))
             (route-mismatch (v k) nil)))))
-    (response 404 () "nope\n")))
+    (response 404 nil "no route")))
 
-(defun request-accept-types (req)
-  (split-string (or (request-header req "accept") "text/plain") ", "))
+(defun request-accept-types ()
+  (split-string (or (request-header *request* "accept") "text/plain") ", "))
 
-(defun request-accepts? (req type)
-  (find (request-accept-types req) (fn (x) (equal? x type))))
+(defun request-accepts? (type)
+  (find (request-accept-types *request*) (fn (x) (equal? x type))))
 
-(defun drop-path-prefix (n req)
+(defun drop-path-prefix (n)
   (string-append "/"
                  (join-strings
                   "/"
                   (drop n (tail (split-string
-                                 (js-get (new <url> (js-get req "url"))
-                                         "pathname")
+                                 (js-get (request-url) "pathname")
                                  "/"))))))
 
-(defun request-url (req)
-  (new <url> (js-get req "url")))
+(defun request-url ()
+  (new <url> (js-get *request* "url")))
 
-(defun request-query-string (req)
-  (string-drop 1 (js-get (request-url req) "search")))
+(defun request-query-string ()
+  (string-drop 1 (js-get (request-url) "search")))
 
-(defun request-method (req)
-  (js-get req "method"))
+(defun request-method ()
+  (js-get *request* "method"))
 
-(defun post-request? (req)
-  (equal? (request-method req) "POST"))
+(defun post-request? ()
+  (equal? (request-method) "POST"))
 
-(defun add-header! (headers key value)
-  (js-call headers "append" key value))
+(defun add-header! (key value)
+  (js-call (response-headers) "append" key value))
 
 (defun drop (n xs)
   (if (eq? n 0)
       xs
     (drop (- n 1) (tail xs))))
 
-(defun cgi-read-headers! (headers reader)
+(defun cgi-read-headers! (reader)
   (let ((line (await (js-call reader "readString" "\n"))))
     (when (> (string-length line) 2)
       (let* ((parts (split-string line ": "))
@@ -136,15 +148,15 @@
                (string-slice (second parts)
                              0
                              (- (string-length (second parts)) 2))))
-        (add-header! headers header value)
-        (cgi-read-headers! headers reader)))))
+        (add-header! header value)
+        (cgi-read-headers! reader)))))
 
-(defun cgi-headers (req path-prefix-drop-count)
+(defun cgi-headers (path-prefix-drop-count)
   (append
-   (list "REQUEST_METHOD" (request-method req)
-         "QUERY_STRING" (if (post-request? req) ""
-                          (request-query-string req))
-         "PATH_INFO" (drop-path-prefix path-prefix-drop-count req))
+   (list "REQUEST_METHOD" (request-method)
+         "QUERY_STRING" (if (post-request?) ""
+                          (request-query-string))
+         "PATH_INFO" (drop-path-prefix path-prefix-drop-count))
    (apply #'append
           (map (fn (entry)
                  (list (cgi-fix-header-name
@@ -155,14 +167,16 @@
                            "_"
                            (split-string (vector-get entry 0) "-")))))
                        (vector-get entry 1)))
-               (iterator-values (js-call (js-get req "headers")
-                                    "entries"))))))
+               (iterator-values (js-call (request-headers) "entries"))))))
 
 (defun pipe-stream! (src dst)
   (js-call src "pipeTo" dst))
 
-(defun request-body (req)
-  (js-get req "body"))
+(defun request-headers ()
+  (js-get *request* "headers"))
+
+(defun request-body ()
+  (js-get *request* "body"))
 
 (defun process-stdin (process)
   (js-get* process '("stdin" "writable")))
@@ -170,30 +184,28 @@
 (defun reader-stream (reader)
   (js-call <conversion> "readableStreamFromReader" reader))
 
-(defvar *env* (make-parameter 'env nil))
-
-(defun cgi (req path-drop-count cmd)
-  (let* ((cgi-env (append (cgi-headers req path-drop-count)
-                          (parameter *env*)))
+(defun cgi (path-drop-count cmd)
+  (let* ((cgi-env (append (cgi-headers path-drop-count) *env*))
          (process (js-call <deno> "run"
-                    (js-object "cwd" (parameter *cwd*)
+                    (js-object "cwd" *cwd*
                                "env" (apply #'js-object cgi-env)
                                "cmd" (vector-from-list cmd)
-                               "stdin" (if (post-request? req) "piped" nil)
+                               "stdin" (if (post-request?) "piped" nil)
                                "stdout" "piped")))
          (stdout-reader (new <buffered-reader> (js-get process "stdout"))))
-    (when (post-request? req)
-      (pipe-stream! (request-body req)
+    (when (post-request?)
+      (pipe-stream! (request-body)
                     (process-stdin process)))
-    (let* ((headers (new <headers>)))
-      (cgi-read-headers! headers stdout-reader)
-      (new <response> (reader-stream stdout-reader)
-           (js-object "headers" headers)))))
+    (cgi-read-headers! stdout-reader)
+    (set-response-body! (reader-stream stdout-reader))))
 
-(defun add-cors-headers! (response)
-  (let ((headers (js-get response "headers")))
-    (do (add-header! headers "Access-Control-Allow-Origin" "*")
-        (add-header! headers "Access-Control-Allow-Credentials" "true"))))
+(defun response-headers ()
+  (vector-get *response* 1))
+
+(defun add-cors-headers! ()
+  (let ((headers (response-headers)))
+    (do (add-header! "Access-Control-Allow-Origin" "*")
+        (add-header! "Access-Control-Allow-Credentials" "true"))))
 
 (defun iterator-values (it &optional acc)
   (let ((next (js-call it "next")))

@@ -24,13 +24,13 @@
     (catch (e)
       (authentication-error!))))
 
-(defun jwt-authenticate! (req)
+(defun jwt-authenticate! ()
   (let ((result (jwt-verify
                  (or (bearer-token
-                      (or (request-header req "authorization")
+                      (or (request-header "authorization")
                           (authentication-error!)))
                      (authentication-error!)))))
     (js-get* result '("https://wisp.town" "key"))))
 
-(defun authenticate! (req f)
-  (call f (jwt-authenticate! req)))
+(defun authenticate! (f)
+  (call f (jwt-authenticate!)))
