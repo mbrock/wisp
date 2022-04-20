@@ -731,11 +731,11 @@ test "heap init with log" {
     const loglen1 = log.items.len;
     try std.testing.expect(loglen1 > 1000);
 
-    _ = try heap.new(.sym, .{ .str = 1, .val = 2, .pkg = 3, .fun = 4 });
+    _ = try heap.new(.sym, .{ .str = 1, .val = 2, .pkg = 3, .fun = 4, .dyn = 5 });
 
     const loglen2 = log.items.len;
     try std.testing.expectEqual(
-        @as(usize, 2 + 4 * 4),
+        @as(usize, 2 + 5 * 4),
         loglen2 - loglen1,
     );
 }

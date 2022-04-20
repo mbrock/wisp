@@ -304,8 +304,9 @@ fn scan(
     var scope = try tmp.alloc(u32, 2 * pars.items.len);
     defer tmp.free(scope);
 
-    var i: usize = 0;
-    var n: usize = 0;
+    var i: usize = 0; // how many pars we scanned
+    var n: usize = 0; // how many vars we bound
+    var m: usize = 0; // how many vals we used
 
     var optional: bool = false;
 
@@ -319,6 +320,7 @@ fn scan(
             );
 
             n = i + 1;
+            m = vals.items.len;
 
             break :loop;
         } else if (x == step.heap.kwd.@"&OPTIONAL") {
@@ -327,6 +329,7 @@ fn scan(
             scope[n * 2 + 0] = x;
             scope[n * 2 + 1] = vals.items[n];
             n = i + 1;
+            m += 1;
         } else if (optional) {
             scope[n * 2 + 0] = x;
             scope[n * 2 + 1] = nil;
@@ -339,6 +342,15 @@ fn scan(
                 fun,
             });
         }
+    }
+
+    if (m < vals.items.len) {
+        try step.fail(&[_]u32{
+            step.heap.kwd.@"PROGRAM-ERROR",
+            step.heap.kwd.@"INVALID-ARGUMENT-COUNT",
+            @intCast(u32, vals.items.len),
+            fun,
+        });
     }
 
     step.run.env = try step.heap.cons(
@@ -1279,6 +1291,6 @@ test "STRING-SLICE" {
     try expectEval(
         \\"BAR"
     ,
-        \\(string-slice "FOOBAR!" 3 3)
+        \\(string-slice "FOOBAR!" 3 (+ 3 3))
     );
 }
