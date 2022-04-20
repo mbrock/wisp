@@ -201,28 +201,6 @@
 (defmacro with-authentication (clause &rest body)
   `(authenticate! (fn (,(head clause)) ,@body)))
 
-(defparameter *env* nil)
-(defparameter *cwd* ".")
-
-(defun run-command! (&rest cmd)
-  (let ((env *env*)
-        (cwd *cwd*))
-    (print `(run-command! :cwd ,cwd :env ,env :cmd ,cmd))
-    (let* ((process (js-call <deno> "run"
-                      (js-object "cwd" cwd
-                                 "env" (apply #'js-object env)
-                                 "cmd" (vector-from-list cmd))))
-           (status (await (js-call process "status"))))
-      (if (eq? 0 (js-get status "code"))
-          t
-        (error `(command-error (cwd ,cwd) (cmd ,cmd)))))))
-
-(defun mkdir-recursive! (path)
-  (await (js-call  <deno> "mkdir" path (js-object "recursive" t))))
-
-(defun response (status headers &optional body)
-  (vector status (apply #'js-object headers) body))
-
 (defvar <speech-recognition> (js-get *window* "webkitSpeechRecognition"))
 (defvar <speech-grammar-list> (js-get *window* "webkitSpeechGrammarList"))
 
@@ -253,10 +231,6 @@
 (DEFVAR *GIT-HTTP* (JS-GET *WINDOW* "git_http"))
 (DEFVAR *FS* (JS-GET *WINDOW* "fs"))
 (DEFVAR *FILESYSTEM* (JS-GET *FS* "promises"))
-
-(defun rmdir-recursive! (path)
-  (await (js-call *filesystem* "rm" path (js-object "recursive" t
-                                                    "force" t))))
 
 (DEFUN GIT-CLONE (DIR URL REF DEPTH)
   (AWAIT (JS-CALL *FILESYSTEM* "mkdir" DIR))

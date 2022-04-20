@@ -60,7 +60,7 @@ function exec(code) {
    )
   `)
   const run = wisp.api.wisp_run_init(wisp.heap, src)
-  return wisp.api.wisp_run_eval(wisp.heap, run, 4_000_000)
+  return wisp.api.wisp_run_eval(wisp.heap, run, 0)
 }
 
 async function load(filename, inAsync) {

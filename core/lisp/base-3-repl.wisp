@@ -67,7 +67,7 @@
       (1 nil)
       (2 (do
            (write "value> ")
-           (call continuation (eval (read (read-line))))))
+           (call continuation (eval (read)))))
       (3 (error 'quit)))))
 
 (defun repl ()

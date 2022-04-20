@@ -1,7 +1,17 @@
 ;;; * wisp.town git hosting
 
+(setup-deno!)
+
 (load "http.wisp")
 (load "auth.wisp")
+
+(defvar *reader*
+  (new (js-get <text-proto-reader> "TextProtoReader")
+       (new <buffered-reader>
+            (js-get <deno> "stdin"))))
+
+(defun read ()
+  (read-from-string (await (js-call *reader* "readLine"))))
 
 (defun git-http-backend-cgi (repo &optional user-key)
   (binding ((*env* (list "WISP_USER_KEY" (or user-key "")
@@ -90,3 +100,4 @@
 
 
 (serve 8000 #'route-request)
+(repl)

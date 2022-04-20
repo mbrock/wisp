@@ -16,6 +16,9 @@
 (defparameter *request* nil)
 (defparameter *response* nil)
 
+(defun response (status headers &optional body)
+  (vector status (apply #'js-object headers) body))
+
 (defun set-response-status! (status)
   (vector-set! *response* 0 status))
 
@@ -23,27 +26,26 @@
   (vector-set! *response* 2 body))
 
 (defun serve (port handler)
-  (await
-   (returning
-       (js-call <server> "serve"
-         (callback (request)
-           (async
-            (fn ()
-              (binding ((*request* request)
-                        (*response* (vector 200 (new <headers>) nil)))
-                (try (with-simple-error-handler ()
-                               (call-with-prompt :respond
-                                   (fn () (call handler))
-                                 (fn (v k) (set! *response* v))))
-                          (catch (e k)
-                            (set! *response*
-                                  (vector 500 nil "Internal Server Error"))))
-                (returning (new <response> (vector-get *response* 2)
-                                (js-object "status" (vector-get *response* 0)
-                                           "headers" (vector-get *response* 1)))
-                  (print `(status ,(vector-get *response* 0))))))))
-         (js-object "port" port))
-     (print `(http server port ,port)))))
+  (returning
+      (js-call <server> "serve"
+        (callback (request)
+          (async
+           (fn ()
+             (binding ((*request* request)
+                       (*response* (vector 200 (new <headers>) nil)))
+               (try (with-simple-error-handler ()
+                      (call-with-prompt :respond
+                          (fn () (call handler))
+                        (fn (v k) (set! *response* v))))
+                 (catch (e k)
+                   (set! *response*
+                         (vector 500 nil "Internal Server Error"))))
+               (returning (new <response> (vector-get *response* 2)
+                               (js-object "status" (vector-get *response* 0)
+                                          "headers" (vector-get *response* 1)))
+                 (print `(status ,(vector-get *response* 0))))))))
+        (js-object "port" port))
+    (print `(http server port ,port))))
 
 (defun request-header (header)
   (js-call (js-get *request* "headers") "get" header))
@@ -190,7 +192,7 @@
                     (js-object "cwd" *cwd*
                                "env" (apply #'js-object cgi-env)
                                "cmd" (vector-from-list cmd)
-                               "stdin" (if (post-request?) "piped" nil)
+                               "stdin" (if (post-request?) "piped" "null")
                                "stdout" "piped")))
          (stdout-reader (new <buffered-reader> (js-get process "stdout"))))
     (when (post-request?)
