@@ -608,15 +608,7 @@ pub const Heap = struct {
         });
     }
 
-    pub fn intern(heap: *Heap, txt: []const u8, pkgptr: u32) !u32 {
-        if (pkgptr == heap.base) {
-            if (std.mem.eql(u8, txt, "NIL")) {
-                return nil;
-            } else if (std.mem.eql(u8, txt, "T")) {
-                return Wisp.t;
-            }
-        }
-
+    fn findSymbol(heap: *Heap, txt: []const u8, pkgptr: u32) !?u32 {
         const symstrs = heap.vat.sym.list.items(.str);
         const pkg = try heap.row(.pkg, pkgptr);
         var duoptr = pkg.sym;
@@ -631,11 +623,42 @@ pub const Heap = struct {
             }
         }
 
-        const symptr = try heap.newSymbol(txt, pkgptr);
+        return null;
+    }
 
-        try heap.set(.pkg, .sym, pkgptr, try heap.cons(symptr, pkg.sym));
+    fn findSymbolInPackages(heap: *Heap, txt: []const u8, pkgs: u32) !?u32 {
+        var duoptr = pkgs;
+        while (duoptr != nil) {
+            const duo = try heap.row(.duo, duoptr);
+            if (try heap.findSymbol(txt, duo.car)) |sym| {
+                return sym;
+            } else {
+                duoptr = duo.cdr;
+            }
+        }
+        return null;
+    }
 
-        return symptr;
+    pub fn intern(heap: *Heap, txt: []const u8, pkgptr: u32) !u32 {
+        if (pkgptr == heap.base) {
+            if (std.mem.eql(u8, txt, "NIL")) {
+                return nil;
+            } else if (std.mem.eql(u8, txt, "T")) {
+                return Wisp.t;
+            }
+        }
+
+        const pkg = try heap.row(.pkg, pkgptr);
+
+        if (try heap.findSymbol(txt, pkgptr)) |sym| {
+            return sym;
+        } else if (try heap.findSymbolInPackages(txt, pkg.use)) |sym| {
+            return sym;
+        } else {
+            const sym = try heap.newSymbol(txt, pkgptr);
+            try heap.set(.pkg, .sym, pkgptr, try heap.cons(sym, pkg.sym));
+            return sym;
+        }
     }
 
     pub fn genkey(heap: *Heap) !u32 {

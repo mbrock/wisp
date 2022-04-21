@@ -306,8 +306,11 @@
 
 (defun %defpackage-clause (pkg-sym clause)
   (ecase (head clause)
-    (:use `(package-set-uses! ,pkg-sym
-                              (list ,@(map #'symbol-name (tail clause)))))))
+    (:use `(package-set-uses!
+            ,pkg-sym
+            (list ,@(map (fn (name)
+                           `(find-package ,(symbol-name name)))
+                         (tail clause)))))))
 
 (defun %%defpackage (name clauses)
   (let ((pkg-sym (fresh-symbol!)))
