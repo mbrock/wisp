@@ -26,6 +26,8 @@ const Heap = Wisp.Heap;
 
 const Error = error{
     ReadError,
+    NoSuchPackage,
+    ColonInSymbolName,
     EOF,
 };
 
@@ -312,7 +314,7 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
             return sym;
         }
 
-        fn readSymbol(self: *@This(), pkg: u32) !u32 {
+        fn readSymbol(self: *@This(), curpkg: u32) !u32 {
             const text = try self.readWhile(isSymbolCharacterOrDigit);
             defer text.deinit();
 
@@ -323,7 +325,20 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
 
             defer self.heap.orb.free(uppercase);
 
-            return try self.heap.intern(uppercase, pkg);
+            if (std.mem.indexOf(u8, uppercase, ":")) |colon| {
+                const pkgname = uppercase[0..colon];
+                const symname = uppercase[colon + 1 .. uppercase.len];
+
+                if (std.mem.indexOf(u8, symname, ":")) |colon2| {
+                    return Error.ColonInSymbolName;
+                } else if (self.heap.pkgmap.get(pkgname)) |pkg| {
+                    return self.heap.intern(symname, pkg);
+                } else {
+                    return Error.NoSuchPackage;
+                }
+            } else {
+                return try self.heap.intern(uppercase, curpkg);
+            }
         }
 
         fn readKey(self: *@This()) !u32 {
@@ -479,7 +494,7 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
         }
 
         fn isSymbolCharacterOrDigit(c: u21) bool {
-            return isSymbolCharacter(c) or ziglyph.isAsciiDigit(c);
+            return isSymbolCharacter(c) or ziglyph.isAsciiDigit(c) or c == ':';
         }
     };
 }
