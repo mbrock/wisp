@@ -122,6 +122,6 @@ pub fn @"IN-PACKAGE"(step: *Step, pkgsym: u32) anyerror!void {
         step.heap.pkg = pkg;
         step.give(.val, pkg);
     } else {
-        try step.fail(&[_]u32{ step.heap.kwd.@"PACKAGE-ERROR", pkgsym });
+        try step.fail(&[_]u32{ step.heap.kwd.@"UNDEFINED-PACKAGE", pkgsym });
     }
 }

@@ -85,7 +85,7 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
         heap: *Heap,
         allocator: std.mem.Allocator,
 
-        fn readValueOrEOF(self: *@This()) anyerror!?u32 {
+        pub fn readValueOrEOF(self: *@This()) anyerror!?u32 {
             try self.skipSpace();
 
             const next = try self.peek();
@@ -329,7 +329,7 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
                 const pkgname = uppercase[0..colon];
                 const symname = uppercase[colon + 1 .. uppercase.len];
 
-                if (std.mem.indexOf(u8, symname, ":")) |colon2| {
+                if (std.mem.count(u8, symname, ":") > 0) {
                     return Error.ColonInSymbolName;
                 } else if (self.heap.pkgmap.get(pkgname)) |pkg| {
                     return self.heap.intern(symname, pkg);

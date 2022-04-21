@@ -115,6 +115,7 @@ pub const Kwd = enum {
     @"TYPE-MISMATCH",
     @"UNBOUND-VARIABLE",
     @"UNDEFINED-FUNCTION",
+    @"UNDEFINED-PACKAGE",
     @"UNHANDLED-ERROR",
 };
 
@@ -347,20 +348,11 @@ pub const Heap = struct {
     pub fn load(heap: *Heap, str: []const u8) !u32 {
         var result = nil;
 
-        const forms = try Sexp.readMany(heap, str);
-        defer forms.deinit();
+        var tmp = std.heap.stackFallback(512, heap.orb);
+        var stream = std.io.fixedBufferStream(str);
+        var reader = Sexp.makeReader(heap, tmp.get(), stream.reader());
 
-        for (forms.items) |*x| {
-            try heap.roots.append(heap.orb, x);
-        }
-
-        defer {
-            for (forms.items) |_| {
-                _ = heap.roots.pop();
-            }
-        }
-
-        for (forms.items) |*form| {
+        while (try reader.readValueOrEOF()) |*form| {
             var run = Step.initRun(form.*);
 
             try heap.roots.append(heap.orb, form);

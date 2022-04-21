@@ -303,3 +303,18 @@
 
 (defun filter (list predicate)
   (%filter list predicate nil))
+
+(defun %defpackage-clause (pkg-sym clause)
+  (ecase (head clause)
+    (:use `(package-set-uses! ,pkg-sym
+                              (list ,@(map #'symbol-name (tail clause)))))))
+
+(defun %%defpackage (name clauses)
+  (let ((pkg-sym (fresh-symbol!)))
+    `(let ((,pkg-sym (%defpackage ,(symbol-name name))))
+       (do ,@(map (fn (clause)
+                    (%defpackage-clause pkg-sym clause))
+                  clauses)))))
+
+(defmacro defpackage (name &rest clauses)
+  (%%defpackage name clauses))

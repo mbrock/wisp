@@ -995,3 +995,16 @@ pub fn @"INTERN"(step: *Step, v08: u32, pkg: u32) anyerror!void {
     var str = try step.heap.v08slice(v08);
     step.give(.val, try step.heap.intern(str, pkg));
 }
+
+pub fn @"%DEFPACKAGE"(step: *Step, pkgstr: u32) anyerror!void {
+    step.give(.val, try step.heap.defpackage(pkgstr, nil));
+}
+
+pub fn @"PACKAGE-USES"(step: *Step, pkg: u32) anyerror!void {
+    step.give(.val, try step.heap.get(.pkg, .use, pkg));
+}
+
+pub fn @"PACKAGE-SET-USES!"(step: *Step, pkg: u32, use: u32) anyerror!void {
+    try step.heap.set(.pkg, .use, pkg, use);
+    step.give(.val, pkg);
+}
