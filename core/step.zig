@@ -316,7 +316,7 @@ fn scan(
             scope[n * 2 + 0] = pars.items[i + 1];
             scope[n * 2 + 1] = try Wisp.list(
                 step.heap,
-                vals.items[n..vals.items.len],
+                vals.items[m..vals.items.len],
             );
 
             n = i + 1;
@@ -325,9 +325,9 @@ fn scan(
             break :loop;
         } else if (x == step.heap.kwd.@"&OPTIONAL") {
             optional = true;
-        } else if (n < vals.items.len) {
+        } else if (m < vals.items.len) {
             scope[n * 2 + 0] = x;
-            scope[n * 2 + 1] = vals.items[n];
+            scope[n * 2 + 1] = vals.items[m];
             n = i + 1;
             m += 1;
         } else if (optional) {
@@ -423,7 +423,11 @@ pub fn call(
                     try step.proceed(vals.items[0]);
                 }
             } else {
-                return error.BadContinuationSys;
+                try step.fail(&.{
+                    step.heap.kwd.@"PROGRAM-ERROR",
+                    step.heap.kwd.@"CONTINUATION-CALL-ERROR",
+                    funptr,
+                });
             }
         },
 

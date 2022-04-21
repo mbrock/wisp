@@ -103,6 +103,7 @@ pub const Kwd = enum {
     @"BOUNDS-ERROR",
     @"BUG",
     @"CONTINUATION-CALL-ERROR",
+    @"END-OF-FILE",
     @"EXHAUSTED",
     @"FIXNUM-OVERFLOW",
     @"INVALID-ARGUMENT-COUNT",

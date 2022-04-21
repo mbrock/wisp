@@ -65,6 +65,9 @@
 (defun integer? (x)
   (eq? 'integer (type-of x)))
 
+(defun vector? (x)
+  (eq? 'vector (type-of x)))
+
 (defun equal? (x y)
   (if (eq? x y) t
     (let ((xt (type-of x))

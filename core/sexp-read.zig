@@ -79,9 +79,9 @@ pub fn Utf8Reader(comptime ReaderType: type) type {
     };
 }
 
-pub fn Reader(comptime UnderlyingReaderType: type) type {
+pub fn Reader(comptime ReaderType: type) type {
     return struct {
-        utf8: Utf8Reader(UnderlyingReaderType),
+        utf8: ReaderType,
         heap: *Heap,
         allocator: std.mem.Allocator,
 
@@ -499,18 +499,73 @@ pub fn Reader(comptime UnderlyingReaderType: type) type {
     };
 }
 
-pub fn makeReader(heap: *Heap, tmp: std.mem.Allocator, reader: anytype) Reader(@TypeOf(reader)) {
-    return Reader(@TypeOf(reader)){
+const StringStreamReader = struct {
+    heap: *Heap,
+    stringStream: u32,
+
+    fn peek(this: @This()) !?u21 {
+        const v32 = try this.heap.v32slice(this.stringStream);
+        const i = v32[1];
+        const v08 = try this.heap.v08slice(v32[2]);
+
+        if (i < v08.len) {
+            return v08[i];
+        } else {
+            return null;
+        }
+    }
+
+    fn read(this: @This()) !?u21 {
+        var v32 = try this.heap.v32slice(this.stringStream);
+        const i = v32[1];
+        const v08 = try this.heap.v08slice(v32[2]);
+
+        if (i < v08.len) {
+            v32[1] += 1;
+            return v08[i];
+        } else {
+            return null;
+        }
+    }
+};
+
+pub fn makeStringStreamReader(
+    heap: *Heap,
+    tmp: std.mem.Allocator,
+    stringStream: u32,
+) Reader(StringStreamReader) {
+    return Reader(StringStreamReader){
+        .utf8 = StringStreamReader{
+            .heap = heap,
+            .stringStream = stringStream,
+        },
+        .heap = heap,
+        .allocator = tmp,
+    };
+}
+
+pub fn makeReader(
+    heap: *Heap,
+    tmp: std.mem.Allocator,
+    reader: anytype,
+) Reader(Utf8Reader(@TypeOf(reader))) {
+    return Reader(Utf8Reader(@TypeOf(reader))){
         .utf8 = Utf8Reader(@TypeOf(reader)).init(reader),
         .heap = heap,
         .allocator = tmp,
     };
 }
 
-pub fn readValueFromStream(heap: *Heap, stream: anytype) !u32 {
+pub fn readValueFromStream(heap: *Heap, stream: anytype) !?u32 {
     var tmp = std.heap.stackFallback(512, heap.orb);
     var reader = makeReader(heap, tmp.get(), stream);
-    return reader.readValue();
+    return reader.readValueOrEOF();
+}
+
+pub fn readFromStringStream(heap: *Heap, stream: u32) !?u32 {
+    var tmp = std.heap.stackFallback(512, heap.orb);
+    var reader = makeStringStreamReader(heap, tmp.get(), stream);
+    return reader.readValueOrEOF();
 }
 
 pub fn read(heap: *Heap, text: []const u8) !u32 {

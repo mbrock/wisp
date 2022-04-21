@@ -117,7 +117,7 @@
 (defun nonlocal-error! (continuation &rest xs)
   (send-to-or-invoke continuation 'error xs #'unhandled-error))
 
-(defun send! (tag value)
+(defun send! (tag &optional value)
   (send-or-invoke tag value
                   (fn (x)
                     (error 'prompt-tag-missing tag))))
@@ -321,3 +321,27 @@
 
 (defmacro defpackage (name &rest clauses)
   (%%defpackage name clauses))
+
+(defun string-input-stream (string)
+  (vector 'string-input-stream 0 string))
+
+(defun string-input-stream? (x)
+  (and (vector? x)
+       (eq? 'string-input-stream (vector-get x 0))))
+
+(defparameter *standard-input* :stdin)
+
+(defun read (&optional stream eof-thunk)
+  (let* ((it (or stream *standard-input*))
+         (result
+           (cond
+             ((eq? it :stdin)
+              (read-from-stdin))
+             ((string-input-stream? it)
+              (read-from-string-stream! it))
+             ((eq? 'function (type-of it))
+              (call it))
+             (t
+              (error 'type-mismatch 'input-stream it)))))
+    (if result (head result)
+      (call eof-thunk))))

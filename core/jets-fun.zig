@@ -729,10 +729,13 @@ pub fn @"READ-LINE"(step: *Step) anyerror!void {
     }
 }
 
-pub fn @"READ"(step: *Step) anyerror!void {
+pub fn @"READ-FROM-STDIN"(step: *Step) anyerror!void {
     const stdin = std.io.getStdIn().reader();
-    const val = try Sexp.readValueFromStream(step.heap, stdin);
-    step.give(.val, val);
+    if (try Sexp.readValueFromStream(step.heap, stdin)) |val| {
+        step.give(.val, try step.heap.cons(val, nil));
+    } else {
+        step.give(.val, nil);
+    }
 }
 
 pub fn @"READ-FROM-STRING"(step: *Step, v08: u32) anyerror!void {
@@ -1007,4 +1010,12 @@ pub fn @"PACKAGE-USES"(step: *Step, pkg: u32) anyerror!void {
 pub fn @"PACKAGE-SET-USES!"(step: *Step, pkg: u32, use: u32) anyerror!void {
     try step.heap.set(.pkg, .use, pkg, use);
     step.give(.val, pkg);
+}
+
+pub fn @"READ-FROM-STRING-STREAM!"(step: *Step, stream: u32) anyerror!void {
+    if (try Sexp.readFromStringStream(step.heap, stream)) |x| {
+        step.give(.val, try step.heap.cons(x, nil));
+    } else {
+        step.give(.val, nil);
+    }
 }

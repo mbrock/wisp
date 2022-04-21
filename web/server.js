@@ -60,26 +60,28 @@ function exec(code) {
    )
   `)
   const run = wisp.api.wisp_run_init(wisp.heap, src)
-  return wisp.api.wisp_run_eval(wisp.heap, run, 0)
-}
-
-async function load(filename, inAsync) {
-  const decoder = new TextDecoder("utf-8")
-  let script = decoder.decode(await Deno.readFile(filename))
-  if (inAsync) script = `
-    (with-simple-error-handler () (async (fn ()
-      ${script}
-      nil
-    )))
-  `
-  const result = exec(script)
+  const result = wisp.api.wisp_run_eval(wisp.heap, run, 0) >>> 0
   if (result === wisp.sys.zap)
     throw new Error("zap")
-
-  else return result >>> 0
+  else
+    return result
 }
 
-await load("base.wisp", false)
-await load("dexp.wisp", false)
-await load("deno.wisp", true)
-await load(Deno.args[0], true)
+async function load(filename) {
+  console.log(";;;; loading", filename)
+  const decoder = new TextDecoder("utf-8")
+  let script = decoder.decode(await Deno.readFile(filename))
+  return exec(script)
+}
+
+await load("base.wisp")
+await load("dexp.wisp")
+await load("deno-base.wisp")
+await exec(`
+(async
+ (fn ()
+  (with-simple-error-handler ()
+   (load "deno.wisp")
+   (load "${Deno.args[0]}")
+)))
+`)
