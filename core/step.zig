@@ -319,7 +319,7 @@ fn scan(
                 vals.items[m..vals.items.len],
             );
 
-            n = i + 1;
+            n += 1;
             m = vals.items.len;
 
             break :loop;
@@ -328,12 +328,12 @@ fn scan(
         } else if (m < vals.items.len) {
             scope[n * 2 + 0] = x;
             scope[n * 2 + 1] = vals.items[m];
-            n = i + 1;
+            n += 1;
             m += 1;
         } else if (optional) {
             scope[n * 2 + 0] = x;
             scope[n * 2 + 1] = nil;
-            n = i + 1;
+            n += 1;
         } else {
             try step.fail(&[_]u32{
                 step.heap.kwd.@"PROGRAM-ERROR",
