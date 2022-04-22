@@ -76,6 +76,10 @@
 (defun install-route (pattern handler)
   (set! *routes* (cons (list pattern handler) *routes*)))
 
+(defmacro defroute (pattern &rest body)
+  `(install-route ',pattern (fn (,@(filter pattern #'symbol?))
+                              ,(prognify body))))
+
 (defun match-route (pattern parts acc)
   (if (and (nil? pattern) (nil? parts))
       (reverse acc)

@@ -17,8 +17,6 @@
 ;; <https://www.gnu.org/licenses/>.
 ;;
 
-(compile-many! (find-package "WISP"))
-
 (defun parse-let-acc (acc bindings)
   (if (nil? (tail acc))
       (cons bindings (head acc))

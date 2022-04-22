@@ -43,9 +43,6 @@ onload = async () => {
 
   wasd.setWisp(ctx)
 
-  if (ctx.api.wisp_start_web(ctx.heap) >>> 0 != ctx.sys.t)
-    throw new Error("wisp start web failed")
-
   function exec(code) {
     const src = ctx.read(`
       (with-simple-error-handler ()

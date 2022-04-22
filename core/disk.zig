@@ -27,7 +27,7 @@ pub fn cwd(allocator: std.mem.Allocator) !std.fs.Dir {
         var preopens = std.fs.wasi.PreopenList.init(allocator);
         defer preopens.deinit();
 
-        try preopens.populate();
+        try preopens.populate(null);
         if (preopens.find(.{ .Dir = "." })) |x| {
             return std.fs.Dir{ .fd = x.fd };
         } else {

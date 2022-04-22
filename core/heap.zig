@@ -22,18 +22,19 @@ const assert = std.debug.assert;
 const same = std.testing.expectEqual;
 
 const Wisp = @import("./wisp.zig");
+const Word = @import("./word.zig");
 const Tidy = @import("./tidy.zig");
 const Step = @import("./step.zig");
 const Sexp = @import("./sexp.zig");
 const Keys = @import("./keys.zig");
 
-const Tag = Wisp.Tag;
-const Era = Wisp.Era;
-const Ptr = Wisp.Ptr;
+const Tag = Word.Tag;
+const Era = Word.Era;
+const Ptr = Word.Ptr;
 
-const ref = Wisp.ref;
-const nil = Wisp.nil;
-const nah = Wisp.nah;
+const ref = Word.ref;
+const nil = Word.nil;
+const nah = Word.nah;
 
 /// Each pointer type has a set of columns.
 pub fn ColEnum(comptime t: Tag) type {
@@ -71,15 +72,12 @@ pub const Kwd = enum {
     FN,
     LET,
     DO,
-    @"CALL/CC",
     EVAL,
 
     EXP,
     VAL,
 
     ERROR,
-    REQUEST,
-    @"GLOBAL-THIS",
 
     BOOLEAN,
     CHARACTER,
@@ -144,6 +142,11 @@ pub const Oof = error{
     @"SEVERE-GARBAGE-COLLECTION-BUG",
 };
 
+pub fn badPointerTag() !void {
+    @breakpoint();
+    return error.UnexpectedPointerTag;
+}
+
 pub fn Row(comptime tag: Tag) type {
     return std.enums.EnumFieldStruct(ColEnum(tag), u32, null);
 }
@@ -181,7 +184,7 @@ pub fn Tab(comptime tag: Tag) type {
 
         pub fn get(tab: This, era: Era, ptr: u32) !Row(tag) {
             const p = Ptr.from(ptr);
-            if (p.tag != tag) return error.UnexpectedPointerTag;
+            if (p.tag != tag) try badPointerTag();
 
             if (p.era != era) {
                 @breakpoint();
@@ -373,22 +376,15 @@ pub const Heap = struct {
     }
 
     pub fn cookBase(heap: *Heap) !void {
-        _ = try heap.load(@embedFile("./lisp/base-0-prelude.wisp"));
-        _ = try heap.load(@embedFile("./lisp/base-1-backquote.wisp"));
-        _ = try heap.load(@embedFile("./lisp/base-2-stdlib.wisp"));
+        _ = try heap.load(@embedFile("./lisp/base.wisp"));
     }
 
     pub fn cookRepl(heap: *Heap) !void {
-        _ = try heap.load(@embedFile("./lisp/base-3-repl.wisp"));
-    }
-
-    pub fn cookWeb(heap: *Heap) !void {
-        _ = try heap.load(@embedFile("./lisp/web.wisp"));
-        std.log.warn("cooked web.wisp", .{});
+        _ = try heap.load(@embedFile("./lisp/repl.wisp"));
     }
 
     pub fn cookTest(heap: *Heap) !void {
-        _ = try heap.load(@embedFile("./lisp/base-x-test.wisp"));
+        _ = try heap.load(@embedFile("./lisp/test.wisp"));
     }
 
     fn initvar(heap: *Heap, txt: []const u8, val: u32) !void {
@@ -463,7 +459,7 @@ pub const Heap = struct {
 
     pub fn row(heap: *Heap, comptime tag: Tag, ptr: u32) !Row(tag) {
         if (Wisp.tagOf(ptr) != tag)
-            return error.UnexpectedPointerTag;
+            try badPointerTag();
 
         return heap.tab(tag).get(heap.era, ptr);
     }
@@ -483,7 +479,7 @@ pub const Heap = struct {
         p: u32,
     ) !u32 {
         if (Wisp.tagOf(p) != tag)
-            return error.UnexpectedPointerTag;
+            try badPointerTag();
 
         return heap.col(tag, c)[ref(p)];
     }
@@ -495,7 +491,7 @@ pub const Heap = struct {
         p: u32,
     ) !*u32 {
         if (Wisp.tagOf(p) != tag)
-            return error.UnexpectedPointerTag;
+            try badPointerTag();
 
         return &(heap.col(tag, c)[ref(p)]);
     }
@@ -508,7 +504,7 @@ pub const Heap = struct {
         v: u32,
     ) !void {
         if (Wisp.tagOf(p) != tag)
-            return error.UnexpectedPointerTag;
+            try badPointerTag();
 
         if (heap.log) |log| {
             const out = log.writer();
@@ -531,7 +527,7 @@ pub const Heap = struct {
         val: Row(tag),
     ) !void {
         if (Wisp.tagOf(ptr) != tag)
-            return error.UnexpectedPointerTag;
+            try badPointerTag();
 
         if (heap.log) |log| {
             const out = log.writer();

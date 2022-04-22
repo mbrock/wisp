@@ -316,8 +316,6 @@ fn hang(heap: *Wisp.Heap, car: u32) ?usize {
         return 1
     else if (car == heap.kwd.DO)
         return 1
-    else if (car == heap.kwd.@"CALL/CC")
-        return 1
     else
         return null;
 }

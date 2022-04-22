@@ -316,14 +316,6 @@ pub fn APPLY(
     try step.call(function, list, false);
 }
 
-pub fn @"CALL/CC"(step: *Step, function: u32) anyerror!void {
-    try step.call(
-        function,
-        try step.heap.cons(step.run.way, nil),
-        true,
-    );
-}
-
 pub fn WTF(step: *Step, wtf: u32) anyerror!void {
     Step.wtf = wtf != nil;
     step.give(.val, wtf);
@@ -430,10 +422,6 @@ pub fn @"VECTOR-SET!"(step: *Step, vec: u32, idx: u32, val: u32) anyerror!void {
 
         else => try step.failTypeMismatch(vec, step.heap.kwd.@"VECTOR"),
     }
-}
-
-pub fn REQUEST(step: *Step, req: u32, rest: Rest) anyerror!void {
-    try step.fail(&[_]u32{ step.heap.kwd.@"REQUEST", req, rest.arg });
 }
 
 pub fn @"GENKEY!"(step: *Step) anyerror!void {

@@ -41,9 +41,11 @@ pub fn @"%MACRO-FN"(step: *Step, par: u32, exp: u32) anyerror!void {
     }));
 }
 
-pub fn @"LET"(step: *Step, bs: u32, e: u32) anyerror!void {
+pub fn @"LET"(step: *Step, bs: u32, e: Rest) anyerror!void {
+    const do_e = try step.heap.cons(step.heap.kwd.DO, e.arg);
+
     if (bs == Wisp.nil) {
-        step.give(.exp, e);
+        step.give(.exp, do_e);
     } else {
         // Find the first symbol and expression.
         const duo = try step.heap.row(.duo, bs);
@@ -54,7 +56,10 @@ pub fn @"LET"(step: *Step, bs: u32, e: u32) anyerror!void {
 
         const acc = try step.heap.cons(
             letsym,
-            try step.heap.cons(e, Wisp.nil),
+            try step.heap.cons(
+                do_e,
+                Wisp.nil,
+            ),
         );
 
         step.run.way = try step.heap.new(.ktx, .{

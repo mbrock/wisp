@@ -70,11 +70,6 @@ export fn wisp_heap_init() ?*Wisp.Heap {
     return heap_init() catch null;
 }
 
-export fn wisp_start_web(heap: *Wisp.Heap) u32 {
-    heap.cookWeb() catch return Wisp.nil;
-    return Wisp.t;
-}
-
 export fn wisp_read(heap: *Wisp.Heap, str: [*:0]const u8) u32 {
     return Read.read(heap, std.mem.span(str)) catch Wisp.zap;
 }

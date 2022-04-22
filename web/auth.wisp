@@ -34,3 +34,6 @@
 
 (defun authenticate! (f)
   (call f (jwt-authenticate!)))
+
+(defmacro with-authentication (clause &rest body)
+  `(authenticate! (fn (,(head clause)) ,@body)))
