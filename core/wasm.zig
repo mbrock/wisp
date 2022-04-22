@@ -59,10 +59,7 @@ var orb = gpa.allocator();
 
 fn heap_init() !*Wisp.Heap {
     var heap = try orb.create(Wisp.Heap);
-    heap.* = try Wisp.Heap.init(orb, .e0);
-    try Jets.load(heap);
-    try heap.cookBase();
-    try heap.cookRepl();
+    heap.* = try Wisp.Heap.fromEmbeddedCore(orb);
     return heap;
 }
 

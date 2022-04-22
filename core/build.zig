@@ -19,11 +19,21 @@ pub fn build(b: *std.build.Builder) void {
         .os_tag = .wasi,
     };
 
+    const boot = wispStep(
+        mode,
+        standardTarget,
+        b.addExecutable("wisp-mkboot", "boot.zig"),
+    );
+
+    const bootRun = boot.run();
+
     const exe = wispStep(
         mode,
         standardTarget,
         b.addExecutable("wisp", "main.zig"),
     );
+
+    exe.step.dependOn(&bootRun.step);
 
     const wasmExe = wispStep(
         mode,

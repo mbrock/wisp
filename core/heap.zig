@@ -27,6 +27,7 @@ const Tidy = @import("./tidy.zig");
 const Step = @import("./step.zig");
 const Sexp = @import("./sexp.zig");
 const Keys = @import("./keys.zig");
+const Tape = @import("./tape.zig");
 
 const Tag = Word.Tag;
 const Era = Word.Era;
@@ -282,6 +283,10 @@ pub const Heap = struct {
 
     please_tidy: bool = false,
     inhibit_gc: bool = false,
+
+    pub fn fromEmbeddedCore(orb: Orb) !Heap {
+        return try Tape.loadFromMemory(orb, @embedFile("boot.core"));
+    }
 
     pub fn init(orb: Orb, era: Era) !Heap {
         return initWithLog(orb, era, null);

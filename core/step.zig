@@ -23,6 +23,7 @@ const Wisp = @import("./wisp.zig");
 const Tidy = @import("./tidy.zig");
 const Sexp = @import("./sexp.zig");
 const Jets = @import("./jets.zig");
+const Tape = @import("./tape.zig");
 
 const Step = @This();
 const Heap = Wisp.Heap;
@@ -1056,10 +1057,7 @@ pub fn finishTidying(step: *Step, gc: *Tidy) !void {
 }
 
 pub fn newTestHeap() !Heap {
-    var heap = try Heap.init(std.testing.allocator, .e0);
-    try Jets.load(&heap);
-    try heap.cookBase();
-    return heap;
+    return try Heap.fromEmbeddedCore(std.testing.allocator);
 }
 
 test "step evaluates string" {

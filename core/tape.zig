@@ -214,3 +214,77 @@ pub fn load(orb: Wisp.Orb, name: []const u8) !Wisp.Heap {
 
     return heap;
 }
+
+pub fn loadFromMemory(orb: Wisp.Orb, bytes: []const u8) !Wisp.Heap {
+    var arena = std.heap.ArenaAllocator.init(orb);
+    defer arena.deinit();
+
+    var reader = std.io.fixedBufferStream(bytes).reader();
+    var header = try reader.readStruct(Header);
+
+    var heap = Wisp.Heap{
+        .log = null,
+        .orb = orb,
+        .era = @intToEnum(Wisp.Era, header.era),
+        .pkg = header.pkg,
+        .commonStrings = header.commonStrings,
+        .base = 0,
+        .keywordPackage = 0,
+        .keyPackage = 0,
+    };
+
+    try heap.v08.ensureTotalCapacity(orb, header.v08len);
+    heap.v08.items.len = header.v08len;
+
+    try heap.v32.list.ensureTotalCapacity(orb, header.v32len);
+    heap.v32.list.items.len = header.v32len;
+
+    if (header.v08len > 0) {
+        try reader.readNoEof(heap.v08.items);
+    }
+
+    if (header.v32len > 0) {
+        try reader.readNoEof(
+            @ptrCast([*]u8, heap.v32.list.items.ptr)[0 .. header.v32len * 4],
+        );
+    }
+
+    inline for (Wisp.pointerTags) |tag, tagidx| {
+        const tab = heap.tab(tag);
+        const cnt = header.tabSizes[tagidx];
+        try tab.list.ensureTotalCapacity(orb, cnt);
+        tab.list.len = cnt;
+
+        inline for (std.meta.fields(Wisp.Row(tag))) |_, j| {
+            const col = tab.col(@intToEnum(Wisp.Col(tag), j));
+            if (col.len > 0) {
+                try reader.readNoEof(@ptrCast([*]u8, col.ptr)[0 .. col.len * 4]);
+            }
+        }
+    }
+
+    {
+        // find packages and put them in the package map
+        for (heap.tab(.pkg).col(.nam)) |pkgname, i| {
+            const str = try orb.dupe(u8, try heap.v08slice(pkgname));
+            try heap.pkgmap.putNoClobber(
+                orb,
+                str,
+                Wisp.Ptr.make(.pkg, @intCast(u26, i), heap.era).word(),
+            );
+        }
+
+        heap.base = heap.pkgmap.get("WISP") orelse return Error.PackageMissing;
+        heap.keywordPackage = heap.pkgmap.get("KEYWORD") orelse return Error.PackageMissing;
+        heap.keyPackage = heap.pkgmap.get("KEY") orelse return Error.PackageMissing;
+    }
+
+    inline for (std.meta.fields(Wisp.Kwd)) |s| {
+        const sym = try heap.intern(s.name, heap.base);
+        @field(heap.kwd, s.name) = sym;
+    }
+
+    std.log.warn(";; heap loaded from memory", .{});
+
+    return heap;
+}

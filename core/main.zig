@@ -23,6 +23,7 @@ const File = @import("./file.zig");
 const Jets = @import("./jets.zig");
 const Sexp = @import("./sexp.zig");
 const Wisp = @import("./wisp.zig");
+const Tape = @import("./tape.zig");
 
 const maxCodeSize = megabytes(1);
 
@@ -30,7 +31,7 @@ fn megabytes(bytes: usize) usize {
     return bytes * 1024 * 1024;
 }
 
-fn makeHeap(orb: Wisp.Orb) !Wisp.Heap {
+pub fn makeHeap(orb: Wisp.Orb) !Wisp.Heap {
     var heap = try Wisp.Heap.init(orb, .e0);
 
     try Jets.load(&heap);
@@ -65,7 +66,7 @@ pub fn main() anyerror!void {
         const file = try root.openFile(path, .{});
         const code = try file.readToEndAlloc(tmp, maxCodeSize);
 
-        var heap = try makeHeap(orb);
+        var heap = try Wisp.Heap.fromEmbeddedCore(orb);
         defer heap.deinit();
 
         const result = try heap.load(code);
@@ -77,16 +78,14 @@ pub fn main() anyerror!void {
     } else if (std.mem.eql(u8, cmd, "repl-zig")) {
         try @import("./repl.zig").repl();
     } else if (std.mem.eql(u8, cmd, "repl")) {
-        var heap = try makeHeap(orb);
-
+        var heap = try Wisp.Heap.fromEmbeddedCore(orb);
         _ = try heap.load("(repl)");
-
         try stderr.print(";; repl finished\n", .{});
         @breakpoint();
     } else if (std.mem.eql(u8, cmd, "eval")) {
         const code = args.next() orelse return help(stderr);
 
-        var heap = try makeHeap(orb);
+        var heap = try Wisp.Heap.fromEmbeddedCore(orb);
         const result = try heap.load(code);
         const pretty = try Sexp.prettyPrint(&heap, result, 62);
         try stdout.print("{s}\n", .{pretty});
