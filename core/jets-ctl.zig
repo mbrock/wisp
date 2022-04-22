@@ -38,6 +38,7 @@ pub fn @"%MACRO-FN"(step: *Step, par: u32, exp: u32) anyerror!void {
         .par = par,
         .exp = exp,
         .sym = Wisp.nil,
+        .cnt = 0,
     }));
 }
 
@@ -80,6 +81,7 @@ pub fn @"%FN"(step: *Step, sym: u32, par: u32, exp: u32) anyerror!void {
         .par = par,
         .exp = exp,
         .sym = sym,
+        .cnt = 0,
     }));
 }
 

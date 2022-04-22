@@ -385,12 +385,14 @@ pub fn call(
             const fun = try step.heap.row(.fun, funptr);
             step.run.env = fun.env;
             try step.scan(funptr, fun.exp, fun.par, args, rev);
+            try step.heap.set(.fun, .cnt, funptr, 1 + fun.cnt);
         },
 
         .mac => {
             const mac = try step.heap.row(.mac, funptr);
             step.run.env = mac.env;
             try step.scan(funptr, mac.exp, mac.par, args, rev);
+            try step.heap.set(.mac, .cnt, funptr, 1 + mac.cnt);
         },
 
         .ktx => {

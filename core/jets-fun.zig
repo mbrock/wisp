@@ -377,6 +377,15 @@ pub fn CODE(step: *Step, fun: u32) anyerror!void {
     };
 }
 
+pub fn @"FUNCTION-CALL-COUNT"(step: *Step, fun: u32) anyerror!void {
+    return switch (tagOf(fun)) {
+        .fun => step.give(.val, try step.heap.get(.fun, .cnt, fun)),
+        .mac => step.give(.val, try step.heap.get(.mac, .cnt, fun)),
+        .jet => step.give(.val, 0),
+        else => step.fail(&[_]u32{step.heap.kwd.@"PROGRAM-ERROR"}),
+    };
+}
+
 pub fn @"SET-CODE!"(step: *Step, fun: u32, exp: u32) anyerror!void {
     switch (tagOf(fun)) {
         .fun => try step.heap.set(.fun, .exp, fun, exp),

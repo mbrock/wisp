@@ -132,49 +132,8 @@
 (defmacro or-2 (x y)
   (list 'if x x y))
 
-(defun pair? (x)
-  (eq? 'cons (type-of x)))
-
-(defun list? (x)
-  (or (pair? x) (nil? x)))
-
-(defun string? (x)
-  (eq? 'string (type-of x)))
-
-(defun integer? (x)
-  (eq? 'integer (type-of x)))
-
-(defun vector? (x)
-  (eq? 'vector (type-of x)))
-
-(defun equal? (x y)
-  (if (eq? x y) t
-    (let ((xt (type-of x))
-          (yt (type-of y)))
-      (if (not (eq? xt yt))
-          nil
-        (if (eq? xt 'cons)
-            (equal-lists? x y)
-          (if (eq? xt 'string)
-              (string-equal? x y)
-            (eq? x y)))))))
-
-(defun equal-lists? (x y)
-  (if (eq? x nil)
-      (eq? y nil)
-      (if (eq? y nil)
-          nil
-          (if (equal? (head x) (head y))
-              (equal-lists? (tail x) (tail y))
-              nil))))
-
 (defun nil? (x)
   (eq? x nil))
-
-(defun map (f xs)
-  (if (nil? xs) nil
-      (cons (call f (head xs))
-            (map f (tail xs)))))
 
 (defun last (xs)
   (if (nil? xs) nil
@@ -184,9 +143,6 @@
 (defun second (xs)
   (head (tail xs)))
 
-(defun third (xs)
-  (head (tail (tail xs))))
-
 (defun reduce-loop (f x xs)
   (cond ((nil? xs) x)
         ((nil? (tail xs))
@@ -195,13 +151,6 @@
          (reduce-loop f
                       (call f x (head xs))
                       (tail xs)))))
-
-(defun length-aux (xs n)
-  (if (nil? xs) n
-      (length-aux (tail xs) (+ n 1))))
-
-(defun length (xs)
-  (length-aux xs 0))
 
 (defun reduce (f xs init)
   ;; TODO: version that ignores init when (length xs) is 2
@@ -221,23 +170,6 @@
 (defmacro or (&rest xs)
   (reduce #'or-2 xs nil))
 
-(defun remove-if (f xs)
-  (if (nil? xs) nil
-      (if (call f (head xs))
-          (remove-if f (tail xs))
-          (cons (head xs) (remove-if f (tail xs))))))
-
-(defun some? (f xs)
-  (if (nil? xs) nil
-      (or (call f (head xs))
-          (some? f (tail xs)))))
-
-(defun butlast (xs)
-  (if (nil? xs) nil
-      (if (nil? (tail xs)) nil
-          (cons (head xs)
-                (butlast (tail xs))))))
-
 (defun snoc (x y)
   (cons y x))
 
@@ -247,39 +179,8 @@
 (defun reverse-append (list tail)
   (reduce #'snoc list tail))
 
-(defmacro set! (var val)
-  (list '%set! (list 'quote var) val))
-
 (defmacro fn (params &rest body)
   `(%fn nil ,params ,(prognify body)))
-
-(defmacro assert (x)
-  `(if ,x nil (error ',x)))
-
-(defmacro returning (x &rest body)
-  (let ((x-var (fresh-symbol!)))
-    `(let ((,x-var ,x))
-       (do ,@body ,x-var))))
-
-(defmacro with-trace (&rest body)
-  `(do
-     (wtf t)
-     (returning ,(prognify body)
-       (wtf nil))))
-
-(defun %let* (clauses body)
-  (if (nil? clauses)
-      body
-      (let ((var (head (head clauses)))
-            (exp (second (head clauses))))
-        `(let ((,var ,exp))
-           ,(%let* (tail clauses) body)))))
-
-(defmacro let* (clauses &rest body)
-  (%let* clauses (prognify body)))
-
-(defun fix (f)
-  (call f f))
 
 (defun for-each (xs f)
   (if (nil? xs) nil
@@ -287,99 +188,9 @@
         (call f (head xs))
         (for-each (tail xs) f))))
 
-(defun vector-for-each (xs f)
-  (%vector-for-each xs f 0))
-
-(defun %vector-for-each (xs f i)
-  (when (< i (vector-length xs))
-    (call f (vector-get xs i))
-    (%vector-for-each xs f (+ i 1))))
-
-(defun vector-for-each-backwards (xs f)
-  (%vector-for-each xs f (vector-length xs) nil))
-
-(defun %vector-for-each-backwards (xs f i)
-  (when (< i (vector-length xs))
-    (call f (vector-get xs i))
-    (%vector-for-each xs f (+ i 1))))
-
 (defmacro when (test &rest body)
   `(if ,test ,(prognify body) nil))
 
-(defmacro unless (test &rest body)
-  `(if ,test nil ,(prognify body)))
-
-(defun %case->cond (thing clauses)
-  (if (nil? clauses) nil
-      (cons `((eq? ,thing ',(head (head clauses)))
-              ,(prognify (tail (head clauses))))
-            (%case->cond thing (tail clauses)))))
-
-(defmacro ecase (thing &rest clauses)
-  (let ((thing-variable (fresh-symbol!)))
-    `(let ((,thing-variable ,thing))
-       (cond
-         ,@(%case->cond thing-variable clauses)
-         (t (error 'case-fail ,thing-variable))))))
-
-
-
-;;; * Utilities for delimited continuation control
-
-(defun send-or-invoke (tag value function)
-  (let* ((default (fresh-symbol!))
-         (result (send-with-default! tag value default)))
-    (if (eq? result default)
-        (call function value)
-        result)))
-
-(defun send-to-or-invoke (continuation tag value function)
-  (let* ((default (fresh-symbol!))
-         (result (send-to-with-default! continuation tag value default)))
-    (if (eq? result default)
-        (call function value)
-        result)))
-
-(defun error (&rest xs)
-  (send-or-invoke 'error xs #'unhandled-error))
-
-(defun nonlocal-error! (continuation &rest xs)
-  (send-to-or-invoke continuation 'error xs #'unhandled-error))
-
-(defun send! (tag &optional value)
-  (send-or-invoke tag value
-                  (fn (x)
-                    (error 'prompt-tag-missing tag))))
-
-(defmacro handle (body clause)
-  (let ((tag-name (head clause))
-        (handler-args (head (tail clause)))
-        (handler-body (tail (tail clause))))
-    `(call-with-prompt ',tag-name
-         (fn () ,body)
-       (fn ,handler-args ,@handler-body))))
-
-(defmacro try (body clause)
-  (let ((catch (head clause))
-        (handler-args (head (tail clause)))
-        (handler-body (tail (tail clause))))
-    `(call-with-prompt 'error
-         (fn () ,body)
-       (fn ,handler-args ,@handler-body))))
-
-(defmacro defparameter (parameter value)
-  `(do (defvar ,parameter ,value)
-       (set-symbol-dynamic! ',parameter t)))
-
-(defun %binding (clauses body)
-  (if (nil? clauses) `(do ,@body)
-    (let ((clause (head clauses)))
-      `(call-with-binding ',(head clause) ,(second clause)
-                          (fn ()
-                            ,(%binding (tail clauses) body))))))
-
-(defmacro binding (clauses &rest body)
-  (%binding clauses body))
 
 
 ;;; * Macroexpansion
@@ -449,15 +260,6 @@
            (prognify body))))
     `(set-symbol-function! ',name (%fn ,name ,args ,expanded-body))))
 
-(defmacro defun-noexpand (name args &rest body)
-  (print (list 'defun name args))
-  `(set-symbol-function! ',name (%fn ,name ,args ,(prognify body))))
-
-(defmacro defvar (var val)
-  `(do
-    (print (list 'defvar ',var))
-    (set-symbol-value! ',var ,val)))
-
 ;;; We can also mutate the code of a function or macro.
 (defun compile! (function)
   (print (list 'compiling (function-name function)))
@@ -474,19 +276,228 @@
 
 (compile-many! (find-package "WISP"))
 
-(defun %split-string (string separator acc)
-  (let* ((idx (string-search string separator)))
+(for-each (reverse (package-symbols (find-package "WISP")))
+          (fn (symbol)
+              (let ((function (symbol-function symbol)))
+                (when (and function
+                           (not (jet? function))
+                           (eq? 0 (function-call-count function)))
+                  (print (list symbol
+                               "can be moved to below COMPILE-MANY!"))))))
+
+
+
+(defmacro defvar (var val)
+  `(do
+    (print (list 'defvar ',var))
+    (set-symbol-value! ',var ,val)))
+
+(defmacro defun-noexpand (name args &rest body)
+  (print (list 'defun name args))
+  `(set-symbol-function! ',name (%fn ,name ,args ,(prognify body))))
+
+(defun pair? (x)
+  (eq? 'cons (type-of x)))
+
+(defun list? (x)
+  (or (pair? x) (nil? x)))
+
+(defun string? (x)
+  (eq? 'string (type-of x)))
+
+(defun integer? (x)
+  (eq? 'integer (type-of x)))
+
+(defun vector? (x)
+  (eq? 'vector (type-of x)))
+
+(defun equal? (x y)
+  (if (eq? x y) t
+    (let ((xt (type-of x))
+          (yt (type-of y)))
+      (if (not (eq? xt yt))
+          nil
+        (if (eq? xt 'cons)
+            (equal-lists? x y)
+          (if (eq? xt 'string)
+              (string-equal? x y)
+            (eq? x y)))))))
+
+(defun equal-lists? (x y)
+  (if (eq? x nil)
+      (eq? y nil)
+      (if (eq? y nil)
+          nil
+          (if (equal? (head x) (head y))
+              (equal-lists? (tail x) (tail y))
+              nil))))
+
+(defun map (f xs)
+  (if (nil? xs) nil
+      (cons (call f (head xs))
+            (map f (tail xs)))))
+
+(defun third (xs)
+  (head (tail (tail xs))))
+
+(defun length-aux (xs n)
+  (if (nil? xs) n
+      (length-aux (tail xs) (+ n 1))))
+
+(defun length (xs)
+  (length-aux xs 0))
+
+(defun remove-if (f xs)
+  (if (nil? xs) nil
+      (if (call f (head xs))
+          (remove-if f (tail xs))
+          (cons (head xs) (remove-if f (tail xs))))))
+
+(defun some? (f xs)
+  (if (nil? xs) nil
+      (or (call f (head xs))
+          (some? f (tail xs)))))
+
+(defun butlast (xs)
+  (if (nil? xs) nil
+      (if (nil? (tail xs)) nil
+          (cons (head xs)
+                (butlast (tail xs))))))
+
+(defmacro unless (test &rest body)
+  `(if ,test nil ,(prognify body)))
+
+(defun %case->cond (thing clauses)
+  (if (nil? clauses) nil
+      (cons `((eq? ,thing ',(head (head clauses)))
+              ,(prognify (tail (head clauses))))
+            (%case->cond thing (tail clauses)))))
+
+(defmacro ecase (thing &rest clauses)
+  (let ((thing-variable (fresh-symbol!)))
+    `(let ((,thing-variable ,thing))
+       (cond
+         ,@(%case->cond thing-variable clauses)
+         (t (error 'case-fail ,thing-variable))))))
+
+(defmacro set! (var val)
+  (list '%set! (list 'quote var) val))
+
+(defmacro assert (x)
+  `(if ,x nil (error ',x)))
+
+(defmacro returning (x &rest body)
+  (let ((x-var (fresh-symbol!)))
+    `(let ((,x-var ,x))
+       (do ,@body ,x-var))))
+
+(defmacro with-trace (&rest body)
+  `(do
+     (wtf t)
+     (returning ,(prognify body)
+       (wtf nil))))
+
+(defun %let* (clauses body)
+  (if (nil? clauses)
+      body
+      (let ((var (head (head clauses)))
+            (exp (second (head clauses))))
+        `(let ((,var ,exp))
+           ,(%let* (tail clauses) body)))))
+
+(defmacro let* (clauses &rest body)
+  (%let* clauses (prognify body)))
+
+(defun fix (f)
+  (call f f))
+
+(defun vector-for-each (xs f)
+  (%vector-for-each xs f 0))
+
+(defun %vector-for-each (xs f i)
+  (when (< i (vector-length xs))
+    (call f (vector-get xs i))
+    (%vector-for-each xs f (+ i 1))))
+
+(defun vector-for-each-backwards (xs f)
+  (%vector-for-each xs f (vector-length xs) nil))
+
+(defun %vector-for-each-backwards (xs f i)
+  (when (< i (vector-length xs))
+    (call f (vector-get xs i))
+    (%vector-for-each xs f (+ i 1))))
+
+
+
+;;; * Utilities for delimited continuation control
+
+(defun send-or-invoke (tag value function)
+  (let* ((default (fresh-symbol!))
+         (result (send-with-default! tag value default)))
+    (if (eq? result default)
+        (call function value)
+        result)))
+
+(defun send-to-or-invoke (continuation tag value function)
+  (let* ((default (fresh-symbol!))
+         (result (send-to-with-default! continuation tag value default)))
+    (if (eq? result default)
+        (call function value)
+        result)))
+
+(defun error (&rest xs)
+  (send-or-invoke 'error xs #'unhandled-error))
+
+(defun nonlocal-error! (continuation &rest xs)
+  (send-to-or-invoke continuation 'error xs #'unhandled-error))
+
+(defun send! (tag &optional value)
+  (send-or-invoke tag value
+                  (fn (x)
+                    (error 'prompt-tag-missing tag))))
+
+(defmacro handle (body clause)
+  (let ((tag-name (head clause))
+        (handler-args (head (tail clause)))
+        (handler-body (tail (tail clause))))
+    `(call-with-prompt ',tag-name
+         (fn () ,body)
+       (fn ,handler-args ,@handler-body))))
+
+(defmacro try (body clause)
+  (let ((catch (head clause))
+        (handler-args (head (tail clause)))
+        (handler-body (tail (tail clause))))
+    `(call-with-prompt 'error
+         (fn () ,body)
+       (fn ,handler-args ,@handler-body))))
+
+(defmacro defparameter (parameter value)
+  `(do (defvar ,parameter ,value)
+       (set-symbol-dynamic! ',parameter t)))
+
+(defun %binding (clauses body)
+  (if (nil? clauses) `(do ,@body)
+    (let ((clause (head clauses)))
+      `(call-with-binding ',(head clause) ,(second clause)
+                          (fn ()
+                            ,(%binding (tail clauses) body))))))
+
+(defmacro binding (clauses &rest body)
+  (%binding clauses body))
+
+
+
+(defun split-string (string separator &optional acc)
+  (let ((idx (string-search string separator)))
     (if idx
-        (%split-string
+        (split-string
          (string-slice string
                         (+ idx (string-length separator))
                         (string-length string))
          separator
          (cons (string-slice string 0 idx) acc))
         (reverse (cons string acc)))))
-
-(defun split-string (string separator)
-  (%split-string string separator nil))
 
 (defun vector-each (vector function)
   (vector-each-loop vector function 0))
@@ -523,17 +534,14 @@
           (cons x result)
         (find-result (tail list) predicate)))))
 
-(defun %filter (list predicate acc)
+(defun filter (list predicate &optional acc)
   (if (nil? list)
       (reverse acc)
     (let* ((x (head list))
            (next-acc (if (call predicate x)
                          (cons x acc)
                        acc)))
-      (%filter (tail list) predicate next-acc))))
-
-(defun filter (list predicate)
-  (%filter list predicate nil))
+      (filter (tail list) predicate next-acc))))
 
 (defun %defpackage-clause (pkg-sym clause)
   (ecase (head clause)
