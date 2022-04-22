@@ -96,6 +96,11 @@ pub fn main() anyerror!void {
         var heap = try makeHeap(orb);
         try @import("./tidy.zig").gc(&heap, &.{});
         try @import("./tape.zig").save(&heap, name);
+    } else if (std.mem.eql(u8, cmd, "load")) {
+        const name = args.next() orelse return help(stderr);
+
+        var heap = try @import("./tape.zig").load(orb, name);
+        _ = try heap.load("(repl)");
     } else {
         try help(stderr);
     }
@@ -110,6 +115,7 @@ fn help(stderr: std.fs.File.Writer) !void {
         \\  wisp run        run a program
         \\  wisp repl       start a REPL
         \\  wisp core       save a boot core
+        \\  wisp load       load a boot core
         \\  wisp keygen     print a unique key
         \\  wisp version    print the Wisp version
     );

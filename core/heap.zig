@@ -249,7 +249,7 @@ pub const MsgTag = enum(u8) {
 
 pub const Log = std.ArrayList(u8);
 
-pub const CommonStrings = struct {
+pub const CommonStrings = packed struct {
     NIL: u32,
     T: u32,
 };
