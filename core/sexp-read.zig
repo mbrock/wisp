@@ -488,7 +488,7 @@ pub fn Reader(comptime ReaderType: type) type {
             if (ziglyph.isSymbol(c)) return true;
             if (ziglyph.emoji_data.isEmojiPresentation(c)) return true;
             return switch (c) {
-                '/', '-', '!', '%', '&', '*', '?', '@' => true,
+                '/', '_', '-', '!', '%', '&', '*', '?', '@' => true,
                 else => false,
             };
         }

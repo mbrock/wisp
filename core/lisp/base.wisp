@@ -515,6 +515,39 @@
          (cons (string-slice string 0 idx) acc))
         (reverse (cons string acc)))))
 
+(defun join-strings (separator strings)
+  (cond ((nil? strings) "")
+        ((nil? (tail strings)) (head strings))
+        (t (string-append (head strings)
+                          separator
+                          (join-strings separator (tail strings))))))
+
+(defun string-nth (s i)
+  (string-slice s i (+ i 1)))
+
+(defun string-repeat (c n)
+  (if (eq? n 0) ""
+    (string-append c
+                   (string-repeat c (- n 1)))))
+
+(defun string-pad-left (s n x)
+  (string-append (string-repeat x (- n (string-length s))) s))
+
+(defun radixify (alphabet m i)
+  (if (< i m)
+      (string-nth alphabet i)
+    (string-append
+     (radixify alphabet m (/ i m))
+     (string-nth alphabet (mod i m)))))
+
+(defun %list-from-vector (v i acc)
+  (if (eq? (vector-length v) i)
+      (reverse acc)
+    (%list-from-vector v (+ i 1) (cons (vector-get v i) acc))))
+
+(defun list-from-vector (v)
+  (%list-from-vector v 0 ()))
+
 (defun vector-each (vector function)
   (vector-each-loop vector function 0))
 
@@ -522,6 +555,18 @@
   (when (< i (vector-length vector))
     (call function (vector-get vector i))
     (vector-each-loop vector function (+ i 1))))
+
+(defun %vector-element-bindings (vector names)
+  (let ((i 0))
+    (map (fn (name)
+           (returning `(,name (vector-get ,vector ,i))
+             (set! i (+ i 1)))) names)))
+
+(defmacro with-vector-elements (vector names &rest body)
+  (let (($vector (fresh-symbol!)))
+    `(let ((,$vector ,vector))
+       (let ,(%vector-element-bindings $vector names)
+         ,(prognify body)))))
 
 (defun remove (list element)
   (if (nil? list) nil

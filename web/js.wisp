@@ -4,6 +4,14 @@
 (defvar *console* (js-get *window* "console"))
 (defvar <promise> (js-get *window* "Promise"))
 
+(defmacro callback (args &rest body)
+  `(make-pinned-value
+    (fn ,args ,@body)))
+
+(defun make-callback (symbol)
+  (callback (&rest args)
+    (apply (symbol-function symbol) args)))
+
 (defun js-get* (object indices)
   (if (nil? indices)
       object
@@ -12,6 +20,13 @@
 
 (defun new (constructor &rest args)
   (apply #'js-new (cons constructor args)))
+
+(defun query-selector (selector &optional root)
+  (js-call (or root *document*) "querySelector" selector))
+
+(defun query-selector-all (selector &optional root)
+  (print `(query-selector-all ,selector ,root))
+  (js-call (or root *document*) "querySelectorAll" selector))
 
 (defun promise? (x)
   (if (and (eq? 'external (type-of x))
@@ -58,24 +73,8 @@
 (defun response-text (x)
   (await (js-call x "text")))
 
-(defmacro callback (args &rest body)
-  `(make-pinned-value
-    (fn ,args ,@body)))
-
-(defun make-callback (symbol)
-  (callback (&rest args)
-            (apply (symbol-function symbol) args)))
-
 (defun sleep (secs)
   (await
    (new <promise>
         (callback (resolve)
           (js-call *window* "setTimeout" resolve (* 1000 secs))))))
-
-(defun query-selector (selector &optional root)
-  (js-call (or root *document*) "querySelector" selector))
-
-(defun query-selector-all (selector &optional root)
-  (print `(query-selector-all ,selector ,root))
-  (js-call (or root *document*) "querySelectorAll" selector))
-

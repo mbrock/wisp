@@ -46,26 +46,13 @@
 (defroute ("POST" "git" repo "git-upload-pack")
   (git-http-backend-cgi repo))
 
-(defroute ("OPTIONS" "git" repo "git-upload-pack")
-  (do
-    (add-cors-headers!)
-    (set-response-code! 204)))
+(defun preflight ()
+  (add-cors-headers!)
+  (set-response-code! 204))
 
-(defroute ("OPTIONS" "git" repo "git-receive-pack")
-  (do
-    (add-cors-headers!)
-    (set-response-code! 204)))
-
-
-(defroute ("OPTIONS" "git" repo "info" anything)
-  (do
-    (add-cors-headers!)
-    (set-response-code! 204)))
-
-(defroute ("OPTIONS" "git")
-  (do
-    (add-cors-headers!)
-    (set-response-code! 204)))
+(defroute ("OPTIONS" "git") (preflight))
+(defroute ("OPTIONS" "git" repo _) (preflight))
+(defroute ("OPTIONS" "git" repo _ _) (preflight))
 
 (defun iterator-values (it &optional acc)
   (let ((next (js-call it "next")))

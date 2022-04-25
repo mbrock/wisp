@@ -74,8 +74,7 @@ async function load(filename) {
   return exec(script)
 }
 
-await load("base.wisp")
-await load("dexp.wisp")
+await load("js.wisp")
 await load("deno-base.wisp")
 await exec(`
 (async

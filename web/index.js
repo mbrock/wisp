@@ -55,7 +55,7 @@ onload = async () => {
       throw new Error
   }
 
-  const basecode = await fetch("./base.wisp").then(x => x.text())
+  const basecode = await fetch("./js.wisp").then(x => x.text())
   const dexpcode = await fetch("./dexp.wisp").then(x => x.text())
   const democode = await fetch("./demo.wisp").then(x => x.text())
   const servcode = await fetch("./server.wisp").then(x => x.text())
