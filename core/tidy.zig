@@ -74,7 +74,7 @@ const JS = struct {
 };
 
 pub fn done(tidy: *Tidy) Heap {
-    std.log.warn(";; gc era {any}", .{tidy.new.era});
+    std.log.debug(";; gc era {any}", .{tidy.new.era});
     tidy.old.v08 = .{};
     tidy.old.pkgmap = .{};
     tidy.old.roots = .{};

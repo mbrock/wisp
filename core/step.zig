@@ -79,7 +79,6 @@ fn makeCondition(step: *Step, err: anyerror) !u32 {
 pub fn handleError(step: *Step, err: anyerror) !void {
     const condition = try step.makeCondition(err);
     step.run.err = nil;
-    std.log.err("wisp error: {s}", .{@errorName(err)});
     try Jets.Funs.@"SEND-WITH-DEFAULT!"(step, step.heap.kwd.ERROR, condition, Wisp.nah);
 }
 

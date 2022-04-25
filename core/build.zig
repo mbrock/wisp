@@ -33,15 +33,11 @@ pub fn build(b: *std.build.Builder) void {
         b.addExecutable("wisp", "main.zig"),
     );
 
-    exe.step.dependOn(&bootRun.step);
-
     const wasmExe = wispStep(
         mode,
         wasiTarget,
         b.addExecutable("wisp", "main.zig"),
     );
-
-    wasmExe.step.dependOn(&bootRun.step);
 
     const wasmLib = wispStep(
         mode,
@@ -60,6 +56,10 @@ pub fn build(b: *std.build.Builder) void {
         standardTarget,
         b.addTest("sexp-prty.zig"),
     );
+
+    tests.step.dependOn(&bootRun.step);
+    exe.step.dependOn(&bootRun.step);
+    wasmExe.step.dependOn(&bootRun.step);
 
     exe.install();
     wasmExe.install();

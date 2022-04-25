@@ -281,7 +281,5 @@ pub fn loadFromMemory(orb: Wisp.Orb, bytes: []const u8) !Wisp.Heap {
         @field(heap.kwd, s.name) = sym;
     }
 
-    std.log.warn(";; heap loaded from memory", .{});
-
     return heap;
 }
