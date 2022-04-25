@@ -49,18 +49,19 @@ onload = async () => {
         ${code}
       )`)
     const run = ctx.api.wisp_run_init(ctx.heap, src)
-    ctx.api.wisp_run_eval(ctx.heap, run, 4_000_000)
+    const x = ctx.api.wisp_run_eval(ctx.heap, run, 4_000_000) >>> 0
+
+    if (x === ctx.sys.zap)
+      throw new Error
   }
 
   const basecode = await fetch("./base.wisp").then(x => x.text())
   const dexpcode = await fetch("./dexp.wisp").then(x => x.text())
-  const usercode = await fetch("./user.wisp").then(x => x.text())
   const democode = await fetch("./demo.wisp").then(x => x.text())
   const servcode = await fetch("./server.wisp").then(x => x.text())
   
   exec(basecode)
   exec(dexpcode)
-  exec(usercode)
 
   const file = localStorage.getItem("wisp-file") || democode
   const forms = file ? ctx.readMany(file) : ctx.sys.nil

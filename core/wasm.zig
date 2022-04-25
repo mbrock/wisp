@@ -19,6 +19,8 @@
 
 const std = @import("std");
 
+pub const log_level = std.log.Level.warn;
+
 const Wisp = @import("./wisp.zig");
 const Read = @import("./sexp-read.zig");
 const Sexp = @import("./sexp.zig");
@@ -60,6 +62,7 @@ var orb = gpa.allocator();
 fn heap_init() !*Wisp.Heap {
     var heap = try orb.create(Wisp.Heap);
     heap.* = try Wisp.Heap.fromEmbeddedCore(orb);
+    try Jets.load(heap);
     return heap;
 }
 

@@ -41,6 +41,8 @@ pub fn build(b: *std.build.Builder) void {
         b.addExecutable("wisp", "main.zig"),
     );
 
+    wasmExe.step.dependOn(&bootRun.step);
+
     const wasmLib = wispStep(
         mode,
         wasiTarget,

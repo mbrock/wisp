@@ -22,10 +22,14 @@ pub const Ctls = @import("./jets-ctl.zig");
 pub const Webs = @import("./jets-web.zig");
 
 pub const jets = blk: {
+    // We generate the boot core without the web jets.  So the
+    // boot core contains references to indices in this array,
+    // and those need to be stable.  That's why we add the web
+    // jets AFTER the basic jets.
     if (std.meta.globalOption("wisp_browser", bool) orelse false) {
-        break :blk makeOpArray(Webs, .fun) ++
-            makeOpArray(Ctls, .ctl) ++
-            makeOpArray(Funs, .fun);
+        break :blk makeOpArray(Ctls, .ctl) ++
+            makeOpArray(Funs, .fun) ++
+            makeOpArray(Webs, .fun);
     } else {
         break :blk makeOpArray(Ctls, .ctl) ++
             makeOpArray(Funs, .fun);
