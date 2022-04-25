@@ -216,9 +216,6 @@ pub fn load(orb: Wisp.Orb, name: []const u8) !Wisp.Heap {
 }
 
 pub fn loadFromMemory(orb: Wisp.Orb, bytes: []const u8) !Wisp.Heap {
-    var arena = std.heap.ArenaAllocator.init(orb);
-    defer arena.deinit();
-
     var reader = std.io.fixedBufferStream(bytes).reader();
     var header = try reader.readStruct(Header);
 
