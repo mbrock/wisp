@@ -20,9 +20,10 @@ article:not(.output) .symbol { text-transform: lowercase; }
 .vector, .list {
   display: flex;
   flex-wrap: wrap;
-  gap: .5rem;
+  column-gap: 10px;
+  row-gap: 5px;
   margin: 0 .25rem;
-  padding: 0 .5rem;
+  padding: 0 8px;
   max-width: 60ch;
   min-height: 1em;
   align-items: center;
@@ -112,12 +113,13 @@ article:not(.output) .symbol { text-transform: lowercase; }
 
 .cursor {
   display: inline-flex; flex-wrap: wrap; align-items: center; gap: 5px;
+  color: #ffa;
 }
 
-.active .cursor { animation: blink .75s infinite; }
+/* .active .cursor { animation: blink .75s infinite; } */
 
 .cursor:not(:empty) {
-  background: #63ffeb30; border-radius: 5px;
+  background: #63ffeb; border-radius: 5px;
   margin: 0 5px; padding: 2px 5px;
 }
 
@@ -131,8 +133,12 @@ ins { text-decoration: none; }
 .window {
   display: grid;
   grid-template-columns: 3fr 2fr;
-  grid-template-rows: minmax(0, min-content);
   position: absolute;
+  gap: 10px;
+  padding: 10px;
+  background: #444;
+  /* background: linear-gradient(to right, #2F0743, #41295a); /\* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ *\/ */
+
 }
 
 body, .window {
@@ -140,25 +146,33 @@ body, .window {
 }
 
 article > header {
-  border: 1px solid #fff4;
-  background: #fff1;
+  /* border: 1px solid #fff4; */
+  background: #0004;
   padding: 0px 15px;
-  line-height: 2rem;
+  line-height: 1.75rem;
 }
 
 article > main {
   padding: 10px;
   padding-bottom: 50px;
-  border: 1px solid #fff4;
+  /* border: 1px solid #fff4; */
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
   overflow-y: auto;
+  height: 100%;
+  background: #000f;
+  scrollbar-width: none;
 }
+
+::-webkit-scrollbar { display: none; }
 
 article {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) minmax(1rem, auto);
+  grid-template-rows: min-content minmax(0, 1fr);
+  border-radius: 8px;
+  overflow: auto;
+  scrollbar-width: none;
 }
 
 main > * { flex-shrink: 0; }
@@ -190,31 +204,31 @@ main > * { flex-shrink: 0; }
   transform: scale(1.25);
 }
 
-.list
-{ border-color: hsl(260, 55%, 60%, .7) }
-.list .list
-{ border-color: hsl(200, 55%, 50%, .7) }
-.list .list .list
-{ border-color: hsl(180, 85%, 50%, .7) }
-.list .list .list .list
-{ border-color: hsl(170, 85%, 30%, .7) }
-.list .list .list .list .list
-{ border-color: hsl(140, 85%, 30%, .7) }
-.list .list .list .list .list .list
-{ border-color: hsl(80, 85%, 30%, .7) }
-.list .list .list .list .list .list .list
-{ border-color: hsl(0, 85%, 30%, .7) }
-.list .list .list .list .list .list .list .list
-{ border-color: hsl(260, 55%, 60%, .7) }
-.list .list .list .list .list .list .list .list .list
-{ border-color: hsl(200, 55%, 50%, .7) }
-.list .list .list .list .list .list .list .list .list .list
-{ border-color: hsl(180, 85%, 50%, .7) }
-.list .list .list .list .list .list .list .list .list .list .list
-{ border-color: hsl(170, 85%, 30%, .7) }
-.list .list .list .list .list .list .list .list .list .list .list .list
-{ border-color: hsl(140, 85%, 30%, .7) }
-.list .list .list .list .list .list .list .list .list .list .list .list .list
-{ border-color: hsl(80, 85%, 30%, .7) }
-.list .list .list .list .list .list .list .list .list .list .list .list .list .list
-{ border-color: hsl(0, 85%, 30%, .7) }
+/* .list */
+/* { border-color: hsl(260, 5%, 60%, .7) } */
+/* .list .list */
+/* { border-color: hsl(200, 55%, 50%, .7) } */
+/* .list .list .list */
+/* { border-color: hsl(180, 85%, 50%, .7) } */
+/* .list .list .list .list */
+/* { border-color: hsl(170, 85%, 30%, .7) } */
+/* .list .list .list .list .list */
+/* { border-color: hsl(140, 85%, 30%, .7) } */
+/* .list .list .list .list .list .list */
+/* { border-color: hsl(80, 85%, 30%, .7) } */
+/* .list .list .list .list .list .list .list */
+/* { border-color: hsl(0, 85%, 30%, .7) } */
+/* .list .list .list .list .list .list .list .list */
+/* { border-color: hsl(260, 55%, 60%, .7) } */
+/* .list .list .list .list .list .list .list .list .list */
+/* { border-color: hsl(200, 55%, 50%, .7) } */
+/* .list .list .list .list .list .list .list .list .list .list */
+/* { border-color: hsl(180, 85%, 50%, .7) } */
+/* .list .list .list .list .list .list .list .list .list .list .list */
+/* { border-color: hsl(170, 85%, 30%, .7) } */
+/* .list .list .list .list .list .list .list .list .list .list .list .list */
+/* { border-color: hsl(140, 85%, 30%, .7) } */
+/* .list .list .list .list .list .list .list .list .list .list .list .list .list */
+/* { border-color: hsl(80, 85%, 30%, .7) } */
+/* .list .list .list .list .list .list .list .list .list .list .list .list .list .list */
+/* { border-color: hsl(0, 85%, 30%, .7) } */
