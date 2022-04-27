@@ -320,12 +320,20 @@ fn hang(heap: *Wisp.Heap, car: u32) ?usize {
         return null;
 }
 
-pub fn pretty(gpa: Gpa, heap: *Wisp.Heap, exp: u32) anyerror!Doc {
-    var tmp = std.heap.stackFallback(32, heap.orb);
+pub fn pretty(
+    gpa: Gpa,
+    tmp: Gpa,
+    heap: *Wisp.Heap,
+    exp: u32,
+    lvl: u32,
+) anyerror!Doc {
+    if (lvl > 30) {
+        return try text(gpa, "<...>");
+    }
 
     switch (Wisp.tagOf(exp)) {
         .duo => {
-            var list = try Step.scanListAllocAllowDotted(heap, tmp.get(), exp);
+            var list = try Step.scanListAllocAllowDotted(heap, tmp, exp);
 
             var array = list.arrayList();
             defer array.deinit();
@@ -340,11 +348,11 @@ pub fn pretty(gpa: Gpa, heap: *Wisp.Heap, exp: u32) anyerror!Doc {
                 var ys = std.ArrayListUnmanaged(Doc){};
 
                 for (items[0..n]) |x| {
-                    try xs.append(gpa, try pretty(gpa, heap, x));
+                    try xs.append(gpa, try pretty(gpa, tmp, heap, x, lvl + 1));
                 }
 
                 for (items[n..items.len]) |x| {
-                    try ys.append(gpa, try pretty(gpa, heap, x));
+                    try ys.append(gpa, try pretty(gpa, tmp, heap, x, lvl + 1));
                 }
 
                 return vcat(
@@ -371,12 +379,12 @@ pub fn pretty(gpa: Gpa, heap: *Wisp.Heap, exp: u32) anyerror!Doc {
                         try cdr.append(gpa, try text(gpa, "."));
                     }
 
-                    try cdr.append(gpa, try pretty(gpa, heap, x));
+                    try cdr.append(gpa, try pretty(gpa, tmp, heap, x, lvl + 1));
                 }
 
                 return hjoin(gpa, &[_]Doc{
                     try text(gpa, "("),
-                    try pretty(gpa, heap, items[0]),
+                    try pretty(gpa, tmp, heap, items[0], lvl + 1),
                     try text(gpa, " "),
                     try join(gpa, cdr.items),
                     try text(gpa, ")"),
@@ -384,7 +392,7 @@ pub fn pretty(gpa: Gpa, heap: *Wisp.Heap, exp: u32) anyerror!Doc {
             } else {
                 var xs = std.ArrayListUnmanaged(Doc){};
                 for (items[0..items.len]) |x| {
-                    try xs.append(gpa, try pretty(gpa, heap, x));
+                    try xs.append(gpa, try pretty(gpa, tmp, heap, x, lvl + 1));
                 }
                 return hjoin(gpa, &[_]Doc{
                     try text(gpa, "("),
@@ -398,7 +406,7 @@ pub fn pretty(gpa: Gpa, heap: *Wisp.Heap, exp: u32) anyerror!Doc {
             var items = try heap.v32slice(exp);
             var array = std.ArrayListUnmanaged(Doc){};
             for (items) |x| {
-                try array.append(gpa, try pretty(gpa, heap, x));
+                try array.append(gpa, try pretty(gpa, tmp, heap, x, lvl + 1));
             }
 
             return hjoin(gpa, &[_]Doc{
@@ -413,11 +421,11 @@ pub fn pretty(gpa: Gpa, heap: *Wisp.Heap, exp: u32) anyerror!Doc {
             return hjoin(gpa, &.{
                 try text(gpa, "<ktx "),
                 try join(gpa, &.{
-                    try pretty(gpa, heap, ktx.fun),
-                    try pretty(gpa, heap, ktx.acc),
-                    try pretty(gpa, heap, ktx.arg),
-                    try pretty(gpa, heap, ktx.env),
-                    try pretty(gpa, heap, ktx.hop),
+                    try pretty(gpa, tmp, heap, ktx.fun, lvl + 1),
+                    try pretty(gpa, tmp, heap, ktx.acc, lvl + 1),
+                    try pretty(gpa, tmp, heap, ktx.arg, lvl + 1),
+                    try pretty(gpa, tmp, heap, ktx.env, lvl + 1),
+                    try pretty(gpa, tmp, heap, ktx.hop, lvl + 1),
                 }),
                 try text(gpa, ">"),
             });
@@ -436,8 +444,9 @@ pub fn prettyPrint(heap: *Wisp.Heap, exp: u32, max: u32) ![]const u8 {
     var arena = std.heap.ArenaAllocator.init(heap.orb);
     defer arena.deinit();
     var gpa = arena.allocator();
+    var tmp = std.heap.stackFallback(256, heap.orb);
 
-    var doc = try pretty(gpa, heap, exp);
+    var doc = try pretty(gpa, tmp.get(), heap, exp, 0);
     var str = (try render(gpa, doc)).?;
 
     return heap.orb.dupe(u8, str);
