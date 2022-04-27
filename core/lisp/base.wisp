@@ -191,6 +191,9 @@
 (defmacro when (test &rest body)
   `(if ,test ,(prognify body) nil))
 
+(defun pair? (x)
+  (eq? 'cons (type-of x)))
+
 
 
 ;;; * Macroexpansion
@@ -206,8 +209,23 @@
     (if (eq? x y) x
       (iterative-fixpoint f y))))
 
+(defun macroexpand-1x (form)
+  (if (pair? form)
+      (let ((callee (head form)))
+        (if (symbol? callee)
+            (let ((function (symbol-function callee)))
+              (let ((function-type (type-of function)))
+                (cond ((and (eq? function-type 'function)
+                            (not (jet-ctl? function)))
+                       (maptree #'macroexpand-1x form))
+                      ((eq? function-type 'macro)
+                       (apply function (tail form)))
+                      (t form))))
+            form))
+      form))
+
 (defun macroexpand (form)
-  (iterative-fixpoint #'macroexpand-1 form))
+  (iterative-fixpoint #'macroexpand-1x form))
 
 (defun macroexpand-completely (form)
   (iterative-fixpoint #'macroexpand-recursively form))
@@ -221,7 +239,7 @@
            (maptree #'macroexpand-completely form))
           ((eq? head 'let)
            (let ((bindings (second form))
-                 (body (head (last form))))
+                 (body (tail (tail form))))
              (let ((bindings-expansion
                      (maptree
                       (fn (binding)
@@ -232,20 +250,21 @@
                               (list (head binding) x))))
                       bindings))
                    (body-expansion
-                     (macroexpand-completely body)))
+                     (maptree #'macroexpand-completely body)))
                (if (and (eq? bindings bindings-expansion)
                         (eq? body body-expansion))
                    form
-                   (list 'let bindings-expansion body-expansion)))))
+                   (cons 'let (cons bindings-expansion body-expansion))))))
           ((eq? head 'quote) form)
-          ((eq? head 'fn)
+          ((eq? head 'backquote) (bq-completely-process (second form)))
+          ((eq? head '%fn)
            (let ((params (second form))
                  (body (head (last form))))
              (let ((body-expansion
                      (macroexpand-completely body)))
                (if (eq? body body-expansion)
                    form
-                   `(fn ,params ,body-expansion)))))
+                   `(%fn ,params ,body-expansion)))))
           (t
            (let ((expansion (macroexpand form)))
              (if (eq? form expansion)
@@ -295,9 +314,6 @@
 (defmacro defun-noexpand (name args &rest body)
   (print (list 'defun name args))
   `(set-symbol-function! ',name (%fn ,name ,args ,(prognify body))))
-
-(defun pair? (x)
-  (eq? 'cons (type-of x)))
 
 (defun list? (x)
   (or (pair? x) (nil? x)))

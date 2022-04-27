@@ -827,6 +827,10 @@ pub fn @"JET?"(step: *Step, fun: u32) anyerror!void {
     step.give(.val, if (Wisp.tagOf(fun) == .jet) t else nil);
 }
 
+pub fn @"JET-CTL?"(step: *Step, fun: u32) anyerror!void {
+    step.give(.val, if (Wisp.tagOf(fun) == .jet and Jets.jets[Wisp.Imm.from(fun).idx].ilk == .ctl) t else nil);
+}
+
 pub fn @"GC"(step: *Step) anyerror!void {
     step.heap.please_tidy = true;
     step.give(.val, nil);
