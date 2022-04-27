@@ -244,6 +244,8 @@
 </style>
 <title>Wisp</title>
 <div id=wisp-app class=window></div>
-<script src=telegram-web-app.js></script>
+<script>
+  wispModule = WebAssembly.compileStreaming(fetch("dist/wisp.wasm"))
+</script>
 <script type=module src=index.js></script>
 <script defer src="https://cdn.auth0.com/js/auth0-spa-js/1.12/auth0-spa-js.production.js"></script>

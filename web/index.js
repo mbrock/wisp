@@ -28,8 +28,8 @@ onload = async () => {
   const wasi = new WASI
   const wasd = new WASD
 
-  const { instance } = await WebAssembly.instantiateStreaming(
-    fetch("dist/wisp.wasm"), {
+  const instance = await WebAssembly.instantiate(
+    await wispModule, {
       wasi_snapshot_preview1: wasi.exports(),
       dom: wasd.exports(),
     }
