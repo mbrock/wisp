@@ -80,8 +80,8 @@ await load("deno-base.wisp")
 await exec(`
 (async
  (fn ()
-  (with-simple-error-handler ()
+  (with-simple-error-handler (fn () (do
    (load "deno.wisp")
    (load "${Deno.args[0]}")
-)))
+)))))
 `)

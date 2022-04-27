@@ -400,7 +400,8 @@ export fn wisp_call(
     const funptr = heap.pins.get(pinidx) orelse return Wisp.zap;
 
     var run = Step.initRun(Wisp.nil);
-    var step = Step{ .heap = heap, .run = &run };
+    var tmp = std.heap.stackFallback(4096, heap.orb);
+    var step = Step{ .heap = heap, .run = &run, .tmp = tmp.get() };
 
     if (step.call(funptr, argptr, false)) {} else |e| {
         std.io.getStdErr().writer().print(

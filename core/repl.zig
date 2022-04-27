@@ -90,7 +90,7 @@ pub fn repl() anyerror!void {
 
         if (try readSexp(stdin, tmp, &heap)) |term| {
             var run = Step.initRun(term);
-            var step = Step{ .heap = &heap, .run = &run };
+            var step = Step{ .heap = &heap, .run = &run, .tmp = tmp };
             _ = step;
 
             while (true) {

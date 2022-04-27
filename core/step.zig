@@ -34,6 +34,7 @@ const Status = enum { val, exp };
 
 heap: *Heap,
 run: *Run,
+tmp: std.mem.Allocator,
 
 pub var wtf = false;
 
@@ -62,7 +63,8 @@ const tagOf = Wisp.tagOf;
 const top = Wisp.top;
 
 pub fn once(heap: *Heap, run: *Run) !void {
-    var step = Step{ .heap = heap, .run = run };
+    var tmp = std.heap.stackFallback(4096, heap.orb);
+    var step = Step{ .heap = heap, .run = run, .tmp = tmp.get() };
     step.attemptOneStep() catch |e| try step.handleError(e);
 }
 
@@ -291,19 +293,16 @@ fn scan(
     arg: u32,
     rev: bool,
 ) !void {
-    var _tmp = std.heap.stackFallback(4096, step.heap.orb);
-    var tmp = _tmp.get();
-
-    var pars = try scanListAlloc(step.heap, tmp, par);
+    var pars = try step.scanListAlloc(par);
     defer pars.deinit();
-    var vals = try scanListAlloc(step.heap, tmp, arg);
+    var vals = try step.scanListAlloc(arg);
     defer vals.deinit();
 
     if (rev)
         std.mem.reverse(u32, vals.items);
 
-    var scope = try tmp.alloc(u32, 2 * pars.items.len);
-    defer tmp.free(scope);
+    var scope = try step.tmp.alloc(u32, 2 * pars.items.len);
+    defer step.tmp.free(scope);
 
     var i: usize = 0; // how many pars we scanned
     var n: usize = 0; // how many vars we bound
@@ -362,6 +361,14 @@ fn scan(
     step.give(.exp, exp);
 }
 
+fn symname(step: *Step, sym: u32) ![]const u8 {
+    if (tagOf(sym) == .sym) {
+        return try step.heap.v08slice(try step.heap.get(.sym, .str, sym));
+    } else {
+        return "anonymous";
+    }
+}
+
 /// Perform an application, either by directly calling a builtin
 /// or by entering a closure.
 pub fn call(
@@ -370,9 +377,6 @@ pub fn call(
     args: u32,
     rev: bool,
 ) anyerror!void {
-    var _tmp = std.heap.stackFallback(4096, step.heap.orb);
-    var tmp = _tmp.get();
-
     if (wtf) {
         try step.warn("call", funptr);
     }
@@ -397,7 +401,7 @@ pub fn call(
         },
 
         .ktx => {
-            var vals = try scanListAlloc(step.heap, tmp, args);
+            var vals = try step.scanListAlloc(args);
             defer vals.deinit();
 
             if (vals.items.len != 1) {
@@ -413,7 +417,7 @@ pub fn call(
 
         .sys => {
             if (funptr == top) {
-                var vals = try scanListAlloc(step.heap, tmp, args);
+                var vals = try step.scanListAlloc(args);
                 defer vals.deinit();
 
                 if (vals.items.len != 1) {
@@ -686,8 +690,8 @@ pub const List = union(ListKind) {
     }
 };
 
-pub fn scanListAlloc(heap: *Heap, tmp: Wisp.Orb, list: u32) !std.ArrayList(u32) {
-    return switch (try scanListAllocAllowDotted(heap, tmp, list)) {
+pub fn scanListAlloc(step: *Step, list: u32) !std.ArrayList(u32) {
+    return switch (try scanListAllocAllowDotted(step.heap, step.tmp, list)) {
         .proper => |xs| xs,
         .dotted => Oof.Err,
     };
@@ -803,11 +807,10 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
 
 fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
     const def = Jets.jets[Wisp.Imm.from(jet).idx];
-    var tmp = std.heap.stackFallback(4096, step.heap.orb);
 
     switch (def.tag) {
         .f0x => {
-            const args = try scanListAlloc(step.heap, tmp.get(), arg);
+            const args = try step.scanListAlloc(arg);
             defer args.deinit();
             if (rev) std.mem.reverse(u32, args.items);
             const fun = cast(.f0x, def);
@@ -829,7 +832,7 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f1x => {
-            const args = try scanListAlloc(step.heap, tmp.get(), arg);
+            const args = try step.scanListAlloc(arg);
             defer args.deinit();
             if (rev) std.mem.reverse(u32, args.items);
             const fun = cast(.f1x, def);
@@ -837,7 +840,7 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f2x => {
-            const args = try scanListAlloc(step.heap, tmp.get(), arg);
+            const args = try step.scanListAlloc(arg);
             defer args.deinit();
             if (args.items.len < 2) {
                 return step.invalidArgumentCount(jet);
@@ -863,7 +866,7 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f1 => {
-            const list = try scanListAlloc(step.heap, tmp.get(), arg);
+            const list = try step.scanListAlloc(arg);
             const args = list.items;
             defer list.deinit();
 
@@ -876,7 +879,7 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f2 => {
-            const list = try scanListAlloc(step.heap, tmp.get(), arg);
+            const list = try step.scanListAlloc(arg);
             const args = list.items;
             defer list.deinit();
 
@@ -890,7 +893,7 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f3 => {
-            const list = try scanListAlloc(step.heap, tmp.get(), arg);
+            const list = try step.scanListAlloc(arg);
             const args = list.items;
             defer list.deinit();
 
@@ -904,7 +907,7 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f4 => {
-            const list = try scanListAlloc(step.heap, tmp.get(), arg);
+            const list = try step.scanListAlloc(arg);
             const args = list.items;
             defer list.deinit();
 
@@ -919,7 +922,7 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
 
         // XXX: I know this is horrible.  I'm going to refactor it later...
         .f5 => {
-            const list = try scanListAlloc(step.heap, tmp.get(), arg);
+            const list = try step.scanListAlloc(arg);
             const args = list.items;
             defer list.deinit();
 
@@ -972,7 +975,13 @@ pub fn evaluateUntilSpecificContinuation(
 ) !u32 {
     if (run.err != nil) return error.ErrorAlreadyPresent;
 
-    var step = Step{ .heap = heap, .run = run };
+    var tmp = std.heap.stackFallback(4096, heap.orb);
+
+    var step = Step{
+        .heap = heap,
+        .run = run,
+        .tmp = tmp.get(),
+    };
 
     var i: u32 = 0;
     while (true) {
@@ -1006,7 +1015,7 @@ pub fn evaluateUntilSpecificContinuation(
             return run.val;
         }
 
-        if (once(heap, run)) {
+        if (step.attemptOneStep() catch |e| try step.handleError(e)) {
             i += 1;
         } else |err| {
             if (run.err == nil) {

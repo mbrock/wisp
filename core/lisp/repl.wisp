@@ -118,12 +118,12 @@
 ;; (defun communicator ()
 ;;   (loop #'communicate-once))
 
-(defmacro with-simple-error-handler (dummy &rest body)
-  `(try ,(prognify body)
-     (catch (e k)
-       (print (list 'error e))
-       (print (list 'context (show-ktx k)))
-       (error e))))
+(defun with-simple-error-handler (body)
+  (try (call body)
+       (catch (e k)
+         (print (list 'error e))
+         (print (list 'context (show-ktx k)))
+         (error e))))
 
 (defun show-ktx (k)
   (ktx-show k '⦿))

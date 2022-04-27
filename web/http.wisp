@@ -33,10 +33,11 @@
            (fn ()
              (binding ((*request* request)
                        (*response* (vector 200 (new <headers>) nil)))
-               (try (with-simple-error-handler ()
-                      (call-with-prompt :respond
-                          (fn () (call handler))
-                        (fn (v k) (set! *response* v))))
+                      (try (with-simple-error-handler
+                               (fn ()
+                                   (call-with-prompt :respond
+                                                     (fn () (call handler))
+                                                     (fn (v k) (set! *response* v)))))
                  (catch (e k)
                    (set! *response*
                          (vector 500 nil "Internal Server Error"))))

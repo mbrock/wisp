@@ -45,9 +45,9 @@ onload = async () => {
 
   function exec(code) {
     const src = ctx.read(`
-      (with-simple-error-handler ()
-        ${code}
-      )`)
+      (with-simple-error-handler (fn () (do
+         ${code}
+      )))`)
     const run = ctx.api.wisp_run_init(ctx.heap, src)
     const x = ctx.api.wisp_run_eval(ctx.heap, run, 4_000_000) >>> 0
 
@@ -59,7 +59,7 @@ onload = async () => {
   const dexpcode = await fetch("./dexp.wisp").then(x => x.text())
   const democode = await fetch("./demo.wisp").then(x => x.text())
   const servcode = await fetch("./server.wisp").then(x => x.text())
-  
+
   exec(basecode)
   exec(dexpcode)
 

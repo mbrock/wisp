@@ -162,9 +162,10 @@
   (js-get (render-sexp-to-element sexp) "outerHTML"))
 
 (defun render-app (forms)
-  (with-simple-error-handler ()
-    (idom-patch! (query-selector "#wisp-app")
-                 (make-callback 'draw-app) forms)))
+  (with-simple-error-handler
+      (fn ()
+          (idom-patch! (query-selector "#wisp-app")
+                       (make-callback 'draw-app) forms))))
 
 (defun %vector-element-bindings (vector names)
   (let ((i 0))
@@ -240,9 +241,10 @@
       t)))
 
 (defun on-keydown (key)
-  (with-simple-error-handler ()
-    (async (fn ()
-             (call *key-handler* key)))))
+  (with-simple-error-handler
+      (fn ()
+          (async (fn ()
+                     (call *key-handler* key))))))
 
 (defun read-key ()
   (let ((old-key-handler *key-handler*))
@@ -422,8 +424,9 @@
       (make-pinned-value #'insert-code!))))
 
 (defun do-render-sexp (forms)
-  (with-simple-error-handler ()
-    (for-each forms #'render-sexp)))
+  (with-simple-error-handler
+      (fn ()
+          (for-each forms #'render-sexp))))
 
 (defmacro note (date &rest notes)
   `(quote (note ,date ,@notes)))
@@ -543,21 +546,22 @@
               (element-insert-adjacent! match :beforebegin (cursor)))))))))
 
 (defun wisp-boot (forms)
-  (with-simple-error-handler ()
-    (dom-on-keydown! (make-callback 'on-keydown))
-    (js-set! *document* "onclick"
-             (make-pinned-value
-              (fn (x)
-                (unless (element-closest (js-get x "target") ".cm-editor")
-                  (let ((target (element-closest (js-get x "target")
-                                                 ".wisp.value")))
-                    (if target
-                        (do
-                          (unselect!)
-                          (element-insert-adjacent! target :beforebegin (cursor))
-                          (element-insert-adjacent! (cursor) :afterbegin target))
-                      (unselect!)))))))
-    (render-app forms)))
+  (with-simple-error-handler
+      (fn ()
+          (dom-on-keydown! (make-callback 'on-keydown))
+          (js-set! *document* "onclick"
+                   (make-pinned-value
+                    (fn (x)
+                        (unless (element-closest (js-get x "target") ".cm-editor")
+                          (let ((target (element-closest (js-get x "target")
+                                                         ".wisp.value")))
+                            (if target
+                                (do
+                                 (unselect!)
+                                 (element-insert-adjacent! target :beforebegin (cursor))
+                                  (element-insert-adjacent! (cursor) :afterbegin target))
+                                (unselect!)))))))
+          (render-app forms))))
 
 (defun new-auth0-client ()
   (await (js-call *window* "createAuth0Client"
