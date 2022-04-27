@@ -140,7 +140,6 @@ pub fn load(orb: Wisp.Orb, name: []const u8) !Wisp.Heap {
     std.log.warn("{any}", .{header});
 
     var heap = Wisp.Heap{
-        .log = null,
         .orb = orb,
         .era = @intToEnum(Wisp.Era, header.era),
         .pkg = header.pkg,
@@ -220,7 +219,6 @@ pub fn loadFromMemory(orb: Wisp.Orb, bytes: []const u8) !Wisp.Heap {
     var header = try reader.readStruct(Header);
 
     var heap = Wisp.Heap{
-        .log = null,
         .orb = orb,
         .era = @intToEnum(Wisp.Era, header.era),
         .pkg = header.pkg,

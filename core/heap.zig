@@ -248,17 +248,12 @@ pub const MsgTag = enum(u8) {
     rnd,
 };
 
-pub const Log = std.ArrayList(u8);
-
 pub const CommonStrings = packed struct {
     NIL: u32,
     T: u32,
 };
 
 pub const Heap = struct {
-    /// A heap can emit a mutation log for replication.
-    log: ?*Log,
-
     orb: Orb,
     era: Era = .e0,
     vat: Vat = .{},
@@ -289,12 +284,7 @@ pub const Heap = struct {
     }
 
     pub fn init(orb: Orb, era: Era) !Heap {
-        return initWithLog(orb, era, null);
-    }
-
-    pub fn initWithLog(orb: Orb, era: Era, log: ?*Log) !Heap {
         var heap = Heap{
-            .log = log,
             .orb = orb,
             .era = era,
             .base = nil,
@@ -344,12 +334,6 @@ pub const Heap = struct {
         const str = try heap.orb.dupe(u8, try heap.v08slice(nam));
 
         try heap.pkgmap.putNoClobber(heap.orb, str, pkg);
-
-        if (heap.log) |log| {
-            try log.append(@enumToInt(MsgTag.pkg));
-            const buf = try log.addManyAsArray(4);
-            std.mem.writeIntLittle(u32, buf, pkg);
-        }
 
         return pkg;
     }
@@ -426,15 +410,6 @@ pub const Heap = struct {
     }
 
     pub fn new(heap: *Heap, comptime tag: Tag, data: Row(tag)) !u32 {
-        if (heap.log) |log| {
-            const out = log.writer();
-            try out.writeByte(@enumToInt(MsgTag.new));
-            try out.writeByte(@typeInfo(Row(tag)).Struct.fields.len);
-            inline for (std.meta.fields(Row(tag))) |f| {
-                try out.writeIntLittle(u32, @field(data, f.name));
-            }
-        }
-
         return try heap.tab(tag).new(heap.orb, heap.era, data);
     }
 
@@ -511,17 +486,6 @@ pub const Heap = struct {
         if (Wisp.tagOf(p) != tag)
             try badPointerTag();
 
-        if (heap.log) |log| {
-            const out = log.writer();
-            try out.writeAll(&[_]u8{
-                @enumToInt(MsgTag.set),
-                @enumToInt(tag),
-                @enumToInt(c),
-            });
-            try out.writeIntLittle(u32, p);
-            try out.writeIntLittle(u32, v);
-        }
-
         heap.col(tag, c)[ref(p)] = v;
     }
 
@@ -534,28 +498,10 @@ pub const Heap = struct {
         if (Wisp.tagOf(ptr) != tag)
             try badPointerTag();
 
-        if (heap.log) |log| {
-            const out = log.writer();
-            const len = @typeInfo(Row(tag)).Struct.fields.len;
-            try out.writeByte(@enumToInt(MsgTag.put));
-            try out.writeByte(len);
-            try out.writeIntLittle(u32, ptr);
-            inline for (std.meta.fields(Row(tag))) |f| {
-                try out.writeIntLittle(u32, @field(val, f.name));
-            }
-        }
-
         heap.tab(tag).list.set(ref(ptr), val);
     }
 
     pub fn newv08(heap: *Heap, dat: []const u8) !u32 {
-        if (heap.log) |log| {
-            const out = log.writer();
-            try out.writeByte(@enumToInt(MsgTag.v08));
-            try out.writeIntLittle(u32, @intCast(u32, dat.len));
-            try out.writeAll(dat);
-        }
-
         try heap.v08.appendSlice(heap.orb, dat);
         return heap.new(.v08, .{
             .idx = @intCast(u32, heap.v08.items.len - dat.len),
@@ -568,15 +514,6 @@ pub const Heap = struct {
     }
 
     pub fn newv32(heap: *Heap, dat: []const u32) !u32 {
-        if (heap.log) |log| {
-            const writer = log.writer();
-            try writer.writeByte(@enumToInt(MsgTag.v32));
-            try writer.writeIntLittle(u32, @intCast(u32, dat.len));
-            for (dat) |x| {
-                try writer.writeIntLittle(u32, x);
-            }
-        }
-
         for (dat) |x| {
             if (x == 0xaaaaaaaa) {
                 unreachable;
@@ -664,10 +601,6 @@ pub const Heap = struct {
     }
 
     pub fn genkey(heap: *Heap) !u32 {
-        if (heap.log) |log| {
-            try log.append(@enumToInt(MsgTag.rnd));
-        }
-
         const key = Keys.generate(&std.crypto.random);
         const sym = try heap.intern(
             &key.toZB32(),
@@ -735,24 +668,5 @@ test "list length" {
     try same(
         @as(u32, 3),
         try length(&heap, try list(&heap, [_]u32{ 1, 2, 3 })),
-    );
-}
-
-test "heap init with log" {
-    var log = std.ArrayList(u8).init(std.testing.allocator);
-    defer log.deinit();
-
-    var heap = try Heap.initWithLog(std.testing.allocator, .e0, &log);
-    defer heap.deinit();
-
-    const loglen1 = log.items.len;
-    try std.testing.expect(loglen1 > 1000);
-
-    _ = try heap.new(.sym, .{ .str = 1, .val = 2, .pkg = 3, .fun = 4, .dyn = 5 });
-
-    const loglen2 = log.items.len;
-    try std.testing.expectEqual(
-        @as(usize, 2 + 5 * 4),
-        loglen2 - loglen1,
     );
 }

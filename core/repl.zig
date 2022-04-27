@@ -63,10 +63,7 @@ pub fn repl() anyerror!void {
     const stdin = std.io.getStdIn().reader();
     const stdout = std.io.getStdOut().writer();
 
-    var log = std.ArrayList(u8).init(orb);
-    defer log.deinit();
-
-    var heap = try Wisp.Heap.initWithLog(orb, .e0, &log);
+    var heap = try Wisp.Heap.init(orb, .e0);
     defer heap.deinit();
 
     try Jets.load(&heap);
@@ -79,9 +76,6 @@ pub fn repl() anyerror!void {
     // _ = try Step.evaluate(&heap, &baseTestRun, 1_000_000);
 
     repl: while (true) {
-        try stdout.print("({d} log bytes)\n", .{log.items.len});
-        log.clearAndFree();
-
         try stdout.writeAll("> ");
 
         var arena = std.heap.ArenaAllocator.init(orb);

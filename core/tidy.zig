@@ -52,7 +52,6 @@ pub fn init(old: *Heap) !Tidy {
     return Tidy{
         .old = old,
         .new = Heap{
-            .log = old.log,
             .era = old.era.flip(),
             .orb = old.orb,
             .v08 = old.v08,
