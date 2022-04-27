@@ -498,15 +498,8 @@ const Ktx = struct {
             try call(step, ktx.fun, acc, true);
         } else {
             const argduo = try step.heap.row(.duo, ktx.arg);
-            const way = try step.heap.new(.ktx, .{
-                .hop = ktx.hop,
-                .env = ktx.env,
-                .fun = ktx.fun,
-                .acc = acc,
-                .arg = argduo.cdr,
-            });
-
-            step.run.way = way;
+            try step.heap.set(.ktx, .acc, step.run.way, acc);
+            try step.heap.set(.ktx, .arg, step.run.way, argduo.cdr);
             step.give(.exp, argduo.car);
         }
     }
@@ -541,16 +534,12 @@ const Ktx = struct {
 
             step.give(.exp, argduo.car);
             step.run.env = ktx.env;
-            step.run.way = if (argduo.cdr == nil)
-                ktx.hop
-            else
-                try step.heap.new(.ktx, .{
-                    .fun = step.heap.kwd.DO,
-                    .env = ktx.env,
-                    .acc = nil,
-                    .arg = argduo.cdr,
-                    .hop = ktx.hop,
-                });
+
+            if (argduo.cdr == nil) {
+                step.run.way = ktx.hop;
+            } else {
+                try step.heap.set(.ktx, .arg, step.run.way, argduo.cdr);
+            }
         }
     }
 
@@ -580,15 +569,9 @@ const Ktx = struct {
             const letexp = try step.heap.get(.duo, .car, letduo.cdr);
             const symacc = try step.heap.cons(letsym, valacc);
 
-            const way = try step.heap.new(.ktx, .{
-                .hop = ktx.hop,
-                .env = ktx.env,
-                .fun = ktx.fun,
-                .acc = symacc,
-                .arg = argduo.cdr,
-            });
+            try step.heap.set(.ktx, .acc, step.run.way, symacc);
+            try step.heap.set(.ktx, .arg, step.run.way, argduo.cdr);
 
-            step.run.way = way;
             step.run.env = ktx.env;
             step.give(.exp, letexp);
         }
@@ -698,7 +681,7 @@ pub fn scanListAlloc(step: *Step, list: u32) !std.ArrayList(u32) {
 }
 
 pub fn scanListAllocAllowDotted(heap: *Heap, tmp: Wisp.Orb, list: u32) !List {
-    var xs = try std.ArrayList(u32).initCapacity(tmp, 16);
+    var xs = try std.ArrayList(u32).initCapacity(tmp, 64);
     errdefer xs.deinit();
 
     var cur = list;
