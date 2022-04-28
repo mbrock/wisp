@@ -123,7 +123,7 @@
 (defvar *render-sexp-callback* (make-callback 'do-render-sexp))
 
 (defun draw-app (forms)
-  (tag :article '((:class "file active"))
+  (tag :wisp-window '((:class "file active"))
     (tag :header ()
       (tag :b ()
         (text "demo.wisp")))
@@ -131,7 +131,7 @@
       (tag :ins '((:class "cursor")) nil)
       (for-each forms #'render-sexp))
     )
-  (tag :article '((:class "output"))
+  (tag :wisp-window '((:class "output"))
     (tag :header ()
       (tag :i ()
         (text "*evaluation*")))
@@ -143,7 +143,7 @@
   (query-selector ".active .cursor"))
 
 (defun output-buffer ()
-  (query-selector "article.output > main"))
+  (query-selector "wisp-window.output > main"))
 
 (defun create-element (tag-name)
   (js-call *document* "createElement" tag-name))
@@ -166,8 +166,8 @@
 (defun render-app (forms)
   (with-simple-error-handler
       (fn ()
-          (idom-patch! (query-selector "#wisp-app")
-                       (make-callback 'draw-app) forms))))
+        (idom-patch! (query-selector "wisp-frame")
+                     (make-callback 'draw-app) forms))))
 
 (defun key-info-string (key-info)
   (with-vector-elements key-info (key ctrl shift alt meta repeat)
@@ -443,8 +443,8 @@
   `(set! *wisp-keymap* (make-keymap ,@clauses)))
 
 (defun other-window! ()
-  (let ((current-window (query-selector "article.active"))
-        (other-window (query-selector "article:not(.active)")))
+  (let ((current-window (query-selector "wisp-window.active"))
+        (other-window (query-selector "wisp-window:not(.active)")))
     (do (js-call (js-get current-window "classList") "toggle" "active" nil)
         (js-call (js-get other-window "classList") "toggle" "active" t))))
 

@@ -35,10 +35,12 @@ onload = async () => {
     }
   )
 
-  wasi.setMemory(instance.exports.memory)
-  
+  const exports = instance.exports
+
+  wasi.setMemory(exports.memory)
+
   let ctx = new Wisp(instance)
-  
+
   wasd.setWisp(ctx)
 
   function exec(code) {
@@ -63,8 +65,10 @@ onload = async () => {
   const file = democode
   const forms = file ? ctx.readMany(file) : ctx.sys.nil
   
-  let pkgname = ctx.allocString("WISP")
-  let funname = ctx.allocString("WISP-BOOT")
+  let packageName = "WISP"
+  let functionName = "WISP-BOOT"
+  let pkgname = ctx.allocString(packageName)
+  let funname = ctx.allocString(functionName)
   let result = ctx.api.wisp_call_package_function(
     ctx.heap,
     pkgname, packageName.length,
