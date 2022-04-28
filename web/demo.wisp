@@ -1,46 +1,9 @@
-(defvar *repo* (new-remote-repository!))
-(git-clone! *repo*)
-(save-file-code! (string-append "/" *repo* "/index.wisp"))
-(git-add! *repo* "index.wisp")
-(git-commit! *repo* "Alice Hacker" "alice@example.org" "first commit")
-(git-push! )
-
-(vector-for-each (readdir "/wisp6")
-  (fn (x)
-    (let ((stat (stat (string-append "/wisp6/" x))))
-      (display
-       (list (read-from-string (js-get stat "type"))
-             x
-             (js-get stat "size"))))))
-
 (note (slide 1)
   (todo greetings to zig hackers)
   (todo wisp is a lisp for webassembly)
   (todo mostly for fun)
   (todo live at "https://wisp.town")
   (todo code at "https://github.com/mbrock/wisp"))
-
-(map (fn (x) (* x x)) (list 1 2 3))
-
-(try (* 2 (/ 1 0))
-  (catch (e k)
-    (vector-from-list (read-many-from-string (listen)))))
-
-(listen)
-
-(defun alert (x)
-  (js-call *window* "alert" x))
-
-(defun prompt (x)
-  (js-call *window* "prompt" x))
-
-(defun sleep (secs)
-  (await
-   (new <promise>
-        (callback (resolve)
-          (js-call *window* "setTimeout" resolve (* 1000 secs))))))
-
-(do (sleep 2) "ok done")
 
 (try
   (* 2 (/ 1 0))
