@@ -1,5 +1,6 @@
+@import url("https://rsms.me/inter/inter.css");
 body { background: black; color: ivory; margin: 0 }
-body { font: 16px/18px 'dm mono', 'inconsolata', monospace; }
+body { font: 16px/26px inter, helvetica, "dm mono", inconsolata, monospace; }
 
 body, wisp-frame {
   top: 0; bottom: 0; left: 0; right: 0;
@@ -11,13 +12,15 @@ wisp-frame {
   grid-template-columns: 100%;
   justify-content: center;
   position: absolute;
-  background: #122;
+  /* background: #111; */
+  /* background: url(bg2.jpg); */
+  /* background-size: cover; */
   overflow: auto;
 }
 
 wisp-window-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 38rem));
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 32rem));
   grid-template-rows: repeat(3, 1fr);
   justify-content: center;
   overflow: auto;
@@ -25,7 +28,7 @@ wisp-window-grid {
 
 @media (min-width: 768px) {
   wisp-window-grid {
-    padding: 10px;
+    padding: 5px 10px;
     gap: 10px;
   }
 }
@@ -38,19 +41,6 @@ wisp-window-grid > :nth-child(1) ~ * {
   grid-column: 2;
 }
 
-/* wisp-window-grid { */
-/*   padding: 10px; */
-/*   display: flex; */
-/*   justify-content: center; */
-/*   overflow: auto; */
-/*   gap: 10px; */
-/*   flex-wrap: wrap; */
-/* } */
-
-/* wisp-window-grid > * { */
-/*   width: 32rem; */
-/* } */
-
 wisp-echo-area {
   background: #0006;
   padding: 5px 10px;
@@ -59,10 +49,10 @@ wisp-echo-area {
 wisp-window {
   display: grid;
   grid-template-rows: min-content minmax(0, 1fr);
-  border-radius: 6px;
+  /* border-radius: 6px; */
   overflow: auto;
   scrollbar-width: none;
-  border: 2px solid #0ff5;
+  border: 2px solid #0445;
 }
 
 wisp-window > main { grid-row: 2; }
@@ -72,9 +62,10 @@ wisp-window:not(.active) {
 }
 
 wisp-window > header {
-  background: #0993;
+  border-bottom: 2px solid #0445;
   padding: 0px 15px;
-  line-height: 1.75rem;
+  color: ivory;
+  font-size: 80%;
 }
 
 wisp-window > main {
@@ -103,7 +94,6 @@ wisp-window:not(.active) .cursor { opacity: 0.3; }
 .cursor:empty:before { content: '»'; }
 
 .cursor:not(:empty) {
-  background: #63ffeb;
   margin: 0 5px;
   padding: 2px 5px;
   border-radius: 5px;
@@ -129,14 +119,35 @@ ins { text-decoration: none; }
 .vector, .list {
   display: flex;
   flex-wrap: wrap;
-  column-gap: 10px;
-  row-gap: 5px;
-  margin: 0 .25rem;
-  padding: 0 8px;
-  max-width: 60ch;
-  min-height: 1em;
+  column-gap: 6px;
+  /* row-gap: 5px; */
+  margin: 0 0rem;
+  padding: 0 6px;
+  /* max-width: 60ch; */
+  /* min-height: 1em; */
   align-items: center;
 }
+
+.list[data-callee='WISP:BACKQUOTE'],
+.list[data-callee='WISP:UNQUOTE'],
+.list[data-callee='WISP:QUOTE'],
+.list[data-callee='WISP:UNQUOTE-SPLICING'] {
+  border: 0; column-gap: 0; margin-left: 0; flex-wrap: nowrap; align-items: start }
+
+.list[data-callee="WISP:BACKQUOTE"] > [data-symbol-name=BACKQUOTE] > *,
+.list[data-callee="WISP:UNQUOTE"] > [data-symbol-name=UNQUOTE] > *,
+.list[data-callee="WISP:QUOTE"] > [data-symbol-name=QUOTE] > *,
+.list[data-callee="WISP:UNQUOTE-SPLICING"] > [data-symbol-name=UNQUOTE-SPLICING] > *
+{ display: none; }
+
+.list[data-callee="WISP:BACKQUOTE"] > [data-symbol-name=BACKQUOTE]:before {
+  content: "`"; font-weight: bold; padding-right : 4px }
+.list[data-callee="WISP:UNQUOTE"] > [data-symbol-name=UNQUOTE]:before {
+  content: ","; font-weight: bold; padding-right : 4px }
+.list[data-callee="WISP:QUOTE"] > [data-symbol-name=QUOTE]:before {
+  content: "’"; font-weight: bold; padding-right : 6px }
+.list[data-callee="WISP:UNQUOTE-SPLICING"] > [data-symbol-name=UNQUOTE-SPLICING]:before {
+  content: ",@"; padding-right : 4px }
 
 .list[data-callee='WISP:COND'] > :not(.cursor),
 .list[data-callee='WISP:MAKE-KEYMAP'] > :not(.cursor) {
@@ -161,19 +172,18 @@ ins { text-decoration: none; }
 
 .package-name:after,
 .symbol[data-package-name=KEYWORD] > .symbol-name:before {
-  content: \":\";
+  content: ":";
   opacity: 0.7;
   padding-right: 1px;
 }
 
 .list {
-  border: 0 solid #555;
-  border-width: 0 2px;
-  border-radius: 10px;
+  border: 0 solid #555c;
+  border-width: 0 1.25px;
+  border-radius: 8px;
 }
 
 .list:hover {
-  border-width: 0px 2px;
   /* background: #fff1; */
   border-color: #fff7;
   cursor: pointer;

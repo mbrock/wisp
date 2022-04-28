@@ -2,12 +2,6 @@
 ;;
 ;; SPDX-License-Identifier: AGPL-3.0-or-later
 
-(defmacro :article (&rest body)
-  `(do ,@body))
-
-(defmacro :section (title &rest body)
-  `(do ,@body))
-
 (defun css (clauses)
   (reduce #'string-append
           (map (fn (clause)
@@ -24,101 +18,99 @@
                clauses)
           ""))
 
-(:section (basic binding to incremental dom)
-  (defmacro tag (tag-symbol attrs &rest body)
-    (let ((tag-name-var (fresh-symbol!)))
-      `(let ((,tag-name-var (symbol-name ,tag-symbol)))
-         (idom-open-start! ,tag-name-var)
-         (for-each ,attrs
-           (fn (attr)
-             (idom-attr! (symbol-name (head attr))
-                         (second attr))))
-         (idom-open-end!)
-         ,@body
-         (idom-close! ,tag-name-var))))
+(defmacro tag (tag-symbol attrs &rest body)
+  (let ((tag-name-var (fresh-symbol!)))
+    `(let ((,tag-name-var (symbol-name ,tag-symbol)))
+       (idom-open-start! ,tag-name-var)
+       (for-each ,attrs
+                 (fn (attr)
+                     (idom-attr! (symbol-name (head attr))
+                                 (second attr))))
+       (idom-open-end!)
+       ,@body
+       (idom-close! ,tag-name-var))))
 
-  (defun text (text)
-    (idom-text! text)))
+(defun text (text)
+  (idom-text! text))
 
-(:section (rendering expressions to html)
-  (defun render-sexp (sexp)
-    (cond
-      ((nil? sexp)
-       (tag :div '((:class "wisp value list")) nil))
-      ((symbol? sexp)
-       (tag :span `((:class "wisp value symbol")
-                    (:data-package-name
-                     ,(package-name
-                       (symbol-package sexp)))
-                    (:data-symbol-name
-                     ,(symbol-name sexp))
-                    (:data-function-kind
-                     ,(if (symbol-function sexp)
-                          (if (jet? (symbol-function sexp))
-                              "jet" "fun")
+(defun render-sexp (sexp)
+  (cond
+    ((nil? sexp)
+     (tag :div '((:class "wisp value list")) nil))
+    ((symbol? sexp)
+     (tag :span `((:class "wisp value symbol")
+                  (:data-package-name
+                   ,(package-name
+                     (symbol-package sexp)))
+                  (:data-symbol-name
+                   ,(symbol-name sexp))
+                  (:data-function-kind
+                   ,(if (symbol-function sexp)
+                        (if (jet? (symbol-function sexp))
+                            "jet" "fun")
                         "")))
-         (cond
-           ((eq? sexp 'todo)
-            (tag :input '((:type "checkbox")) nil))
-           ((eq? sexp 'done)
-            (tag :input '((:type "checkbox")
-                          (:checked "checked")) nil))
-           (t
-            (do
+          (cond
+            ((eq? sexp 'todo)
+             (tag :input '((:type "checkbox")) nil))
+            ((eq? sexp 'done)
+             (tag :input '((:type "checkbox")
+                           (:checked "checked")) nil))
+            (t
+             (do
               (tag :span '((:class "package-name"))
-                (text (package-name (symbol-package sexp))))
+                   (text (package-name (symbol-package sexp))))
               (tag :span '((:class "symbol-name"))
-                (text (symbol-name sexp))))))))
-      ((pair? sexp)
-       (let* ((callee (head sexp))
-              (tag-type (cond
-                          ((eq? callee :section) :section)
-                          ((eq? callee :article) :article)
-                          (t :div))))
-         (tag tag-type
-           `((:class "wisp value list")
-             (:data-callee
-              ,(if (symbol? callee)
-                   (string-append
-                    (package-name (symbol-package callee))
-                    ":"
-                    (symbol-name callee))
-                 "")))
-           (render-list-contents sexp))))
-      ((string? sexp)
-       (tag :span '((:class "wisp value string"))
-         (text sexp)))
-      ((integer? sexp)
-       (tag :span '((:class "wisp value number"))
-         (text (print-to-string sexp))))
-      ((eq? 'vector (type-of sexp))
-       (tag :div '((:class "wisp value vector"))
-         (render-vector-contents sexp 0)))
-      ((eq? 'function (type-of sexp))
-       (tag :i ()
-         (if (function-name sexp)
-             (text (symbol-name (function-name sexp)))
-           (text "#<FUNCTION>")) ))
-      ((eq? 'external (type-of sexp))
-       (tag :i ()
-         (text "EXTERN")))))
+                   (text (symbol-name sexp))))))))
+    ((pair? sexp)
+     (let* ((callee (head sexp))
+            (tag-type (cond
+                        ((eq? callee :section) :section)
+                        ((eq? callee :article) :article)
+                        (t :div))))
+       (tag tag-type
+            `((:class "wisp value list")
+              (:data-callee
+               ,(if (symbol? callee)
+                    (string-append
+                     (package-name (symbol-package callee))
+                     ":"
+                     (symbol-name callee))
+                    "")))
+            (render-list-contents sexp))))
+    ((string? sexp)
+     (tag :span '((:class "wisp value string"))
+          (text sexp)))
+    ((integer? sexp)
+     (tag :span '((:class "wisp value number"))
+          (text (print-to-string sexp))))
+    ((eq? 'vector (type-of sexp))
+     (tag :div '((:class "wisp value vector"))
+          (render-vector-contents sexp 0)))
+    ((eq? 'function (type-of sexp))
+     (tag :i ()
+          (if (function-name sexp)
+              (text (symbol-name (function-name sexp)))
+              (text "#<FUNCTION>")) ))
+    ((eq? 'external (type-of sexp))
+     (tag :i ()
+          (text "EXTERN")))))
 
-  (defun render-list-contents (sexp)
-    (unless (nil? sexp)
-      (render-sexp (head sexp))
-      (let ((tail (tail sexp)))
-        (if (list? tail)
-            (render-list-contents tail)
+(defun render-list-contents (sexp)
+  (unless (nil? sexp)
+    (render-sexp (head sexp))
+    (let ((tail (tail sexp)))
+      (if (list? tail)
+          (render-list-contents tail)
           (do
-            (tag :span '((:class "dot"))
-              (text "·"))
-            (render-sexp tail))))))
+           (tag :span '((:class "dot"))
+                (text "·"))
+           (render-sexp tail))))))
 
-  (defun render-vector-contents (vector i)
-    (vector-each vector #'render-sexp))
+(defun render-vector-contents (vector i)
+  (vector-each vector #'render-sexp))
 
-  (defun style (clauses)
-    `(:style ,(css clauses))))
+(defun style (clauses)
+  `(:style ,(css clauses)))
 
 (defvar *render-sexp-callback* (make-callback 'do-render-sexp))
 
@@ -126,8 +118,7 @@
   (tag :wisp-window-grid ()
     (tag :wisp-window '((:class "file active"))
       (tag :header ()
-        (tag :b ()
-          (text "demo.wisp")))
+        (text "demo.wisp"))
       (tag :main ()
         (tag :ins '((:class "cursor")) nil)
         (for-each forms #'render-sexp))
@@ -157,8 +148,8 @@
     )
 
   (tag :wisp-echo-area ()
-    (text "hello")
-    )
+       (tag :main ()
+            (tag :ins '((:class "cursor")))))
   )
 
 (defun cursor ()
@@ -195,6 +186,7 @@
   (with-vector-elements key-info (key ctrl shift alt meta repeat)
     (string-append (if ctrl "C-" "")
                    (if meta "M-" "")
+                   (if alt "A-" "")
                    (if shift "S-" "")
                    key)))
 
@@ -464,13 +456,14 @@
 (defmacro set-keymap! (&rest clauses)
   `(set! *wisp-keymap* (make-keymap ,@clauses)))
 
-(defun other-window! ()
-  (let ((current-window (query-selector "wisp-window.active"))
-        (other-window
-          (or (query-selector "wisp-window.active + *")
-              (query-selector "wisp-window:not(.active)"))))
+(defun select-window! (other-window)
+  (let ((current-window (query-selector "wisp-window.active")))
     (do (js-call (js-get current-window "classList") "toggle" "active" nil)
         (js-call (js-get other-window "classList") "toggle" "active" t))))
+
+(defun other-window! ()
+  (select-window! (or (query-selector "wisp-window.active + *")
+                      (query-selector "wisp-window:not(.active)"))))
 
 (defun goto-place-anywhere! ()
   (goto-place! t))
@@ -600,6 +593,11 @@
          (element-insert-adjacent! x :afterend (render-sexp-to-element 'todo))
          (element-remove! x))))))
 
+(defun m-x ()
+  (let ((echo-area (query-selector "wisp-echo-area")))
+    (select-window! echo-area)
+    (start-editor!)))
+
 (set-keymap!
  (("f" "ArrowRight") forward-sexp!)
  (("b" "ArrowLeft")  backward-sexp!)
@@ -620,4 +618,6 @@
  ("." goto-place-anywhere!)
  ("C-." goto-place-inside!)
  ("Tab" other-window!)
- ("Enter" dwim!))
+ ("Enter" dwim!)
+ ("A-x" m-x)
+ )

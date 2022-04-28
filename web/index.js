@@ -62,7 +62,7 @@ onload = async () => {
   exec(basecode)
   exec(dexpcode)
 
-  const file = democode
+  const file = dexpcode
   const forms = file ? ctx.readMany(file) : ctx.sys.nil
   
   let packageName = "WISP"
