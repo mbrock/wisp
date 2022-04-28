@@ -35,12 +35,10 @@ onload = async () => {
     }
   )
 
-  const exports = instance.exports
-
-  wasi.setMemory(exports.memory)
-
+  wasi.setMemory(instance.exports.memory)
+  
   let ctx = new Wisp(instance)
-
+  
   wasd.setWisp(ctx)
 
   function exec(code) {
@@ -58,17 +56,15 @@ onload = async () => {
   const basecode = await fetch("./js.wisp").then(x => x.text())
   const dexpcode = await fetch("./dexp.wisp").then(x => x.text())
   const democode = await fetch("./demo.wisp").then(x => x.text())
-  const servcode = await fetch("./server.wisp").then(x => x.text())
 
   exec(basecode)
   exec(dexpcode)
 
-  const file = localStorage.getItem("wisp-file") || democode
+  const file = democode
   const forms = file ? ctx.readMany(file) : ctx.sys.nil
-  let packageName = "WISP"
-  let functionName = "WISP-BOOT"
-  let pkgname = ctx.allocString(packageName)
-  let funname = ctx.allocString(functionName)
+  
+  let pkgname = ctx.allocString("WISP")
+  let funname = ctx.allocString("WISP-BOOT")
   let result = ctx.api.wisp_call_package_function(
     ctx.heap,
     pkgname, packageName.length,
