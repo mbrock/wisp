@@ -123,21 +123,43 @@
 (defvar *render-sexp-callback* (make-callback 'do-render-sexp))
 
 (defun draw-app (forms)
-  (tag :wisp-window '((:class "file active"))
-    (tag :header ()
-      (tag :b ()
-        (text "demo.wisp")))
-    (tag :main ()
-      (tag :ins '((:class "cursor")) nil)
-      (for-each forms #'render-sexp))
+  (tag :wisp-window-grid ()
+    (tag :wisp-window '((:class "file active"))
+      (tag :header ()
+        (tag :b ()
+          (text "demo.wisp")))
+      (tag :main ()
+        (tag :ins '((:class "cursor")) nil)
+        (for-each forms #'render-sexp))
+      )
+
+    ;; (tag :wisp-window '((:class "output"))
+    ;;   (tag :header ()
+    ;;     (tag :i ()
+    ;;       (text "scratch: 1")))
+    ;;   (tag :main ()
+    ;;     (tag :ins '((:class "cursor")) nil)))
+
+    ;; (tag :wisp-window '((:class "output"))
+    ;;   (tag :header ()
+    ;;     (tag :i ()
+    ;;       (text "scratch: 2")))
+    ;;   (tag :main ()
+    ;;     (tag :ins '((:class "cursor")) nil)))
+
+    ;; (tag :wisp-window '((:class "output"))
+    ;;   (tag :header ()
+    ;;     (tag :i ()
+    ;;       (text "scratch: 3")))
+    ;;   (tag :main ()
+    ;;     (tag :ins '((:class "cursor")) nil)))
+
     )
-  (tag :wisp-window '((:class "output"))
-    (tag :header ()
-      (tag :i ()
-        (text "*evaluation*")))
-    (tag :main ()
-      (tag :ins '((:class "cursor")) nil))
-    ))
+
+  (tag :wisp-echo-area ()
+    (text "hello")
+    )
+  )
 
 (defun cursor ()
   (query-selector ".active .cursor"))
@@ -226,8 +248,8 @@
         (returning nil
           (do (call (symbol-function function-name))
               (js-call (cursor) "scrollIntoView"
-                (js-object "behavior" "smooth"
-                           "block" "center"))))
+                (js-object ;; "behavior" "smooth"
+                           "block" "nearest" "inline" "nearest"))))
       t)))
 
 (defun on-keydown (key)
@@ -444,7 +466,9 @@
 
 (defun other-window! ()
   (let ((current-window (query-selector "wisp-window.active"))
-        (other-window (query-selector "wisp-window:not(.active)")))
+        (other-window
+          (or (query-selector "wisp-window.active + *")
+              (query-selector "wisp-window:not(.active)"))))
     (do (js-call (js-get current-window "classList") "toggle" "active" nil)
         (js-call (js-get other-window "classList") "toggle" "active" t))))
 
