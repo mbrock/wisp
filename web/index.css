@@ -128,6 +128,10 @@ ins { text-decoration: none; }
   align-items: center;
 }
 
+.list[data-callee='WISP:BACKQUOTE'] > .list { background: #88f3; }
+.list[data-callee='WISP:UNQUOTE'] { background: #0006; }
+.list[data-callee='WISP:UNQUOTE-SPLICING'] { background: #0006; }
+
 .list[data-callee='WISP:BACKQUOTE'],
 .list[data-callee='WISP:UNQUOTE'],
 .list[data-callee='WISP:QUOTE'],
