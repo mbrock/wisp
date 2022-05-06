@@ -64,13 +64,21 @@
 
 (DEFUN FILE-CODE () (JS-CALL *WISP* "domCode" (QUERY-SELECTOR ".file main")))
 (DEFUN SAVE-FILE-CODE! (PATH) (AWAIT (JS-CALL *FILESYSTEM* "writeFile" PATH (FILE-CODE) "utf8")))
+(DEFUN read-file-code! (path)
+  (await (js-call *filesystem* "readFile" PATH "utf8")))
+
 (defun stat (x) (await (js-call *filesystem* "stat" x)))
 
 (defun git-add! (repo path)
   (js-call *git* "add"
     (js-object "fs" *fs*
-               "dir" (string-append "/" repo)
+               "dir" repo
                "filepath" path)))
+
+(defun git-init! (repo)
+  (await
+   (js-call *git* "init"
+     (js-object "fs" *fs* "dir" (string-append "/" repo)))))
 
 (defun git-commit! (repo name email message)
   (JS-CALL *GIT* "commit"

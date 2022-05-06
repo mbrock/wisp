@@ -19,6 +19,7 @@
                          "GIT_PROJECT_ROOT" "."))
             (*cwd* (string-append "git/" repo)))
     (add-cors-headers!)
+    (print *env*)
     (cgi 2 '("git" "http-backend"))))
 
 (defroute ("POST" "git")
@@ -29,7 +30,9 @@
       (binding ((*cwd* repo-path))
         (run-command! "git" "init" "--bare")
         (run-command! "git" "config" "core.hooksPath" "../../git-hooks")
-        (run-command! "git" "config" "wisp.auth.push" user-key))
+        (run-command! "git" "config" "wisp.auth.push" user-key)
+        (run-command! "git" "symbolic-ref" "HEAD" "refs/heads/master")
+        )
       (add-cors-headers!)
       (set-response-body! repo-key))))
 
@@ -117,5 +120,5 @@
 
 
 
-(serve 3000 #'route-request)
+(serve 443 "./crt.pem" "./key2.pem"  #'route-request)
 (repl)

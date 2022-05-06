@@ -12,7 +12,7 @@ wisp-frame {
   grid-template-columns: 100%;
   justify-content: center;
   position: absolute;
-  /* background: #111; */
+  background: #111;
   /* background: url(bg2.jpg); */
   /* background-size: cover; */
   overflow: auto;
@@ -203,6 +203,8 @@ ins { text-decoration: none; }
   border-width: 1px 3px;
   border-radius: 10px;
   padding: 5px;
+  min-width: 1em;
+  min-height: 26px;
 }
 
 @keyframes blink {

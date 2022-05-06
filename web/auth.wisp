@@ -18,8 +18,8 @@
 (defun jwt-verify (jwt)
   (try
     (let ((result
-            (await-call <jose> "jwtVerify"
-                        jwt *jwks* +jwt-params+)))
+            (await (js-call <jose> "jwtVerify"
+                     jwt *jwks* +jwt-params+))))
       (js-get result "payload"))
     (catch (e)
       (authentication-error!))))

@@ -118,7 +118,7 @@
   (tag :wisp-window-grid ()
     (tag :wisp-window '((:class "file active"))
       (tag :header ()
-        (text "demo.wisp"))
+        (text "index.wisp"))
       (tag :main ()
         (tag :ins '((:class "cursor")) nil)
         (for-each forms #'render-sexp))
@@ -361,9 +361,14 @@
   (js-call *wisp* "domCode" x))
 
 (defun save! ()
-  (js-call (js-get *window* "localStorage")
-      "setItem" "wisp-file"
-      (dom-code (query-selector "#file"))))
+  (let* ((repo-path (string-append "/" (repo-key)))
+         (file-path (string-append repo-path "/index.wisp")))
+    (save-file-code! file-path)
+    (git-add! repo-path "index.wisp")
+    (git-commit! repo-path "Wisp User" "user@wisp.town" "index.wisp")
+    (git-push! repo-path
+               (string-append "https://boat.whale-justice.ts.net/git/" (repo-key))
+               "master")))
 
 (defun eval-dexp! (x)
   (do-eval (read-from-string (dom-code x))))
@@ -519,23 +524,106 @@
             (when match
               (element-insert-adjacent! match :beforebegin (cursor)))))))))
 
+
+(defvar *fs* (js-get *window* "fs"))
+(defvar *filesystem* (js-get *fs* "promises"))
+(defvar *git* (js-get *window* "git"))
+(defvar *git-http* (js-get *window* "git_http"))
+
+(defun mkdir (dir)
+  (await (js-call *filesystem* "mkdir" dir)))
+
+(defun git-clone (dir url ref depth)
+  (mkdir (string-append "/" dir))
+  (await (js-call *git* "clone"
+           (js-object "fs" *fs* "http" *git-http*
+                      "dir" (string-append "/" dir)
+                      "url" url
+                      "ref" ref
+                      "singleBranch" "true"
+                      "depth" depth
+                      "onProgress" (callback (info)
+                                     (log info))))))
+
+(defun git-add! (repo path)
+  (js-call *git* "add"
+    (js-object "fs" *fs*
+               "dir" (string-append "/" repo)
+               "filepath" path)))
+
+(defun git-commit! (repo name email message)
+  (js-call *git* "commit"
+    (js-object "fs" *fs*
+               "dir" (string-append "/" repo)
+               "message" message
+               "author" (js-object "name" name "email" email))))
+
+(defun git-push! (dir url ref)
+  (let ((bearer (string-append "Bearer " (auth0-get-token))))
+    (await
+     (js-call *git* "push"
+       (js-object "fs" *fs*
+                  "http" *git-http*
+                  "dir" dir
+                  "url" url
+                  "ref" ref
+                  "headers" (js-object "Authorization" bearer))))))
+
+(defun stat (x) (await (js-call *filesystem* "stat" x)))
+
+(defun read-file-code! (path)
+  (await (js-call *filesystem* "readFile" path "utf8")))
+
+(defun save-file-code! (path)
+  (await (js-call *filesystem* "writeFile" path
+                  (dom-code (query-selector ".file.active main"))
+                  "utf8")))
+
+(defun repo-key ()
+  (let ((hash (js-get* *window* '("location" "hash"))))
+    (if (equal? hash "")
+        nil
+      (string-slice hash 2 (string-length hash)))))
+
 (defun wisp-boot (forms)
   (with-simple-error-handler
       (fn ()
-          (dom-on-keydown! (make-callback 'on-keydown))
-          (js-set! *document* "onclick"
-                   (make-pinned-value
-                    (fn (x)
-                        (unless (element-closest (js-get x "target") ".cm-editor")
-                          (let ((target (element-closest (js-get x "target")
-                                                         ".wisp.value")))
-                            (if target
-                                (do
-                                 (unselect!)
-                                 (element-insert-adjacent! target :beforebegin (cursor))
-                                  (element-insert-adjacent! (cursor) :afterbegin target))
-                                (unselect!)))))))
-          (render-app forms))))
+        (dom-on-keydown! (make-callback 'on-keydown))
+        (js-set! *document* "onclick"
+          (make-pinned-value
+           (fn (x)
+             (unless (element-closest (js-get x "target") ".cm-editor")
+               (let ((target (element-closest (js-get x "target")
+                                              ".wisp.value")))
+                 (if target
+                     (do
+                       (unselect!)
+                       (element-insert-adjacent! target :beforebegin (cursor))
+                       (element-insert-adjacent! (cursor) :afterbegin target))
+                   (unselect!)))))))
+        (async
+         (fn ()
+           (let ((repo-key (repo-key)))
+             (if (nil? repo-key)
+                 (render-app '())
+               (let* ((has-clone?
+                        (equal? :yes
+                                (try (returning :yes
+                                       (stat (string-append "/" repo-key)))
+                                  (catch (e k) :no)))))
+                 (unless has-clone?
+                   (print 'cloning)
+                   (git-clone repo-key
+                              (string-append "https://boat.whale-justice.ts.net/git/" repo-key)
+                              "master" 1))
+                 (let ((file-code
+                         (read-many-from-string
+                          (try
+                            (read-file-code!
+                             (string-append "/" repo-key "/index.wisp"))
+                            (catch (e k)
+                              "(file-not-found \"index.wisp\")")))))
+                   (render-app file-code))))))))))
 
 (defun new-auth0-client ()
   (await (js-call *window* "createAuth0Client"

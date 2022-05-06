@@ -25,9 +25,9 @@
 (defun set-response-body! (body)
   (vector-set! *response* 2 body))
 
-(defun serve (port handler)
+(defun serve (port cert-file key-file handler)
   (returning
-      (js-call <server> "serve"
+      (js-call <server> "serveTls"
         (callback (request)
           (async
            (fn ()
@@ -45,7 +45,10 @@
                                (js-object "status" (vector-get *response* 0)
                                           "headers" (vector-get *response* 1)))
                  (print `(status ,(vector-get *response* 0))))))))
-        (js-object "port" port))
+        (js-object "port" port
+                   "certFile" cert-file
+                   "keyFile" key-file
+                   ))
     (print `(http server port ,port))))
 
 (defun request-header (header)
@@ -99,8 +102,9 @@
          (send! 'route-mismatch (list pattern parts acc)))))))
 
 (defun route-request ()
+  (print 'request)
   (let* ((parts (parse-request)))
-    (print `(request ,(js-get *request* "url") ,parts))
+    (print `(request ,parts))
     (for-each *routes*
       (fn (route)
         (let ((pattern (head route))

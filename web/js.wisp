@@ -40,6 +40,9 @@
 (defun alert (x)
   (js-call *window* "alert" x))
 
+(defun yes-or-no? (x)
+  (js-call *window* "prompt" x))
+
 (defun json (str)
   (js-call (js-get *window* "JSON") "parse" str))
 
@@ -47,6 +50,7 @@
   (if (promise? p)
       (js-call p "then" (make-pinned-value f))
     (call f p)))
+
 
 (defun js-catch (p f)
   (if (promise? p)
@@ -62,7 +66,7 @@
               (async (fn () (call k x)))))
         (fn (e)
           (log e)
-          (nonlocal-error! k e))))))
+          (async (fn () (nonlocal-error! k e))))))))
 
 (defun await (x)
   (send! :async x))
