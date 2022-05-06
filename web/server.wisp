@@ -46,6 +46,39 @@
 (defroute ("POST" "git" repo "git-upload-pack")
   (git-http-backend-cgi repo))
 
+(defun serve-file (path type)
+  (add-header! "content-type" type)
+  (let ((file (js-call <deno> "openSync" path)))
+    (add-header! "content-length" (js-get (js-call file "statSync") "size"))
+    (set-response-body! (reader-stream file))))
+
+(defroute ("GET" "")
+  (serve-file "index.html" "text/html"))
+(defroute ("GET" "index.js")
+  (serve-file "index.js" "text/javascript"))
+(defroute ("GET" "index.css")
+  (serve-file "index.css" "text/css"))
+(defroute ("GET" "dist" "wisp.wasm")
+  (serve-file "dist/wisp.wasm" "application/wasm"))
+(defroute ("GET" "lib" "idom.js")
+  (serve-file "lib/idom.js" "text/javascript"))
+(defroute ("GET" "lib" "codemirror.js")
+  (serve-file "lib/codemirror.js" "text/javascript"))
+(defroute ("GET" "lib" "git.js")
+  (serve-file "lib/git.js" "text/javascript"))
+(defroute ("GET" "lib" "wisplang.js")
+  (serve-file "lib/wisplang.js" "text/javascript"))
+(defroute ("GET" "wisp.js")
+  (serve-file "wisp.js" "text/javascript"))
+(defroute ("GET" "wasi.js")
+  (serve-file "wasi.js" "text/javascript"))
+(defroute ("GET" "js.wisp")
+  (serve-file "js.wisp" "application/wisp"))
+(defroute ("GET" "dexp.wisp")
+  (serve-file "dexp.wisp" "application/wisp"))
+(defroute ("GET" "demo.wisp")
+  (serve-file "demo.wisp" "application/wisp"))
+
 (defun preflight ()
   (add-cors-headers!)
   (set-response-code! 204))
@@ -84,5 +117,5 @@
 
 
 
-(serve 8000 #'route-request)
+(serve 3000 #'route-request)
 (repl)
