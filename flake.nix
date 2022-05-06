@@ -39,7 +39,7 @@
             inherit wisp;
           };
 
-          inherit (pkgs) elixir cargo rust;
+          inherit (pkgs) elixir cargo rust deno;
         };
       }
     );

@@ -124,12 +124,12 @@
         (for-each forms #'render-sexp))
       )
 
-    ;; (tag :wisp-window '((:class "output"))
-    ;;   (tag :header ()
-    ;;     (tag :i ()
-    ;;       (text "scratch: 1")))
-    ;;   (tag :main ()
-    ;;     (tag :ins '((:class "cursor")) nil)))
+    (tag :wisp-window '((:class "output"))
+      (tag :header ()
+        (tag :i ()
+          (text "scratch: 1")))
+      (tag :main ()
+        (tag :ins '((:class "cursor")) nil)))
 
     ;; (tag :wisp-window '((:class "output"))
     ;;   (tag :header ()
@@ -569,7 +569,7 @@
                       "scope" "create:repositories"))))
 
 (defun api-request! (method path)
-  (fetch (string-append "http://localhost:8000" path)
+  (fetch path
          "method" method
          "headers"
          (js-object "Authorization"
