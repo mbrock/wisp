@@ -37,7 +37,7 @@ pub fn expectDump(
     heap: *Heap,
     x: u32,
 ) !void {
-    var actual = try printAlloc(std.testing.allocator, heap, x);
+    const actual = try printAlloc(std.testing.allocator, heap, x);
     defer std.testing.allocator.free(actual);
     try std.testing.expectEqualStrings(expected, actual);
 }
@@ -53,7 +53,7 @@ pub fn printAlloc(
 }
 
 pub fn warn(prefix: []const u8, heap: *Heap, word: u32) !void {
-    var s = try Prty.prettyPrint(heap, word, 72);
+    const s = try Prty.prettyPrint(heap, word, 72);
     defer heap.orb.free(s);
     const stderr = std.io.getStdErr().writer();
     try stderr.print("; {s}\n{s}\n", .{ prefix, s });
@@ -61,7 +61,7 @@ pub fn warn(prefix: []const u8, heap: *Heap, word: u32) !void {
 
 pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
     switch (Wisp.tagOf(x)) {
-        .int => try out.print("{d}", .{@bitCast(i31, @intCast(u31, x))}),
+        .int => try out.print("{d}", .{@bitCast(@as(u31, @intCast(x)))}),
 
         .sys => {
             switch (x) {
@@ -100,7 +100,7 @@ pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
         .v32 => {
             try out.print("#<", .{});
             const xs = try heap.v32slice(x);
-            for (xs) |y, i| {
+            for (xs, 0..) |y, i| {
                 if (i > 0) try out.print(" ", .{});
                 try dump(heap, out, y);
             }
@@ -112,7 +112,7 @@ pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
             var cur = x;
 
             loop: while (cur != Wisp.nil) {
-                var cons = try heap.row(.duo, cur);
+                const cons = try heap.row(.duo, cur);
                 try dump(heap, out, cons.car);
                 switch (Wisp.tagOf(cons.cdr)) {
                     .duo => {

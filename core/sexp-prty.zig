@@ -58,8 +58,8 @@ const Box = struct {
 
         return Box{
             .len = 0,
-            .fin = @intCast(u16, str.items.len),
-            .max = @intCast(u16, str.items.len),
+            .fin = @intCast(str.items.len),
+            .max = @intCast(str.items.len),
             .txt = txt,
         };
     }
@@ -123,7 +123,7 @@ const Box = struct {
 
         for (b.txt.items[1 .. b.len + 1]) |bs| {
             var x = try copy(gpa, bs);
-            try insertIndent(@intCast(u16, lastA.items.len), &x, gpa);
+            try insertIndent(@intCast(lastA.items.len), &x, gpa);
             try c.txt.append(gpa, x);
         }
 
@@ -137,7 +137,7 @@ const Box = struct {
 
     pub fn render(box: Box, gpa: Gpa) ![]const u8 {
         var result = Str{};
-        for (box.txt.items) |str, i| {
+        for (box.txt.items, 0..) |str, i| {
             if (i > 0) try result.append(gpa, '\n');
             try result.appendSlice(gpa, str.items);
         }
@@ -374,7 +374,7 @@ pub fn pretty(
                 );
             } else if (items.len > 2 and Wisp.tagOf(items[0]) == .sym) {
                 var cdr = std.ArrayListUnmanaged(Doc){};
-                for (items[1..items.len]) |x, n| {
+                for (items[1..items.len], 0..) |x, n| {
                     if (n == items.len - 1) {
                         try cdr.append(gpa, try text(gpa, "."));
                     }
@@ -403,7 +403,7 @@ pub fn pretty(
         },
 
         .v32 => {
-            var items = try heap.v32slice(exp);
+            const items = try heap.v32slice(exp);
             var array = std.ArrayListUnmanaged(Doc){};
             for (items) |x| {
                 try array.append(gpa, try pretty(gpa, tmp, heap, x, lvl + 1));
@@ -443,11 +443,11 @@ pub fn prettyPrint(heap: *Wisp.Heap, exp: u32, max: u32) ![]const u8 {
 
     var arena = std.heap.ArenaAllocator.init(heap.orb);
     defer arena.deinit();
-    var gpa = arena.allocator();
+    const gpa = arena.allocator();
     var tmp = std.heap.stackFallback(256, heap.orb);
 
-    var doc = try pretty(gpa, tmp.get(), heap, exp, 0);
-    var str = (try render(gpa, doc)).?;
+    const doc = try pretty(gpa, tmp.get(), heap, exp, 0);
+    const str = (try render(gpa, doc)).?;
 
     return heap.orb.dupe(u8, str);
 }
@@ -455,15 +455,15 @@ pub fn prettyPrint(heap: *Wisp.Heap, exp: u32, max: u32) ![]const u8 {
 test "box hcat" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
-    var gpa = arena.allocator();
+    const gpa = arena.allocator();
 
     var aaaaa = try Box.text("aaaaa", gpa);
-    var aa = try Box.text("aa", gpa);
+    const aa = try Box.text("aa", gpa);
     var bbbbb = try Box.text("bbbbb", gpa);
-    var bbbbbbb = try Box.text("bbbbbbb", gpa);
+    const bbbbbbb = try Box.text("bbbbbbb", gpa);
 
     var a = try aaaaa.vcat(aa, gpa);
-    var b = try bbbbb.vcat(bbbbbbb, gpa);
+    const b = try bbbbb.vcat(bbbbbbb, gpa);
     var ab = try a.hcat(b, gpa);
 
     try std.testing.expectEqualStrings(
@@ -478,7 +478,7 @@ test "box hcat" {
 test "pareto" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
-    var gpa = arena.allocator();
+    const gpa = arena.allocator();
 
     const boxes = try pareto(
         &[_]Box{

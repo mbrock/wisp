@@ -34,15 +34,15 @@ const Error = error{
 pub fn Utf8Reader(comptime ReaderType: type) type {
     return struct {
         const This = @This();
-        const PeekStream = std.io.PeekStream(
-            .{ .Static = 5 },
+        const PeekStream = std.io.BufferedReader(
+            5,
             ReaderType,
         );
 
         stream: PeekStream,
 
         pub fn init(subreader: ReaderType) This {
-            var stream = PeekStream.init(subreader);
+            const stream = PeekStream.init(subreader);
             return .{ .stream = stream };
         }
 
@@ -361,7 +361,7 @@ pub fn Reader(comptime ReaderType: type) type {
             defer str.deinit();
 
             var result: i31 = 0;
-            var magnitude = try std.math.powi(i31, 10, @intCast(i31, str.items.len - 1));
+            var magnitude = try std.math.powi(i31, 10, @intCast(str.items.len - 1));
             for (str.items) |c| {
                 result += magnitude * (c - '0');
                 if (magnitude > 1) {
@@ -369,7 +369,7 @@ pub fn Reader(comptime ReaderType: type) type {
                 }
             }
 
-            return @intCast(u32, result);
+            return @intCast(result);
         }
 
         fn readVector(self: *@This()) !u32 {
@@ -478,7 +478,7 @@ pub fn Reader(comptime ReaderType: type) type {
 
             return switch (c) {
                 '~', '.' => true,
-                else => c < 256 and Keys.zb32AlphabetMap[@intCast(u8, c)] >= 0,
+                else => c < 256 and Keys.zb32AlphabetMap[@intCast(c)] >= 0,
             };
         }
 

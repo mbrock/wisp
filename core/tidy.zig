@@ -142,8 +142,8 @@ fn push(tidy: *Tidy, comptime tag: Tag, x: u32) !u32 {
     const ptr = Ptr.from(x);
     if (ptr.era == tidy.new.era) return x;
 
-    var c0 = tidy.old.col(tag, @intToEnum(Col(tag), 0));
-    var c1 = tidy.old.col(tag, @intToEnum(Col(tag), 1));
+    var c0 = tidy.old.col(tag, @enumFromInt(0));
+    var c1 = tidy.old.col(tag, @enumFromInt(1));
 
     if (c0[ptr.idx] == Wisp.zap) return c1[ptr.idx];
 
@@ -207,8 +207,8 @@ fn pull(tidy: *Tidy, comptime tag: Tag) !void {
 }
 
 fn drag(tidy: *Tidy, comptime tag: Tag, tab: *Tab(tag), i: Ptr.Idx) !void {
-    inline for (std.meta.fields(Col(tag))) |_, j| {
-        const col = @intToEnum(Col(tag), j);
+    inline for (std.meta.fields(Col(tag)), 0..) |_, j| {
+        const col: Col(tag) = @enumFromInt(j);
         const new = try tidy.copy(tab.list.items(col)[i]);
         tab.list.items(col)[i] = new;
     }

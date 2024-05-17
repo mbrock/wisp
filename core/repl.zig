@@ -79,12 +79,12 @@ pub fn repl() anyerror!void {
         try stdout.writeAll("> ");
 
         var arena = std.heap.ArenaAllocator.init(orb);
-        var tmp = arena.allocator();
+        const tmp = arena.allocator();
         defer arena.deinit();
 
         if (try readSexp(stdin, tmp, &heap)) |term| {
             var run = Step.initRun(term);
-            var step = Step{ .heap = &heap, .run = &run, .tmp = tmp };
+            const step = Step{ .heap = &heap, .run = &run, .tmp = tmp };
             _ = step;
 
             while (true) {

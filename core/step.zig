@@ -111,7 +111,7 @@ pub fn attemptOneStep(step: *Step) !void {
 }
 
 fn findVariable(step: *Step, sym: u32) !void {
-    var pkg = try step.heap.get(.sym, .pkg, sym);
+    const pkg = try step.heap.get(.sym, .pkg, sym);
     if (pkg == step.heap.keywordPackage) {
         step.run.exp = nah;
         step.run.val = sym;
@@ -131,8 +131,8 @@ fn findVariable(step: *Step, sym: u32) !void {
 
     var cur = step.run.env;
     while (cur != nil) {
-        var curduo = try step.heap.row(.duo, cur);
-        var v32 = try step.heap.v32slice(curduo.car);
+        const curduo = try step.heap.row(.duo, cur);
+        const v32 = try step.heap.v32slice(curduo.car);
         var i: usize = 0;
         while (i < v32.len) : (i += 2) {
             if (v32[i] == sym)
@@ -338,7 +338,7 @@ fn scan(
             try step.fail(&[_]u32{
                 step.heap.kwd.@"PROGRAM-ERROR",
                 step.heap.kwd.@"INVALID-ARGUMENT-COUNT",
-                @intCast(u32, vals.items.len),
+                @intCast(vals.items.len),
                 fun,
             });
         }
@@ -348,7 +348,7 @@ fn scan(
         try step.fail(&[_]u32{
             step.heap.kwd.@"PROGRAM-ERROR",
             step.heap.kwd.@"INVALID-ARGUMENT-COUNT",
-            @intCast(u32, vals.items.len),
+            @intCast(vals.items.len),
             fun,
         });
     }
@@ -453,7 +453,7 @@ pub fn composeContinuation(step: *Step, way: u32) !u32 {
     if (way == top) {
         return step.run.way;
     } else {
-        var new = try step.heap.copyAny(way);
+        const new = try step.heap.copyAny(way);
         var cur = new;
 
         while (cur != top) {
@@ -714,7 +714,7 @@ pub fn scanList(
         i += 1;
     }
 
-    var slice = buffer[0..i];
+    const slice = buffer[0..i];
     if (reverse) {
         std.mem.reverse(u32, slice);
     }
@@ -998,7 +998,7 @@ pub fn evaluateUntilSpecificContinuation(
             return run.val;
         }
 
-        if (step.attemptOneStep() catch |e| try step.handleError(e)) {
+        if (step.attemptOneStep() catch |e| step.handleError(e)) {
             i += 1;
         } else |err| {
             if (run.err == nil) {
