@@ -61,7 +61,6 @@ pub fn Utf8Reader(comptime ReaderType: type) type {
                 if (len > 1) try reader.readNoEof(bytes[1..len]);
 
                 // Put the whole codepoint back on the peek stream.
-                this.stream
                 try this.stream.putBack(bytes[0..len]);
 
                 // Decode the UTF-8 sequence.
