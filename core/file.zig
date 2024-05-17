@@ -23,7 +23,7 @@ const Wisp = @import("./wisp.zig");
 
 pub fn cwd(allocator: std.mem.Allocator) !std.fs.Dir {
     if (@import("builtin").os.tag == .wasi) {
-        var preopens = std.fs.wasi.PreopenList.init(allocator);
+        var preopens = try std.fs.wasi.preopensAlloc(allocator);
         defer preopens.deinit();
 
         try preopens.populate(null);
