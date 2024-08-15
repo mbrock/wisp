@@ -159,7 +159,7 @@ pub fn Col(comptime tag: Tag) type {
 pub fn Tab(comptime tag: Tag) type {
     return struct {
         const This = @This();
-        const prefix: u32 = @enumToInt(tag) << (32 - 5);
+        const prefix: u32 = @intFromEnum(tag) << (32 - 5);
 
         pub const Field = std.MultiArrayList(Row(tag)).Field;
 
@@ -179,7 +179,7 @@ pub fn Tab(comptime tag: Tag) type {
             // }
 
             try tab.list.append(orb, row);
-            const idx = @intCast(u26, len);
+            const idx = @as(u26, @intCast(len));
             return Ptr.make(tag, idx, era).word();
         }
 
@@ -377,7 +377,7 @@ pub const Heap = struct {
     }
 
     fn initvar(heap: *Heap, txt: []const u8, val: u32) !void {
-        var sym = try heap.intern(txt, heap.base);
+        const sym = try heap.intern(txt, heap.base);
         try heap.set(.sym, .val, sym, val);
     }
 
@@ -504,8 +504,8 @@ pub const Heap = struct {
     pub fn newv08(heap: *Heap, dat: []const u8) !u32 {
         try heap.v08.appendSlice(heap.orb, dat);
         return heap.new(.v08, .{
-            .idx = @intCast(u32, heap.v08.items.len - dat.len),
-            .len = @intCast(u32, dat.len),
+            .idx = @intCast(heap.v08.items.len - dat.len),
+            .len = @intCast(dat.len),
         });
     }
 
@@ -522,8 +522,8 @@ pub const Heap = struct {
 
         try heap.v32.list.appendSlice(heap.orb, dat);
         return heap.new(.v32, .{
-            .idx = @intCast(u32, heap.v32.list.items.len - dat.len),
-            .len = @intCast(u32, dat.len),
+            .idx = @intCast(heap.v32.list.items.len - dat.len),
+            .len = @intCast(dat.len),
         });
     }
 
@@ -612,7 +612,7 @@ pub const Heap = struct {
     }
 
     pub fn symstrslice(heap: *Heap, sym: u32) ![]const u8 {
-        var str = try heap.get(.sym, .str, sym);
+        const str = try heap.get(.sym, .str, sym);
         return try heap.v08slice(str);
     }
 
@@ -629,7 +629,7 @@ pub const Heap = struct {
 
 pub fn list(heap: *Heap, xs: anytype) !u32 {
     var cur = nil;
-    var i: u32 = @intCast(u32, xs.len);
+    var i: u32 = @intCast(xs.len);
     while (i >= 1) : (i -= 1) {
         const x = xs[i - 1];
         cur = try heap.cons(x, cur);

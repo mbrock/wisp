@@ -35,19 +35,19 @@ pub fn main() void {}
 
 export fn _initialize() void {}
 
-export const wisp_tag_int = Wisp.Tag.int;
-export const wisp_tag_sys = Wisp.Tag.sys;
-export const wisp_tag_chr = Wisp.Tag.chr;
-export const wisp_tag_jet = Wisp.Tag.jet;
-export const wisp_tag_duo = Wisp.Tag.duo;
-export const wisp_tag_sym = Wisp.Tag.sym;
-export const wisp_tag_fun = Wisp.Tag.fun;
-export const wisp_tag_mac = Wisp.Tag.mac;
-export const wisp_tag_v32 = Wisp.Tag.v32;
-export const wisp_tag_v08 = Wisp.Tag.v08;
-export const wisp_tag_pkg = Wisp.Tag.pkg;
-export const wisp_tag_run = Wisp.Tag.run;
-export const wisp_tag_ktx = Wisp.Tag.ktx;
+pub const wisp_tag_int = Wisp.Tag.int;
+pub const wisp_tag_sys = Wisp.Tag.sys;
+pub const wisp_tag_chr = Wisp.Tag.chr;
+pub const wisp_tag_jet = Wisp.Tag.jet;
+pub const wisp_tag_duo = Wisp.Tag.duo;
+pub const wisp_tag_sym = Wisp.Tag.sym;
+pub const wisp_tag_fun = Wisp.Tag.fun;
+pub const wisp_tag_mac = Wisp.Tag.mac;
+pub const wisp_tag_v32 = Wisp.Tag.v32;
+pub const wisp_tag_v08 = Wisp.Tag.v08;
+pub const wisp_tag_pkg = Wisp.Tag.pkg;
+pub const wisp_tag_run = Wisp.Tag.run;
+pub const wisp_tag_ktx = Wisp.Tag.ktx;
 
 export const wisp_sys_t: u32 = Wisp.t;
 export const wisp_sys_nil: u32 = Wisp.nil;
@@ -60,7 +60,7 @@ var gpa = GPA{};
 var orb = gpa.allocator();
 
 fn heap_init() !*Wisp.Heap {
-    var heap = try orb.create(Wisp.Heap);
+    const heap = try orb.create(Wisp.Heap);
     heap.* = try Wisp.Heap.fromEmbeddedCore(orb);
     try Jets.load(heap);
     return heap;
@@ -180,7 +180,7 @@ fn TabDat(tag: Wisp.Tag) type {
 
     fields[0] = Field("n", u32);
 
-    for (std.meta.fields(Wisp.Row(tag))) |field, i| {
+    for (std.meta.fields(Wisp.Row(tag)), 0..) |field, i| {
         fields[1 + i] = Field(field.name, usize);
     }
 
@@ -218,10 +218,10 @@ export fn wisp_dat_read(heap: *Wisp.Heap, dat: *Dat) void {
         const E = std.meta.FieldEnum(Wisp.Row(tag));
         const tab = heap.tab(tag);
         var tagdat = &@field(dat, @tagName(tag));
-        tagdat.n = @intCast(u32, tab.list.len);
-        inline for (std.meta.fields(Wisp.Row(tag))) |field, i| {
+        tagdat.n = @as(u32, @intCast(tab.list.len));
+        inline for (std.meta.fields(Wisp.Row(tag)), 0..) |field, i| {
             const slice = tab.list.slice();
-            @field(tagdat, field.name) = @ptrToInt(slice.items(@intToEnum(E, i)).ptr);
+            @field(tagdat, field.name) = @intFromPtr(slice.items(@as(E, @enumFromInt(i))).ptr);
         }
     }
 }
@@ -278,7 +278,7 @@ export fn wisp_heap_load_tab_col(
         .len = len,
     };
 
-    return switch (@intToEnum(Wisp.Tag, tag)) {
+    return switch (@as(Wisp.Tag, @enumFromInt(tag))) {
         .duo => loadColumn(.duo, params),
         .sym => loadColumn(.sym, params),
         .fun => loadColumn(.fun, params),
@@ -348,7 +348,7 @@ export fn wisp_heap_v32_ptr(heap: *Wisp.Heap) [*]u32 {
 
 export fn wisp_alloc(heap: *Wisp.Heap, n: u32) usize {
     const buf = heap.orb.alloc(u8, n) catch return 0;
-    return @ptrToInt(buf.ptr);
+    return @intFromPtr(buf.ptr);
 }
 
 export fn wisp_free_0(heap: *Wisp.Heap, x: [*:0]u8) void {
@@ -364,7 +364,7 @@ export fn wisp_destroy(heap: *Wisp.Heap, x: [*]u8) void {
 }
 
 export fn wisp_jet_name(x: u32) usize {
-    return @ptrToInt(Jets.jets[Wisp.Imm.from(x).idx].txt.ptr);
+    return @intFromPtr(Jets.jets[Wisp.Imm.from(x).idx].txt.ptr);
 }
 
 export fn wisp_jet_name_len(x: u32) usize {

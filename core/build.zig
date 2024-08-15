@@ -1,69 +1,57 @@
 const std = @import("std");
 
-fn wispStep(
-    mode: std.builtin.Mode,
-    target: std.zig.CrossTarget,
-    step: *std.build.LibExeObjStep,
-) *std.build.LibExeObjStep {
-    step.addPackagePath("ziglyph", "lib/ziglyph/src/ziglyph.zig");
-    step.setTarget(target);
-    step.setBuildMode(mode);
-    return step;
-}
-
-pub fn build(b: *std.build.Builder) void {
-    const mode = b.standardReleaseOptions();
+pub fn build(b: *std.Build) void {
+    const optimize = b.standardOptimizeOption(.{});
     const standardTarget = b.standardTargetOptions(.{});
-    const wasiTarget = std.zig.CrossTarget{
+    const wasiTarget = b.resolveTargetQuery(.{
         .cpu_arch = .wasm32,
         .os_tag = .wasi,
-    };
+    });
 
-    const boot = wispStep(
-        mode,
-        standardTarget,
-        b.addExecutable("wisp-mkboot", "boot.zig"),
-    );
+    const boot = b.addExecutable(.{
+        .name = "wisp-mkboot",
+        .root_source_file = b.path("boot.zig"),
+        .target = standardTarget,
+    });
 
-    const bootRun = boot.run();
+    const bootRun = b.addRunArtifact(boot);
 
-    const exe = wispStep(
-        mode,
-        standardTarget,
-        b.addExecutable("wisp", "main.zig"),
-    );
+    const exe = b.addExecutable(.{
+        .name = "wisp",
+        .root_source_file = b.path("main.zig"),
+        .target = standardTarget,
+    });
 
-    const wasmExe = wispStep(
-        mode,
-        wasiTarget,
-        b.addExecutable("wisp", "main.zig"),
-    );
+    const wasmExe = b.addExecutable(.{
+        .name = "wisp",
+        .root_source_file = b.path("main.zig"),
+        .target = wasiTarget,
+    });
 
-    const wasmLib = wispStep(
-        mode,
-        wasiTarget,
-        b.addSharedLibrary("wisp", "wasm.zig", .unversioned),
-    );
+    const wasmLib = b.addSharedLibrary(.{
+        .name = "wisp",
+        .root_source_file = b.path("wasm.zig"),
+        .target = wasiTarget,
+        .optimize = optimize,
+    });
 
-    const tests = wispStep(
-        mode,
-        standardTarget,
-        b.addTest("repl.zig"),
-    );
+    const tests = b.addTest(.{
+        .root_source_file = b.path("repl.zig"),
+        .target = standardTarget,
+    });
 
-    const testsPrty = wispStep(
-        mode,
-        standardTarget,
-        b.addTest("sexp-prty.zig"),
-    );
+    const testsPrty = b.addTest(.{
+        .root_source_file = b.path("sexp-prty.zig"),
+        .target = standardTarget,
+    });
 
     tests.step.dependOn(&bootRun.step);
     exe.step.dependOn(&bootRun.step);
     wasmExe.step.dependOn(&bootRun.step);
 
-    exe.install();
-    wasmExe.install();
-    wasmLib.install();
+    b.installArtifact(exe);
+    b.installArtifact(wasmExe);
+    b.installArtifact(wasmLib);
 
     const testStep = b.step("test", "Run unit tests");
     testStep.dependOn(&tests.step);
@@ -71,7 +59,7 @@ pub fn build(b: *std.build.Builder) void {
     const testPrtyStep = b.step("test-prty", "Run tests for Prty");
     testPrtyStep.dependOn(&testsPrty.step);
 
-    const runCmd = exe.run();
+    const runCmd = b.addRunArtifact(exe);
     runCmd.step.dependOn(b.getInstallStep());
 
     if (b.args) |args| {

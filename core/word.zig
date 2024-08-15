@@ -80,11 +80,11 @@ pub const Ptr = packed struct {
     }
 
     pub fn from(x: u32) Ptr {
-        return @bitCast(Ptr, x);
+        return @as(Ptr, @bitCast(x));
     }
 
     pub fn word(ptr: Ptr) u32 {
-        return @bitCast(u32, ptr);
+        return @as(u32, @bitCast(ptr));
     }
 };
 
@@ -99,11 +99,11 @@ pub const Imm = packed struct {
     }
 
     pub fn from(x: u32) Imm {
-        return @bitCast(Imm, x);
+        return @bitCast(x);
     }
 
     pub fn word(imm: Imm) u32 {
-        return @bitCast(u32, imm);
+        return @bitCast(imm);
     }
 };
 

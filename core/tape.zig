@@ -26,7 +26,7 @@ const rownum = Wisp.pointerTags.len;
 const colnum = blk: {
     var i = 0;
 
-    inline for (Wisp.pointerTags) |tag| {
+    for (Wisp.pointerTags) |tag| {
         i += std.meta.fields(Wisp.Row(tag)).len;
     }
 
@@ -56,7 +56,7 @@ fn mkvec_const(ptr: anytype, len: usize) std.os.iovec_const {
         .iov_base = &empty,
         .iov_len = 0,
     } else .{
-        .iov_base = @ptrCast([*]const u8, ptr),
+        .iov_base = @as([*]const u8, @ptrCast(ptr)),
         .iov_len = len,
     };
 }
@@ -66,7 +66,7 @@ fn mkvec(ptr: anytype, len: usize) std.os.iovec {
         .iov_base = &empty,
         .iov_len = 0,
     } else .{
-        .iov_base = @ptrCast([*]u8, ptr),
+        .iov_base = @as([*]u8, @ptrCast(ptr)),
         .iov_len = len,
     };
 }
@@ -81,10 +81,10 @@ pub fn save(heap: *Wisp.Heap, name: []const u8) !void {
 
     var header = Header{
         .version = currentVersion(),
-        .v08len = @intCast(u32, heap.v08.items.len),
-        .v32len = @intCast(u32, heap.v32.list.items.len),
+        .v08len = @as(u32, @intCast(heap.v08.items.len)),
+        .v32len = @as(u32, @intCast(heap.v32.list.items.len)),
         .tabSizes = .{0} ** rownum,
-        .era = @enumToInt(heap.era),
+        .era = @intFromEnum(heap.era),
         .pkg = heap.pkg,
         .commonStrings = heap.commonStrings,
     };
@@ -103,12 +103,12 @@ pub fn save(heap: *Wisp.Heap, name: []const u8) !void {
     );
 
     var i: u8 = 0;
-    inline for (Wisp.pointerTags) |tag, tagidx| {
+    inline for (Wisp.pointerTags, 0..) |tag, tagidx| {
         const tab = heap.tab(tag);
-        inline for (std.meta.fields(Wisp.Row(tag))) |_, j| {
-            const col = tab.col(@intToEnum(Wisp.Col(tag), j));
+        inline for (std.meta.fields(Wisp.Row(tag)), 0..) |_, j| {
+            const col = tab.col(@as(Wisp.Col(tag), @enumFromInt(j)));
             if (col.len > 0) {
-                header.tabSizes[tagidx] = @intCast(u32, col.len);
+                header.tabSizes[tagidx] = @as(u32, @intCast(col.len));
                 iovecs[i + 3] = mkvec_const(col.ptr, col.len * 4);
 
                 i += 1;
@@ -134,14 +134,14 @@ pub fn load(orb: Wisp.Orb, name: []const u8) !Wisp.Heap {
 
     var reader = file.reader();
 
-    var header = try reader.readStruct(Header);
+    const header = try reader.readStruct(Header);
 
     std.log.warn("{s}", .{header.version});
     std.log.warn("{any}", .{header});
 
     var heap = Wisp.Heap{
         .orb = orb,
-        .era = @intToEnum(Wisp.Era, header.era),
+        .era = @as(Wisp.Era, @enumFromInt(header.era)),
         .pkg = header.pkg,
         .commonStrings = header.commonStrings,
         .base = 0,
@@ -169,15 +169,15 @@ pub fn load(orb: Wisp.Orb, name: []const u8) !Wisp.Heap {
 
     var nonemptyCols: u8 = 0;
 
-    inline for (Wisp.pointerTags) |tag, tagidx| {
+    inline for (Wisp.pointerTags, 0..) |tag, tagidx| {
         const tab = heap.tab(tag);
         const cnt = header.tabSizes[tagidx];
         std.log.warn(";; alloc {d} for {any}", .{ cnt, tag });
         try tab.list.ensureTotalCapacity(orb, cnt);
         tab.list.len = cnt;
 
-        inline for (std.meta.fields(Wisp.Row(tag))) |_, j| {
-            const col = tab.col(@intToEnum(Wisp.Col(tag), j));
+        inline for (std.meta.fields(Wisp.Row(tag)), 0..) |_, j| {
+            const col = tab.col(@as(Wisp.Col(tag), @enumFromInt(j)));
             if (col.len > 0) {
                 iovecs[nonemptyCols + 2] = mkvec(col.ptr, col.len * 4);
                 nonemptyCols += 1;
@@ -189,12 +189,12 @@ pub fn load(orb: Wisp.Orb, name: []const u8) !Wisp.Heap {
 
     {
         // find packages and put them in the package map
-        for (heap.tab(.pkg).col(.nam)) |pkgname, i| {
+        for (heap.tab(.pkg).col(.nam), 0..) |pkgname, i| {
             const str = try orb.dupe(u8, try heap.v08slice(pkgname));
             try heap.pkgmap.putNoClobber(
                 orb,
                 str,
-                Wisp.Ptr.make(.pkg, @intCast(u26, i), heap.era).word(),
+                Wisp.Ptr.make(.pkg, @as(u26, @intCast(i)), heap.era).word(),
             );
         }
 
@@ -216,11 +216,11 @@ pub fn load(orb: Wisp.Orb, name: []const u8) !Wisp.Heap {
 
 pub fn loadFromMemory(orb: Wisp.Orb, bytes: []const u8) !Wisp.Heap {
     var reader = std.io.fixedBufferStream(bytes).reader();
-    var header = try reader.readStruct(Header);
+    const header = try reader.readStruct(Header);
 
     var heap = Wisp.Heap{
         .orb = orb,
-        .era = @intToEnum(Wisp.Era, header.era),
+        .era = @as(Wisp.Era, @enumFromInt(header.era)),
         .pkg = header.pkg,
         .commonStrings = header.commonStrings,
         .base = 0,
@@ -240,32 +240,32 @@ pub fn loadFromMemory(orb: Wisp.Orb, bytes: []const u8) !Wisp.Heap {
 
     if (header.v32len > 0) {
         try reader.readNoEof(
-            @ptrCast([*]u8, heap.v32.list.items.ptr)[0 .. header.v32len * 4],
+            @as([*]u8, @ptrCast((heap.v32.list.items.ptr)[0 .. header.v32len * 4])),
         );
     }
 
-    inline for (Wisp.pointerTags) |tag, tagidx| {
+    inline for (Wisp.pointerTags, 0..) |tag, tagidx| {
         const tab = heap.tab(tag);
         const cnt = header.tabSizes[tagidx];
         try tab.list.ensureTotalCapacity(orb, cnt);
         tab.list.len = cnt;
 
-        inline for (std.meta.fields(Wisp.Row(tag))) |_, j| {
-            const col = tab.col(@intToEnum(Wisp.Col(tag), j));
+        inline for (std.meta.fields(Wisp.Row(tag)), 0..) |_, j| {
+            const col = tab.col(@as(Wisp.Col(tag), @enumFromInt(j)));
             if (col.len > 0) {
-                try reader.readNoEof(@ptrCast([*]u8, col.ptr)[0 .. col.len * 4]);
+                try reader.readNoEof(@as([*]u8, @ptrCast((col.ptr)[0 .. col.len * 4])));
             }
         }
     }
 
     {
         // find packages and put them in the package map
-        for (heap.tab(.pkg).col(.nam)) |pkgname, i| {
+        for (heap.tab(.pkg).col(.nam), 0..) |pkgname, i| {
             const str = try orb.dupe(u8, try heap.v08slice(pkgname));
             try heap.pkgmap.putNoClobber(
                 orb,
                 str,
-                Wisp.Ptr.make(.pkg, @intCast(u26, i), heap.era).word(),
+                Wisp.Ptr.make(.pkg, @as(u26, @intCast(i)), heap.era).word(),
             );
         }
 

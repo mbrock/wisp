@@ -43,12 +43,12 @@ pub fn makeHeap(orb: Wisp.Orb) !Wisp.Heap {
 
 pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    var orb = gpa.allocator();
+    const orb = gpa.allocator();
 
     var arena = std.heap.ArenaAllocator.init(orb);
     defer arena.deinit();
 
-    var tmp = arena.allocator();
+    const tmp = arena.allocator();
 
     var args = try std.process.argsWithAllocator(tmp);
     defer args.deinit();

@@ -40,11 +40,11 @@ const tagOf = Wisp.tagOf;
 
 fn wordint(x: u32) !i31 {
     if (tagOf(x) != .int) return Wisp.Oof.Err;
-    return @bitCast(i31, @intCast(u31, x));
+    return @bitCast(@as(u31, @intCast(x)));
 }
 
 fn intword(x: i31) u32 {
-    return @intCast(u32, @bitCast(u31, x));
+    return @intCast(@as(u31, @bitCast(x)));
 }
 
 pub fn @"<"(step: *Step, x: u32, y: u32) anyerror!void {
@@ -64,7 +64,9 @@ pub fn @">"(step: *Step, x: u32, y: u32) anyerror!void {
 pub fn @"+"(step: *Step, xs: []u32) anyerror!void {
     var result: i31 = 0;
     for (xs) |x| {
-        if (@addWithOverflow(i31, result, try wordint(x), &result)) {
+        const tuple = @addWithOverflow(result, try wordint(x));
+        result = tuple[0];
+        if (tuple[1]) {
             return step.fail(&[_]u32{step.heap.kwd.@"FIXNUM-OVERFLOW"});
         }
     }
@@ -75,7 +77,9 @@ pub fn @"+"(step: *Step, xs: []u32) anyerror!void {
 pub fn @"*"(step: *Step, xs: []u32) anyerror!void {
     var result: i31 = 1;
     for (xs) |x| {
-        if (@mulWithOverflow(i31, result, try wordint(x), &result)) {
+        const tuple = @mulWithOverflow(result, try wordint(x));
+        result = tuple[0];
+        if (tuple[1]) {
             return step.fail(&[_]u32{step.heap.kwd.@"FIXNUM-OVERFLOW"});
         }
     }
@@ -113,11 +117,11 @@ pub fn @"MOD"(step: *Step, x: u32, y: u32) anyerror!void {
 }
 
 pub fn @"-"(step: *Step, a: u32, xs: []u32) anyerror!void {
-    _ = step;
-
     var result: i31 = try wordint(a);
     for (xs) |x| {
-        if (@subWithOverflow(i31, result, try wordint(x), &result)) {
+        const tuple = @subWithOverflow(result, try wordint(x));
+        result = tuple[0];
+        if (tuple[1]) {
             return step.fail(&[_]u32{step.heap.kwd.@"FIXNUM-OVERFLOW"});
         }
     }
@@ -253,7 +257,7 @@ pub fn @"PRINT-TO-STRING"(step: *Step, x: u32) anyerror!void {
 }
 
 pub fn @"BYTE-SIZE"(step: *Step, v08: u32) anyerror!void {
-    step.give(.val, intword(@intCast(i31, (try step.heap.v08slice(v08)).len)));
+    step.give(.val, intword(@intCast((try step.heap.v08slice(v08)).len)));
 }
 
 pub fn @"TYPE-OF"(step: *Step, x: u32) anyerror!void {
@@ -622,7 +626,7 @@ fn copyContinuationSlice(
         };
     }
 
-    var new = try heap.copy(.ktx, ktx);
+    const new = try heap.copy(.ktx, ktx);
     var cur = new;
 
     while (cur != Wisp.top) {
@@ -658,7 +662,7 @@ pub fn @"%SET!"(step: *Step, sym: u32, val: u32) anyerror!void {
 
     var cur = step.run.env;
     while (cur != nil) {
-        var curduo = try step.heap.row(.duo, cur);
+        const curduo = try step.heap.row(.duo, cur);
         var v32 = try step.heap.v32slice(curduo.car);
         var i: usize = 0;
         while (i < v32.len) : (i += 2) {
@@ -746,7 +750,7 @@ pub fn @"READ-MANY-FROM-STRING"(step: *Step, v08: u32) anyerror!void {
 }
 
 pub fn @"READ-BYTES"(step: *Step, n: u32) anyerror!void {
-    var buffer = try step.heap.orb.alloc(u8, n);
+    const buffer = try step.heap.orb.alloc(u8, n);
     defer step.heap.orb.free(buffer);
 
     const stdin = std.io.getStdIn().reader();
@@ -910,7 +914,7 @@ pub fn @"STRING-APPEND"(step: *Step, rest: []u32) anyerror!void {
     defer result.deinit();
 
     for (rest) |x| {
-        var piece = try step.heap.v08slice(x);
+        const piece = try step.heap.v08slice(x);
         try result.appendSlice(piece);
     }
 
@@ -922,11 +926,11 @@ pub fn @"STRING-SEARCH"(
     strptr: u32,
     subptr: u32,
 ) anyerror!void {
-    var str = try step.heap.v08slice(strptr);
-    var sub = try step.heap.v08slice(subptr);
+    const str = try step.heap.v08slice(strptr);
+    const sub = try step.heap.v08slice(subptr);
 
     if (std.mem.indexOf(u8, str, sub)) |i| {
-        step.give(.val, intword(@intCast(i31, i)));
+        step.give(.val, intword(@intCast(i)));
     } else {
         step.give(.val, nil);
     }
@@ -939,8 +943,8 @@ pub fn @"STRING-SLICE"(
     jw: u32,
 ) anyerror!void {
     var str = try step.heap.v08slice(strptr);
-    var i = try wordint(iw);
-    var j = try wordint(jw);
+    const i = try wordint(iw);
+    const j = try wordint(jw);
 
     if (i < 0 or i > str.len or j < 0 or j > str.len) {
         return step.fail(&.{
@@ -948,12 +952,12 @@ pub fn @"STRING-SLICE"(
             strptr,
             iw,
             jw,
-            intword(@intCast(i31, str.len)),
+            intword(@intCast(str.len)),
         });
     }
 
     step.give(.val, try step.heap.newv08(
-        str[@intCast(usize, i)..@intCast(usize, j)],
+        str[@intCast(i)..@intCast(j)],
     ));
 }
 
@@ -961,8 +965,8 @@ pub fn @"STRING-TO-UPPERCASE"(
     step: *Step,
     v08ptr: u32,
 ) anyerror!void {
-    var str = try step.heap.v08slice(v08ptr);
-    var upper = try glyph.toUpperStr(step.heap.orb, str);
+    const str = try step.heap.v08slice(v08ptr);
+    const upper = try glyph.toUpperStr(step.heap.orb, str);
     defer step.heap.orb.free(upper);
     step.give(.val, try step.heap.newv08(upper));
 }
@@ -972,7 +976,7 @@ pub fn @"VECTOR-APPEND"(step: *Step, rest: []u32) anyerror!void {
     defer result.deinit();
 
     for (rest) |x| {
-        var piece = try step.heap.v32slice(x);
+        const piece = try step.heap.v32slice(x);
         try result.appendSlice(piece);
     }
 
@@ -989,14 +993,14 @@ pub fn @"MAKE-PINNED-VALUE"(step: *Step, val: u32) anyerror!void {
 
 pub fn @"VECTOR-FROM-LIST"(step: *Step, list: u32) anyerror!void {
     const len = try Wisp.length(step.heap, list);
-    var buf = try step.heap.orb.alloc(u32, len);
+    const buf = try step.heap.orb.alloc(u32, len);
     defer step.heap.orb.free(buf);
     try Wisp.listItemsIntoSlice(step.heap, list, buf);
     step.give(.val, try step.heap.newv32(buf));
 }
 
 pub fn @"INTERN"(step: *Step, v08: u32, pkg: u32) anyerror!void {
-    var str = try step.heap.v08slice(v08);
+    const str = try step.heap.v08slice(v08);
     step.give(.val, try step.heap.intern(str, pkg));
 }
 

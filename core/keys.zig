@@ -24,8 +24,8 @@ pub const zb32AlphabetLower = "ybndrfg8ejkmcpqxot1uwisza345h769";
 
 pub const zb32AlphabetMap: [256]i6 = blk: {
     var map: [256]i6 = .{-1} ** 256;
-    for (zb32AlphabetUpper) |c, i| map[c] = i;
-    for (zb32AlphabetLower) |c, i| map[c] = i;
+    for (zb32AlphabetUpper, 0..) |c, i| map[c] = i;
+    for (zb32AlphabetLower, 0..) |c, i| map[c] = i;
     break :blk map;
 };
 
@@ -42,9 +42,9 @@ pub const Key = packed struct {
 
     pub fn rndToZB32(key: Key) [10]u8 {
         var rndS: [10]u8 = undefined;
-        const rnd = @intCast(u64, key.rnd);
+        const rnd = @as(u64, @intCast(key.rnd));
         inline for (&[_]u8{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }) |i| {
-            const j: u5 = @truncate(u5, (rnd >> (5 * i)));
+            const j: u5 = @as(u5, @truncate(rnd >> (5 * i)));
             rndS[i] = zb32AlphabetUpper[j];
         }
 
@@ -79,9 +79,11 @@ pub const Key = packed struct {
 
 pub fn generate(rng: *const std.rand.Random) Key {
     const now: i64 = std.time.timestamp();
-    const sec = @intCast(
+    const sec = @as(
         u16,
-        @divFloor(now, 60 * 60 * 24) - epochDaysSince1970,
+        @intCast(
+            @divFloor(now, 60 * 60 * 24) - epochDaysSince1970,
+        )
     );
 
     const rnd = rng.int(u48);
@@ -104,7 +106,7 @@ pub fn parse(str: []const u8) !Key {
 
 pub fn parseZB32Char(c: u8) !u5 {
     const x = zb32AlphabetMap[c];
-    return if (x >= 0) @intCast(u5, x) else error.BadZB32Char;
+    return if (x >= 0) @as(u5, @intCast(x)) else error.BadZB32Char;
 }
 
 pub fn parseZB32(str: []const u8) !u48 {
@@ -112,13 +114,13 @@ pub fn parseZB32(str: []const u8) !u48 {
 
     var xs: [10]u5 = undefined;
 
-    for (str) |c, i| {
+    for (str, 0..) |c, i| {
         xs[i] = try parseZB32Char(c);
     }
 
     var rnd: u48 = 0;
     inline for (&[_]u8{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }) |i| {
-        rnd += @intCast(u48, xs[i]) << (5 * i);
+        rnd += @as(u48, @intCast(xs[i])) << (5 * i);
     }
 
     return rnd;
@@ -154,7 +156,7 @@ pub fn parseDate(str: []const u8) !u16 {
     while (monthX < month) : (monthX += 1) {
         epochDay += std.time.epoch.getDaysInMonth(
             leap,
-            @intToEnum(std.time.epoch.Month, monthX),
+            @as(std.time.epoch.Month, @enumFromInt(monthX)),
         );
     }
 
@@ -182,8 +184,8 @@ test "key zb32" {
     const keyC = generate(&std.crypto.random);
 
     try std.testing.expectApproxEqAbs(
-        @intToFloat(f32, keyB.day),
-        @intToFloat(f32, keyC.day),
+        @floatFromInt(keyB.day),
+        @floatFromInt(keyC.day),
         1,
     );
 

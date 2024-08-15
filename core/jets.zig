@@ -103,7 +103,7 @@ pub const FnTag = enum {
     }
 
     pub fn cast(comptime this: FnTag, x: anytype) this.functionType() {
-        return @ptrCast(this.functionType(), x);
+        return @as(this.functionType(), @ptrCast(x));
     }
 };
 
@@ -142,14 +142,14 @@ fn makeOpArray(
 
 test "ops" {
     try expectEqual(
-        @ptrCast(*const anyopaque, Ctls.QUOTE),
+        @as(*const anyopaque, @ptrCast(Ctls.QUOTE)),
         jets[0].fun,
     );
 }
 
 pub fn load(heap: *Wisp.Heap) !void {
-    inline for (jets) |jet, i| {
-        var sym = try heap.intern(jet.txt, heap.base);
+    inline for (jets, 0..) |jet, i| {
+        const sym = try heap.intern(jet.txt, heap.base);
         heap.col(.sym, .fun)[ref(sym)] = Wisp.Imm.make(.jet, i).word();
     }
 }
