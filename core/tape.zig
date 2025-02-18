@@ -35,11 +35,11 @@ const colnum = blk: {
 
 fn currentVersion() [32]u8 {
     var array: [32]u8 = .{0} ** 32;
-    std.mem.copy(u8, &array, "wisp tape v0.8.0\n");
+    std.mem.copyForwards(u8, &array, "wisp tape v0.8.0\n");
     return array;
 }
 
-const Header = packed struct {
+const Header = extern struct {
     version: [32]u8,
     era: u32,
     pkg: u32,
@@ -51,23 +51,23 @@ const Header = packed struct {
 
 var empty: [1]u8 = .{0};
 
-fn mkvec_const(ptr: anytype, len: usize) std.os.iovec_const {
+fn mkvec_const(ptr: anytype, len: usize) std.posix.iovec_const {
     return if (len == 0) .{
-        .iov_base = &empty,
-        .iov_len = 0,
+        .base = &empty,
+        .len = 0,
     } else .{
-        .iov_base = @as([*]const u8, @ptrCast(ptr)),
-        .iov_len = len,
+        .base = @as([*]const u8, @ptrCast(ptr)),
+        .len = len,
     };
 }
 
-fn mkvec(ptr: anytype, len: usize) std.os.iovec {
+fn mkvec(ptr: anytype, len: usize) std.posix.iovec {
     return if (len == 0) .{
-        .iov_base = &empty,
-        .iov_len = 0,
+        .base = &empty,
+        .len = 0,
     } else .{
-        .iov_base = @as([*]u8, @ptrCast(ptr)),
-        .iov_len = len,
+        .base = @as([*]u8, @ptrCast(ptr)),
+        .len = len,
     };
 }
 
@@ -89,7 +89,7 @@ pub fn save(heap: *Wisp.Heap, name: []const u8) !void {
         .commonStrings = heap.commonStrings,
     };
 
-    var iovecs: [1 + 1 + 1 + colnum]std.os.iovec_const = undefined;
+    var iovecs: [1 + 1 + 1 + colnum]std.posix.iovec_const = undefined;
 
     iovecs[0] = mkvec_const(&header, @sizeOf(Header));
     iovecs[1] = mkvec_const(
@@ -155,7 +155,7 @@ pub fn load(orb: Wisp.Orb, name: []const u8) !Wisp.Heap {
     try heap.v32.list.ensureTotalCapacity(orb, header.v32len);
     heap.v32.list.items.len = header.v32len;
 
-    var iovecs: [1 + 1 + colnum]std.os.iovec = undefined;
+    var iovecs: [1 + 1 + colnum]std.posix.iovec = undefined;
 
     iovecs[0] = mkvec(
         heap.v08.items.ptr,
@@ -215,7 +215,8 @@ pub fn load(orb: Wisp.Orb, name: []const u8) !Wisp.Heap {
 }
 
 pub fn loadFromMemory(orb: Wisp.Orb, bytes: []const u8) !Wisp.Heap {
-    var reader = std.io.fixedBufferStream(bytes).reader();
+    var stream = std.io.fixedBufferStream(bytes);
+    var reader = stream.reader();
     const header = try reader.readStruct(Header);
 
     var heap = Wisp.Heap{
@@ -240,7 +241,7 @@ pub fn loadFromMemory(orb: Wisp.Orb, bytes: []const u8) !Wisp.Heap {
 
     if (header.v32len > 0) {
         try reader.readNoEof(
-            @as([*]u8, @ptrCast((heap.v32.list.items.ptr)[0 .. header.v32len * 4])),
+            @as([*]u8, @ptrCast(heap.v32.list.items.ptr))[0 .. header.v32len * 4],
         );
     }
 
@@ -253,7 +254,9 @@ pub fn loadFromMemory(orb: Wisp.Orb, bytes: []const u8) !Wisp.Heap {
         inline for (std.meta.fields(Wisp.Row(tag)), 0..) |_, j| {
             const col = tab.col(@as(Wisp.Col(tag), @enumFromInt(j)));
             if (col.len > 0) {
-                try reader.readNoEof(@as([*]u8, @ptrCast((col.ptr)[0 .. col.len * 4])));
+                try reader.readNoEof(
+                    @as([*]u8, @ptrCast(col.ptr))[0 .. col.len * 4],
+                );
             }
         }
     }

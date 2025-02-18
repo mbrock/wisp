@@ -164,11 +164,11 @@ export fn wisp_run_restart(heap: *Wisp.Heap, run: u32, exp: u32) u32 {
     return run_restart(heap, run, exp) catch Wisp.zap;
 }
 
-fn Field(comptime name: []const u8, t: type) std.builtin.TypeInfo.StructField {
+fn Field(comptime name: [:0]const u8, t: type) std.builtin.Type.StructField {
     return .{
         .name = name,
-        .field_type = t,
-        .default_value = null,
+        .type = t,
+        .default_value_ptr = null,
         .is_comptime = false,
         .alignment = 0,
     };
@@ -176,7 +176,7 @@ fn Field(comptime name: []const u8, t: type) std.builtin.TypeInfo.StructField {
 
 fn TabDat(tag: Wisp.Tag) type {
     const n = std.meta.fields(Wisp.Row(tag)).len;
-    var fields: [1 + n]std.builtin.TypeInfo.StructField = undefined;
+    var fields: [1 + n]std.builtin.Type.StructField = undefined;
 
     fields[0] = Field("n", u32);
 
@@ -184,11 +184,11 @@ fn TabDat(tag: Wisp.Tag) type {
         fields[1 + i] = Field(field.name, usize);
     }
 
-    const t = @Type(std.builtin.TypeInfo{
-        .Struct = .{
-            .layout = .Packed,
+    const t = @Type(std.builtin.Type{
+        .@"struct" = .{
+            .layout = .@"packed",
             .fields = &fields,
-            .decls = &[_]std.builtin.TypeInfo.Declaration{},
+            .decls = &[_]std.builtin.Type.Declaration{},
             .is_tuple = false,
         },
     });
@@ -357,10 +357,6 @@ export fn wisp_free_0(heap: *Wisp.Heap, x: [*:0]u8) void {
 
 export fn wisp_free_n(heap: *Wisp.Heap, x: [*]u8, n: usize) void {
     heap.orb.free(x[0..n]);
-}
-
-export fn wisp_destroy(heap: *Wisp.Heap, x: [*]u8) void {
-    heap.orb.destroy(x);
 }
 
 export fn wisp_jet_name(x: u32) usize {

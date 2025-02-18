@@ -66,7 +66,7 @@ pub fn @"+"(step: *Step, xs: []u32) anyerror!void {
     for (xs) |x| {
         const tuple = @addWithOverflow(result, try wordint(x));
         result = tuple[0];
-        if (tuple[1]) {
+        if (tuple[1] != 0) {
             return step.fail(&[_]u32{step.heap.kwd.@"FIXNUM-OVERFLOW"});
         }
     }
@@ -79,7 +79,7 @@ pub fn @"*"(step: *Step, xs: []u32) anyerror!void {
     for (xs) |x| {
         const tuple = @mulWithOverflow(result, try wordint(x));
         result = tuple[0];
-        if (tuple[1]) {
+        if (tuple[1] != 0) {
             return step.fail(&[_]u32{step.heap.kwd.@"FIXNUM-OVERFLOW"});
         }
     }
@@ -89,7 +89,8 @@ pub fn @"*"(step: *Step, xs: []u32) anyerror!void {
 
 pub fn @"/"(step: *Step, xs: []u32) anyerror!void {
     if (xs.len == 1) {
-        return @"/"(step, &[_]u32{ 1, xs[0] });
+        var xs2 = [_]u32{ 1, xs[0] };
+        return @"/"(step, &xs2);
     } else {
         var result: i31 = try wordint(xs[0]);
         for (xs[1..xs.len]) |x| {
@@ -106,7 +107,7 @@ pub fn @"/"(step: *Step, xs: []u32) anyerror!void {
     }
 }
 
-pub fn @"MOD"(step: *Step, x: u32, y: u32) anyerror!void {
+pub fn MOD(step: *Step, x: u32, y: u32) anyerror!void {
     const xx = try wordint(x);
     const yy = try wordint(y);
     if (yy > 0) {
@@ -121,7 +122,7 @@ pub fn @"-"(step: *Step, a: u32, xs: []u32) anyerror!void {
     for (xs) |x| {
         const tuple = @subWithOverflow(result, try wordint(x));
         result = tuple[0];
-        if (tuple[1]) {
+        if (tuple[1] != 0) {
             return step.fail(&[_]u32{step.heap.kwd.@"FIXNUM-OVERFLOW"});
         }
     }
@@ -129,11 +130,11 @@ pub fn @"-"(step: *Step, a: u32, xs: []u32) anyerror!void {
     step.give(.val, intword(result));
 }
 
-pub fn @"CONS"(step: *Step, car: u32, cdr: u32) anyerror!void {
+pub fn CONS(step: *Step, car: u32, cdr: u32) anyerror!void {
     step.give(.val, try step.heap.cons(car, cdr));
 }
 
-pub fn @"HEAD"(step: *Step, x: u32) anyerror!void {
+pub fn HEAD(step: *Step, x: u32) anyerror!void {
     if (x == nil) {
         step.give(.val, nil);
     } else if (step.heap.get(.duo, .car, x)) |car| {
@@ -141,13 +142,13 @@ pub fn @"HEAD"(step: *Step, x: u32) anyerror!void {
     } else |_| {
         try step.fail(&[_]u32{
             step.heap.kwd.@"TYPE-MISMATCH",
-            step.heap.kwd.@"CONS",
+            step.heap.kwd.CONS,
             x,
         });
     }
 }
 
-pub fn @"TAIL"(step: *Step, x: u32) anyerror!void {
+pub fn TAIL(step: *Step, x: u32) anyerror!void {
     if (x == nil) {
         step.give(.val, nil);
     } else if (step.heap.get(.duo, .cdr, x)) |cdr| {
@@ -155,7 +156,7 @@ pub fn @"TAIL"(step: *Step, x: u32) anyerror!void {
     } else |_| {
         try step.fail(&[_]u32{
             step.heap.kwd.@"TYPE-MISMATCH",
-            step.heap.kwd.@"CONS",
+            step.heap.kwd.CONS,
             x,
         });
     }
@@ -227,7 +228,7 @@ pub fn @"SET-FUNCTION-NAME!"(
     }
 }
 
-pub fn @"LIST"(step: *Step, xs: []u32) anyerror!void {
+pub fn LIST(step: *Step, xs: []u32) anyerror!void {
     var cur = nil;
     var i = xs.len;
 
@@ -242,7 +243,7 @@ pub fn @"EQ?"(step: *Step, x: u32, y: u32) anyerror!void {
     step.give(.val, if (x == y) t else nil);
 }
 
-pub fn @"PRINT"(step: *Step, x: u32) anyerror!void {
+pub fn PRINT(step: *Step, x: u32) anyerror!void {
     const stdout = std.io.getStdOut().writer();
     const pretty = try Sexp.prettyPrint(step.heap, x, 78);
     defer step.heap.orb.free(pretty);
@@ -409,14 +410,14 @@ pub fn @"VECTOR-GET"(step: *Step, vec: u32, idx: u32) anyerror!void {
             } else {
                 try step.failTypeMismatch(
                     idx,
-                    step.heap.kwd.@"INTEGER",
+                    step.heap.kwd.INTEGER,
                 );
             }
         },
 
         else => try step.failTypeMismatch(
             vec,
-            step.heap.kwd.@"VECTOR",
+            step.heap.kwd.VECTOR,
         ),
     }
 }
@@ -429,11 +430,11 @@ pub fn @"VECTOR-SET!"(step: *Step, vec: u32, idx: u32, val: u32) anyerror!void {
                 xs[idx] = val;
                 step.give(.val, val);
             } else {
-                try step.failTypeMismatch(idx, step.heap.kwd.@"INTEGER");
+                try step.failTypeMismatch(idx, step.heap.kwd.INTEGER);
             }
         },
 
-        else => try step.failTypeMismatch(vec, step.heap.kwd.@"VECTOR"),
+        else => try step.failTypeMismatch(vec, step.heap.kwd.VECTOR),
     }
 }
 
@@ -459,7 +460,7 @@ pub fn @"KEY?"(step: *Step, val: u32) anyerror!void {
     }
 }
 
-pub fn @"PROGNIFY"(step: *Step, arg: u32) anyerror!void {
+pub fn PROGNIFY(step: *Step, arg: u32) anyerror!void {
     // () => ()
     // (foo bar) => (progn foo bar)
     // (foo) => foo
@@ -759,7 +760,7 @@ pub fn @"READ-BYTES"(step: *Step, n: u32) anyerror!void {
     step.give(.val, try step.heap.newv08(buffer));
 }
 
-pub fn @"WRITE"(step: *Step, v08s: []u32) anyerror!void {
+pub fn WRITE(step: *Step, v08s: []u32) anyerror!void {
     for (v08s) |v08| {
         const bytes = try step.heap.v08slice(v08);
         try std.io.getStdOut().writeAll(bytes);
@@ -767,7 +768,7 @@ pub fn @"WRITE"(step: *Step, v08s: []u32) anyerror!void {
     step.give(.val, nil);
 }
 
-pub fn @"EVAL"(step: *Step, exp: u32) anyerror!void {
+pub fn EVAL(step: *Step, exp: u32) anyerror!void {
     step.run.exp = exp;
     step.run.val = nah;
 }
@@ -784,9 +785,9 @@ pub fn @"RUN-EXP"(step: *Step, run: u32) anyerror!void {
     const row = try step.heap.row(.run, run);
 
     const duo = if (row.exp == nah)
-        try step.heap.cons(step.heap.kwd.@"VAL", row.val)
+        try step.heap.cons(step.heap.kwd.VAL, row.val)
     else
-        try step.heap.cons(step.heap.kwd.@"EXP", row.exp);
+        try step.heap.cons(step.heap.kwd.EXP, row.exp);
 
     step.give(.val, duo);
 }
@@ -835,12 +836,12 @@ pub fn @"JET-CTL?"(step: *Step, fun: u32) anyerror!void {
     step.give(.val, if (Wisp.tagOf(fun) == .jet and Jets.jets[Wisp.Imm.from(fun).idx].ilk == .ctl) t else nil);
 }
 
-pub fn @"GC"(step: *Step) anyerror!void {
+pub fn GC(step: *Step) anyerror!void {
     step.heap.please_tidy = true;
     step.give(.val, nil);
 }
 
-pub fn @"VECTOR"(step: *Step, xs: []u32) anyerror!void {
+pub fn VECTOR(step: *Step, xs: []u32) anyerror!void {
     step.give(.val, try step.heap.newv32(xs));
 }
 
@@ -887,7 +888,7 @@ pub fn @"SYMBOL-NAME"(step: *Step, sym: u32) anyerror!void {
     );
 }
 
-pub fn @"DEBUGGER"(step: *Step) anyerror!void {
+pub fn DEBUGGER(step: *Step) anyerror!void {
     @breakpoint();
     step.give(.val, nil);
 }
@@ -898,10 +899,10 @@ pub fn @"STRING-LENGTH"(step: *Step, v08: u32) anyerror!void {
 
 pub fn @"STRING-EQUAL?"(step: *Step, s1: u32, s2: u32) anyerror!void {
     if (tagOf(s1) != .v08)
-        return step.failTypeMismatch(s1, step.heap.kwd.@"STRING");
+        return step.failTypeMismatch(s1, step.heap.kwd.STRING);
 
     if (tagOf(s2) != .v08)
-        return step.failTypeMismatch(s2, step.heap.kwd.@"STRING");
+        return step.failTypeMismatch(s2, step.heap.kwd.STRING);
 
     const s1b = try step.heap.v08slice(s1);
     const s2b = try step.heap.v08slice(s2);
@@ -999,7 +1000,7 @@ pub fn @"VECTOR-FROM-LIST"(step: *Step, list: u32) anyerror!void {
     step.give(.val, try step.heap.newv32(buf));
 }
 
-pub fn @"INTERN"(step: *Step, v08: u32, pkg: u32) anyerror!void {
+pub fn INTERN(step: *Step, v08: u32, pkg: u32) anyerror!void {
     const str = try step.heap.v08slice(v08);
     step.give(.val, try step.heap.intern(str, pkg));
 }

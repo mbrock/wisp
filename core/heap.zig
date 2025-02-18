@@ -100,10 +100,10 @@ pub const Kwd = enum {
     @"BAD-FIXNUM-DIVISION",
     @"BAD-MODULO",
     @"BOUNDS-ERROR",
-    @"BUG",
+    BUG,
     @"CONTINUATION-CALL-ERROR",
     @"END-OF-FILE",
-    @"EXHAUSTED",
+    EXHAUSTED,
     @"FIXNUM-OVERFLOW",
     @"INVALID-ARGUMENT-COUNT",
     @"INVALID-CALLEE",
@@ -345,21 +345,23 @@ pub const Heap = struct {
         var stream = std.io.fixedBufferStream(str);
         var reader = Sexp.makeReader(heap, tmp.get(), stream.reader());
 
-        while (try reader.readValueOrEOF()) |*form| {
-            var run = Step.initRun(form.*);
+        while (try reader.readValueOrEOF()) |form| {
+            var run = Step.initRun(form);
 
-            try heap.roots.append(heap.orb, form);
+            var form_ = form;
+            try heap.roots.append(heap.orb, &form_);
             defer _ = heap.roots.pop();
 
             result = Step.evaluate(heap, &run, 0) catch |e| {
-                try Sexp.warn("failed", heap, form.*);
+                try Sexp.warn("failed", heap, form);
                 try Sexp.warn("condition", heap, run.err);
                 try Sexp.warn("context", heap, run.way);
                 return e;
             };
         }
 
-        try Tidy.gc(heap, &.{&result});
+        var roots: [1]*u32 = .{&result};
+        try Tidy.gc(heap, &roots);
 
         return result;
     }

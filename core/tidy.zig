@@ -80,7 +80,7 @@ pub fn done(tidy: *Tidy) Heap {
     tidy.old.pins = .{};
 
     // Release unreachable external objects.
-    if (comptime std.meta.globalOption("wisp_browser", bool) orelse false) {
+    if (comptime Wisp.browser) {
         for (tidy.old.tab(.ext).col(.idx)) |extidx| {
             if (extidx != Wisp.zap) {
                 JS.release(extidx);

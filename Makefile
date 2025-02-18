@@ -1,6 +1,6 @@
 all: core-fast web
 core-debug:; cd core && zig build
-core-fast:; cd core && zig build -Drelease-fast=true
+core-fast:; cd core && zig build -Doptimize=ReleaseFast
 test:; cd core && zig build test
 
 .PHONY: web core

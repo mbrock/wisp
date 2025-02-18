@@ -17,156 +17,159 @@
 // <https://www.gnu.org/licenses/>.
 //
 
-import idom from "./lib/idom.js"
-import git from "./lib/git.js"
-import cm from "./lib/codemirror.js"
-import * as grammar from "./lib/wisplang.js"
-import { Wisp, WASD, domCode } from "./wisp.js"
-import WASI from "./wasi.js"
+import idom from "./lib/idom.js";
+import git from "./lib/git.js";
+import cm from "./lib/codemirror.js";
+import * as grammar from "./lib/wisplang.js";
+import { Wisp, WASD, domCode } from "./wisp.js";
+import WASI from "./wasi.js";
 
 onload = async () => {
-  const wasi = new WASI
-  const wasd = new WASD
+  const wasi = new WASI();
+  const wasd = new WASD();
 
-  const instance = await WebAssembly.instantiate(
-    await wispModule, {
-      wasi_snapshot_preview1: wasi.exports(),
-      dom: wasd.exports(),
-    }
-  )
+  const instance = await WebAssembly.instantiate(await wispModule, {
+    wasi_snapshot_preview1: wasi.exports(),
+    dom: wasd.exports(),
+  });
 
-  const exports = instance.exports
+  const exports = instance.exports;
 
-  wasi.setMemory(exports.memory)
+  wasi.setMemory(exports.memory);
 
-  let ctx = new Wisp(instance)
+  let ctx = new Wisp(instance);
 
-  wasd.setWisp(ctx)
+  wasd.setWisp(ctx);
 
   function exec(code) {
     const src = ctx.read(`
       (with-simple-error-handler (fn () (do
          ${code}
-      )))`)
-    const run = ctx.api.wisp_run_init(ctx.heap, src)
-    const x = ctx.api.wisp_run_eval(ctx.heap, run, 4_000_000) >>> 0
+      )))`);
+    const run = ctx.api.wisp_run_init(ctx.heap, src);
+    const x = ctx.api.wisp_run_eval(ctx.heap, run, 4_000_000) >>> 0;
 
-    if (x === ctx.sys.zap)
-      throw new Error
+    if (x === ctx.sys.zap) throw new Error();
   }
 
-  const basecode = await fetch("./js.wisp").then(x => x.text())
-  const dexpcode = await fetch("./dexp.wisp").then(x => x.text())
-  const democode = await fetch("./demo.wisp").then(x => x.text())
+  const basecode = await fetch("./js.wisp").then((x) => x.text());
+  const dexpcode = await fetch("./dexp.wisp").then((x) => x.text());
+  const democode = await fetch("./demo.wisp").then((x) => x.text());
 
-  exec(basecode)
-  exec(dexpcode)
+  exec(basecode);
+  exec(dexpcode);
 
-  const file = dexpcode
-  const forms = file ? ctx.readMany(file) : ctx.sys.nil
-  
-  let packageName = "WISP"
-  let functionName = "WISP-BOOT"
-  let pkgname = ctx.allocString(packageName)
-  let funname = ctx.allocString(functionName)
+  const file = dexpcode;
+  const forms = file ? ctx.readMany(file) : ctx.sys.nil;
+
+  let packageName = "WISP";
+  let functionName = "WISP-BOOT";
+  let pkgname = ctx.allocString(packageName);
+  let funname = ctx.allocString(functionName);
   let result = ctx.api.wisp_call_package_function(
     ctx.heap,
-    pkgname, packageName.length,
-    funname, functionName.length,
-    forms,
-  )
+    pkgname,
+    packageName.length,
+    funname,
+    functionName.length,
+    forms
+  );
 
-  if (result === ctx.sys.zap)
-    throw new Error
+  if (result === ctx.sys.zap) throw new Error();
 
-  ctx.free_0(pkgname, funname)
-}
+  ctx.free_0(pkgname, funname);
+};
 
-function startEditor(
-  element, doc, symbols, done,
-) {
+function startEditor(element, doc, symbols, done) {
   function onSubmit(view) {
-    done(view.state.doc.sliceString(0))
+    done(view.state.doc.sliceString(0));
   }
 
   const view = new cm.view.EditorView({
     parent: element,
-    dispatch: tx => view.update([tx]),
+    dispatch: (tx) => view.update([tx]),
     state: makeEditorState(doc),
-  })
+  });
 
-  view.focus()
+  view.focus();
 
   function makeEditorState(doc) {
     return cm.state.EditorState.create({
       doc,
       extensions: [
-        cm.view.EditorView.theme({
-          ".cm-completionIcon": {
-            width: "1.5em",
-          },
+        cm.view.EditorView.theme(
+          {
+            ".cm-completionIcon": {
+              width: "1.5em",
+            },
 
-          ".cm-focused": {
-            outline: "none !important",
-          },
+            ".cm-focused": {
+              outline: "none !important",
+            },
 
-          "&": {
-            fontSize: 16,
-          },
+            "&": {
+              fontSize: 16,
+            },
 
-          ".cm-scroller, .cm-content, .cm-tooltip.cm-tooltip-autocomplete > ul": {
-            fontFamily: "berkeley mono, dm mono, ui-monospace, SFMono-Regular, Menlo, monospace",
-            fontWeight: "normal",
-          },
+            ".cm-scroller, .cm-content, .cm-tooltip.cm-tooltip-autocomplete > ul":
+              {
+                fontFamily:
+                  "berkeley mono, dm mono, ui-monospace, SFMono-Regular, Menlo, monospace",
+                fontWeight: "normal",
+              },
 
-          ".cm-gutters": {
+            ".cm-gutters": {
               backgroundColor: "#2223 !important",
-          },
+            },
 
-          ".cm-activeLineGutter": {
-              backgroundColor: "#2228 !important"
-          },
+            ".cm-activeLineGutter": {
+              backgroundColor: "#2228 !important",
+            },
 
-          ".cm-activeLine": {
-              backgroundColor: "#1119 !important"
-          },
+            ".cm-activeLine": {
+              backgroundColor: "#1119 !important",
+            },
 
-          ".cm-panels": {
-            backgroundColor: "#222 !important",
-            zIndex: 2,
-            borderBottom: "1px solid #555",
-            padding: 5,
+            ".cm-panels": {
+              backgroundColor: "#222 !important",
+              zIndex: 2,
+              borderBottom: "1px solid #555",
+              padding: 5,
+            },
           },
-        }, {
-          dark: true,
-        }),
-        
+          {
+            dark: true,
+          }
+        ),
+
         cm.highlight.defaultHighlightStyle.fallback,
-        cm.highlight.HighlightStyle.define([{
-          tag: cm.highlight.tags.keyword,
-          color: "yellow",
-        }]).extension,
-        
+        cm.highlight.HighlightStyle.define([
+          {
+            tag: cm.highlight.tags.keyword,
+            color: "yellow",
+          },
+        ]).extension,
+
         cm.view.highlightSpecialChars(),
         cm.view.drawSelection(),
         cm.view.dropCursor(),
         cm.view.highlightActiveLine(),
-        
+
         cm.language.indentOnInput(),
-        
+
         cm.matchbrackets.bracketMatching(),
         cm.closebrackets.closeBrackets(),
         cm.autocomplete.autocompletion(),
-        
+
         cm.view.EditorView.lineWrapping,
-        
+
         cm.view.keymap.of([
           {
             key: "Enter",
             run(view) {
-              onSubmit(view)
-              return true
-            }
+              onSubmit(view);
+              return true;
+            },
           },
           cm.commands.indentWithTab,
           ...cm.closebrackets.closeBracketsKeymap,
@@ -178,21 +181,22 @@ function startEditor(
 
         wisplang(symbols),
       ],
-    })
+    });
   }
 }
 
-const hang = n => node => {
-  let kids = node.getChildren("Form")
-  let first = kids[n - 1], last = node.lastChild
+const hang = (n) => (node) => {
+  let kids = node.getChildren("Form");
+  let first = kids[n - 1],
+    last = node.lastChild;
   if (first && first.to < last.from) {
     return {
       from: first.to,
-      to: last.type.isError ? node.to : last.from
-    }
+      to: last.type.isError ? node.to : last.from,
+    };
   }
-  return null
-}
+  return null;
+};
 
 let wispLanguage = cm.language.LRLanguage.define({
   parser: grammar.parser.configure({
@@ -229,32 +233,29 @@ let wispLanguage = cm.language.LRLanguage.define({
       before: `");`,
     },
   },
-})
+});
 
-let wispCompletion = symbols =>
+let wispCompletion = (symbols) =>
   wispLanguage.data.of({
     autocomplete: cm.autocomplete.completeFromList(
-      symbols.map(x => ({
+      symbols.map((x) => ({
         label: x,
         type: "function",
       }))
-    )
-  })
+    ),
+  });
 
 function wisplang(symbols) {
-  return new cm.language.LanguageSupport(
-    wispLanguage,
-    [wispCompletion(symbols)]
-  )
+  return new cm.language.LanguageSupport(wispLanguage, [
+    wispCompletion(symbols),
+  ]);
 }
 
-
-window.fs = new git.fs("wisp", { wipe: false })
-window.git = git.git
-window.git_http = git.http
+window.fs = new git.fs("wisp", { wipe: false });
+window.git = git.git;
+window.git_http = git.http;
 
 window.wisp = {
   startEditor,
   domCode,
-}
-
+};

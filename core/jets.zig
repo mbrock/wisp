@@ -21,12 +21,16 @@ pub const Funs = @import("./jets-fun.zig");
 pub const Ctls = @import("./jets-ctl.zig");
 pub const Webs = @import("./jets-web.zig");
 
+const Wisp = @import("./wisp.zig");
+const Step = @import("./step.zig");
+const util = @import("./util.zig");
+
 pub const jets = blk: {
     // We generate the boot core without the web jets.  So the
     // boot core contains references to indices in this array,
     // and those need to be stable.  That's why we add the web
     // jets AFTER the basic jets.
-    if (std.meta.globalOption("wisp_browser", bool) orelse false) {
+    if (Wisp.browser) {
         break :blk makeOpArray(Ctls, .ctl) ++
             makeOpArray(Funs, .fun) ++
             makeOpArray(Webs, .fun);
@@ -42,10 +46,6 @@ const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 
 const EnumArray = std.enums.EnumArray;
-
-const Wisp = @import("./wisp.zig");
-const Step = @import("./step.zig");
-const util = @import("./util.zig");
 
 const ref = Wisp.ref;
 const Ptr = Wisp.Ptr;
@@ -87,23 +87,23 @@ pub const FnTag = enum {
 
     pub fn functionType(comptime self: FnTag) type {
         return switch (self) {
-            .f0 => fn (*Step) anyerror!void,
-            .f1 => fn (*Step, u32) anyerror!void,
-            .f2 => fn (*Step, u32, u32) anyerror!void,
-            .f3 => fn (*Step, u32, u32, u32) anyerror!void,
-            .f4 => fn (*Step, u32, u32, u32, u32) anyerror!void,
-            .f5 => fn (*Step, u32, u32, u32, u32, u32) anyerror!void,
+            .f0 => *const fn (*Step) anyerror!void,
+            .f1 => *const fn (*Step, u32) anyerror!void,
+            .f2 => *const fn (*Step, u32, u32) anyerror!void,
+            .f3 => *const fn (*Step, u32, u32, u32) anyerror!void,
+            .f4 => *const fn (*Step, u32, u32, u32, u32) anyerror!void,
+            .f5 => *const fn (*Step, u32, u32, u32, u32, u32) anyerror!void,
 
-            .f0r => fn (*Step, Rest) anyerror!void,
-            .f0x => fn (*Step, []u32) anyerror!void,
-            .f1r => fn (*Step, u32, Rest) anyerror!void,
-            .f1x => fn (*Step, u32, []u32) anyerror!void,
-            .f2x => fn (*Step, u32, u32, []u32) anyerror!void,
+            .f0r => *const fn (*Step, Rest) anyerror!void,
+            .f0x => *const fn (*Step, []u32) anyerror!void,
+            .f1r => *const fn (*Step, u32, Rest) anyerror!void,
+            .f1x => *const fn (*Step, u32, []u32) anyerror!void,
+            .f2x => *const fn (*Step, u32, u32, []u32) anyerror!void,
         };
     }
 
     pub fn cast(comptime this: FnTag, x: anytype) this.functionType() {
-        return @as(this.functionType(), @ptrCast(x));
+        return @as(this.functionType(), @ptrCast(@alignCast(x)));
     }
 };
 
@@ -125,16 +125,14 @@ fn makeOpArray(
 
     var i = 0;
     inline for (decls) |x| {
-        if (x.is_pub) {
-            const f = @field(S, x.name);
-            ops[i] = .{
-                .txt = x.name,
-                .ilk = ilk,
-                .tag = FnTag.from(@TypeOf(f)),
-                .fun = f,
-            };
-            i += 1;
-        }
+        const f = @field(S, x.name);
+        ops[i] = .{
+            .txt = x.name,
+            .ilk = ilk,
+            .tag = FnTag.from(@TypeOf(f)),
+            .fun = f,
+        };
+        i += 1;
     }
 
     return ops;

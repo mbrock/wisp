@@ -19,3 +19,7 @@
 
 pub usingnamespace @import("./word.zig");
 pub usingnamespace @import("./heap.zig");
+
+const root = @import("root");
+
+pub const browser: bool = @hasDecl(root, "wisp_browser");

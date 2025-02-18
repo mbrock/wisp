@@ -19,6 +19,7 @@
 
 const std = @import("std");
 const ziglyph = @import("ziglyph");
+const Peek = @import("./peek.zig");
 
 const Wisp = @import("./wisp.zig");
 const Keys = @import("./keys.zig");
@@ -34,15 +35,11 @@ const Error = error{
 pub fn Utf8Reader(comptime ReaderType: type) type {
     return struct {
         const This = @This();
-        const PeekStream = std.io.BufferedReader(
-            5,
-            ReaderType,
-        );
 
-        stream: PeekStream,
+        stream: Peek.PeekStream(.{ .Static = 5 }, ReaderType),
 
         pub fn init(subreader: ReaderType) This {
-            const stream = PeekStream.init(subreader);
+            const stream = Peek.peekStream(5, subreader);
             return .{ .stream = stream };
         }
 
@@ -486,7 +483,7 @@ pub fn Reader(comptime ReaderType: type) type {
             if (ziglyph.isLetter(c)) return true;
             if (c == '`') return false;
             if (ziglyph.isSymbol(c)) return true;
-            if (ziglyph.emoji_data.isEmojiPresentation(c)) return true;
+            if (ziglyph.emoji.isEmojiPresentation(c)) return true;
             return switch (c) {
                 '/', '_', '-', '!', '%', '&', '*', '?', '@' => true,
                 else => false,

@@ -61,7 +61,7 @@ pub fn warn(prefix: []const u8, heap: *Heap, word: u32) !void {
 
 pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
     switch (Wisp.tagOf(x)) {
-        .int => try out.print("{d}", .{@bitCast(@as(u31, @intCast(x)))}),
+        .int => try out.print("{d}", .{@as(u31, @intCast(x))}),
 
         .sys => {
             switch (x) {
@@ -76,7 +76,7 @@ pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
         .sym => {
             const sym = try heap.row(.sym, x);
             const pkg = sym.pkg;
-            const name = heap.v08slice(sym.str);
+            const name = try heap.v08slice(sym.str);
             if (pkg == Wisp.nil) {
                 try out.print("#:{s}", .{name});
             } else if (pkg == heap.keywordPackage) {
@@ -87,7 +87,7 @@ pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
                 try out.print("{s}", .{name});
             } else {
                 const pkgname = try heap.get(.pkg, .nam, pkg);
-                const pkgstr = heap.v08slice(pkgname);
+                const pkgstr = try heap.v08slice(pkgname);
                 try out.print("{s}:{s}", .{ pkgstr, name });
             }
         },

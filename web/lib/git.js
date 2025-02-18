@@ -3482,7 +3482,6 @@ var require_safe_buffer = __commonJS({
     function SafeBuffer(arg, encodingOrOffset, length) {
       return Buffer3(arg, encodingOrOffset, length);
     }
-    SafeBuffer.prototype = Object.create(Buffer3.prototype);
     copyProps(Buffer3, SafeBuffer);
     SafeBuffer.from = function(arg, encodingOrOffset, length) {
       if (typeof arg === "number") {
@@ -17524,5 +17523,4 @@ export {
  */
 /*! crc32.js (C) 2014-present SheetJS -- http://sheetjs.com */
 /*! ieee754. BSD-3-Clause License. Feross Aboukhadijeh <https://feross.org/opensource> */
-/*! safe-buffer. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
 //# sourceMappingURL=git.js.map

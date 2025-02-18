@@ -24,11 +24,9 @@ const Wisp = @import("./wisp.zig");
 pub fn cwd(allocator: std.mem.Allocator) !std.fs.Dir {
     if (@import("builtin").os.tag == .wasi) {
         var preopens = try std.fs.wasi.preopensAlloc(allocator);
-        defer preopens.deinit();
 
-        try preopens.populate(null);
-        if (preopens.find(.{ .Dir = "." })) |x| {
-            return std.fs.Dir{ .fd = x.fd };
+        if (preopens.find(".")) |x| {
+            return std.fs.Dir{ .fd = x };
         } else {
             return Wisp.Oof.Err;
         }

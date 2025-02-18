@@ -77,14 +77,11 @@ pub const Key = packed struct {
     }
 };
 
-pub fn generate(rng: *const std.rand.Random) Key {
+pub fn generate(rng: *const std.Random) Key {
     const now: i64 = std.time.timestamp();
-    const sec = @as(
-        u16,
-        @intCast(
-            @divFloor(now, 60 * 60 * 24) - epochDaysSince1970,
-        )
-    );
+    const sec = @as(u16, @intCast(
+        @divFloor(now, 60 * 60 * 24) - epochDaysSince1970,
+    ));
 
     const rnd = rng.int(u48);
     return Key.of(sec, rnd);

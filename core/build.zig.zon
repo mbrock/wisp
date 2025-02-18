@@ -1,0 +1,11 @@
+.{
+    .name = "wisp-core",
+    .version = "0.1.0",
+    .paths = .{ "build.zig", "core", "file.zig", "heap.zig", "jets.zig", "repl.zig", "sexp-prty.zig", "step.zig", "tidy.zig", "util.zig", "wisp.zig", "wasm.zig" },
+    .dependencies = .{
+        .ziglyph = .{
+            .url = "https://codeberg.org/dude_the_builder/ziglyph/archive/v0.13.1.tar.gz",
+            .hash = "12207831bce7d4abce57b5a98e8f3635811cfefd160bca022eb91fe905d36a02cf25",
+        },
+    },
+}

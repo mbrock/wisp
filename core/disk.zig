@@ -24,12 +24,11 @@ const Step = @import("./step.zig");
 
 pub fn cwd(allocator: std.mem.Allocator) !std.fs.Dir {
     if (@import("builtin").os.tag == .wasi) {
-        var preopens = std.fs.wasi.PreopenList.init(allocator);
-        defer preopens.deinit();
+        var preopens = try std.fs.wasi.preopensAlloc(allocator);
 
-        try preopens.populate(null);
-        if (preopens.find(.{ .Dir = "." })) |x| {
-            return std.fs.Dir{ .fd = x.fd };
+        // try preopens.populate(null);
+        if (preopens.find(".")) |x| {
+            return std.fs.Dir{ .fd = x };
         } else {
             return Wisp.Oof.Err;
         }

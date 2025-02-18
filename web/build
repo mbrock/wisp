@@ -1,4 +1,5 @@
 #!/bin/sh
 set -ex
 node ./build.mjs
-cp ../core/zig-out/lib/wisp.wasm dist/
+mkdir -p dist
+cp ../core/zig-out/bin/wisp.wasm dist/

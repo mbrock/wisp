@@ -103,7 +103,7 @@ const Box = struct {
         var c = Box{
             .len = a.len + b.len,
             .fin = a.fin + b.fin,
-            .max = std.math.max(a.max, b.max + a.fin),
+            .max = @max(a.max, b.max + a.fin),
             .txt = try Txt.initCapacity(gpa, a.len + b.len),
         };
 

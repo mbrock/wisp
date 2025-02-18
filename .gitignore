@@ -16,5 +16,7 @@ perf.data
 *.old
 wisp-tapes
 tmp
+.zig-cache
 .DS_Store
 web/cors-proxy.pid
+**/.zig-cache
