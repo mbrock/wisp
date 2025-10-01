@@ -146,13 +146,10 @@ pub fn parseDate(str: []const u8) !u16 {
         epochDay += std.time.epoch.getDaysInYear(yearX);
     }
 
-    const leap: std.time.epoch.YearLeapKind =
-        if (std.time.epoch.isLeapYear(year)) .leap else .not_leap;
-
     var monthX: u5 = 1;
     while (monthX < month) : (monthX += 1) {
         epochDay += std.time.epoch.getDaysInMonth(
-            leap,
+            year,
             @as(std.time.epoch.Month, @enumFromInt(monthX)),
         );
     }
@@ -181,8 +178,8 @@ test "key zb32" {
     const keyC = generate(&std.crypto.random);
 
     try std.testing.expectApproxEqAbs(
-        @floatFromInt(keyB.day),
-        @floatFromInt(keyC.day),
+        @as(f64, @floatFromInt(keyB.day)),
+        @as(f64, @floatFromInt(keyC.day)),
         1,
     );
 

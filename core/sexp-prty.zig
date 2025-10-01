@@ -28,8 +28,8 @@ const Heap = Wisp.Heap;
 
 const This = @This();
 
-const Str = std.ArrayListUnmanaged(u8);
-const Txt = std.ArrayListUnmanaged(Str);
+const Str = std.ArrayList(u8);
+const Txt = std.ArrayList(Str);
 
 fn copy(gpa: Gpa, str: Str) !Str {
     var new = try Str.initCapacity(gpa, str.items.len);
@@ -151,7 +151,7 @@ const Box = struct {
 };
 
 pub fn pareto(boxes: []const Box, gpa: Gpa) ![]const Box {
-    var acc = std.ArrayList(Box).init(gpa);
+    var acc = std.ArrayList(Box){};
 
     boxloop: for (boxes) |x| {
         for (acc.items) |a| {
@@ -169,13 +169,13 @@ pub fn pareto(boxes: []const Box, gpa: Gpa) ![]const Box {
             }
         }
 
-        try acc.append(x);
+        try acc.append(gpa, x);
     }
 
-    return acc.toOwnedSlice();
+    return try acc.toOwnedSlice(gpa);
 }
 
-const Boxes = std.ArrayListUnmanaged(Box);
+const Boxes = std.ArrayList(Box);
 
 pub fn single(comptime T: type, gpa: Gpa, x: T) ![]T {
     var one = try gpa.alloc(T, 1);
@@ -274,7 +274,7 @@ pub fn vjoin(gpa: Gpa, xss: []const Doc) !Doc {
 }
 
 pub fn shove(gpa: Gpa, xs: Doc) !Doc {
-    var ys = std.ArrayListUnmanaged(Box){};
+    var ys = std.ArrayList(Box){};
     for (xs) |x| {
         try ys.append(gpa, try x.indent(2, gpa));
     }
@@ -334,18 +334,17 @@ pub fn pretty(
     switch (Wisp.tagOf(exp)) {
         .duo => {
             var list = try Step.scanListAllocAllowDotted(heap, tmp, exp);
+            defer list.deinit(tmp);
 
-            var array = list.arrayList();
-            defer array.deinit();
-
+            const array = list.arrayList();
             var items = array.items;
 
             if (hangList(heap, array.items)) |n| {
                 if (list.isDotted())
                     return Wisp.Oof.Err;
 
-                var xs = std.ArrayListUnmanaged(Doc){};
-                var ys = std.ArrayListUnmanaged(Doc){};
+                var xs = std.ArrayList(Doc){};
+                var ys = std.ArrayList(Doc){};
 
                 for (items[0..n]) |x| {
                     try xs.append(gpa, try pretty(gpa, tmp, heap, x, lvl + 1));
@@ -373,7 +372,7 @@ pub fn pretty(
                     ),
                 );
             } else if (items.len > 2 and Wisp.tagOf(items[0]) == .sym) {
-                var cdr = std.ArrayListUnmanaged(Doc){};
+                var cdr = std.ArrayList(Doc){};
                 for (items[1..items.len], 0..) |x, n| {
                     if (n == items.len - 1) {
                         try cdr.append(gpa, try text(gpa, "."));
@@ -390,7 +389,7 @@ pub fn pretty(
                     try text(gpa, ")"),
                 });
             } else {
-                var xs = std.ArrayListUnmanaged(Doc){};
+                var xs = std.ArrayList(Doc){};
                 for (items[0..items.len]) |x| {
                     try xs.append(gpa, try pretty(gpa, tmp, heap, x, lvl + 1));
                 }
@@ -404,7 +403,7 @@ pub fn pretty(
 
         .v32 => {
             const items = try heap.v32slice(exp);
-            var array = std.ArrayListUnmanaged(Doc){};
+            var array = std.ArrayList(Doc){};
             for (items) |x| {
                 try array.append(gpa, try pretty(gpa, tmp, heap, x, lvl + 1));
             }

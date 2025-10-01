@@ -8,28 +8,14 @@ pub fn build(b: *std.Build) void {
         .os_tag = .wasi,
     });
 
-    const ziglyph = b.dependency("ziglyph", .{
-        .optimize = optimize,
-        .target = standardTarget,
-    });
-
-    const boot = b.addExecutable(.{
-        .name = "wisp-mkboot",
-        .root_source_file = b.path("boot.zig"),
-        .target = standardTarget,
-    });
-
-    boot.root_module.addImport("ziglyph", ziglyph.module("ziglyph"));
-
-    const bootRun = b.addRunArtifact(boot);
-
     const exe = b.addExecutable(.{
         .name = "wisp",
-        .root_source_file = b.path("main.zig"),
-        .target = standardTarget,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("main.zig"),
+            .target = standardTarget,
+            .optimize = optimize,
+        }),
     });
-
-    exe.root_module.addImport("ziglyph", ziglyph.module("ziglyph"));
 
     // const wasmExe = b.addExecutable(.{
     //     .name = "wisp",
@@ -37,13 +23,13 @@ pub fn build(b: *std.Build) void {
     //     .target = wasiTarget,
     // });
 
-    // wasmExe.root_module.addImport("ziglyph", ziglyph.module("ziglyph"));
-
     const wasmLib = b.addExecutable(.{
         .name = "wisp",
-        .root_source_file = b.path("wasm.zig"),
-        .target = wasiTarget,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("wasm.zig"),
+            .target = wasiTarget,
+            .optimize = optimize,
+        }),
     });
 
     wasmLib.entry = .disabled;
@@ -92,24 +78,23 @@ pub fn build(b: *std.Build) void {
         "wisp_intern_keyword",
     };
 
-    wasmLib.root_module.addImport("ziglyph", ziglyph.module("ziglyph"));
-
     const tests = b.addTest(.{
-        .root_source_file = b.path("repl.zig"),
-        .target = standardTarget,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("repl.zig"),
+            .target = standardTarget,
+            .optimize = optimize,
+        }),
     });
-
-    tests.root_module.addImport("ziglyph", ziglyph.module("ziglyph"));
 
     const testsPrty = b.addTest(.{
-        .root_source_file = b.path("sexp-prty.zig"),
-        .target = standardTarget,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("sexp-prty.zig"),
+            .target = standardTarget,
+            .optimize = optimize,
+        }),
     });
 
-    testsPrty.root_module.addImport("ziglyph", ziglyph.module("ziglyph"));
-
-    tests.step.dependOn(&bootRun.step);
-    exe.step.dependOn(&bootRun.step);
+    // Skip running the bootstrap generator during the default build.
     //    wasmExe.step.dependOn(&bootRun.step);
 
     b.installArtifact(exe);

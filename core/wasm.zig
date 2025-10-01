@@ -75,8 +75,8 @@ export fn wisp_read(heap: *Wisp.Heap, str: [*:0]const u8) u32 {
 }
 
 export fn wisp_read_many(heap: *Wisp.Heap, str: [*:0]const u8) u32 {
-    const list = Read.readMany(heap, std.mem.span(str)) catch return Wisp.zap;
-    defer list.deinit();
+    var list = Read.readMany(heap, std.mem.span(str)) catch return Wisp.zap;
+    defer list.deinit(heap.orb);
     return Wisp.list(heap, list.items) catch Wisp.zap;
 }
 
@@ -85,7 +85,11 @@ export fn wisp_eval(heap: *Wisp.Heap, exp: u32, max: u32) u32 {
     if (Step.evaluate(heap, &run, max)) |result| {
         return result;
     } else |e| {
-        std.io.getStdErr().writer().print(";; error {any}\n", .{e}) catch return Wisp.zap;
+        var stderr_buf: [4096]u8 = undefined;
+        var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
+        const stderr = &stderr_writer.interface;
+        stderr.print(";; error {any}\n", .{e}) catch return Wisp.zap;
+        stderr.flush() catch return Wisp.zap;
         Sexp.warn("err", heap, run.err) catch return Wisp.zap;
         if (run.exp == Wisp.nah)
             Sexp.warn("val", heap, run.val) catch return Wisp.zap
@@ -400,10 +404,14 @@ export fn wisp_call(
     var step = Step{ .heap = heap, .run = &run, .tmp = tmp.get() };
 
     if (step.call(funptr, argptr, false)) {} else |e| {
-        std.io.getStdErr().writer().print(
+        var stderr_buf: [4096]u8 = undefined;
+        var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
+        const stderr = &stderr_writer.interface;
+        stderr.print(
             ";; couldn't call {any} {any}\n",
             .{ funptr, e },
         ) catch return Wisp.zap;
+        stderr.flush() catch return Wisp.zap;
         Sexp.warn("err", heap, run.err) catch return Wisp.zap;
         return Wisp.zap;
     }
@@ -411,7 +419,11 @@ export fn wisp_call(
     if (Step.evaluate(heap, &run, 0)) |result| {
         return result;
     } else |e| {
-        std.io.getStdErr().writer().print(";; error {any}\n", .{e}) catch return Wisp.zap;
+        var stderr_buf: [4096]u8 = undefined;
+        var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
+        const stderr = &stderr_writer.interface;
+        stderr.print(";; error {any}\n", .{e}) catch return Wisp.zap;
+        stderr.flush() catch return Wisp.zap;
         Sexp.warn("err", heap, run.err) catch return Wisp.zap;
         if (run.exp == Wisp.nah)
             Sexp.warn("val", heap, run.val) catch return Wisp.zap

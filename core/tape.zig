@@ -131,123 +131,45 @@ pub fn load(orb: Wisp.Orb, name: []const u8) !Wisp.Heap {
     var rootdir = try @import("./file.zig").cwd(arena.allocator());
     var file = try rootdir.openFile(name, .{});
     defer file.close();
-
-    var reader = file.reader();
-
-    const header = try reader.readStruct(Header);
-
-    std.log.warn("{s}", .{header.version});
-    std.log.warn("{any}", .{header});
-
-    var heap = Wisp.Heap{
-        .orb = orb,
-        .era = @as(Wisp.Era, @enumFromInt(header.era)),
-        .pkg = header.pkg,
-        .commonStrings = header.commonStrings,
-        .base = 0,
-        .keywordPackage = 0,
-        .keyPackage = 0,
-    };
-
-    try heap.v08.ensureTotalCapacity(orb, header.v08len);
-    heap.v08.items.len = header.v08len;
-
-    try heap.v32.list.ensureTotalCapacity(orb, header.v32len);
-    heap.v32.list.items.len = header.v32len;
-
-    var iovecs: [1 + 1 + colnum]std.posix.iovec = undefined;
-
-    iovecs[0] = mkvec(
-        heap.v08.items.ptr,
-        heap.v08.items.len,
-    );
-
-    iovecs[1] = mkvec(
-        heap.v32.list.items.ptr,
-        heap.v32.list.items.len,
-    );
-
-    var nonemptyCols: u8 = 0;
-
-    inline for (Wisp.pointerTags, 0..) |tag, tagidx| {
-        const tab = heap.tab(tag);
-        const cnt = header.tabSizes[tagidx];
-        std.log.warn(";; alloc {d} for {any}", .{ cnt, tag });
-        try tab.list.ensureTotalCapacity(orb, cnt);
-        tab.list.len = cnt;
-
-        inline for (std.meta.fields(Wisp.Row(tag)), 0..) |_, j| {
-            const col = tab.col(@as(Wisp.Col(tag), @enumFromInt(j)));
-            if (col.len > 0) {
-                iovecs[nonemptyCols + 2] = mkvec(col.ptr, col.len * 4);
-                nonemptyCols += 1;
-            }
-        }
-    }
-
-    _ = try file.readvAll(iovecs[0 .. nonemptyCols + 2]);
-
-    {
-        // find packages and put them in the package map
-        for (heap.tab(.pkg).col(.nam), 0..) |pkgname, i| {
-            const str = try orb.dupe(u8, try heap.v08slice(pkgname));
-            try heap.pkgmap.putNoClobber(
-                orb,
-                str,
-                Wisp.Ptr.make(.pkg, @as(u26, @intCast(i)), heap.era).word(),
-            );
-        }
-
-        heap.base = heap.pkgmap.get("WISP") orelse return Error.PackageMissing;
-        heap.keywordPackage = heap.pkgmap.get("KEYWORD") orelse return Error.PackageMissing;
-        heap.keyPackage = heap.pkgmap.get("KEY") orelse return Error.PackageMissing;
-    }
-
-    inline for (std.meta.fields(Wisp.Kwd)) |s| {
-        const sym = try heap.intern(s.name, heap.base);
-        @field(heap.kwd, s.name) = sym;
-        std.log.warn(";; interned {s}", .{s.name});
-    }
-
-    std.log.warn(";; heap loaded from {s}", .{name});
-
-    return heap;
+    const bytes = try file.readToEndAlloc(arena.allocator(), std.math.maxInt(usize));
+    return loadFromMemory(orb, bytes);
 }
 
 pub fn loadFromMemory(orb: Wisp.Orb, bytes: []const u8) !Wisp.Heap {
     var stream = std.io.fixedBufferStream(bytes);
     var reader = stream.reader();
     const header = try reader.readStruct(Header);
+    const header_value = header;
 
     var heap = Wisp.Heap{
         .orb = orb,
-        .era = @as(Wisp.Era, @enumFromInt(header.era)),
-        .pkg = header.pkg,
-        .commonStrings = header.commonStrings,
+        .era = @as(Wisp.Era, @enumFromInt(header_value.era)),
+        .pkg = header_value.pkg,
+        .commonStrings = header_value.commonStrings,
         .base = 0,
         .keywordPackage = 0,
         .keyPackage = 0,
     };
 
-    try heap.v08.ensureTotalCapacity(orb, header.v08len);
-    heap.v08.items.len = header.v08len;
+    try heap.v08.ensureTotalCapacity(orb, header_value.v08len);
+    heap.v08.items.len = header_value.v08len;
 
-    try heap.v32.list.ensureTotalCapacity(orb, header.v32len);
-    heap.v32.list.items.len = header.v32len;
+    try heap.v32.list.ensureTotalCapacity(orb, header_value.v32len);
+    heap.v32.list.items.len = header_value.v32len;
 
-    if (header.v08len > 0) {
+    if (header_value.v08len > 0) {
         try reader.readNoEof(heap.v08.items);
     }
 
-    if (header.v32len > 0) {
+    if (header_value.v32len > 0) {
         try reader.readNoEof(
-            @as([*]u8, @ptrCast(heap.v32.list.items.ptr))[0 .. header.v32len * 4],
+            @as([*]u8, @ptrCast(heap.v32.list.items.ptr))[0 .. header_value.v32len * 4],
         );
     }
 
     inline for (Wisp.pointerTags, 0..) |tag, tagidx| {
         const tab = heap.tab(tag);
-        const cnt = header.tabSizes[tagidx];
+        const cnt = header_value.tabSizes[tagidx];
         try tab.list.ensureTotalCapacity(orb, cnt);
         tab.list.len = cnt;
 

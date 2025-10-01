@@ -35,6 +35,15 @@ pub fn cwd(allocator: std.mem.Allocator) !std.fs.Dir {
     }
 }
 
-pub fn readLine(allocator: std.mem.Allocator, stream: anytype) !?[]u8 {
-    return stream.readUntilDelimiterOrEofAlloc(allocator, '\n', 4096);
+pub fn readLine(
+    allocator: std.mem.Allocator,
+    stream: *std.Io.Reader,
+) !?[]u8 {
+    var w = try std.Io.Writer.Allocating.initCapacity(allocator, 80);
+    if (stream.streamDelimiter(&w.writer, '\n')) |_| {
+        return try w.toOwnedSlice();
+    } else |err| switch (err) {
+        error.EndOfStream => return null,
+        else => |e| return e,
+    }
 }

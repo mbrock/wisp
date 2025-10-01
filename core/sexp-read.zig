@@ -18,12 +18,99 @@
 //
 
 const std = @import("std");
-const ziglyph = @import("ziglyph");
-const Peek = @import("./peek.zig");
 
 const Wisp = @import("./wisp.zig");
 const Keys = @import("./keys.zig");
 const Heap = Wisp.Heap;
+
+fn ensureUnicode(_: std.mem.Allocator) !void {}
+
+fn toUpperStr(allocator: std.mem.Allocator, str: []const u8) ![]u8 {
+    const upper = try allocator.alloc(u8, str.len);
+    for (str, 0..) |ch, i| upper[i] = std.ascii.toUpper(ch);
+    return upper;
+}
+
+fn isAsciiDigit(c: u21) bool {
+    return c >= '0' and c <= '9';
+}
+
+fn isInRanges(c: u21, ranges: []const [2]u21) bool {
+    for (ranges) |range| {
+        if (c >= range[0] and c <= range[1]) return true;
+    }
+    return false;
+}
+
+fn isLetter(c: u21) bool {
+    const letterish = [_][2]u21{
+        .{ 'a', 'z' },
+        .{ 'A', 'Z' },
+        // Latin extended blocks
+        .{ 0x00C0, 0x02AF },
+        // Greek and Coptic, Greek Extended
+        .{ 0x0370, 0x03FF },
+        .{ 0x1F00, 0x1FFF },
+        // Cyrillic
+        .{ 0x0400, 0x052F },
+        // Armenian, Hebrew, Arabic, Syriac
+        .{ 0x0530, 0x077F },
+        // Devanagari and Indic scripts
+        .{ 0x0900, 0x0D7F },
+        // Latin Extended Additional, Vietnamese, etc.
+        .{ 0x1E00, 0x1EFF },
+        // Phonetic extensions
+        .{ 0x1D00, 0x1DBF },
+        // Unified Canadian Aboriginal Syllabics
+        .{ 0x1400, 0x167F },
+        // Ethiopic
+        .{ 0x1200, 0x137F },
+        // Cherokee, Ogham, Runic
+        .{ 0x13A0, 0x13FF },
+        .{ 0x16A0, 0x16FF },
+        // Georgian, Hangul Jamo
+        .{ 0x10A0, 0x10FF },
+        .{ 0x1100, 0x11FF },
+        // Hiragana, Katakana, Bopomofo, Hangul syllables
+        .{ 0x3040, 0x30FF },
+        .{ 0x31A0, 0x31FF },
+        .{ 0xAC00, 0xD7A3 },
+        // Common Ideograph ranges (treat as letters for symbol parsing purposes)
+        .{ 0x4E00, 0x9FFF },
+        .{ 0x3400, 0x4DBF },
+    };
+    return isInRanges(c, &letterish);
+}
+
+fn isSymbol(c: u21) bool {
+    if (c <= 0x7F) {
+        return switch (c) {
+            '!', '#', '$', '%', '&', '*', '+', '-', '.', '/', ':', '<', '=', '>', '?', '@', '^', '_', '|', '~', '[', ']', '{', '}', ',', ';', '`' => true,
+            else => false,
+        };
+    }
+    const symbolish = [_][2]u21{
+        .{ 0x2000, 0x206F }, // General punctuation
+        .{ 0x20A0, 0x20CF }, // Currency symbols
+        .{ 0x2100, 0x218F }, // Letterlike symbols, number forms
+        .{ 0x2190, 0x21FF }, // Arrows
+        .{ 0x2200, 0x22FF }, // Mathematical operators
+        .{ 0x2300, 0x23FF },
+        .{ 0x2460, 0x24FF },
+        .{ 0x25A0, 0x2BFF },
+    };
+    return isInRanges(c, &symbolish);
+}
+
+fn isEmojiPresentation(c: u21) bool {
+    return isInRanges(c, &.{
+        .{ 0x1F300, 0x1F5FF },
+        .{ 0x1F600, 0x1F64F },
+        .{ 0x1F680, 0x1F6FF },
+        .{ 0x1F900, 0x1FAD0 },
+        .{ 0x1FA70, 0x1FAFF },
+    });
+}
 
 const Error = error{
     ReadError,
@@ -33,45 +120,54 @@ const Error = error{
 };
 
 pub fn Utf8Reader(comptime ReaderType: type) type {
+    comptime {
+        if (@typeInfo(ReaderType) != .pointer or @typeInfo(ReaderType).pointer.child != std.Io.Reader) {
+            @compileError("Utf8Reader expects a pointer to std.Io.Reader");
+        }
+    }
+
     return struct {
         const This = @This();
 
-        stream: Peek.PeekStream(.{ .Static = 5 }, ReaderType),
+        reader: ReaderType,
 
         pub fn init(subreader: ReaderType) This {
-            const stream = Peek.peekStream(5, subreader);
-            return .{ .stream = stream };
+            return .{ .reader = subreader };
+        }
+
+        fn peekBytes(this: *This) !?[]const u8 {
+            const ptr = this.reader;
+            const greedy = ptr.peekGreedy(1) catch |err| switch (err) {
+                error.EndOfStream => return null,
+                else => |e| return e,
+            };
+
+            const len = try std.unicode.utf8ByteSequenceLength(greedy[0]);
+            if (greedy.len >= len) {
+                return greedy[0..len];
+            }
+
+            const full = try ptr.peek(len);
+            return full;
         }
 
         pub fn peek(this: *This) !?u21 {
-            var bytes: [4]u8 = undefined;
-            var reader = this.stream.reader();
-
-            if (0 == try reader.read(bytes[0..1])) {
-                // EOF, no more codepoints in the stream.
-                return null;
-            } else {
-                // The first byte tells us the codepoint length.
-                const len = try std.unicode.utf8ByteSequenceLength(bytes[0]);
-
-                // Read the full codepoint; EOF mid-codepoint is an error.
-                if (len > 1) try reader.readNoEof(bytes[1..len]);
-
-                // Put the whole codepoint back on the peek stream.
-                try this.stream.putBack(bytes[0..len]);
-
-                // Decode the UTF-8 sequence.
-                return try std.unicode.utf8Decode(bytes[0..len]);
+            const maybe_bytes = try this.peekBytes();
+            if (maybe_bytes) |bytes| {
+                return try std.unicode.utf8Decode(bytes);
             }
+            return null;
         }
 
         pub fn read(this: *This) !?u21 {
-            const c = (try this.peek()) orelse return null;
-            const len = try std.unicode.utf8CodepointSequenceLength(c);
-
-            var buf: [4]u8 = undefined;
-            _ = try this.stream.read(buf[0..len]);
-            return c;
+            const ptr = this.reader;
+            const maybe_bytes = try this.peekBytes();
+            if (maybe_bytes) |bytes| {
+                const codepoint = try std.unicode.utf8Decode(bytes);
+                ptr.toss(bytes.len);
+                return codepoint;
+            }
+            return null;
         }
     };
 }
@@ -134,10 +230,10 @@ pub fn Reader(comptime ReaderType: type) type {
                 return .hash;
             } else if (c == ':') {
                 return .colon;
+            } else if (isAsciiDigit(c)) {
+                return .digitChar;
             } else if (isSymbolCharacter(c)) {
                 return .symbolChar;
-            } else if (ziglyph.isAsciiDigit(c)) {
-                return .digitChar;
             } else if (c == '"') {
                 return .doubleQuote;
             } else if (c == '\'') {
@@ -160,13 +256,14 @@ pub fn Reader(comptime ReaderType: type) type {
             self: *@This(),
             predicate: fn (u21) bool,
         ) !std.ArrayList(u8) {
-            var list = std.ArrayList(u8).init(self.allocator);
+            var list = std.ArrayList(u8){};
+            errdefer list.deinit(self.allocator);
             var buf: [4]u8 = undefined;
 
             while (try self.peek()) |c| {
                 if (predicate(c)) {
                     const len = try std.unicode.utf8Encode(c, &buf);
-                    try list.appendSlice(buf[0..len]);
+                    try list.appendSlice(self.allocator, buf[0..len]);
                     _ = try self.skip();
                 } else {
                     break;
@@ -181,8 +278,8 @@ pub fn Reader(comptime ReaderType: type) type {
         ) !u32 {
             try self.skipOnly('"');
 
-            var list = std.ArrayList(u8).init(self.allocator);
-            defer list.deinit();
+            var list = std.ArrayList(u8){};
+            defer list.deinit(self.allocator);
 
             var buf: [4]u8 = undefined;
 
@@ -192,14 +289,14 @@ pub fn Reader(comptime ReaderType: type) type {
                     break;
                 } else if (c == '\\') {
                     switch (try self.skip()) {
-                        'n' => try list.appendSlice("\n"),
-                        '"' => try list.appendSlice("\""),
-                        '\\' => try list.appendSlice("\\"),
+                        'n' => try list.appendSlice(self.allocator, "\n"),
+                        '"' => try list.appendSlice(self.allocator, "\""),
+                        '\\' => try list.appendSlice(self.allocator, "\\"),
                         else => return error.BadEscapeChar,
                     }
                 } else {
                     const len = try std.unicode.utf8Encode(c, &buf);
-                    try list.appendSlice(buf[0..len]);
+                    try list.appendSlice(self.allocator, buf[0..len]);
                 }
             }
 
@@ -275,10 +372,10 @@ pub fn Reader(comptime ReaderType: type) type {
         fn readUninternedSymbol(self: *@This()) !u32 {
             try self.skipOnly(':');
 
-            const text = try self.readWhile(isSymbolCharacterOrDigit);
-            defer text.deinit();
+            var text = try self.readWhile(isSymbolCharacterOrDigit);
+            defer text.deinit(self.allocator);
 
-            const uppercase = try ziglyph.toUpperStr(
+            const uppercase = try toUpperStr(
                 self.heap.orb,
                 text.items,
             );
@@ -291,10 +388,10 @@ pub fn Reader(comptime ReaderType: type) type {
         fn readKeyword(self: *@This()) !u32 {
             try self.skipOnly(':');
 
-            const text = try self.readWhile(isSymbolCharacterOrDigit);
-            defer text.deinit();
+            var text = try self.readWhile(isSymbolCharacterOrDigit);
+            defer text.deinit(self.allocator);
 
-            const uppercase = try ziglyph.toUpperStr(
+            const uppercase = try toUpperStr(
                 self.heap.orb,
                 text.items,
             );
@@ -312,10 +409,10 @@ pub fn Reader(comptime ReaderType: type) type {
         }
 
         fn readSymbol(self: *@This(), curpkg: u32) !u32 {
-            const text = try self.readWhile(isSymbolCharacterOrDigit);
-            defer text.deinit();
+            var text = try self.readWhile(isSymbolCharacterOrDigit);
+            defer text.deinit(self.allocator);
 
-            const uppercase = try ziglyph.toUpperStr(
+            const uppercase = try toUpperStr(
                 self.heap.orb,
                 text.items,
             );
@@ -339,8 +436,8 @@ pub fn Reader(comptime ReaderType: type) type {
         }
 
         fn readKey(self: *@This()) !u32 {
-            const str = try self.readWhile(isKeyCharacter);
-            defer str.deinit();
+            var str = try self.readWhile(isKeyCharacter);
+            defer str.deinit(self.allocator);
 
             const key = try Keys.parse(str.items);
             const sym = try self.heap.intern(
@@ -354,8 +451,8 @@ pub fn Reader(comptime ReaderType: type) type {
         }
 
         fn readNumber(self: *@This()) !u32 {
-            const str = try self.readWhile(ziglyph.isAsciiDigit);
-            defer str.deinit();
+            var str = try self.readWhile(isAsciiDigit);
+            defer str.deinit(self.allocator);
 
             var result: i31 = 0;
             var magnitude = try std.math.powi(i31, 10, @intCast(str.items.len - 1));
@@ -371,8 +468,8 @@ pub fn Reader(comptime ReaderType: type) type {
 
         fn readVector(self: *@This()) !u32 {
             try self.skipOnly('[');
-            var list = std.ArrayList(u32).init(self.allocator);
-            defer list.deinit();
+            var list = std.ArrayList(u32){};
+            defer list.deinit(self.allocator);
             while (true) {
                 try self.skipSpace();
                 if (try self.peek()) |c| {
@@ -384,7 +481,7 @@ pub fn Reader(comptime ReaderType: type) type {
                             return try self.heap.emptyv32();
                         }
                     } else {
-                        try list.append(try self.readValue());
+                        try list.append(self.allocator, try self.readValue());
                     }
                 }
             }
@@ -470,7 +567,7 @@ pub fn Reader(comptime ReaderType: type) type {
         }
 
         fn isKeyCharacter(c: u21) bool {
-            if (ziglyph.isAsciiDigit(c))
+            if (isAsciiDigit(c))
                 return true;
 
             return switch (c) {
@@ -480,10 +577,29 @@ pub fn Reader(comptime ReaderType: type) type {
         }
 
         fn isSymbolCharacter(c: u21) bool {
-            if (ziglyph.isLetter(c)) return true;
+            if (c < 128) switch (c) {
+                '(',
+                ')',
+                '[',
+                ']',
+                '{',
+                '}',
+                '"',
+                ';',
+                '#',
+                '`',
+                '\'',
+                ',',
+                => return false,
+                else => {
+                    const ascii_c: u8 = @as(u8, @truncate(c));
+                    return !std.ascii.isWhitespace(ascii_c);
+                },
+            };
+            if (isLetter(c)) return true;
             if (c == '`') return false;
-            if (ziglyph.isSymbol(c)) return true;
-            if (ziglyph.emoji.isEmojiPresentation(c)) return true;
+            if (isSymbol(c)) return true;
+            if (isEmojiPresentation(c)) return true;
             return switch (c) {
                 '/', '_', '-', '!', '%', '&', '*', '?', '@' => true,
                 else => false,
@@ -491,7 +607,7 @@ pub fn Reader(comptime ReaderType: type) type {
         }
 
         fn isSymbolCharacterOrDigit(c: u21) bool {
-            return isSymbolCharacter(c) or ziglyph.isAsciiDigit(c) or c == ':';
+            return isSymbolCharacter(c) or isAsciiDigit(c) or c == ':';
         }
     };
 }
@@ -567,20 +683,21 @@ pub fn readFromStringStream(heap: *Heap, stream: u32) !?u32 {
 
 pub fn read(heap: *Heap, text: []const u8) !u32 {
     var tmp = std.heap.stackFallback(512, heap.orb);
-    var stream = std.io.fixedBufferStream(text);
-    var reader = makeReader(heap, tmp.get(), stream.reader());
+    var reader_state = std.Io.Reader.fixed(text);
+    var reader = makeReader(heap, tmp.get(), &reader_state);
     return reader.readValue();
 }
 
 pub fn readMany(heap: *Heap, text: []const u8) !std.ArrayList(u32) {
     var tmp = std.heap.stackFallback(512, heap.orb);
-    var list = std.ArrayList(u32).init(heap.orb);
-    var stream = std.io.fixedBufferStream(text);
-    var reader = makeReader(heap, tmp.get(), stream.reader());
+    var list = std.ArrayList(u32){};
+    errdefer list.deinit(heap.orb);
+    var reader_state = std.Io.Reader.fixed(text);
+    var reader = makeReader(heap, tmp.get(), &reader_state);
 
     while (true) {
         if (try reader.readValueOrEOF()) |x| {
-            try list.append(x);
+            try list.append(heap.orb, x);
         } else {
             return list;
         }

@@ -18,7 +18,6 @@
 //
 
 const std = @import("std");
-const glyph = @import("ziglyph");
 
 const Wisp = @import("./wisp.zig");
 
@@ -244,10 +243,13 @@ pub fn @"EQ?"(step: *Step, x: u32, y: u32) anyerror!void {
 }
 
 pub fn PRINT(step: *Step, x: u32) anyerror!void {
-    const stdout = std.io.getStdOut().writer();
+    var stdout_buf: [4096]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+    const stdout = &stdout_writer.interface;
     const pretty = try Sexp.prettyPrint(step.heap, x, 78);
     defer step.heap.orb.free(pretty);
     try stdout.print("{s}\n", .{pretty});
+    try stdout.flush();
     step.give(.val, x);
 }
 
@@ -332,8 +334,8 @@ pub fn LOAD(step: *Step, src: u32) anyerror!void {
     const code = try Disk.readFileAlloc(step.heap.orb, path);
     defer step.heap.orb.free(code);
 
-    const forms = try Sexp.readMany(step.heap, code);
-    defer forms.deinit();
+    var forms = try Sexp.readMany(step.heap, code);
+    defer forms.deinit(step.heap.orb);
 
     for (forms.items) |form| {
         var run = Step.initRun(form);
@@ -721,7 +723,9 @@ pub fn @"TOP?"(step: *Step, ktx: u32) anyerror!void {
 }
 
 pub fn @"READ-LINE"(step: *Step) anyerror!void {
-    const stdin = std.io.getStdIn().reader();
+    var stdin_buf: [4096]u8 = undefined;
+    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+    const stdin = &stdin_reader.interface;
 
     if (try File.readLine(step.heap.orb, stdin)) |line| {
         defer step.heap.orb.free(line);
@@ -732,7 +736,10 @@ pub fn @"READ-LINE"(step: *Step) anyerror!void {
 }
 
 pub fn @"READ-FROM-STDIN"(step: *Step) anyerror!void {
-    const stdin = std.io.getStdIn().reader();
+    var stdin_buf: [4096]u8 = undefined;
+    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+    const stdin = &stdin_reader.interface;
+
     if (try Sexp.readValueFromStream(step.heap, stdin)) |val| {
         step.give(.val, try step.heap.cons(val, nil));
     } else {
@@ -746,7 +753,7 @@ pub fn @"READ-FROM-STRING"(step: *Step, v08: u32) anyerror!void {
 
 pub fn @"READ-MANY-FROM-STRING"(step: *Step, v08: u32) anyerror!void {
     var list = try Sexp.readMany(step.heap, try step.heap.v08slice(v08));
-    defer list.deinit();
+    defer list.deinit(step.heap.orb);
     step.give(.val, try Wisp.list(step.heap, list.items));
 }
 
@@ -754,17 +761,25 @@ pub fn @"READ-BYTES"(step: *Step, n: u32) anyerror!void {
     const buffer = try step.heap.orb.alloc(u8, n);
     defer step.heap.orb.free(buffer);
 
-    const stdin = std.io.getStdIn().reader();
-    try stdin.readNoEof(buffer);
+    var stdin_buf: [4096]u8 = undefined;
+    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+    const stdin = &stdin_reader.interface;
+
+    try stdin.readSliceAll(buffer);
 
     step.give(.val, try step.heap.newv08(buffer));
 }
 
 pub fn WRITE(step: *Step, v08s: []u32) anyerror!void {
+    var stdout_buf: [4096]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+    const stdout = &stdout_writer.interface;
+
     for (v08s) |v08| {
         const bytes = try step.heap.v08slice(v08);
-        try std.io.getStdOut().writeAll(bytes);
+        try stdout.writeAll(bytes);
     }
+    try stdout.flush();
     step.give(.val, nil);
 }
 
@@ -911,12 +926,12 @@ pub fn @"STRING-EQUAL?"(step: *Step, s1: u32, s2: u32) anyerror!void {
 }
 
 pub fn @"STRING-APPEND"(step: *Step, rest: []u32) anyerror!void {
-    var result = std.ArrayList(u8).init(step.heap.orb);
-    defer result.deinit();
+    var result = std.ArrayList(u8){};
+    defer result.deinit(step.heap.orb);
 
     for (rest) |x| {
         const piece = try step.heap.v08slice(x);
-        try result.appendSlice(piece);
+        try result.appendSlice(step.heap.orb, piece);
     }
 
     step.give(.val, try step.heap.newv08(result.items));
@@ -967,18 +982,21 @@ pub fn @"STRING-TO-UPPERCASE"(
     v08ptr: u32,
 ) anyerror!void {
     const str = try step.heap.v08slice(v08ptr);
-    const upper = try glyph.toUpperStr(step.heap.orb, str);
+    const upper = try step.heap.orb.alloc(u8, str.len);
     defer step.heap.orb.free(upper);
+    for (str, 0..) |c, i| {
+        upper[i] = std.ascii.toUpper(c);
+    }
     step.give(.val, try step.heap.newv08(upper));
 }
 
 pub fn @"VECTOR-APPEND"(step: *Step, rest: []u32) anyerror!void {
-    var result = std.ArrayList(u32).init(step.heap.orb);
-    defer result.deinit();
+    var result = std.ArrayList(u32){};
+    defer result.deinit(step.heap.orb);
 
     for (rest) |x| {
         const piece = try step.heap.v32slice(x);
-        try result.appendSlice(piece);
+        try result.appendSlice(step.heap.orb, piece);
     }
 
     step.give(.val, try step.heap.newv32(result.items));

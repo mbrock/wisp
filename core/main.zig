@@ -53,8 +53,15 @@ pub fn main() anyerror!void {
     var args = try std.process.argsWithAllocator(tmp);
     defer args.deinit();
 
-    const stdout = std.io.getStdOut().writer();
-    const stderr = std.io.getStdErr().writer();
+    var stdout_buf: [4096]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+    const stdout = &stdout_writer.interface;
+    defer stdout.flush() catch {};
+
+    var stderr_buf: [4096]u8 = undefined;
+    var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
+    const stderr = &stderr_writer.interface;
+    defer stderr.flush() catch {};
 
     _ = args.skip(); // skip the program name
 
@@ -72,15 +79,18 @@ pub fn main() anyerror!void {
         const result = try heap.load(code);
         const pretty = try Sexp.prettyPrint(&heap, result, 62);
         try stdout.print("{s}\n", .{pretty});
+        try stdout.flush();
     } else if (std.mem.eql(u8, cmd, "keygen")) {
         const key = @import("./keys.zig").generate(&std.crypto.random);
         try stdout.print("{s}\n", .{key.toZB32()});
+        try stdout.flush();
     } else if (std.mem.eql(u8, cmd, "repl-zig")) {
         try @import("./repl.zig").repl();
     } else if (std.mem.eql(u8, cmd, "repl")) {
         var heap = try Wisp.Heap.fromEmbeddedCore(orb);
         _ = try heap.load("(repl)");
         try stderr.print(";; repl finished\n", .{});
+        try stderr.flush();
         @breakpoint();
     } else if (std.mem.eql(u8, cmd, "eval")) {
         const code = args.next() orelse return help(stderr);
@@ -89,6 +99,7 @@ pub fn main() anyerror!void {
         const result = try heap.load(code);
         const pretty = try Sexp.prettyPrint(&heap, result, 62);
         try stdout.print("{s}\n", .{pretty});
+        try stdout.flush();
     } else if (std.mem.eql(u8, cmd, "core")) {
         const name = args.next() orelse return help(stderr);
 
@@ -105,7 +116,7 @@ pub fn main() anyerror!void {
     }
 }
 
-fn help(stderr: std.fs.File.Writer) !void {
+fn help(stderr: anytype) !void {
     try stderr.writeAll(
         \\usage: wisp <command>
         \\
@@ -117,5 +128,6 @@ fn help(stderr: std.fs.File.Writer) !void {
         \\  wisp load       load a boot core
         \\  wisp keygen     print a unique key
         \\  wisp version    print the Wisp version
+        \\
     );
 }

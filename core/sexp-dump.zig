@@ -26,9 +26,9 @@ const Prty = @import("./sexp-prty.zig");
 const Heap = Wisp.Heap;
 
 test "print one" {
-    var list = std.ArrayList(u8).init(std.testing.allocator);
-    defer list.deinit();
-    try list.writer().print("{}", .{1});
+    var list = std.ArrayList(u8){};
+    defer list.deinit(std.testing.allocator);
+    try list.writer(std.testing.allocator).print("{}", .{1});
     try std.testing.expectEqualStrings("1", list.items);
 }
 
@@ -47,16 +47,20 @@ pub fn printAlloc(
     heap: *Heap,
     word: u32,
 ) ![]const u8 {
-    var list = std.ArrayList(u8).init(allocator);
-    try dump(heap, list.writer(), word);
-    return list.toOwnedSlice();
+    var list = std.ArrayList(u8){};
+    errdefer list.deinit(allocator);
+    try dump(heap, list.writer(allocator), word);
+    return try list.toOwnedSlice(allocator);
 }
 
 pub fn warn(prefix: []const u8, heap: *Heap, word: u32) !void {
     const s = try Prty.prettyPrint(heap, word, 72);
     defer heap.orb.free(s);
-    const stderr = std.io.getStdErr().writer();
+    var stderr_buf: [4096]u8 = undefined;
+    var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
+    const stderr = &stderr_writer.interface;
     try stderr.print("; {s}\n{s}\n", .{ prefix, s });
+    try stderr.flush();
 }
 
 pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
@@ -187,12 +191,11 @@ pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
 }
 
 fn expectPrintResult(heap: *Heap, expected: []const u8, x: u32) !void {
-    var list = std.ArrayList(u8).init(std.testing.allocator);
-    defer list.deinit();
-    const writer = list.writer();
+    var out = std.Io.Writer.Allocating.init(std.testing.allocator);
+    defer out.deinit();
 
-    try dump(heap, &writer, x);
-    try std.testing.expectEqualStrings(expected, list.items);
+    try dump(heap, &out.writer, x);
+    try std.testing.expectEqualStrings(expected, out.written());
 }
 
 test "print fixnum" {

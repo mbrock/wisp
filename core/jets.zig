@@ -23,7 +23,6 @@ pub const Webs = @import("./jets-web.zig");
 
 const Wisp = @import("./wisp.zig");
 const Step = @import("./step.zig");
-const util = @import("./util.zig");
 
 pub const jets = blk: {
     // We generate the boot core without the web jets.  So the
@@ -49,7 +48,6 @@ const EnumArray = std.enums.EnumArray;
 
 const ref = Wisp.ref;
 const Ptr = Wisp.Ptr;
-const DeclEnum = util.DeclEnum;
 
 pub const Rest = struct { arg: u32 };
 
@@ -139,10 +137,7 @@ fn makeOpArray(
 }
 
 test "ops" {
-    try expectEqual(
-        @as(*const anyopaque, @ptrCast(Ctls.QUOTE)),
-        jets[0].fun,
-    );
+    try expectEqual(jets[0].txt, "QUOTE");
 }
 
 pub fn load(heap: *Wisp.Heap) !void {

@@ -294,9 +294,9 @@ fn scan(
     rev: bool,
 ) !void {
     var pars = try step.scanListAlloc(par);
-    defer pars.deinit();
+    defer pars.deinit(step.tmp);
     var vals = try step.scanListAlloc(arg);
-    defer vals.deinit();
+    defer vals.deinit(step.tmp);
 
     if (rev)
         std.mem.reverse(u32, vals.items);
@@ -402,7 +402,7 @@ pub fn call(
 
         .ktx => {
             var vals = try step.scanListAlloc(args);
-            defer vals.deinit();
+            defer vals.deinit(step.tmp);
 
             if (vals.items.len != 1) {
                 try step.fail(&[_]u32{
@@ -418,7 +418,7 @@ pub fn call(
         .sys => {
             if (funptr == top) {
                 var vals = try step.scanListAlloc(args);
-                defer vals.deinit();
+                defer vals.deinit(step.tmp);
 
                 if (vals.items.len != 1) {
                     try step.fail(&.{
@@ -597,14 +597,14 @@ fn scanLetAcc(
     // We have evaluated the final value of a LET form.  Now we
     // build up the scope from the accumulated bindings.
 
-    var scope = std.ArrayList(u32).init(heap.orb);
-    defer scope.deinit();
+    var scope = std.ArrayList(u32){};
+    defer scope.deinit(heap.orb);
 
     const accduo = try heap.row(.duo, acc);
     const letsym = accduo.car;
 
-    try scope.append(letsym);
-    try scope.append(val);
+    try scope.append(heap.orb, letsym);
+    try scope.append(heap.orb, val);
 
     {
         var curduo = try heap.row(.duo, accduo.cdr);
@@ -613,8 +613,8 @@ fn scanLetAcc(
             const curval = curduo.car;
             const cursym = cdrduo.car;
 
-            try scope.append(cursym);
-            try scope.append(curval);
+            try scope.append(heap.orb, cursym);
+            try scope.append(heap.orb, curval);
 
             curduo = try heap.row(.duo, cdrduo.cdr);
         }
@@ -661,15 +661,18 @@ pub const List = union(ListKind) {
         };
     }
 
-    pub fn arrayList(this: List) std.ArrayList(u32) {
-        return switch (this) {
-            .proper => |xs| xs,
-            .dotted => |xs| xs,
+    pub fn arrayList(this: *List) *std.ArrayList(u32) {
+        return switch (this.*) {
+            .proper => |*xs| xs,
+            .dotted => |*xs| xs,
         };
     }
 
-    pub fn deinit(this: List) void {
-        this.arrayList().deinit();
+    pub fn deinit(this: *List, allocator: std.mem.Allocator) void {
+        switch (this.*) {
+            .proper => |*xs| xs.deinit(allocator),
+            .dotted => |*xs| xs.deinit(allocator),
+        }
     }
 };
 
@@ -682,19 +685,19 @@ pub fn scanListAlloc(step: *Step, list: u32) !std.ArrayList(u32) {
 
 pub fn scanListAllocAllowDotted(heap: *Heap, tmp: Wisp.Orb, list: u32) !List {
     var xs = try std.ArrayList(u32).initCapacity(tmp, 64);
-    errdefer xs.deinit();
+    errdefer xs.deinit(tmp);
 
     var cur = list;
     while (tagOf(cur) == .duo) {
         const duo = try heap.row(.duo, cur);
-        try xs.append(duo.car);
+        try xs.append(tmp, duo.car);
         cur = duo.cdr;
     }
 
     if (cur == nil) {
         return List{ .proper = xs };
     } else {
-        try xs.append(cur);
+        try xs.append(tmp, cur);
         return List{ .dotted = xs };
     }
 }
@@ -793,8 +796,8 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
 
     switch (def.tag) {
         .f0x => {
-            const args = try step.scanListAlloc(arg);
-            defer args.deinit();
+            var args = try step.scanListAlloc(arg);
+            defer args.deinit(step.tmp);
             if (rev) std.mem.reverse(u32, args.items);
             const fun = cast(.f0x, def);
             try fun(step, args.items);
@@ -815,16 +818,16 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f1x => {
-            const args = try step.scanListAlloc(arg);
-            defer args.deinit();
+            var args = try step.scanListAlloc(arg);
+            defer args.deinit(step.tmp);
             if (rev) std.mem.reverse(u32, args.items);
             const fun = cast(.f1x, def);
             try fun(step, args.items[0], args.items[1..args.items.len]);
         },
 
         .f2x => {
-            const args = try step.scanListAlloc(arg);
-            defer args.deinit();
+            var args = try step.scanListAlloc(arg);
+            defer args.deinit(step.tmp);
             if (args.items.len < 2) {
                 return step.invalidArgumentCount(jet);
             } else {
@@ -849,9 +852,9 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f1 => {
-            const list = try step.scanListAlloc(arg);
+            var list = try step.scanListAlloc(arg);
             const args = list.items;
-            defer list.deinit();
+            defer list.deinit(step.tmp);
 
             if (args.len == 1) {
                 const fun = cast(.f1, def);
@@ -862,9 +865,9 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f2 => {
-            const list = try step.scanListAlloc(arg);
+            var list = try step.scanListAlloc(arg);
             const args = list.items;
-            defer list.deinit();
+            defer list.deinit(step.tmp);
 
             if (args.len == 2) {
                 if (rev) std.mem.reverse(u32, args);
@@ -876,9 +879,9 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f3 => {
-            const list = try step.scanListAlloc(arg);
+            var list = try step.scanListAlloc(arg);
             const args = list.items;
-            defer list.deinit();
+            defer list.deinit(step.tmp);
 
             if (args.len == 3) {
                 if (rev) std.mem.reverse(u32, args);
@@ -890,9 +893,9 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f4 => {
-            const list = try step.scanListAlloc(arg);
+            var list = try step.scanListAlloc(arg);
             const args = list.items;
-            defer list.deinit();
+            defer list.deinit(step.tmp);
 
             if (args.len == 4) {
                 if (rev) std.mem.reverse(u32, args);
@@ -905,9 +908,9 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
 
         // XXX: I know this is horrible.  I'm going to refactor it later...
         .f5 => {
-            const list = try step.scanListAlloc(arg);
+            var list = try step.scanListAlloc(arg);
             const args = list.items;
-            defer list.deinit();
+            defer list.deinit(step.tmp);
 
             if (args.len == 5) {
                 if (rev) std.mem.reverse(u32, args);

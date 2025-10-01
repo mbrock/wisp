@@ -60,8 +60,14 @@ fn readSexp(
 }
 
 pub fn repl() anyerror!void {
-    const stdin = std.io.getStdIn().reader();
-    const stdout = std.io.getStdOut().writer();
+    var stdin_buf: [4096]u8 = undefined;
+    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+    const stdin = &stdin_reader.interface;
+
+    var stdout_buf: [4096]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+    const stdout = &stdout_writer.interface;
+    defer stdout.flush() catch {};
 
     var heap = try Wisp.Heap.init(orb, .e0);
     defer heap.deinit();
@@ -77,6 +83,7 @@ pub fn repl() anyerror!void {
 
     repl: while (true) {
         try stdout.writeAll("> ");
+        try stdout.flush();
 
         var arena = std.heap.ArenaAllocator.init(orb);
         const tmp = arena.allocator();
@@ -92,6 +99,7 @@ pub fn repl() anyerror!void {
                     const pretty = try Sexp.prettyPrint(&heap, val, 62);
                     defer heap.orb.free(pretty);
                     try stdout.print("{s}\n", .{pretty});
+                    try stdout.flush();
                     // try Tidy.gc(&heap);
                     continue :repl;
                 } else |e| {
@@ -105,6 +113,7 @@ pub fn repl() anyerror!void {
                         try Sexp.warn("Context", &heap, run.way);
 
                         try stdout.writeAll("*> ");
+                        try stdout.flush();
 
                         return e;
 
@@ -120,6 +129,7 @@ pub fn repl() anyerror!void {
             }
         } else {
             try stdout.writeByte('\n');
+            try stdout.flush();
             break :repl;
         }
     }

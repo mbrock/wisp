@@ -124,11 +124,11 @@ pub const Kwd = enum {
 pub const Orb = std.mem.Allocator;
 
 /// A vat uses a single growing byte array for all its string data.
-pub const V08 = std.ArrayListUnmanaged(u8);
+pub const V08 = std.ArrayList(u8);
 
 /// A vat uses a single growing word array for all its vector data.
 pub const V32 = struct {
-    list: std.ArrayListUnmanaged(u32) = .{},
+    list: std.ArrayList(u32) = .{},
     scan: u32 = 0,
 };
 
@@ -274,7 +274,7 @@ pub const Heap = struct {
     pins: std.AutoArrayHashMapUnmanaged(u27, u32) = .{},
     nextPinId: u27 = 1,
 
-    roots: std.ArrayListUnmanaged(*u32) = .{},
+    roots: std.ArrayList(*u32) = .{},
 
     please_tidy: bool = false,
     inhibit_gc: bool = false,
@@ -342,10 +342,10 @@ pub const Heap = struct {
         var result = nil;
 
         var tmp = std.heap.stackFallback(512, heap.orb);
-        var stream = std.io.fixedBufferStream(str);
-        var reader = Sexp.makeReader(heap, tmp.get(), stream.reader());
+        var byteread = std.Io.Reader.fixed(str);
+        var sexpread = Sexp.makeReader(heap, tmp.get(), &byteread);
 
-        while (try reader.readValueOrEOF()) |form| {
+        while (try sexpread.readValueOrEOF()) |form| {
             var run = Step.initRun(form);
 
             var form_ = form;
