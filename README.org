@@ -51,6 +51,24 @@ Wisp has:
 
   - and more!
 
+
+How to hack on Wisp (written by a visitor):
+
+  - Wisp uses the nightly version of Zig. I used
+    `brew install zig --HEAD`. There is probably a similar
+    command for your system's package manager. You might
+    also want to look at [[https://github.com/ziglang/zig-bootstrap][zig-bootstrap]].
+
+  - You should be able to run `make` to build the web thing.
+    - It looks like you need to `cd web && npm i` first.
+    - You might need to serve the directory with something
+      like `npx http-server --cors` to bypass CORS.
+
+  - Make will put the `wisp` binary at `core/zig-out/bin/wisp`.
+
+  - Now you can edit `core/lisp/test.wisp` and run
+    `./core/zig-out/bin/wisp run core/lisp/test.wisp`.
+
 * Local Variables :noexport:
   Local Variables:
   fill-column: 62
