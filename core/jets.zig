@@ -24,6 +24,10 @@ pub const Webs = @import("./jets-web.zig");
 const Wisp = @import("./wisp.zig");
 const Step = @import("./step.zig");
 
+const core_jet_count =
+    std.meta.declarations(Ctls).len +
+    std.meta.declarations(Funs).len;
+
 pub const jets = blk: {
     // We generate the boot core without the web jets.  So the
     // boot core contains references to indices in this array,
@@ -142,6 +146,15 @@ test "ops" {
 
 pub fn load(heap: *Wisp.Heap) !void {
     inline for (jets, 0..) |jet, i| {
+        const sym = try heap.intern(jet.txt, heap.base);
+        heap.col(.sym, .fun)[ref(sym)] = Wisp.Imm.make(.jet, i).word();
+    }
+}
+
+pub fn loadWeb(heap: *Wisp.Heap) !void {
+    if (!Wisp.browser) return;
+
+    inline for (jets[core_jet_count..], core_jet_count..) |jet, i| {
         const sym = try heap.intern(jet.txt, heap.base);
         heap.col(.sym, .fun)[ref(sym)] = Wisp.Imm.make(.jet, i).word();
     }

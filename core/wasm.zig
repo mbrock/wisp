@@ -62,7 +62,7 @@ const orb = std.heap.wasm_allocator;
 fn heap_init() !*Wisp.Heap {
     const heap = try orb.create(Wisp.Heap);
     heap.* = try Wisp.Heap.fromEmbeddedCore(orb, io_backend.io());
-    try Jets.load(heap);
+    try Jets.loadWeb(heap);
     return heap;
 }
 
