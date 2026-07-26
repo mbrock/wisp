@@ -639,6 +639,85 @@
 (defmacro defpackage (name &rest clauses)
   (%%defpackage name clauses))
 
+
+;;; * Stream effects
+
+(defvar %host-write #'write)
+(defvar %host-write-error #'write-error)
+(defvar %host-read-line #'read-line)
+(defvar %host-read-from-stdin #'read-from-stdin)
+(defvar %host-read-bytes #'read-bytes)
+
+(defparameter *standard-input* :stdin)
+(defparameter *standard-output* :stdout)
+(defparameter *error-output* :stderr)
+
+(defun %perform-stream-effect
+    (stream host-stream request host-handler)
+  (if (eq? stream host-stream)
+      (send-or-invoke stream request host-handler)
+    (send! stream request)))
+
+(defun %host-input-effect (request)
+  (let ((operation (head request)))
+    (cond
+      ((eq? operation 'read)
+       (call %host-read-from-stdin))
+      ((eq? operation 'read-line)
+       (call %host-read-line))
+      ((eq? operation 'read-bytes)
+       (call %host-read-bytes (second request)))
+      (t
+       (error 'unknown-input-effect request)))))
+
+(defun %host-output-effect (request)
+  (if (eq? (head request) 'write)
+      (apply %host-write (tail request))
+    (error 'unknown-output-effect request)))
+
+(defun %host-error-output-effect (request)
+  (if (eq? (head request) 'write)
+      (apply %host-write-error (tail request))
+    (error 'unknown-output-effect request)))
+
+(defun %input-effect (stream request)
+  (%perform-stream-effect
+   stream :stdin request #'%host-input-effect))
+
+(defun %output-effect (stream request)
+  (cond
+    ((eq? stream :stdout)
+     (send-or-invoke stream request #'%host-output-effect))
+    ((eq? stream :stderr)
+     (send-or-invoke stream request #'%host-error-output-effect))
+    (t
+     (send! stream request))))
+
+(defun write-to (stream &rest strings)
+  (%output-effect stream (cons 'write strings)))
+
+(defun write (&rest strings)
+  (%output-effect *standard-output* (cons 'write strings)))
+
+(defun print (x &optional stream)
+  (write-to (or stream *standard-output*)
+            (print-to-string x)
+            "\n")
+  x)
+
+(defun write-error (&rest strings)
+  (%output-effect *error-output* (cons 'write strings)))
+
+(defun read-line (&optional stream)
+  (%input-effect (or stream *standard-input*) '(read-line)))
+
+(defun read-from-stdin ()
+  (%input-effect :stdin '(read)))
+
+(defun read-bytes (n &optional stream)
+  (%input-effect (or stream *standard-input*)
+                 (list 'read-bytes n)))
+
 (defun string-input-stream (string)
   (vector 'string-input-stream 0 string))
 
@@ -646,19 +725,15 @@
   (and (vector? x)
        (eq? 'string-input-stream (vector-get x 0))))
 
-(defparameter *standard-input* :stdin)
-
 (defun read (&optional stream eof-thunk)
   (let* ((it (or stream *standard-input*))
          (result
            (cond
-             ((eq? it :stdin)
-              (read-from-stdin))
              ((string-input-stream? it)
               (read-from-string-stream! it))
              ((eq? 'function (type-of it))
               (call it))
              (t
-              (error 'type-mismatch 'input-stream it)))))
+              (%input-effect it '(read))))))
     (if result (head result)
       (call eof-thunk))))

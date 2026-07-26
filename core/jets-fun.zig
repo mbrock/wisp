@@ -783,6 +783,19 @@ pub fn WRITE(step: *Step, v08s: []u32) anyerror!void {
     step.give(.val, nil);
 }
 
+pub fn @"WRITE-ERROR"(step: *Step, v08s: []u32) anyerror!void {
+    var stderr_buf: [4096]u8 = undefined;
+    var stderr_writer = std.Io.File.stderr().writer(step.heap.cap, &stderr_buf);
+    const stderr = &stderr_writer.interface;
+
+    for (v08s) |v08| {
+        const bytes = try step.heap.v08slice(v08);
+        try stderr.writeAll(bytes);
+    }
+    try stderr.flush();
+    step.give(.val, nil);
+}
+
 pub fn EVAL(step: *Step, exp: u32) anyerror!void {
     step.run.exp = exp;
     step.run.val = nah;

@@ -1296,6 +1296,36 @@ test "CALL-WITH-EFFECT-HANDLER raises into the suspended continuation" {
     );
 }
 
+test "standard output is a dynamically bound effect" {
+    try expectEval(
+        \\"hello WORLD\n"
+    ,
+        \\(call-with-effect-handler 'capture
+        \\  (fn ()
+        \\    (binding ((*standard-output* 'capture))
+        \\      (write "hello ")
+        \\      (print 'world)
+        \\      ""))
+        \\  (fn (request resume raise)
+        \\    (string-append
+        \\     (apply #'string-append (tail request))
+        \\     (call resume nil))))
+    );
+}
+
+test "standard input is a dynamically bound effect" {
+    try expectEval(
+        \\42
+    ,
+        \\(call-with-effect-handler 'answer
+        \\  (fn ()
+        \\    (binding ((*standard-input* 'answer))
+        \\      (+ (read) (read))))
+        \\  (fn (request resume raise)
+        \\    (call resume (list 21))))
+    );
+}
+
 test "SYMBOL-NAME" {
     try expectEval(
         \\("FOO" "NIL" "T")

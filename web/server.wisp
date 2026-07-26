@@ -8,8 +8,10 @@
        (new <buffered-reader>
             (js-get <deno> "stdin"))))
 
-(defun read-from-stdin ()
+(defun deno-standard-input ()
   (list (read-from-string (await (js-call *reader* "readLine")))))
+
+(set! *standard-input* #'deno-standard-input)
 
 (defun git-http-backend-cgi (repo &optional user-key)
   (binding ((*env* (list "WISP_USER_KEY" (or user-key "")
