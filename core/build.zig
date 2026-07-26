@@ -8,6 +8,17 @@ pub fn build(b: *std.Build) void {
         .os_tag = .wasi,
     });
 
+    const boot = b.addExecutable(.{
+        .name = "wisp-boot",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("boot.zig"),
+            .target = b.graph.host,
+            .optimize = optimize,
+        }),
+    });
+    const bootRun = b.addRunArtifact(boot);
+    bootRun.setCwd(b.path("."));
+
     const exe = b.addExecutable(.{
         .name = "wisp",
         .root_module = b.createModule(.{
@@ -94,8 +105,10 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    // Skip running the bootstrap generator during the default build.
-    //    wasmExe.step.dependOn(&bootRun.step);
+    exe.step.dependOn(&bootRun.step);
+    wasmLib.step.dependOn(&bootRun.step);
+    tests.step.dependOn(&bootRun.step);
+    testsPrty.step.dependOn(&bootRun.step);
 
     b.installArtifact(exe);
     //    b.installArtifact(wasmExe);
