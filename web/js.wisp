@@ -58,15 +58,14 @@
     p))
 
 (defun async (f)
-  (call-with-prompt :async f
-    (fn (v k)
+  (call-with-effect-handler :async f
+    (fn (v resume raise)
       (js-catch
           (js-then v
-            (fn (x)
-              (async (fn () (call k x)))))
+            resume)
         (fn (e)
           (log e)
-          (async (fn () (nonlocal-error! k e))))))))
+          (call raise e))))))
 
 (defun await (x)
   (send! :async x))
