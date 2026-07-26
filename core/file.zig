@@ -21,17 +21,20 @@ const std = @import("std");
 
 const Wisp = @import("./wisp.zig");
 
-pub fn cwd(allocator: std.mem.Allocator) !std.fs.Dir {
+pub fn cwd(allocator: std.mem.Allocator) !std.Io.Dir {
     if (@import("builtin").os.tag == .wasi) {
-        var preopens = try std.fs.wasi.preopensAlloc(allocator);
+        const preopens = try std.process.Preopens.init(allocator);
 
-        if (preopens.find(".")) |x| {
-            return std.fs.Dir{ .fd = x };
+        if (preopens.get(".")) |resource| {
+            return switch (resource) {
+                .dir => |dir| dir,
+                .file => Wisp.Oof.Err,
+            };
         } else {
             return Wisp.Oof.Err;
         }
     } else {
-        return std.fs.cwd();
+        return std.Io.Dir.cwd();
     }
 }
 

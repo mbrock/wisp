@@ -77,13 +77,17 @@ pub const Key = packed struct {
     }
 };
 
-pub fn generate(rng: *const std.Random) Key {
-    const now: i64 = std.time.timestamp();
+pub fn generate(io: std.Io) Key {
+    const now: i64 = @intCast(
+        @divFloor(std.Io.Clock.real.now(io).nanoseconds, std.time.ns_per_s),
+    );
     const sec = @as(u16, @intCast(
         @divFloor(now, 60 * 60 * 24) - epochDaysSince1970,
     ));
 
-    const rnd = rng.int(u48);
+    var random_bytes: [6]u8 = undefined;
+    io.random(&random_bytes);
+    const rnd = std.mem.readInt(u48, &random_bytes, .little);
     return Key.of(sec, rnd);
 }
 
@@ -174,8 +178,8 @@ test "key zb32" {
     try std.testing.expectEqual(keyA.rnd, parsedKeyA.rnd);
     try std.testing.expectEqual(keyA.day, parsedKeyA.day);
 
-    const keyB = generate(&std.crypto.random);
-    const keyC = generate(&std.crypto.random);
+    const keyB = generate(std.testing.io);
+    const keyC = generate(std.testing.io);
 
     try std.testing.expectApproxEqAbs(
         @as(f64, @floatFromInt(keyB.day)),

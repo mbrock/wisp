@@ -256,7 +256,7 @@ pub fn Reader(comptime ReaderType: type) type {
             self: *@This(),
             predicate: fn (u21) bool,
         ) !std.ArrayList(u8) {
-            var list = std.ArrayList(u8){};
+            var list: std.ArrayList(u8) = .empty;
             errdefer list.deinit(self.allocator);
             var buf: [4]u8 = undefined;
 
@@ -278,7 +278,7 @@ pub fn Reader(comptime ReaderType: type) type {
         ) !u32 {
             try self.skipOnly('"');
 
-            var list = std.ArrayList(u8){};
+            var list: std.ArrayList(u8) = .empty;
             defer list.deinit(self.allocator);
 
             var buf: [4]u8 = undefined;
@@ -468,7 +468,7 @@ pub fn Reader(comptime ReaderType: type) type {
 
         fn readVector(self: *@This()) !u32 {
             try self.skipOnly('[');
-            var list = std.ArrayList(u32){};
+            var list: std.ArrayList(u32) = .empty;
             defer list.deinit(self.allocator);
             while (true) {
                 try self.skipSpace();
@@ -690,7 +690,7 @@ pub fn read(heap: *Heap, text: []const u8) !u32 {
 
 pub fn readMany(heap: *Heap, text: []const u8) !std.ArrayList(u32) {
     var tmp = std.heap.stackFallback(512, heap.orb);
-    var list = std.ArrayList(u32){};
+    var list: std.ArrayList(u32) = .empty;
     errdefer list.deinit(heap.orb);
     var reader_state = std.Io.Reader.fixed(text);
     var reader = makeReader(heap, tmp.get(), &reader_state);

@@ -74,9 +74,9 @@ const JS = struct {
 
 pub fn done(tidy: *Tidy) Heap {
     std.log.debug(";; gc era {any}", .{tidy.new.era});
-    tidy.old.v08 = .{};
+    tidy.old.v08 = .empty;
     tidy.old.pkgmap = .{};
-    tidy.old.roots = .{};
+    tidy.old.roots = .empty;
     tidy.old.pins = .{};
 
     // Release unreachable external objects.

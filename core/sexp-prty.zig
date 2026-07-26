@@ -44,7 +44,7 @@ fn insertIndent(n: u16, str: *Str, gpa: Gpa) !void {
 }
 
 const Box = struct {
-    txt: Txt = .{},
+    txt: Txt = .empty,
     len: u16,
     fin: u16,
     max: u16,
@@ -94,7 +94,7 @@ const Box = struct {
         };
 
         try b.txt.appendSlice(gpa, a.txt.items);
-        try b.txt.append(gpa, Str{});
+        try b.txt.append(gpa, .empty);
 
         return b;
     }
@@ -108,7 +108,7 @@ const Box = struct {
         };
 
         for (a.txt.items[0..a.len]) |as| {
-            var str = Str{};
+            var str: Str = .empty;
             try str.appendSlice(gpa, as.items);
             try c.txt.append(gpa, str);
         }
@@ -136,7 +136,7 @@ const Box = struct {
     }
 
     pub fn render(box: Box, gpa: Gpa) ![]const u8 {
-        var result = Str{};
+        var result: Str = .empty;
         for (box.txt.items, 0..) |str, i| {
             if (i > 0) try result.append(gpa, '\n');
             try result.appendSlice(gpa, str.items);
@@ -151,7 +151,7 @@ const Box = struct {
 };
 
 pub fn pareto(boxes: []const Box, gpa: Gpa) ![]const Box {
-    var acc = std.ArrayList(Box){};
+    var acc: std.ArrayList(Box) = .empty;
 
     boxloop: for (boxes) |x| {
         for (acc.items) |a| {
@@ -198,7 +198,7 @@ pub fn choose(gpa: Gpa, a: Doc, b: Doc) !Doc {
 }
 
 pub fn hcat(gpa: Gpa, xs: Doc, ys: Doc) !Doc {
-    var zs = Boxes{};
+    var zs: Boxes = .empty;
     for (xs) |x| {
         for (ys) |y| {
             const xy = try x.hcat(y, gpa);
@@ -212,7 +212,7 @@ pub fn hcat(gpa: Gpa, xs: Doc, ys: Doc) !Doc {
 }
 
 pub fn flush(gpa: Gpa, xs: Doc) !Doc {
-    var ys = Boxes{};
+    var ys: Boxes = .empty;
     for (xs) |x| {
         try ys.append(gpa, try x.flush(gpa));
     }
@@ -274,7 +274,7 @@ pub fn vjoin(gpa: Gpa, xss: []const Doc) !Doc {
 }
 
 pub fn shove(gpa: Gpa, xs: Doc) !Doc {
-    var ys = std.ArrayList(Box){};
+    var ys: std.ArrayList(Box) = .empty;
     for (xs) |x| {
         try ys.append(gpa, try x.indent(2, gpa));
     }
@@ -343,8 +343,8 @@ pub fn pretty(
                 if (list.isDotted())
                     return Wisp.Oof.Err;
 
-                var xs = std.ArrayList(Doc){};
-                var ys = std.ArrayList(Doc){};
+                var xs: std.ArrayList(Doc) = .empty;
+                var ys: std.ArrayList(Doc) = .empty;
 
                 for (items[0..n]) |x| {
                     try xs.append(gpa, try pretty(gpa, tmp, heap, x, lvl + 1));
@@ -372,7 +372,7 @@ pub fn pretty(
                     ),
                 );
             } else if (items.len > 2 and Wisp.tagOf(items[0]) == .sym) {
-                var cdr = std.ArrayList(Doc){};
+                var cdr: std.ArrayList(Doc) = .empty;
                 for (items[1..items.len], 0..) |x, n| {
                     if (n == items.len - 1) {
                         try cdr.append(gpa, try text(gpa, "."));
@@ -389,7 +389,7 @@ pub fn pretty(
                     try text(gpa, ")"),
                 });
             } else {
-                var xs = std.ArrayList(Doc){};
+                var xs: std.ArrayList(Doc) = .empty;
                 for (items[0..items.len]) |x| {
                     try xs.append(gpa, try pretty(gpa, tmp, heap, x, lvl + 1));
                 }
@@ -403,7 +403,7 @@ pub fn pretty(
 
         .v32 => {
             const items = try heap.v32slice(exp);
-            var array = std.ArrayList(Doc){};
+            var array: std.ArrayList(Doc) = .empty;
             for (items) |x| {
                 try array.append(gpa, try pretty(gpa, tmp, heap, x, lvl + 1));
             }

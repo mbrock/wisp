@@ -41,25 +41,24 @@ pub fn makeHeap(orb: Wisp.Orb) !Wisp.Heap {
     return heap;
 }
 
-pub fn main() anyerror!void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const orb = gpa.allocator();
+pub fn main(init: std.process.Init) anyerror!void {
+    @import("./runtime.zig").setIo(init.io);
+    const orb = init.gpa;
 
     var arena = std.heap.ArenaAllocator.init(orb);
     defer arena.deinit();
 
     const tmp = arena.allocator();
 
-    var args = try std.process.argsWithAllocator(tmp);
-    defer args.deinit();
+    var args = try init.minimal.args.iterateAllocator(tmp);
 
     var stdout_buf: [4096]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+    var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buf);
     const stdout = &stdout_writer.interface;
     defer stdout.flush() catch {};
 
     var stderr_buf: [4096]u8 = undefined;
-    var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
+    var stderr_writer = std.Io.File.stderr().writer(init.io, &stderr_buf);
     const stderr = &stderr_writer.interface;
     defer stderr.flush() catch {};
 
@@ -70,8 +69,7 @@ pub fn main() anyerror!void {
     if (std.mem.eql(u8, cmd, "run")) {
         const path = args.next() orelse return help(stderr);
         const root = try File.cwd(tmp);
-        const file = try root.openFile(path, .{});
-        const code = try file.readToEndAlloc(tmp, maxCodeSize);
+        const code = try root.readFileAlloc(init.io, path, tmp, .limited(maxCodeSize));
 
         var heap = try Wisp.Heap.fromEmbeddedCore(orb);
         defer heap.deinit();
@@ -81,7 +79,7 @@ pub fn main() anyerror!void {
         try stdout.print("{s}\n", .{pretty});
         try stdout.flush();
     } else if (std.mem.eql(u8, cmd, "keygen")) {
-        const key = @import("./keys.zig").generate(&std.crypto.random);
+        const key = @import("./keys.zig").generate(init.io);
         try stdout.print("{s}\n", .{key.toZB32()});
         try stdout.flush();
     } else if (std.mem.eql(u8, cmd, "repl-zig")) {

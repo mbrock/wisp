@@ -1,7 +1,7 @@
 const std = @import("std");
 
 pub fn main() anyerror!void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
     const orb = gpa.allocator();
 
     var heap = try @import("./main.zig").makeHeap(orb);

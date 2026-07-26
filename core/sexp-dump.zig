@@ -26,10 +26,10 @@ const Prty = @import("./sexp-prty.zig");
 const Heap = Wisp.Heap;
 
 test "print one" {
-    var list = std.ArrayList(u8){};
-    defer list.deinit(std.testing.allocator);
-    try list.writer(std.testing.allocator).print("{}", .{1});
-    try std.testing.expectEqualStrings("1", list.items);
+    var allocating = std.Io.Writer.Allocating.init(std.testing.allocator);
+    defer allocating.deinit();
+    try allocating.writer.print("{}", .{1});
+    try std.testing.expectEqualStrings("1", allocating.writer.buffered());
 }
 
 pub fn expectDump(
@@ -47,17 +47,20 @@ pub fn printAlloc(
     heap: *Heap,
     word: u32,
 ) ![]const u8 {
-    var list = std.ArrayList(u8){};
-    errdefer list.deinit(allocator);
-    try dump(heap, list.writer(allocator), word);
-    return try list.toOwnedSlice(allocator);
+    var allocating = std.Io.Writer.Allocating.init(allocator);
+    errdefer allocating.deinit();
+    try dump(heap, &allocating.writer, word);
+    return try allocating.toOwnedSlice();
 }
 
 pub fn warn(prefix: []const u8, heap: *Heap, word: u32) !void {
     const s = try Prty.prettyPrint(heap, word, 72);
     defer heap.orb.free(s);
     var stderr_buf: [4096]u8 = undefined;
-    var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
+    var stderr_writer = std.Io.File.stderr().writer(
+        @import("./runtime.zig").io(),
+        &stderr_buf,
+    );
     const stderr = &stderr_writer.interface;
     try stderr.print("; {s}\n{s}\n", .{ prefix, s });
     try stderr.flush();

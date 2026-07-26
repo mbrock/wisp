@@ -597,7 +597,7 @@ fn scanLetAcc(
     // We have evaluated the final value of a LET form.  Now we
     // build up the scope from the accumulated bindings.
 
-    var scope = std.ArrayList(u32){};
+    var scope: std.ArrayList(u32) = .empty;
     defer scope.deinit(heap.orb);
 
     const accduo = try heap.row(.duo, acc);

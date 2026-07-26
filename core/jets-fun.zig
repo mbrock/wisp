@@ -244,7 +244,10 @@ pub fn @"EQ?"(step: *Step, x: u32, y: u32) anyerror!void {
 
 pub fn PRINT(step: *Step, x: u32) anyerror!void {
     var stdout_buf: [4096]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+    var stdout_writer = std.Io.File.stdout().writer(
+        @import("./runtime.zig").io(),
+        &stdout_buf,
+    );
     const stdout = &stdout_writer.interface;
     const pretty = try Sexp.prettyPrint(step.heap, x, 78);
     defer step.heap.orb.free(pretty);
@@ -686,7 +689,7 @@ pub fn @"%SET!"(step: *Step, sym: u32, val: u32) anyerror!void {
             step.run.err = try step.heap.newv32(&err);
             return Wisp.Oof.Err;
         },
-        else => |_| {
+        else => {
             try step.heap.set(.sym, .val, sym, val);
             step.give(.val, val);
         },
@@ -724,7 +727,10 @@ pub fn @"TOP?"(step: *Step, ktx: u32) anyerror!void {
 
 pub fn @"READ-LINE"(step: *Step) anyerror!void {
     var stdin_buf: [4096]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+    var stdin_reader = std.Io.File.stdin().reader(
+        @import("./runtime.zig").io(),
+        &stdin_buf,
+    );
     const stdin = &stdin_reader.interface;
 
     if (try File.readLine(step.heap.orb, stdin)) |line| {
@@ -737,7 +743,10 @@ pub fn @"READ-LINE"(step: *Step) anyerror!void {
 
 pub fn @"READ-FROM-STDIN"(step: *Step) anyerror!void {
     var stdin_buf: [4096]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+    var stdin_reader = std.Io.File.stdin().reader(
+        @import("./runtime.zig").io(),
+        &stdin_buf,
+    );
     const stdin = &stdin_reader.interface;
 
     if (try Sexp.readValueFromStream(step.heap, stdin)) |val| {
@@ -762,7 +771,10 @@ pub fn @"READ-BYTES"(step: *Step, n: u32) anyerror!void {
     defer step.heap.orb.free(buffer);
 
     var stdin_buf: [4096]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+    var stdin_reader = std.Io.File.stdin().reader(
+        @import("./runtime.zig").io(),
+        &stdin_buf,
+    );
     const stdin = &stdin_reader.interface;
 
     try stdin.readSliceAll(buffer);
@@ -772,7 +784,10 @@ pub fn @"READ-BYTES"(step: *Step, n: u32) anyerror!void {
 
 pub fn WRITE(step: *Step, v08s: []u32) anyerror!void {
     var stdout_buf: [4096]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+    var stdout_writer = std.Io.File.stdout().writer(
+        @import("./runtime.zig").io(),
+        &stdout_buf,
+    );
     const stdout = &stdout_writer.interface;
 
     for (v08s) |v08| {
@@ -926,7 +941,7 @@ pub fn @"STRING-EQUAL?"(step: *Step, s1: u32, s2: u32) anyerror!void {
 }
 
 pub fn @"STRING-APPEND"(step: *Step, rest: []u32) anyerror!void {
-    var result = std.ArrayList(u8){};
+    var result: std.ArrayList(u8) = .empty;
     defer result.deinit(step.heap.orb);
 
     for (rest) |x| {
@@ -991,7 +1006,7 @@ pub fn @"STRING-TO-UPPERCASE"(
 }
 
 pub fn @"VECTOR-APPEND"(step: *Step, rest: []u32) anyerror!void {
-    var result = std.ArrayList(u32){};
+    var result: std.ArrayList(u32) = .empty;
     defer result.deinit(step.heap.orb);
 
     for (rest) |x| {

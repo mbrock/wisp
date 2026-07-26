@@ -6,7 +6,7 @@
     flake-utils.url =
       github:numtide/flake-utils;
 
-    zig.url = github:roarkanize/zig-overlay;
+    zig.url = github:mitchellh/zig-overlay;
   };
 
   outputs = { self, nixpkgs, flake-utils, zig }@inputs:
@@ -28,7 +28,7 @@
         devShell = packages.wisp;
         defaultPackage = packages.wisp;
         packages = rec {
-          zig = inputs.zig.packages.${system}.master.latest;
+          zig = inputs.zig.packages.${system}."0.16.0";
 
           wisp = pkgs.callPackage ./default.nix {
             inherit wisp-version;

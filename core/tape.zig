@@ -75,9 +75,10 @@ pub fn save(heap: *Wisp.Heap, name: []const u8) !void {
     var arena = std.heap.ArenaAllocator.init(heap.orb);
     defer arena.deinit();
 
-    var rootdir = try @import("./file.zig").cwd(arena.allocator());
-    var file = try rootdir.createFile(name, .{});
-    defer file.close();
+    const io = @import("./runtime.zig").io();
+    const rootdir = try @import("./file.zig").cwd(arena.allocator());
+    const file = try rootdir.createFile(io, name, .{});
+    defer file.close(io);
 
     var header = Header{
         .version = currentVersion(),
@@ -116,7 +117,11 @@ pub fn save(heap: *Wisp.Heap, name: []const u8) !void {
         }
     }
 
-    try file.writevAll(iovecs[0 .. i + 3]);
+    var file_writer = file.writerStreaming(io, &.{});
+    for (iovecs[0 .. i + 3]) |iov| {
+        try file_writer.interface.writeAll(iov.base[0..iov.len]);
+    }
+    try file_writer.interface.flush();
 }
 
 const Error = error{
@@ -128,17 +133,20 @@ pub fn load(orb: Wisp.Orb, name: []const u8) !Wisp.Heap {
     var arena = std.heap.ArenaAllocator.init(orb);
     defer arena.deinit();
 
-    var rootdir = try @import("./file.zig").cwd(arena.allocator());
-    var file = try rootdir.openFile(name, .{});
-    defer file.close();
-    const bytes = try file.readToEndAlloc(arena.allocator(), std.math.maxInt(usize));
+    const io = @import("./runtime.zig").io();
+    const rootdir = try @import("./file.zig").cwd(arena.allocator());
+    const bytes = try rootdir.readFileAlloc(
+        io,
+        name,
+        arena.allocator(),
+        .unlimited,
+    );
     return loadFromMemory(orb, bytes);
 }
 
 pub fn loadFromMemory(orb: Wisp.Orb, bytes: []const u8) !Wisp.Heap {
-    var stream = std.io.fixedBufferStream(bytes);
-    var reader = stream.reader();
-    const header = try reader.readStruct(Header);
+    var reader = std.Io.Reader.fixed(bytes);
+    const header = try reader.takeStruct(Header, .little);
     const header_value = header;
 
     var heap = Wisp.Heap{
@@ -158,11 +166,11 @@ pub fn loadFromMemory(orb: Wisp.Orb, bytes: []const u8) !Wisp.Heap {
     heap.v32.list.items.len = header_value.v32len;
 
     if (header_value.v08len > 0) {
-        try reader.readNoEof(heap.v08.items);
+        try reader.readSliceAll(heap.v08.items);
     }
 
     if (header_value.v32len > 0) {
-        try reader.readNoEof(
+        try reader.readSliceAll(
             @as([*]u8, @ptrCast(heap.v32.list.items.ptr))[0 .. header_value.v32len * 4],
         );
     }
@@ -176,7 +184,7 @@ pub fn loadFromMemory(orb: Wisp.Orb, bytes: []const u8) !Wisp.Heap {
         inline for (std.meta.fields(Wisp.Row(tag)), 0..) |_, j| {
             const col = tab.col(@as(Wisp.Col(tag), @enumFromInt(j)));
             if (col.len > 0) {
-                try reader.readNoEof(
+                try reader.readSliceAll(
                     @as([*]u8, @ptrCast(col.ptr))[0 .. col.len * 4],
                 );
             }

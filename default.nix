@@ -14,7 +14,7 @@ stdenvNoCC.mkDerivation {
 
   installPhase = ''
     mkdir -p $out/{bin,lib}
-    cp zig-out/bin/* $out/bin/
-    cp zig-out/lib/* $out/lib/
+    cp zig-out/bin/wisp $out/bin/
+    cp zig-out/bin/wisp.wasm $out/lib/
   '';
 }

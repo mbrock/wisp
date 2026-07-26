@@ -21,6 +21,7 @@ const WASI_ESUCCESS = 0;
 const WASI_STDOUT_FILENO = 1;
 const WASI_STDERR_FILENO = 2;
 const WASI_EBADF = 8;
+const WASI_ENOSYS = 52;
 
 const CLOCK = {
   REALTIME: 0,
@@ -50,8 +51,24 @@ export default class WASI {
     return {
       proc_exit() {},
 
-      fd_prestat_get() {},
-      fd_prestat_dir_name() {},
+      environ_sizes_get: (count, size) => {
+        const view = this.getDataView();
+        view.setUint32(count, 0, true);
+        view.setUint32(size, 0, true);
+        return WASI_ESUCCESS;
+      },
+
+      environ_get() {
+        return WASI_ESUCCESS;
+      },
+
+      fd_prestat_get() {
+        return WASI_EBADF;
+      },
+
+      fd_prestat_dir_name() {
+        return WASI_EBADF;
+      },
 
       fd_write: (fd, iovs, iovsLen, nwritten) => {
         const view = this.getDataView();
@@ -126,14 +143,47 @@ export default class WASI {
 
       fd_fdstat_get() {},
       fd_fdstat_set_flags() {},
+      fd_filestat_set_times() {
+        return WASI_ENOSYS;
+      },
+      fd_filestat_set_size() {
+        return WASI_ENOSYS;
+      },
+      fd_sync() {
+        return WASI_ESUCCESS;
+      },
+      fd_readdir() {
+        return WASI_EBADF;
+      },
 
       path_open() {},
+      path_link() {
+        return WASI_ENOSYS;
+      },
+      path_readlink() {
+        return WASI_ENOSYS;
+      },
+      path_symlink() {
+        return WASI_ENOSYS;
+      },
       path_rename() {},
       path_create_directory() {},
       path_remove_directory() {},
       path_unlink_file() {},
+      path_filestat_get() {
+        return WASI_ENOSYS;
+      },
 
       fd_filestat_get() {},
+
+      poll_oneoff() {
+        return WASI_ENOSYS;
+      },
+
+      clock_res_get: (_clock_id, resolution_out) => {
+        this.getDataView().setBigUint64(resolution_out, 1_000_000n, true);
+        return WASI_ESUCCESS;
+      },
 
       random_get: (buf_ptr, buf_len) => {
         const buffer = new Uint8Array(this.memory.buffer, buf_ptr, buf_len);

@@ -22,18 +22,20 @@ const std = @import("std");
 const Wisp = @import("./wisp.zig");
 const Step = @import("./step.zig");
 
-pub fn cwd(allocator: std.mem.Allocator) !std.fs.Dir {
+pub fn cwd(allocator: std.mem.Allocator) !std.Io.Dir {
     if (@import("builtin").os.tag == .wasi) {
-        var preopens = try std.fs.wasi.preopensAlloc(allocator);
+        const preopens = try std.process.Preopens.init(allocator);
 
-        // try preopens.populate(null);
-        if (preopens.find(".")) |x| {
-            return std.fs.Dir{ .fd = x };
+        if (preopens.get(".")) |resource| {
+            return switch (resource) {
+                .dir => |dir| dir,
+                .file => Wisp.Oof.Err,
+            };
         } else {
             return Wisp.Oof.Err;
         }
     } else {
-        return std.fs.cwd();
+        return std.Io.Dir.cwd();
     }
 }
 
@@ -42,7 +44,12 @@ pub fn readFileAlloc(
     path: []const u8,
 ) ![]u8 {
     const dir = try cwd(allocator);
-    return dir.readFileAlloc(allocator, path, 1024 * 1024);
+    return dir.readFileAlloc(
+        @import("./runtime.zig").io(),
+        path,
+        allocator,
+        .limited(1024 * 1024),
+    );
 }
 
 fn tell(out: anytype, x: u32) !void {
@@ -81,16 +88,12 @@ pub fn save(step: *Step, name: []const u8) !u32 {
 
     defer room.deinit();
 
-    var atom = try std.io.BufferedAtomicFile.create(
-        room.allocator(),
-        try cwd(room.allocator()),
-        name,
-        .{},
-    );
-
-    const file = atom.buffered_writer.writer();
-
-    defer atom.destroy();
+    const io = @import("./runtime.zig").io();
+    const root = try cwd(room.allocator());
+    var atom = try root.createFileAtomic(io, name, .{ .replace = true });
+    defer atom.deinit(io);
+    var file_writer = atom.file.writer(io, &.{});
+    const file = &file_writer.interface;
 
     const heap = step.heap;
 
@@ -140,11 +143,10 @@ pub fn save(step: *Step, name: []const u8) !u32 {
         }
     }
 
-    try atom.finish();
+    try file.flush();
+    try atom.replace(io);
 
-    return try step.heap.newv08(
-        atom.atomic_file.dest_basename,
-    );
+    return try step.heap.newv08(name);
 }
 
 // test "save" {

@@ -42,7 +42,7 @@ pub fn @"%MACRO-FN"(step: *Step, par: u32, exp: u32) anyerror!void {
     }));
 }
 
-pub fn @"LET"(step: *Step, bs: u32, e: Rest) anyerror!void {
+pub fn LET(step: *Step, bs: u32, e: Rest) anyerror!void {
     const do_e = try step.heap.cons(step.heap.kwd.DO, e.arg);
 
     if (bs == Wisp.nil) {

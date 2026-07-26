@@ -31,7 +31,7 @@ const Wisp = @import("./wisp.zig");
 
 pub const crypto_always_getrandom: bool = true;
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+var gpa: std.heap.DebugAllocator(.{}) = .init;
 var orb = gpa.allocator();
 
 test {
@@ -61,11 +61,12 @@ fn readSexp(
 
 pub fn repl() anyerror!void {
     var stdin_buf: [4096]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+    const io = @import("./runtime.zig").io();
+    var stdin_reader = std.Io.File.stdin().reader(io, &stdin_buf);
     const stdin = &stdin_reader.interface;
 
     var stdout_buf: [4096]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+    var stdout_writer = std.Io.File.stdout().writer(io, &stdout_buf);
     const stdout = &stdout_writer.interface;
     defer stdout.flush() catch {};
 

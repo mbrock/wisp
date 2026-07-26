@@ -128,7 +128,7 @@ pub const V08 = std.ArrayList(u8);
 
 /// A vat uses a single growing word array for all its vector data.
 pub const V32 = struct {
-    list: std.ArrayList(u32) = .{},
+    list: std.ArrayList(u32) = .empty,
     scan: u32 = 0,
 };
 
@@ -248,7 +248,7 @@ pub const MsgTag = enum(u8) {
     rnd,
 };
 
-pub const CommonStrings = packed struct {
+pub const CommonStrings = packed struct(u64) {
     NIL: u32,
     T: u32,
 };
@@ -257,7 +257,7 @@ pub const Heap = struct {
     orb: Orb,
     era: Era = .e0,
     vat: Vat = .{},
-    v08: V08 = .{},
+    v08: V08 = .empty,
     v32: V32 = .{},
 
     kwd: S32(Kwd) = .{},
@@ -274,7 +274,7 @@ pub const Heap = struct {
     pins: std.AutoArrayHashMapUnmanaged(u27, u32) = .{},
     nextPinId: u27 = 1,
 
-    roots: std.ArrayList(*u32) = .{},
+    roots: std.ArrayList(*u32) = .empty,
 
     please_tidy: bool = false,
     inhibit_gc: bool = false,
@@ -603,7 +603,7 @@ pub const Heap = struct {
     }
 
     pub fn genkey(heap: *Heap) !u32 {
-        const key = Keys.generate(&std.crypto.random);
+        const key = Keys.generate(@import("./runtime.zig").io());
         const sym = try heap.intern(
             &key.toZB32(),
             heap.keyPackage,
