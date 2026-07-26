@@ -114,11 +114,19 @@
 
 (defvar *render-sexp-callback* (make-callback 'do-render-sexp))
 
+(defun render-command-hint (hint)
+  (tag :span '((:class "command-hint"))
+    (tag :kbd () (text (head hint)))
+    (text (second hint))))
+
 (defun draw-app (forms)
   (tag :wisp-window-grid ()
     (tag :wisp-window '((:class "file active"))
       (tag :header ()
-        (text "index.wisp"))
+        (tag :strong '((:class "window-title"))
+          (text "index.wisp"))
+        (tag :span '((:class "window-kind"))
+          (text "structure")))
       (tag :main ()
         (tag :ins '((:class "cursor")) nil)
         (for-each forms #'render-sexp))
@@ -126,30 +134,34 @@
 
     (tag :wisp-window '((:class "output"))
       (tag :header ()
-        (tag :i ()
-          (text "scratch: 1")))
+        (tag :strong '((:class "window-title"))
+          (text "listener"))
+        (tag :span '((:class "window-kind"))
+          (text "scratch 1")))
       (tag :main ()
         (tag :ins '((:class "cursor")) nil)))
-
-    ;; (tag :wisp-window '((:class "output"))
-    ;;   (tag :header ()
-    ;;     (tag :i ()
-    ;;       (text "scratch: 2")))
-    ;;   (tag :main ()
-    ;;     (tag :ins '((:class "cursor")) nil)))
-
-    ;; (tag :wisp-window '((:class "output"))
-    ;;   (tag :header ()
-    ;;     (tag :i ()
-    ;;       (text "scratch: 3")))
-    ;;   (tag :main ()
-    ;;     (tag :ins '((:class "cursor")) nil)))
-
     )
 
   (tag :wisp-echo-area ()
-       (tag :main ()
-            (tag :ins '((:class "cursor")))))
+    (tag :main ()
+      (tag :ins '((:class "cursor")) nil))
+    (tag :aside '((:class "command-hints"))
+      (tag :span '((:class "mode-name"))
+        (text "structure"))
+      (for-each
+       '(("f b" "move")
+         ("C-f C-b" "enter")
+         ("S-F S-B" "select")
+         ("u" "out")
+         ("i" "edit")
+         ("e" "eval")
+         ("t" "transpose")
+         ("k" "delete")
+         ("d" "duplicate")
+         ("Enter" "dwim")
+         ("Tab" "window")
+         ("." "jump"))
+       #'render-command-hint)))
   )
 
 (defun cursor ()
@@ -661,6 +673,14 @@
     (do (js-call (js-get current-window "classList") "toggle" "active" nil)
         (js-call (js-get other-window "classList") "toggle" "active" t))))
 
+(defun activate-window-containing! (element)
+  (let ((window (element-closest element "wisp-window")))
+    (when (and window
+               (not (element-matches? window ".active")))
+      (do
+        (unselect!)
+        (select-window! window)))))
+
 (defun other-window! ()
   (select-window! (or (query-selector "wisp-window.active + *")
                       (query-selector "wisp-window:not(.active)"))))
@@ -789,18 +809,19 @@
            (fn (x)
              (with-interactive-condition-handler
               (fn ()
-                (unless (element-closest (js-get x "target") ".cm-editor")
-                  (let ((target
-                          (element-closest (js-get x "target")
-                                           ".wisp.value")))
-                    (if target
-                        (do
-                          (unselect!)
-                          (element-insert-adjacent!
-                           target :beforebegin (cursor))
-                          (element-insert-adjacent!
-                           (cursor) :afterbegin target))
-                      (unselect!)))))))))
+                (let ((clicked (js-get x "target")))
+                  (unless (element-closest clicked ".cm-editor")
+                    (activate-window-containing! clicked)
+                    (let ((target
+                            (element-closest clicked ".wisp.value")))
+                      (if target
+                          (do
+                            (unselect!)
+                            (element-insert-adjacent!
+                             target :beforebegin (cursor))
+                            (element-insert-adjacent!
+                             (cursor) :afterbegin target))
+                        (unselect!))))))))))
         (async
          (fn ()
            (let ((repo-key (repo-key)))

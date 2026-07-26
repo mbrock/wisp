@@ -47,7 +47,7 @@ onload = async () => {
          ${code}
       )))`);
     const run = ctx.api.wisp_run_init(ctx.heap, src);
-    const x = ctx.api.wisp_run_eval(ctx.heap, run, 4_000_000) >>> 0;
+    const x = ctx.api.wisp_run_eval(ctx.heap, run, 8_000_000) >>> 0;
 
     if (x === ctx.sys.zap) throw new Error();
   }
