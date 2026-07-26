@@ -3,6 +3,6 @@
     .version = "0.1.0",
     .fingerprint = 0x9b47c41c0fd397cb,
     .minimum_zig_version = "0.16.0",
-    .paths = .{ "build.zig", "core", "file.zig", "heap.zig", "jets.zig", "repl.zig", "runtime.zig", "sexp-prty.zig", "step.zig", "tidy.zig", "util.zig", "wisp.zig", "wasm.zig" },
+    .paths = .{ "build.zig", "core", "file.zig", "heap.zig", "jets.zig", "repl.zig", "sexp-prty.zig", "step.zig", "tidy.zig", "util.zig", "wisp.zig", "wasm.zig" },
     .dependencies = .{},
 }

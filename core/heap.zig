@@ -255,6 +255,7 @@ pub const CommonStrings = packed struct(u64) {
 
 pub const Heap = struct {
     orb: Orb,
+    cap: std.Io,
     era: Era = .e0,
     vat: Vat = .{},
     v08: V08 = .empty,
@@ -279,13 +280,14 @@ pub const Heap = struct {
     please_tidy: bool = false,
     inhibit_gc: bool = false,
 
-    pub fn fromEmbeddedCore(orb: Orb) !Heap {
-        return try Tape.loadFromMemory(orb, @embedFile("boot.core"));
+    pub fn fromEmbeddedCore(orb: Orb, cap: std.Io) !Heap {
+        return try Tape.loadFromMemory(orb, cap, @embedFile("boot.core"));
     }
 
-    pub fn init(orb: Orb, era: Era) !Heap {
+    pub fn init(orb: Orb, cap: std.Io, era: Era) !Heap {
         var heap = Heap{
             .orb = orb,
+            .cap = cap,
             .era = era,
             .base = nil,
             .keywordPackage = nil,
@@ -603,7 +605,7 @@ pub const Heap = struct {
     }
 
     pub fn genkey(heap: *Heap) !u32 {
-        const key = Keys.generate(@import("./runtime.zig").io());
+        const key = Keys.generate(heap.cap);
         const sym = try heap.intern(
             &key.toZB32(),
             heap.keyPackage,
@@ -659,12 +661,12 @@ pub fn listItemsIntoSlice(heap: *Heap, x: u32, dst: []u32) !void {
 }
 
 test "heap" {
-    var heap = try Heap.init(std.testing.allocator, .e0);
+    var heap = try Heap.init(std.testing.allocator, std.testing.io, .e0);
     defer heap.deinit();
 }
 
 test "list length" {
-    var heap = try Heap.init(std.testing.allocator, .e0);
+    var heap = try Heap.init(std.testing.allocator, std.testing.io, .e0);
     defer heap.deinit();
 
     try same(

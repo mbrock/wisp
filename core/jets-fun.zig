@@ -244,10 +244,7 @@ pub fn @"EQ?"(step: *Step, x: u32, y: u32) anyerror!void {
 
 pub fn PRINT(step: *Step, x: u32) anyerror!void {
     var stdout_buf: [4096]u8 = undefined;
-    var stdout_writer = std.Io.File.stdout().writer(
-        @import("./runtime.zig").io(),
-        &stdout_buf,
-    );
+    var stdout_writer = std.Io.File.stdout().writer(step.heap.cap, &stdout_buf);
     const stdout = &stdout_writer.interface;
     const pretty = try Sexp.prettyPrint(step.heap, x, 78);
     defer step.heap.orb.free(pretty);
@@ -334,7 +331,7 @@ pub fn WTF(step: *Step, wtf: u32) anyerror!void {
 pub fn LOAD(step: *Step, src: u32) anyerror!void {
     const path = try step.heap.v08slice(src);
 
-    const code = try Disk.readFileAlloc(step.heap.orb, path);
+    const code = try Disk.readFileAlloc(step.heap.cap, step.heap.orb, path);
     defer step.heap.orb.free(code);
 
     var forms = try Sexp.readMany(step.heap, code);
@@ -727,10 +724,7 @@ pub fn @"TOP?"(step: *Step, ktx: u32) anyerror!void {
 
 pub fn @"READ-LINE"(step: *Step) anyerror!void {
     var stdin_buf: [4096]u8 = undefined;
-    var stdin_reader = std.Io.File.stdin().reader(
-        @import("./runtime.zig").io(),
-        &stdin_buf,
-    );
+    var stdin_reader = std.Io.File.stdin().reader(step.heap.cap, &stdin_buf);
     const stdin = &stdin_reader.interface;
 
     if (try File.readLine(step.heap.orb, stdin)) |line| {
@@ -743,10 +737,7 @@ pub fn @"READ-LINE"(step: *Step) anyerror!void {
 
 pub fn @"READ-FROM-STDIN"(step: *Step) anyerror!void {
     var stdin_buf: [4096]u8 = undefined;
-    var stdin_reader = std.Io.File.stdin().reader(
-        @import("./runtime.zig").io(),
-        &stdin_buf,
-    );
+    var stdin_reader = std.Io.File.stdin().reader(step.heap.cap, &stdin_buf);
     const stdin = &stdin_reader.interface;
 
     if (try Sexp.readValueFromStream(step.heap, stdin)) |val| {
@@ -771,10 +762,7 @@ pub fn @"READ-BYTES"(step: *Step, n: u32) anyerror!void {
     defer step.heap.orb.free(buffer);
 
     var stdin_buf: [4096]u8 = undefined;
-    var stdin_reader = std.Io.File.stdin().reader(
-        @import("./runtime.zig").io(),
-        &stdin_buf,
-    );
+    var stdin_reader = std.Io.File.stdin().reader(step.heap.cap, &stdin_buf);
     const stdin = &stdin_reader.interface;
 
     try stdin.readSliceAll(buffer);
@@ -784,10 +772,7 @@ pub fn @"READ-BYTES"(step: *Step, n: u32) anyerror!void {
 
 pub fn WRITE(step: *Step, v08s: []u32) anyerror!void {
     var stdout_buf: [4096]u8 = undefined;
-    var stdout_writer = std.Io.File.stdout().writer(
-        @import("./runtime.zig").io(),
-        &stdout_buf,
-    );
+    var stdout_writer = std.Io.File.stdout().writer(step.heap.cap, &stdout_buf);
     const stdout = &stdout_writer.interface;
 
     for (v08s) |v08| {

@@ -40,12 +40,13 @@ pub fn cwd(allocator: std.mem.Allocator) !std.Io.Dir {
 }
 
 pub fn readFileAlloc(
+    cap: std.Io,
     allocator: std.mem.Allocator,
     path: []const u8,
 ) ![]u8 {
     const dir = try cwd(allocator);
     return dir.readFileAlloc(
-        @import("./runtime.zig").io(),
+        cap,
         path,
         allocator,
         .limited(1024 * 1024),
@@ -88,11 +89,11 @@ pub fn save(step: *Step, name: []const u8) !u32 {
 
     defer room.deinit();
 
-    const io = @import("./runtime.zig").io();
+    const cap = step.heap.cap;
     const root = try cwd(room.allocator());
-    var atom = try root.createFileAtomic(io, name, .{ .replace = true });
-    defer atom.deinit(io);
-    var file_writer = atom.file.writer(io, &.{});
+    var atom = try root.createFileAtomic(cap, name, .{ .replace = true });
+    defer atom.deinit(cap);
+    var file_writer = atom.file.writer(cap, &.{});
     const file = &file_writer.interface;
 
     const heap = step.heap;
@@ -144,7 +145,7 @@ pub fn save(step: *Step, name: []const u8) !u32 {
     }
 
     try file.flush();
-    try atom.replace(io);
+    try atom.replace(cap);
 
     return try step.heap.newv08(name);
 }

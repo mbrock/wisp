@@ -54,6 +54,7 @@ pub fn init(old: *Heap) !Tidy {
         .new = Heap{
             .era = old.era.flip(),
             .orb = old.orb,
+            .cap = old.cap,
             .v08 = old.v08,
             .kwd = old.kwd,
             .commonStrings = old.commonStrings,
@@ -215,7 +216,7 @@ fn drag(tidy: *Tidy, comptime tag: Tag, tab: *Tab(tag), i: Ptr.Idx) !void {
 }
 
 test "garbage collection of conses" {
-    var heap = try Heap.init(std.testing.allocator, .e0);
+    var heap = try Heap.init(std.testing.allocator, std.testing.io, .e0);
 
     defer heap.deinit();
 
@@ -238,7 +239,7 @@ test "garbage collection of conses" {
 }
 
 test "read and tidy" {
-    var heap = try Heap.init(std.testing.allocator, .e0);
+    var heap = try Heap.init(std.testing.allocator, std.testing.io, .e0);
     defer heap.deinit();
 
     const t1 = try Sexp.read(&heap, "(foo (bar (baz)))");
@@ -248,6 +249,8 @@ test "read and tidy" {
     try gc(&heap, &.{});
 
     try std.testing.expectEqual(Era.e1, heap.era);
+    try std.testing.expectEqual(std.testing.io.userdata, heap.cap.userdata);
+    try std.testing.expectEqual(std.testing.io.vtable, heap.cap.vtable);
 
     const v2 = try heap.intern("X", heap.base);
     const t2 = try heap.get(.sym, .val, v2);
@@ -256,7 +259,7 @@ test "read and tidy" {
 }
 
 test "tidy ephemeral strings" {
-    var heap = try Heap.init(std.testing.allocator, .e0);
+    var heap = try Heap.init(std.testing.allocator, std.testing.io, .e0);
     defer heap.deinit();
 
     const x = try Sexp.read(&heap,

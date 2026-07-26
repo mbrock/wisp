@@ -57,10 +57,7 @@ pub fn warn(prefix: []const u8, heap: *Heap, word: u32) !void {
     const s = try Prty.prettyPrint(heap, word, 72);
     defer heap.orb.free(s);
     var stderr_buf: [4096]u8 = undefined;
-    var stderr_writer = std.Io.File.stderr().writer(
-        @import("./runtime.zig").io(),
-        &stderr_buf,
-    );
+    var stderr_writer = std.Io.File.stderr().writer(heap.cap, &stderr_buf);
     const stderr = &stderr_writer.interface;
     try stderr.print("; {s}\n{s}\n", .{ prefix, s });
     try stderr.flush();
@@ -202,14 +199,14 @@ fn expectPrintResult(heap: *Heap, expected: []const u8, x: u32) !void {
 }
 
 test "print fixnum" {
-    var heap = try Heap.init(std.testing.allocator, .e0);
+    var heap = try Heap.init(std.testing.allocator, std.testing.io, .e0);
     defer heap.deinit();
 
     try expectPrintResult(&heap, "1", 1);
 }
 
 test "print constants" {
-    var heap = try Heap.init(std.testing.allocator, .e0);
+    var heap = try Heap.init(std.testing.allocator, std.testing.io, .e0);
     defer heap.deinit();
 
     try expectPrintResult(&heap, "NIL", Wisp.nil);
@@ -217,7 +214,7 @@ test "print constants" {
 }
 
 test "print lists" {
-    var heap = try Heap.init(std.testing.allocator, .e0);
+    var heap = try Heap.init(std.testing.allocator, std.testing.io, .e0);
     defer heap.deinit();
 
     try expectPrintResult(
@@ -230,7 +227,7 @@ test "print lists" {
 }
 
 test "print symbols" {
-    var heap = try Heap.init(std.testing.allocator, .e0);
+    var heap = try Heap.init(std.testing.allocator, std.testing.io, .e0);
     defer heap.deinit();
 
     try expectPrintResult(
@@ -241,7 +238,7 @@ test "print symbols" {
 }
 
 test "print uninterned symbols" {
-    var heap = try Heap.init(std.testing.allocator, .e0);
+    var heap = try Heap.init(std.testing.allocator, std.testing.io, .e0);
     defer heap.deinit();
 
     try expectPrintResult(
@@ -252,7 +249,7 @@ test "print uninterned symbols" {
 }
 
 test "print keys" {
-    var heap = try Heap.init(std.testing.allocator, .e0);
+    var heap = try Heap.init(std.testing.allocator, std.testing.io, .e0);
     defer heap.deinit();
 
     try expectPrintResult(
@@ -274,7 +271,7 @@ test "print keys" {
 // }
 
 test "print strings" {
-    var heap = try Heap.init(std.testing.allocator, .e1);
+    var heap = try Heap.init(std.testing.allocator, std.testing.io, .e1);
     defer heap.deinit();
 
     try expectPrintResult(

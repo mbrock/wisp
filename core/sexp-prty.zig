@@ -523,7 +523,7 @@ test "prty" {
         \\       (<= (BOX-FIN A) (BOX-FIN B))))
     ;
 
-    var heap = try Wisp.Heap.fromEmbeddedCore(std.testing.allocator);
+    var heap = try Wisp.Heap.fromEmbeddedCore(std.testing.allocator, std.testing.io);
     defer heap.deinit();
 
     const example = try Sexp.read(&heap, exampleCode);

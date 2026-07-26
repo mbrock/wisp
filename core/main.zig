@@ -31,8 +31,8 @@ fn megabytes(bytes: usize) usize {
     return bytes * 1024 * 1024;
 }
 
-pub fn makeHeap(orb: Wisp.Orb) !Wisp.Heap {
-    var heap = try Wisp.Heap.init(orb, .e0);
+pub fn makeHeap(orb: Wisp.Orb, cap: std.Io) !Wisp.Heap {
+    var heap = try Wisp.Heap.init(orb, cap, .e0);
 
     try Jets.load(&heap);
     try heap.cookBase();
@@ -42,8 +42,8 @@ pub fn makeHeap(orb: Wisp.Orb) !Wisp.Heap {
 }
 
 pub fn main(init: std.process.Init) anyerror!void {
-    @import("./runtime.zig").setIo(init.io);
     const orb = init.gpa;
+    const cap = init.io;
 
     var arena = std.heap.ArenaAllocator.init(orb);
     defer arena.deinit();
@@ -53,12 +53,12 @@ pub fn main(init: std.process.Init) anyerror!void {
     var args = try init.minimal.args.iterateAllocator(tmp);
 
     var stdout_buf: [4096]u8 = undefined;
-    var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buf);
+    var stdout_writer = std.Io.File.stdout().writer(cap, &stdout_buf);
     const stdout = &stdout_writer.interface;
     defer stdout.flush() catch {};
 
     var stderr_buf: [4096]u8 = undefined;
-    var stderr_writer = std.Io.File.stderr().writer(init.io, &stderr_buf);
+    var stderr_writer = std.Io.File.stderr().writer(cap, &stderr_buf);
     const stderr = &stderr_writer.interface;
     defer stderr.flush() catch {};
 
@@ -69,9 +69,9 @@ pub fn main(init: std.process.Init) anyerror!void {
     if (std.mem.eql(u8, cmd, "run")) {
         const path = args.next() orelse return help(stderr);
         const root = try File.cwd(tmp);
-        const code = try root.readFileAlloc(init.io, path, tmp, .limited(maxCodeSize));
+        const code = try root.readFileAlloc(cap, path, tmp, .limited(maxCodeSize));
 
-        var heap = try Wisp.Heap.fromEmbeddedCore(orb);
+        var heap = try Wisp.Heap.fromEmbeddedCore(orb, cap);
         defer heap.deinit();
 
         const result = try heap.load(code);
@@ -79,13 +79,13 @@ pub fn main(init: std.process.Init) anyerror!void {
         try stdout.print("{s}\n", .{pretty});
         try stdout.flush();
     } else if (std.mem.eql(u8, cmd, "keygen")) {
-        const key = @import("./keys.zig").generate(init.io);
+        const key = @import("./keys.zig").generate(cap);
         try stdout.print("{s}\n", .{key.toZB32()});
         try stdout.flush();
     } else if (std.mem.eql(u8, cmd, "repl-zig")) {
-        try @import("./repl.zig").repl();
+        try @import("./repl.zig").repl(cap);
     } else if (std.mem.eql(u8, cmd, "repl")) {
-        var heap = try Wisp.Heap.fromEmbeddedCore(orb);
+        var heap = try Wisp.Heap.fromEmbeddedCore(orb, cap);
         _ = try heap.load("(repl)");
         try stderr.print(";; repl finished\n", .{});
         try stderr.flush();
@@ -93,7 +93,7 @@ pub fn main(init: std.process.Init) anyerror!void {
     } else if (std.mem.eql(u8, cmd, "eval")) {
         const code = args.next() orelse return help(stderr);
 
-        var heap = try Wisp.Heap.fromEmbeddedCore(orb);
+        var heap = try Wisp.Heap.fromEmbeddedCore(orb, cap);
         const result = try heap.load(code);
         const pretty = try Sexp.prettyPrint(&heap, result, 62);
         try stdout.print("{s}\n", .{pretty});
@@ -101,13 +101,13 @@ pub fn main(init: std.process.Init) anyerror!void {
     } else if (std.mem.eql(u8, cmd, "core")) {
         const name = args.next() orelse return help(stderr);
 
-        var heap = try makeHeap(orb);
+        var heap = try makeHeap(orb, cap);
         try @import("./tidy.zig").gc(&heap, &.{});
         try @import("./tape.zig").save(&heap, name);
     } else if (std.mem.eql(u8, cmd, "load")) {
         const name = args.next() orelse return help(stderr);
 
-        var heap = try @import("./tape.zig").load(orb, name);
+        var heap = try @import("./tape.zig").load(orb, cap, name);
         _ = try heap.load("(repl)");
     } else {
         try help(stderr);

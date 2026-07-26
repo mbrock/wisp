@@ -705,7 +705,7 @@ pub fn readMany(heap: *Heap, text: []const u8) !std.ArrayList(u32) {
 }
 
 test "read symbol uppercasing" {
-    var heap = try Heap.init(std.testing.allocator, .e0);
+    var heap = try Heap.init(std.testing.allocator, std.testing.io, .e0);
     defer heap.deinit();
 
     const symbol = try read(&heap, "foobar");
@@ -719,13 +719,13 @@ test "read symbol uppercasing" {
 }
 
 test "read nil" {
-    var heap = try Heap.init(std.testing.allocator, .e0);
+    var heap = try Heap.init(std.testing.allocator, std.testing.io, .e0);
     defer heap.deinit();
     try std.testing.expectEqual(Wisp.nil, try read(&heap, "nil"));
 }
 
 test "read key" {
-    var heap = try Heap.init(std.testing.allocator, .e0);
+    var heap = try Heap.init(std.testing.allocator, std.testing.io, .e0);
     defer heap.deinit();
     _ = try read(&heap, "~20220314.8NJAFJ7WJF");
 }

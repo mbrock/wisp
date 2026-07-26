@@ -28,7 +28,6 @@ const Step = @import("./step.zig");
 const Jets = @import("./jets.zig");
 const Keys = @import("./keys.zig");
 const Tape = @import("./tape.zig");
-const Runtime = @import("./runtime.zig");
 
 pub const wisp_browser: bool = true;
 
@@ -36,9 +35,7 @@ pub fn main() void {}
 
 var io_backend = std.Io.Threaded.init(std.heap.wasm_allocator, .{});
 
-export fn _initialize() void {
-    Runtime.setIo(io_backend.io());
-}
+export fn _initialize() void {}
 
 pub const wisp_tag_int = Wisp.Tag.int;
 pub const wisp_tag_sys = Wisp.Tag.sys;
@@ -63,9 +60,8 @@ export const wisp_sys_top: u32 = Wisp.top;
 const orb = std.heap.wasm_allocator;
 
 fn heap_init() !*Wisp.Heap {
-    Runtime.setIo(io_backend.io());
     const heap = try orb.create(Wisp.Heap);
-    heap.* = try Wisp.Heap.fromEmbeddedCore(orb);
+    heap.* = try Wisp.Heap.fromEmbeddedCore(orb, io_backend.io());
     try Jets.load(heap);
     return heap;
 }
@@ -90,7 +86,7 @@ export fn wisp_eval(heap: *Wisp.Heap, exp: u32, max: u32) u32 {
         return result;
     } else |e| {
         var stderr_buf: [4096]u8 = undefined;
-        var stderr_writer = std.Io.File.stderr().writer(Runtime.io(), &stderr_buf);
+        var stderr_writer = std.Io.File.stderr().writer(heap.cap, &stderr_buf);
         const stderr = &stderr_writer.interface;
         stderr.print(";; error {any}\n", .{e}) catch return Wisp.zap;
         stderr.flush() catch return Wisp.zap;
@@ -404,7 +400,7 @@ export fn wisp_call(
 
     if (step.call(funptr, argptr, false)) {} else |e| {
         var stderr_buf: [4096]u8 = undefined;
-        var stderr_writer = std.Io.File.stderr().writer(Runtime.io(), &stderr_buf);
+        var stderr_writer = std.Io.File.stderr().writer(heap.cap, &stderr_buf);
         const stderr = &stderr_writer.interface;
         stderr.print(
             ";; couldn't call {any} {any}\n",
@@ -419,7 +415,7 @@ export fn wisp_call(
         return result;
     } else |e| {
         var stderr_buf: [4096]u8 = undefined;
-        var stderr_writer = std.Io.File.stderr().writer(Runtime.io(), &stderr_buf);
+        var stderr_writer = std.Io.File.stderr().writer(heap.cap, &stderr_buf);
         const stderr = &stderr_writer.interface;
         stderr.print(";; error {any}\n", .{e}) catch return Wisp.zap;
         stderr.flush() catch return Wisp.zap;

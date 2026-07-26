@@ -1052,7 +1052,7 @@ pub fn finishTidying(step: *Step, gc: *Tidy) !void {
 }
 
 pub fn newTestHeap() !Heap {
-    return try Heap.fromEmbeddedCore(std.testing.allocator);
+    return try Heap.fromEmbeddedCore(std.testing.allocator, std.testing.io);
 }
 
 test "step evaluates string" {

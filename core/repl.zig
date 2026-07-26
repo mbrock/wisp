@@ -39,11 +39,11 @@ test {
     std.testing.refAllDecls(Keys);
 }
 
-pub fn main() anyerror!void {
+pub fn main(init: std.process.Init) anyerror!void {
     if (builtin.os.tag == .freestanding) {
         return;
     } else {
-        return repl();
+        return repl(init.io);
     }
 }
 
@@ -59,18 +59,17 @@ fn readSexp(
     }
 }
 
-pub fn repl() anyerror!void {
+pub fn repl(cap: std.Io) anyerror!void {
     var stdin_buf: [4096]u8 = undefined;
-    const io = @import("./runtime.zig").io();
-    var stdin_reader = std.Io.File.stdin().reader(io, &stdin_buf);
+    var stdin_reader = std.Io.File.stdin().reader(cap, &stdin_buf);
     const stdin = &stdin_reader.interface;
 
     var stdout_buf: [4096]u8 = undefined;
-    var stdout_writer = std.Io.File.stdout().writer(io, &stdout_buf);
+    var stdout_writer = std.Io.File.stdout().writer(cap, &stdout_buf);
     const stdout = &stdout_writer.interface;
     defer stdout.flush() catch {};
 
-    var heap = try Wisp.Heap.init(orb, .e0);
+    var heap = try Wisp.Heap.init(orb, cap, .e0);
     defer heap.deinit();
 
     try Jets.load(&heap);

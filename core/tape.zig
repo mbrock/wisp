@@ -75,10 +75,10 @@ pub fn save(heap: *Wisp.Heap, name: []const u8) !void {
     var arena = std.heap.ArenaAllocator.init(heap.orb);
     defer arena.deinit();
 
-    const io = @import("./runtime.zig").io();
+    const cap = heap.cap;
     const rootdir = try @import("./file.zig").cwd(arena.allocator());
-    const file = try rootdir.createFile(io, name, .{});
-    defer file.close(io);
+    const file = try rootdir.createFile(cap, name, .{});
+    defer file.close(cap);
 
     var header = Header{
         .version = currentVersion(),
@@ -117,7 +117,7 @@ pub fn save(heap: *Wisp.Heap, name: []const u8) !void {
         }
     }
 
-    var file_writer = file.writerStreaming(io, &.{});
+    var file_writer = file.writerStreaming(cap, &.{});
     for (iovecs[0 .. i + 3]) |iov| {
         try file_writer.interface.writeAll(iov.base[0..iov.len]);
     }
@@ -129,28 +129,28 @@ const Error = error{
     PackageMissing,
 };
 
-pub fn load(orb: Wisp.Orb, name: []const u8) !Wisp.Heap {
+pub fn load(orb: Wisp.Orb, cap: std.Io, name: []const u8) !Wisp.Heap {
     var arena = std.heap.ArenaAllocator.init(orb);
     defer arena.deinit();
 
-    const io = @import("./runtime.zig").io();
     const rootdir = try @import("./file.zig").cwd(arena.allocator());
     const bytes = try rootdir.readFileAlloc(
-        io,
+        cap,
         name,
         arena.allocator(),
         .unlimited,
     );
-    return loadFromMemory(orb, bytes);
+    return loadFromMemory(orb, cap, bytes);
 }
 
-pub fn loadFromMemory(orb: Wisp.Orb, bytes: []const u8) !Wisp.Heap {
+pub fn loadFromMemory(orb: Wisp.Orb, cap: std.Io, bytes: []const u8) !Wisp.Heap {
     var reader = std.Io.Reader.fixed(bytes);
     const header = try reader.takeStruct(Header, .little);
     const header_value = header;
 
     var heap = Wisp.Heap{
         .orb = orb,
+        .cap = cap,
         .era = @as(Wisp.Era, @enumFromInt(header_value.era)),
         .pkg = header_value.pkg,
         .commonStrings = header_value.commonStrings,
