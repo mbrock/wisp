@@ -1270,6 +1270,32 @@ test "CALL-WITH-PROMPT" {
     try std.testing.expectEqual(x, 1);
 }
 
+test "CALL-WITH-EFFECT-HANDLER reinstalls its prompt" {
+    try expectEval(
+        \\50
+    ,
+        \\(call-with-effect-handler 'ask
+        \\  (fn () (+ (send! 'ask 2)
+        \\            (send! 'ask 3)))
+        \\  (fn (request resume raise)
+        \\    (call resume (* request 10))))
+    );
+}
+
+test "CALL-WITH-EFFECT-HANDLER raises into the suspended continuation" {
+    try expectEval(
+        \\(caught nope)
+    ,
+        \\(try
+        \\  (call-with-effect-handler 'ask
+        \\    (fn () (send! 'ask nil))
+        \\    (fn (request resume raise)
+        \\      (call raise 'nope)))
+        \\  (catch (error restart)
+        \\    (list 'caught (head error))))
+    );
+}
+
 test "SYMBOL-NAME" {
     try expectEval(
         \\("FOO" "NIL" "T")

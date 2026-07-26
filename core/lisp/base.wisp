@@ -467,6 +467,23 @@
 (defun nonlocal-error! (continuation &rest xs)
   (send-to-or-invoke continuation 'error xs #'unhandled-error))
 
+(defun call-with-effect-handler (tag thunk handler)
+  (call-with-prompt tag thunk
+    (fn (request continuation)
+      (call handler request
+        (fn (value)
+          (call-with-effect-handler
+           tag
+           (fn () (call continuation value))
+           handler))
+        (fn (&rest errors)
+          (call-with-effect-handler
+           tag
+           (fn ()
+             (apply #'nonlocal-error!
+                    (cons continuation errors)))
+           handler))))))
+
 (defun send! (tag &optional value)
   (send-or-invoke tag value
                   (fn (x)
