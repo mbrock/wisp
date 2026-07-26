@@ -246,6 +246,86 @@ main > * { flex-shrink: 0; }
   transform: scale(1.25);
 }
 
+.wisp-debugger {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  color: #e9f3ef;
+  background:
+    linear-gradient(135deg, #16221f 0%, #090d0c 72%);
+  border: 1px solid #6fbca1;
+  border-left-width: 5px;
+  box-shadow: 0 8px 30px #000b;
+}
+
+.debugger-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  border-bottom: 1px solid #6fbca155;
+  padding-bottom: 8px;
+}
+
+.debugger-kicker,
+.debugger-context-title {
+  color: #87d8bc;
+  font: 700 10px/1.2 monospace;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.debugger-name {
+  color: #ffb09c;
+  font: 700 15px/1.2 monospace;
+}
+
+.debugger-restarts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.restart {
+  appearance: none;
+  padding: 5px 9px;
+  color: #d9fff2;
+  background: #183d33;
+  border: 1px solid #4f9f87;
+  border-radius: 2px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.restart:hover,
+.restart:focus {
+  color: #08110e;
+  background: #9af1d3;
+  outline: none;
+}
+
+.restart:last-child {
+  color: #ffc1b2;
+  background: #3a1d19;
+  border-color: #a85445;
+}
+
+.debugger-context {
+  padding-top: 2px;
+  border-top: 1px solid #6fbca133;
+}
+
+.debugger-context > summary {
+  margin: 8px 0;
+  cursor: pointer;
+}
+
+.debugger-context > .list {
+  padding: 8px 6px;
+  background: #0005;
+  border-color: #6fbca166;
+}
+
 /* .list */
 /* { border-color: hsl(260, 5%, 60%, .7) } */
 /* .list .list */

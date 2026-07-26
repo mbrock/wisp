@@ -176,6 +176,200 @@
 (defun render-sexp-to-html-string (sexp)
   (js-get (render-sexp-to-element sexp) "outerHTML"))
 
+(defun append-child! (parent child)
+  (js-call parent "appendChild" child))
+
+(defun element-with-class (tag-name class-name)
+  (let ((element (create-element tag-name)))
+    (returning element
+      (js-set! element "className" class-name))))
+
+(defun text-element (tag-name class-name contents)
+  (let ((element (element-with-class tag-name class-name)))
+    (returning element
+      (set-inner-text! element contents))))
+
+(defun button (label action)
+  (let ((element (text-element "BUTTON" "restart" label)))
+    (returning element
+      (js-set! element "onclick"
+        (make-pinned-value
+         (fn (event)
+           (call action)))))))
+
+(defvar *interactive-condition-marker* (fresh-symbol!))
+
+(defun guard-interactively (body)
+  (try (call body)
+    (catch (condition continuation)
+      (list *interactive-condition-marker*
+            condition continuation body))))
+
+(defun interactive-condition? (value)
+  (and (pair? value)
+       (eq? (head value) *interactive-condition-marker*)))
+
+(defun interactive-condition-value (report)
+  (second report))
+
+(defun interactive-condition-continuation (report)
+  (third report))
+
+(defun interactive-condition-retry (report)
+  (head (tail (tail (tail report)))))
+
+(defun condition-name (condition)
+  (let ((name
+          (cond
+            ((symbol? condition) condition)
+            ((and (pair? condition)
+                  (symbol? (head condition)))
+             (head condition))
+            ((and (eq? 'vector (type-of condition))
+                  (> (vector-length condition) 0)
+                  (symbol? (vector-get condition 0)))
+             (vector-get condition 0))
+            (t nil))))
+    (if name (symbol-name name) "ERROR")))
+
+(defun replace-element! (old new)
+  (js-call old "replaceWith" new))
+
+(defun outcome-element (outcome)
+  (if (interactive-condition? outcome)
+      (debugger-element outcome)
+    (render-sexp-to-element outcome)))
+
+(defun settle-outcome! (element outcome)
+  (if (promise? outcome)
+      (async
+       (fn ()
+         (let ((settled
+                 (guard-interactively
+                  (fn () (await outcome)))))
+           (replace-element!
+            element
+            (if (interactive-condition? settled)
+                (debugger-element settled)
+              (render-sexp-to-element
+               (list 'resolved-promise settled)))))))
+    (replace-element! element (outcome-element outcome))))
+
+(defun restart-condition! (element continuation value)
+  (settle-outcome!
+   element
+   (guard-interactively
+    (fn () (call continuation value)))))
+
+(defun restart-condition-with-source! (element continuation)
+  (let ((source (js-call *window* "prompt"
+                         "Lisp value to return from the condition:"
+                         "nil")))
+    (when source
+      (let ((value
+              (guard-interactively
+               (fn () (eval (read-from-string source))))))
+        (if (interactive-condition? value)
+            (settle-outcome! element value)
+          (restart-condition! element continuation value))))))
+
+(defun abort-condition! (element condition)
+  (replace-element!
+   element
+   (render-sexp-to-element (list 'aborted condition))))
+
+(defun retry-condition! (element body)
+  (settle-outcome! element (guard-interactively body)))
+
+(defun debugger-element (report)
+  (let* ((condition (interactive-condition-value report))
+         (continuation
+           (interactive-condition-continuation report))
+         (retry (interactive-condition-retry report))
+         (debugger
+           (element-with-class "ARTICLE" "wisp-debugger"))
+         (header
+           (element-with-class "HEADER" "debugger-title"))
+         (restarts
+           (element-with-class "NAV" "debugger-restarts"))
+         (context
+           (element-with-class "DETAILS" "debugger-context")))
+    (do
+      (append-child!
+       header
+       (text-element "SPAN" "debugger-kicker"
+                     "unhandled condition"))
+      (append-child!
+       header
+       (text-element "STRONG" "debugger-name"
+                     (condition-name condition)))
+      (append-child! debugger header)
+
+      (append-child!
+       debugger
+       (render-sexp-to-element
+        (list 'condition condition)))
+
+      (append-child!
+       restarts
+       (button "use nil"
+         (fn ()
+           (restart-condition! debugger continuation nil))))
+      (append-child!
+       restarts
+       (button "supply value…"
+         (fn ()
+           (restart-condition-with-source!
+            debugger continuation))))
+      (append-child!
+       restarts
+       (button "retry"
+         (fn ()
+           (retry-condition! debugger retry))))
+      (append-child!
+       restarts
+       (button "abort"
+         (fn ()
+           (abort-condition! debugger condition))))
+      (append-child! debugger restarts)
+
+      (js-set! context "open" t)
+      (append-child!
+       context
+       (text-element "SUMMARY" "debugger-context-title"
+                     "suspended continuation"))
+      (append-child!
+       context
+       (render-sexp-to-element
+        (show-ktx continuation)))
+      (append-child! debugger context)
+      debugger)))
+
+(defun display-condition-report! (report)
+  (let ((home (or (output-buffer)
+                  (query-selector "wisp-frame"))))
+    (when home
+      (element-insert-adjacent!
+       home :beforeend (debugger-element report)))))
+
+(defun with-interactive-condition-handler (body)
+  (let ((outcome (guard-interactively body)))
+    (cond
+      ((interactive-condition? outcome)
+       (returning nil
+         (display-condition-report! outcome)))
+      ((promise? outcome)
+       (async
+        (fn ()
+          (let ((settled
+                  (guard-interactively
+                   (fn () (await outcome)))))
+            (if (interactive-condition? settled)
+                (returning nil
+                  (display-condition-report! settled))
+              settled)))))
+      (t outcome))))
+
 (defun render-app (forms)
   (with-simple-error-handler
       (fn ()
@@ -245,7 +439,7 @@
       t)))
 
 (defun on-keydown (key)
-  (with-simple-error-handler
+  (with-interactive-condition-handler
       (fn ()
           (async (fn ()
                      (call *key-handler* key))))))
@@ -429,32 +623,33 @@
   (do-eval `(quote ,value)))
 
 (defun do-eval (expr)
-  (let ((result
-          (try (async (fn ()
-                        (try (eval expr)
-                          (catch (e k)
-                            (ktx-show k (list :🔥 e))))))
-            (catch (e k)
-              (ktx-show k (list :🔥 e))))))
-    (let* ((thing
-             (if (promise? result)
-                 (list 'pending-promise result)
-               result))
-           (element (render-sexp-to-element thing)))
+  (let* ((result
+           (guard-interactively
+            (fn () (async (fn () (eval expr))))))
+         (thing
+           (if (promise? result)
+               (list 'pending-promise result)
+             result))
+         (element (outcome-element thing)))
+    (do
       (element-insert-adjacent! (output-buffer) :beforeend element)
       (when (promise? result)
-        (async (fn ()
-                 (let ((value (await result)))
-                   (do
-                     (log value)
-                     (element-insert-adjacent!
-                      element :afterend
-                      (render-sexp-to-element
-                       (list 'resolved-promise value)))
-                     (element-remove! element))))))))
-
-  (element-insert-adjacent! (output-buffer) :beforeend
-                            (query-selector "ins" (output-buffer))))
+        (async
+         (fn ()
+           (let ((value
+                   (guard-interactively
+                    (fn () (await result)))))
+             (do
+               (log value)
+               (replace-element!
+                element
+                (if (interactive-condition? value)
+                    (debugger-element value)
+                  (render-sexp-to-element
+                   (list 'resolved-promise value)))))))))
+      (element-insert-adjacent! (output-buffer) :beforeend
+                                (query-selector "ins"
+                                                (output-buffer))))))
 
 (defvar *wisp-keymap* nil)
 
@@ -586,21 +781,26 @@
       (string-slice hash 2 (string-length hash)))))
 
 (defun wisp-boot (forms)
-  (with-simple-error-handler
+  (with-interactive-condition-handler
       (fn ()
         (dom-on-keydown! (make-callback 'on-keydown))
         (js-set! *document* "onclick"
           (make-pinned-value
            (fn (x)
-             (unless (element-closest (js-get x "target") ".cm-editor")
-               (let ((target (element-closest (js-get x "target")
-                                              ".wisp.value")))
-                 (if target
-                     (do
-                       (unselect!)
-                       (element-insert-adjacent! target :beforebegin (cursor))
-                       (element-insert-adjacent! (cursor) :afterbegin target))
-                   (unselect!)))))))
+             (with-interactive-condition-handler
+              (fn ()
+                (unless (element-closest (js-get x "target") ".cm-editor")
+                  (let ((target
+                          (element-closest (js-get x "target")
+                                           ".wisp.value")))
+                    (if target
+                        (do
+                          (unselect!)
+                          (element-insert-adjacent!
+                           target :beforebegin (cursor))
+                          (element-insert-adjacent!
+                           (cursor) :afterbegin target))
+                      (unselect!)))))))))
         (async
          (fn ()
            (let ((repo-key (repo-key)))
