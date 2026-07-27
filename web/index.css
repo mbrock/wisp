@@ -390,21 +390,23 @@ ins { text-decoration: none; }
 
 .list[data-callee='WISP:SYSTEM-BROWSER'] {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0;
   width: 100%;
-  padding: 7px;
+  padding: 0;
   align-items: start;
-  background: #030806;
-  border: 1px solid var(--listener);
-  border-width: 1px 3px;
+  background: #020403;
+  border: 1px solid #42655e;
   border-radius: 0;
 }
 
 .list[data-callee='WISP:SYSTEM-BROWSER']
   > .symbol:first-child {
-  grid-column: 1 / -1;
+  min-height: 27px;
+  padding: 3px 8px;
   color: var(--listener);
+  background: #0d1513;
+  border-bottom: 1px solid #42655e;
   font: 700 11px/17px ui-monospace, SFMono-Regular, Menlo,
     monospace;
   letter-spacing: .12em;
@@ -412,40 +414,42 @@ ins { text-decoration: none; }
 }
 
 .list[data-callee='WISP:SYSTEM-BROWSER'] > .list {
+  grid-column: 1 / -1;
   min-width: 0;
-  padding: 5px 7px;
+  margin: 5px 7px;
+  padding: 2px 6px;
   align-content: flex-start;
-  background: #07100d;
-  border-color: #47675f;
-  border-radius: 0;
+  background: transparent;
+  border-color: #60706c80;
 }
 
 .list[data-callee='WISP:SYSTEM-BROWSER']
-  > .list[data-callee='WISP:OBJECTS'],
+  > .list[data-callee='WISP:PACKAGE'] {
+  row-gap: 3px;
+}
+
 .list[data-callee='WISP:SYSTEM-BROWSER']
-  > .list[data-callee='WISP:PACKAGES'],
+  > .list[data-callee='WISP:PACKAGE']
+  > .wisp-input {
+  flex: 1 0 100%;
+  width: 100%;
+}
+
 .list[data-callee='WISP:SYSTEM-BROWSER']
-  > .list[data-callee='WISP:PACKAGE'],
-.list[data-callee='WISP:SYSTEM-BROWSER']
-  > .list[data-callee='WISP:SYMBOL'],
-.list[data-callee='WISP:SYSTEM-BROWSER']
-  > .list[data-callee='WISP:SELECTION'] {
-  grid-column: 1 / -1;
+  > .list[data-callee='WISP:STATUS'] {
+  margin-top: 7px;
+  color: #8f9b97;
+  border-color: #43504d60;
+  font: 10px/17px ui-monospace, SFMono-Regular, Menlo,
+    monospace;
 }
 
 .list[data-callee='WISP:SYSTEM-BROWSER']
   > .wisp-button:last-child {
-  justify-self: start;
-}
-
-@media (max-width: 920px) {
-  .list[data-callee='WISP:SYSTEM-BROWSER'] {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .list[data-callee='WISP:SYSTEM-BROWSER'] > * {
-    grid-column: 1;
-  }
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  margin-right: 5px;
 }
 
 .list:hover {

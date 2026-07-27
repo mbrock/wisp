@@ -341,7 +341,7 @@
         (query-selector "wisp-window.output > header")
         control)))))
 
-(defvar *system-browser-limit* 24)
+(defvar *system-browser-limit* 18)
 (defvar *widget-pins* nil)
 (defparameter *widget-resume* nil)
 
@@ -427,6 +427,27 @@
    (js-get table "name")
    (js-get table "count")))
 
+(defun system-browser-status-sexp (stats)
+  (list
+   'status
+   (list
+    'system
+    (js-get stats "id")
+    (list 'parent (js-get stats "parentId")))
+   (list
+    'heap
+    (list 'era (js-get stats "era"))
+    (list 'resident
+          (js-get stats "residentBytes")
+          'bytes)
+    (list 'pins (js-get stats "pinCount"))
+    (list 'roots (js-get stats "rootCount")))
+   (cons
+    'objects
+    (map #'system-browser-table-sexp
+         (list-from-vector
+          (js-get stats "tables"))))))
+
 (defun system-browser-symbol-detail (symbol)
   (if (nil? symbol)
       (list 'selection 'none)
@@ -467,33 +488,6 @@
                      matching-symbols)))
     (list
      'system-browser
-     (list
-      'system
-      (js-get stats "id")
-      (list 'parent (js-get stats "parentId"))
-      (list 'heap (js-get stats "heap")))
-     (list
-      'heap
-      (list 'era (js-get stats "era"))
-      (list 'resident
-            (js-get stats "residentBytes")
-            'bytes)
-      (list 'image
-            (js-get stats "imageBytes")
-            'bytes)
-      (list 'strings
-            (js-get stats "stringBytes")
-            'bytes)
-      (list 'vectors
-            (js-get stats "vectorWords")
-            'words)
-      (list 'pins (js-get stats "pinCount"))
-      (list 'roots (js-get stats "rootCount")))
-     (cons
-      'objects
-      (map #'system-browser-table-sexp
-           (list-from-vector
-            (js-get stats "tables"))))
      (cons
       'packages
       (cons
@@ -527,6 +521,7 @@
              candidate symbol))
           shown-symbols)))))
      (system-browser-symbol-detail symbol)
+     (system-browser-status-sexp stats)
      (widget-button "refresh" (list :refresh)))))
 
 (defun render-system-browser-view! (view resume)
