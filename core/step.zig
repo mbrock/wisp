@@ -254,7 +254,10 @@ fn intoJet(step: *Step, fun: u32, arg: u32) !void {
 
 fn iter(step: *Step, fun: u32, arg: u32) !void {
     // Start evaluating the first argument with a
-    // continuation of the remaining arguments.
+    // continuation of the remaining arguments.  ACC stays NIL
+    // for unary calls.  If another argument exists, FUNARGS
+    // replaces it with [position, value ...], a mutable vector
+    // whose first word is the number of completed arguments.
     const duo = try step.heap.row(.duo, arg);
     step.give(.exp, duo.car);
     step.run.way = try step.heap.new(.ktx, .{
@@ -317,8 +320,6 @@ fn scan(
     arg: u32,
     rev: bool,
 ) !void {
-    var pars = try step.scanListAlloc(par);
-    defer pars.deinit(step.tmp);
     var vals = try step.scanListAlloc(arg);
     defer vals.deinit(step.tmp);
 
@@ -327,7 +328,20 @@ fn scan(
     if (rev)
         std.mem.reverse(u32, vals.items);
 
-    Profile.recordCallArity(vals.items.len);
+    try step.scanValues(fun, exp, par, vals.items);
+}
+
+fn scanValues(
+    step: *Step,
+    fun: u32,
+    exp: u32,
+    par: u32,
+    vals: []const u32,
+) !void {
+    var pars = try step.scanListAlloc(par);
+    defer pars.deinit(step.tmp);
+
+    Profile.recordCallArity(vals.len);
     var scope = try step.tmp.alloc(u32, 2 * pars.items.len);
     defer step.tmp.free(scope);
 
@@ -343,18 +357,18 @@ fn scan(
             scope[n * 2 + 0] = pars.items[i + 1];
             scope[n * 2 + 1] = try Wisp.list(
                 step.heap,
-                vals.items[m..vals.items.len],
+                vals[m..vals.len],
             );
 
             n += 1;
-            m = vals.items.len;
+            m = vals.len;
 
             break :loop;
         } else if (x == step.heap.kwd.@"&OPTIONAL") {
             optional = true;
-        } else if (m < vals.items.len) {
+        } else if (m < vals.len) {
             scope[n * 2 + 0] = x;
-            scope[n * 2 + 1] = vals.items[m];
+            scope[n * 2 + 1] = vals[m];
             n += 1;
             m += 1;
         } else if (optional) {
@@ -365,17 +379,17 @@ fn scan(
             try step.fail(&[_]u32{
                 step.heap.kwd.@"PROGRAM-ERROR",
                 step.heap.kwd.@"INVALID-ARGUMENT-COUNT",
-                @intCast(vals.items.len),
+                @intCast(vals.len),
                 fun,
             });
         }
     }
 
-    if (m < vals.items.len) {
+    if (m < vals.len) {
         try step.fail(&[_]u32{
             step.heap.kwd.@"PROGRAM-ERROR",
             step.heap.kwd.@"INVALID-ARGUMENT-COUNT",
-            @intCast(vals.items.len),
+            @intCast(vals.len),
             fun,
         });
     }
@@ -476,6 +490,22 @@ pub fn call(
     }
 }
 
+fn callValues(step: *Step, funptr: u32, args: []u32) !void {
+    switch (tagOf(funptr)) {
+        .jet => try step.operValues(funptr, args),
+
+        .fun => {
+            Profile.recordCall(.fun);
+            const fun = try step.heap.row(.fun, funptr);
+            step.run.env = fun.env;
+            try step.scanValues(funptr, fun.exp, fun.par, args);
+            try step.heap.set(.fun, .cnt, funptr, 1 + fun.cnt);
+        },
+
+        else => return error.BadFunctionTag,
+    }
+}
+
 pub fn warn(step: *Step, text: []const u8, exp: u32) !void {
     try Sexp.warn(text, step.heap, exp);
 }
@@ -484,7 +514,7 @@ pub fn composeContinuation(step: *Step, way: u32) !u32 {
     if (way == top) {
         return step.run.way;
     } else {
-        const new = try step.heap.copyAny(way);
+        const new = try step.heap.copyContinuationFrame(way);
         var cur = new;
 
         while (cur != top) {
@@ -507,7 +537,7 @@ fn lookForTop(
         try step.heap.set(.ktx, .hop, cur, step.run.way);
         return top;
     } else {
-        const new = try step.heap.copy(.ktx, hop);
+        const new = try step.heap.copyContinuationFrame(hop);
         try step.heap.set(.ktx, .hop, cur, new);
         return new;
     }
@@ -520,19 +550,44 @@ pub fn debug(heap: *Heap, txt: []const u8, val: u32) !void {
 const Ktx = struct {
     fn funargs(step: *Step, ktx: Row(.ktx)) !void {
         Profile.recordArgument();
-        const acc = try step.heap.cons(step.run.val, ktx.acc);
 
         // Come back to the environment of the call form.
         step.run.env = ktx.env;
 
-        if (ktx.arg == nil) {
+        if (ktx.acc == nil and ktx.arg == nil) {
+            var value = [1]u32{step.run.val};
             step.run.way = ktx.hop;
-            try call(step, ktx.fun, acc, true);
-        } else {
+            try step.callValues(ktx.fun, &value);
+        } else if (ktx.acc == nil) {
+            // The first completed value proves this is not a unary
+            // call.  Allocate its visible argument state lazily.
+            const vector = try step.heap.filledv32(
+                2 + try Wisp.length(step.heap, ktx.arg),
+                nil,
+            );
+            var acc = try step.heap.v32slice(vector);
+            acc[0] = 1;
+            acc[1] = step.run.val;
             const argduo = try step.heap.row(.duo, ktx.arg);
-            try step.heap.set(.ktx, .acc, step.run.way, acc);
+            try step.heap.set(.ktx, .acc, step.run.way, vector);
             try step.heap.set(.ktx, .arg, step.run.way, argduo.cdr);
             step.give(.exp, argduo.car);
+        } else {
+            var acc = try step.heap.v32slice(ktx.acc);
+            const pos = acc[0];
+            if (pos + 1 >= acc.len)
+                return error.BadContinuationArgumentIndex;
+            acc[pos + 1] = step.run.val;
+            acc[0] = pos + 1;
+
+            if (ktx.arg == nil) {
+                step.run.way = ktx.hop;
+                try step.callValues(ktx.fun, acc[1..]);
+            } else {
+                const argduo = try step.heap.row(.duo, ktx.arg);
+                try step.heap.set(.ktx, .arg, step.run.way, argduo.cdr);
+                step.give(.exp, argduo.car);
+            }
         }
     }
 
@@ -776,21 +831,6 @@ fn cast(
     return tag.cast(jet.fun);
 }
 
-fn reverseList(heap: *Heap, list: u32) !u32 {
-    var cur = list;
-    var rev = nil;
-    var cells: usize = 0;
-    while (cur != nil) {
-        const duo = try heap.row(.duo, cur);
-        rev = try heap.cons(duo.car, rev);
-        cur = duo.cdr;
-        if (comptime Profile.enabled) cells += 1;
-    }
-    Profile.recordListReverse(cells);
-    Profile.recordCallArity(cells);
-    return rev;
-}
-
 fn invalidArgumentCount(step: *Step, fun: u32) !void {
     try step.fail(&[_]u32{
         step.heap.kwd.@"PROGRAM-ERROR",
@@ -830,73 +870,94 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
     }
 }
 
+fn operValues(step: *Step, jet: u32, args: []u32) !void {
+    if (step.invokeJetValues(jet, args)) {
+        return;
+    } else |err| {
+        const condition = if (step.run.err == nil)
+            try step.heap.newv32(&.{
+                step.heap.kwd.@"LOW-LEVEL-ERROR",
+                try step.heap.newv08(@errorName(err)),
+            })
+        else
+            step.run.err;
+
+        step.run.err = try step.heap.newv32(&.{
+            step.heap.kwd.@"BUILTIN-FAILURE",
+            jet,
+            condition,
+        });
+
+        return err;
+    }
+}
+
 fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
+    var list = try step.scanListAlloc(arg);
+    defer list.deinit(step.tmp);
+    if (rev) {
+        Profile.recordListReverse(list.items.len);
+        std.mem.reverse(u32, list.items);
+    }
+    try step.invokeJetValues(jet, list.items);
+}
+
+fn invokeJetValues(step: *Step, jet: u32, args: []u32) !void {
     const def = Jets.jets[Wisp.Imm.from(jet).idx];
     Profile.recordCall(.jet);
+    Profile.recordCallArity(args.len);
 
     switch (def.tag) {
         .f0x => {
-            var args = try step.scanListAlloc(arg);
-            defer args.deinit(step.tmp);
-            if (rev) {
-                Profile.recordListReverse(args.items.len);
-                std.mem.reverse(u32, args.items);
-            }
-            Profile.recordCallArity(args.items.len);
+            // Slice-taking jets may allocate another heap vector,
+            // relocating the backing store of the argument state.
+            const stable = try step.tmp.dupe(u32, args);
+            defer step.tmp.free(stable);
             const fun = cast(.f0x, def);
-            try fun(step, args.items);
+            try fun(step, stable);
         },
 
         .f0r => {
-            const rest = if (rev) try reverseList(step.heap, arg) else arg;
             const fun = cast(.f0r, def);
-            try fun(step, .{ .arg = rest });
+            try fun(step, .{ .arg = try Wisp.list(step.heap, args) });
         },
 
         .f1r => {
-            const list = if (rev) try reverseList(step.heap, arg) else arg;
-            const duo = try step.heap.row(.duo, list);
-            const rest = duo.cdr;
+            if (args.len < 1) return step.invalidArgumentCount(jet);
             const fun = cast(.f1r, def);
-            try fun(step, duo.car, .{ .arg = rest });
+            try fun(
+                step,
+                args[0],
+                .{ .arg = try Wisp.list(step.heap, args[1..]) },
+            );
         },
 
         .f1x => {
-            var args = try step.scanListAlloc(arg);
-            defer args.deinit(step.tmp);
-            if (rev) {
-                Profile.recordListReverse(args.items.len);
-                std.mem.reverse(u32, args.items);
-            }
-            Profile.recordCallArity(args.items.len);
+            if (args.len < 1) return step.invalidArgumentCount(jet);
+            const stable = try step.tmp.dupe(u32, args);
+            defer step.tmp.free(stable);
             const fun = cast(.f1x, def);
-            try fun(step, args.items[0], args.items[1..args.items.len]);
+            try fun(step, stable[0], stable[1..]);
         },
 
         .f2x => {
-            var args = try step.scanListAlloc(arg);
-            defer args.deinit(step.tmp);
-            if (args.items.len < 2) {
+            if (args.len < 2) {
                 return step.invalidArgumentCount(jet);
             } else {
-                if (rev) {
-                    Profile.recordListReverse(args.items.len);
-                    std.mem.reverse(u32, args.items);
-                }
-                Profile.recordCallArity(args.items.len);
+                const stable = try step.tmp.dupe(u32, args);
+                defer step.tmp.free(stable);
                 const fun = cast(.f2x, def);
                 try fun(
                     step,
-                    args.items[0],
-                    args.items[1],
-                    args.items[2..args.items.len],
+                    stable[0],
+                    stable[1],
+                    stable[2..],
                 );
             }
         },
 
         .f0 => {
-            Profile.recordCallArity(if (arg == nil) 0 else 1);
-            if (arg == nil) {
+            if (args.len == 0) {
                 const fun = cast(.f0, def);
                 try fun(step);
             } else {
@@ -905,11 +966,6 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f1 => {
-            var list = try step.scanListAlloc(arg);
-            const args = list.items;
-            defer list.deinit(step.tmp);
-            Profile.recordCallArity(args.len);
-
             if (args.len == 1) {
                 const fun = cast(.f1, def);
                 try fun(step, args[0]);
@@ -919,16 +975,7 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f2 => {
-            var list = try step.scanListAlloc(arg);
-            const args = list.items;
-            defer list.deinit(step.tmp);
-            Profile.recordCallArity(args.len);
-
             if (args.len == 2) {
-                if (rev) {
-                    Profile.recordListReverse(args.len);
-                    std.mem.reverse(u32, args);
-                }
                 const fun = cast(.f2, def);
                 try fun(step, args[0], args[1]);
             } else {
@@ -937,16 +984,7 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f3 => {
-            var list = try step.scanListAlloc(arg);
-            const args = list.items;
-            defer list.deinit(step.tmp);
-            Profile.recordCallArity(args.len);
-
             if (args.len == 3) {
-                if (rev) {
-                    Profile.recordListReverse(args.len);
-                    std.mem.reverse(u32, args);
-                }
                 const fun = cast(.f3, def);
                 try fun(step, args[0], args[1], args[2]);
             } else {
@@ -955,16 +993,7 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f4 => {
-            var list = try step.scanListAlloc(arg);
-            const args = list.items;
-            defer list.deinit(step.tmp);
-            Profile.recordCallArity(args.len);
-
             if (args.len == 4) {
-                if (rev) {
-                    Profile.recordListReverse(args.len);
-                    std.mem.reverse(u32, args);
-                }
                 const fun = cast(.f4, def);
                 try fun(step, args[0], args[1], args[2], args[3]);
             } else {
@@ -974,16 +1003,7 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
 
         // XXX: I know this is horrible.  I'm going to refactor it later...
         .f5 => {
-            var list = try step.scanListAlloc(arg);
-            const args = list.items;
-            defer list.deinit(step.tmp);
-            Profile.recordCallArity(args.len);
-
             if (args.len == 5) {
-                if (rev) {
-                    Profile.recordListReverse(args.len);
-                    std.mem.reverse(u32, args);
-                }
                 const fun = cast(.f5, def);
                 try fun(step, args[0], args[1], args[2], args[3], args[4]);
             } else {
@@ -1360,6 +1380,30 @@ test "CALL-WITH-PROMPT" {
     try std.testing.expectEqual(x, 1);
 }
 
+test "captured argument vectors are independent continuation snapshots" {
+    try expectEval(
+        \\(pause (before one after) (before two after))
+    ,
+        \\(do
+        \\  (defvar *saved-argument-continuation* nil)
+        \\  (let
+        \\    ((initial
+        \\       (call-with-prompt 'save-arguments
+        \\         (fn ()
+        \\           (list 'before
+        \\                 (send! 'save-arguments 'pause)
+        \\                 'after))
+        \\         (fn (value continuation)
+        \\           (do
+        \\             (set! *saved-argument-continuation*
+        \\                   continuation)
+        \\             value)))))
+        \\    (list initial
+        \\          (call *saved-argument-continuation* 'one)
+        \\          (call *saved-argument-continuation* 'two))))
+    );
+}
+
 test "CALL-WITH-EFFECT-HANDLER reinstalls its prompt" {
     try expectEval(
         \\50
@@ -1376,14 +1420,12 @@ test "CALL-WITH-EFFECT-HANDLER resumes after its first evaluation" {
     var heap = try newTestHeap();
     defer heap.deinit();
 
-    _ = try evalString(
-        &heap,
+    _ = try evalString(&heap,
         \\(do
         \\  (defvar *saved-widget-pin* nil)
         \\  (defparameter *widget-resume* nil))
     );
-    const first = try evalString(
-        &heap,
+    const first = try evalString(&heap,
         \\(call-with-effect-handler 'widget
         \\  (fn () (do (send! 'widget 'first)
         \\             (send! 'widget 'second)))

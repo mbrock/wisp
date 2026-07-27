@@ -26,6 +26,16 @@
       (parse-let-acc rest (cons (list name expr)
                                 bindings)))))
 
+(defun %argument-vector-prefix (vector count result)
+  (if (eq? count 0) result
+    (let ((index (- count 1)))
+      (%argument-vector-prefix
+       vector index
+       (cons (vector-get vector count) result)))))
+
+(defun argument-vector-prefix (vector count)
+  (%argument-vector-prefix vector count nil))
+
 (defun ktx-show (ktx terminus)
   (if (top? ktx) terminus
     (let ((fun (ktx-fun ktx))
@@ -46,6 +56,12 @@
                            (tail let-acc))))
                   ((eq? fun 'prompt)
                    (list 'prompt acc terminus (list arg)))
+                  ((vector? acc)
+                   (append (list fun)
+                           (argument-vector-prefix
+                            acc (ktx-pos ktx))
+                           (list terminus)
+                           arg))
                   (t
                    (append (list fun)
                            acc

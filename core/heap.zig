@@ -544,6 +544,44 @@ pub const Heap = struct {
         });
     }
 
+    pub fn filledv32(heap: *Heap, len: usize, value: u32) !u32 {
+        Profile.recordV32Words(len);
+        const idx = heap.v32.list.items.len;
+        try heap.v32.list.appendNTimes(heap.orb, value, len);
+        return heap.new(.v32, .{
+            .idx = @intCast(idx),
+            .len = @intCast(len),
+        });
+    }
+
+    pub fn clonev32(heap: *Heap, ptr: u32) !u32 {
+        const vector = try heap.row(.v32, ptr);
+        try heap.v32.list.ensureUnusedCapacity(heap.orb, vector.len);
+        const items =
+            heap.v32.list.items[vector.idx .. vector.idx + vector.len];
+        const idx = heap.v32.list.items.len;
+        heap.v32.list.appendSliceAssumeCapacity(items);
+        Profile.recordV32Words(vector.len);
+        return heap.new(.v32, .{
+            .idx = @intCast(idx),
+            .len = vector.len,
+        });
+    }
+
+    pub fn copyContinuationFrame(heap: *Heap, ptr: u32) !u32 {
+        var frame = try heap.row(.ktx, ptr);
+        const tag = Wisp.tagOf(frame.fun);
+        // Lexical environments are shared store, but a partially
+        // filled argument vector is mutable control state.  A
+        // continuation copy must snapshot the latter.
+        if ((tag == .fun or tag == .jet) and
+            Wisp.tagOf(frame.acc) == .v32)
+        {
+            frame.acc = try heap.clonev32(frame.acc);
+        }
+        return heap.new(.ktx, frame);
+    }
+
     pub fn v08slice(heap: *Heap, ptr: u32) ![]const u8 {
         const str = try heap.row(.v08, ptr);
         return heap.v08.items[str.idx .. str.idx + str.len];

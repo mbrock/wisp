@@ -636,13 +636,15 @@ fn copyContinuationSlice(
         };
     }
 
-    const new = try heap.copy(.ktx, ktx);
+    const new = try heap.copyContinuationFrame(ktx);
     var cur = new;
     var frames: u32 = 1;
 
     while (cur != Wisp.top) {
         const hop = try heap.get(.ktx, .hop, cur);
-        if (try isMatchingPrompt(heap, hop, tag)) {
+        if (hop == Wisp.top) {
+            cur = Wisp.top;
+        } else if (try isMatchingPrompt(heap, hop, tag)) {
             Profile.recordContinuationSearch(frames, true);
             try heap.set(.ktx, .hop, cur, top);
             return ContinuationCopyResult{
@@ -651,7 +653,9 @@ fn copyContinuationSlice(
                 .e2 = new,
             };
         } else {
-            cur = hop;
+            const copied_hop = try heap.copyContinuationFrame(hop);
+            try heap.set(.ktx, .hop, cur, copied_hop);
+            cur = copied_hop;
             frames += 1;
         }
     }
@@ -727,6 +731,15 @@ pub fn @"KTX-ACC"(step: *Step, ktx: u32) anyerror!void {
 pub fn @"KTX-ARG"(step: *Step, ktx: u32) anyerror!void {
     const arg = try step.heap.get(.ktx, .arg, ktx);
     step.give(.val, arg);
+}
+
+pub fn @"KTX-POS"(step: *Step, ktx: u32) anyerror!void {
+    const acc = try step.heap.get(.ktx, .acc, ktx);
+    const pos = if (Wisp.tagOf(acc) == .v32)
+        (try step.heap.v32slice(acc))[0]
+    else
+        0;
+    step.give(.val, pos);
 }
 
 pub fn @"TOP?"(step: *Step, ktx: u32) anyerror!void {
