@@ -33,6 +33,39 @@
 (defun text (text)
   (idom-text! text))
 
+(defun fourth (xs)
+  (head (tail (tail (tail xs)))))
+
+(defun render-button-widget (widget)
+  (do
+    (idom-open-start! "button")
+    (idom-attr!
+     "class"
+     (if (fourth widget)
+         "wisp-widget wisp-button selected"
+       "wisp-widget wisp-button"))
+    (idom-attr! "type" "button")
+    (idom-prop! "onclick"
+                (pin-widget-button-action
+                 (third widget)))
+    (idom-open-end!)
+    (text (second widget))
+    (idom-close! "button")))
+
+(defun render-input-widget (widget)
+  (do
+    (idom-open-start! "input")
+    (idom-attr! "class" "wisp-widget wisp-input")
+    (idom-attr! "type" "search")
+    (idom-attr! "placeholder" (second widget))
+    (idom-attr! "value" (third widget))
+    (idom-prop! "onclick" *stop-widget-click-pin*)
+    (idom-prop! "onkeydown"
+                (pin-widget-input-action
+                 (fourth widget)))
+    (idom-open-end!)
+    (idom-close! "input")))
+
 (defun render-sexp (sexp)
   (cond
     ((nil? sexp)
@@ -62,21 +95,29 @@
               (tag :span '((:class "symbol-name"))
                    (text (symbol-name sexp))))))))
     ((pair? sexp)
-     (let* ((callee (head sexp))
-            (tag-type (cond
-                        ((eq? callee :section) :section)
-                        ((eq? callee :article) :article)
-                        (t :div))))
-       (tag tag-type
-            `((:class "wisp value list")
-              (:data-callee
-               ,(if (symbol? callee)
-                    (string-append
-                     (package-name (symbol-package callee))
-                     ":"
-                     (symbol-name callee))
-                    "")))
-            (render-list-contents sexp))))
+     (let ((callee (head sexp)))
+       (cond
+         ((eq? callee :button)
+          (render-button-widget sexp))
+         ((eq? callee :input)
+          (render-input-widget sexp))
+         (t
+          (let ((tag-type
+                  (cond
+                    ((eq? callee :section) :section)
+                    ((eq? callee :article) :article)
+                    (t :div))))
+            (tag tag-type
+                 `((:class "wisp value list")
+                   (:data-callee
+                    ,(if (symbol? callee)
+                         (string-append
+                          (package-name
+                           (symbol-package callee))
+                          ":"
+                          (symbol-name callee))
+                       "")))
+                 (render-list-contents sexp)))))))
     ((string? sexp)
      (tag :span '((:class "wisp value string"))
           (text sexp)))
@@ -113,6 +154,12 @@
   `(:style ,(css clauses)))
 
 (defvar *render-sexp-callback* (make-callback 'do-render-sexp))
+(defvar *render-widget-sexp-callback*
+  (make-callback 'do-render-widget-sexp))
+(defvar *stop-widget-click-pin*
+  (make-pinned-value
+   (fn (event)
+     (js-call event "stopPropagation"))))
 
 (defun render-command-hint (hint)
   (tag :span '((:class "command-hint"))
@@ -201,6 +248,15 @@
       (idom-patch! div *render-sexp-callback* (list sexp))
       (query-selector ":scope > *" div))))
 
+(defun render-widget-sexp-to-element (sexp resume)
+  (let ((div (create-element "DIV")))
+    (do
+      (idom-patch!
+       div
+       *render-widget-sexp-callback*
+       (list resume sexp))
+      (query-selector ":scope > *" div))))
+
 (defun render-sexp-to-html-string (sexp)
   (js-get (render-sexp-to-element sexp) "outerHTML"))
 
@@ -284,6 +340,244 @@
        (append-child!
         (query-selector "wisp-window.output > header")
         control)))))
+
+(defvar *system-browser-limit* 24)
+(defvar *widget-pins* nil)
+(defparameter *widget-resume* nil)
+
+(defun take-list (n xs)
+  (if (or (eq? n 0) (nil? xs))
+      nil
+    (cons (head xs)
+          (take-list (- n 1) (tail xs)))))
+
+(defun pin-widget-callback (callback)
+  (let ((pin (make-pinned-value callback)))
+    (do
+      (set! *widget-pins*
+            (cons pin *widget-pins*))
+      pin)))
+
+(defun resume-widget! (resume event)
+  (let ((outcome
+          (guard-interactively
+           (fn () (call resume event)))))
+    (if (interactive-condition? outcome)
+        (display-condition-report! outcome)
+      outcome)))
+
+(defun pin-widget-button-action (action)
+  (let ((resume *widget-resume*))
+    (pin-widget-callback
+     (fn (event)
+       (do
+         (js-call event "stopPropagation")
+         (resume-widget! resume action))))))
+
+(defun pin-widget-input-action (tag)
+  (let ((resume *widget-resume*))
+    (pin-widget-callback
+     (fn (event)
+       (when (equal? (js-get event "key") "Enter")
+         (do
+           (js-call event "stopPropagation")
+           (js-call event "preventDefault")
+           (resume-widget!
+            resume
+            (list
+             tag
+             (js-get
+              (js-get event "target")
+              "value")))))))))
+
+(defun widget-button (label event &optional selected)
+  (list
+   :button
+   label
+   event
+   selected))
+
+(defun widget-input (placeholder value event-tag)
+  (list
+   :input
+   placeholder
+   value
+   event-tag))
+
+(defun system-browser-symbol-matches? (symbol query)
+  (or (eq? (string-length query) 0)
+      (string-search
+       (string-to-uppercase (symbol-name symbol))
+       (string-to-uppercase query))))
+
+(defun system-browser-package-button (package current)
+  (widget-button
+   (package-name package)
+   (list :package package)
+   (eq? package current)))
+
+(defun system-browser-symbol-button (symbol current)
+  (widget-button
+   (symbol-name symbol)
+   (list :symbol symbol)
+   (eq? symbol current)))
+
+(defun system-browser-table-sexp (table)
+  (list
+   (js-get table "name")
+   (js-get table "count")))
+
+(defun system-browser-symbol-detail (symbol)
+  (if (nil? symbol)
+      (list 'selection 'none)
+    (let* ((function (symbol-function symbol))
+           (value (guard-interactively
+                   (fn () (eval symbol)))))
+      (list
+       'symbol
+       symbol
+       (list 'package
+             (package-name (symbol-package symbol)))
+       (if function
+           (list
+            'function
+            (type-of function)
+            (list 'calls
+                  (function-call-count function)))
+         (list 'function nil))
+       (if (interactive-condition? value)
+           (list
+            'value
+            (list
+             'unavailable
+             (interactive-condition-value value)))
+         (list 'value value))))))
+
+(defun system-browser-sexp (package symbol query)
+  (let* ((stats (js-call *wisp-host* "inspect"))
+         (all-symbols
+          (package-symbols package))
+         (matching-symbols
+          (filter all-symbols
+                  (fn (candidate)
+                    (system-browser-symbol-matches?
+                     candidate query))))
+         (shown-symbols
+          (take-list *system-browser-limit*
+                     matching-symbols)))
+    (list
+     'system-browser
+     (list
+      'system
+      (js-get stats "id")
+      (list 'parent (js-get stats "parentId"))
+      (list 'heap (js-get stats "heap")))
+     (list
+      'heap
+      (list 'era (js-get stats "era"))
+      (list 'resident
+            (js-get stats "residentBytes")
+            'bytes)
+      (list 'image
+            (js-get stats "imageBytes")
+            'bytes)
+      (list 'strings
+            (js-get stats "stringBytes")
+            'bytes)
+      (list 'vectors
+            (js-get stats "vectorWords")
+            'words)
+      (list 'pins (js-get stats "pinCount"))
+      (list 'roots (js-get stats "rootCount")))
+     (cons
+      'objects
+      (map #'system-browser-table-sexp
+           (list-from-vector
+            (js-get stats "tables"))))
+     (cons
+      'packages
+      (cons
+       (list 'count
+             (js-get stats "packageCount"))
+       (map
+        (fn (candidate)
+          (system-browser-package-button
+           candidate package))
+        (reverse (packages)))))
+     (cons
+      'package
+      (cons
+       (package-name package)
+       (cons
+        (list
+         'symbols
+         (length all-symbols)
+         (list 'matching
+               (length matching-symbols))
+         (list 'showing
+               (length shown-symbols)))
+        (cons
+         (widget-input
+          "filter symbols, then Enter"
+          query
+          :query)
+         (map
+          (fn (candidate)
+            (system-browser-symbol-button
+             candidate symbol))
+          shown-symbols)))))
+     (system-browser-symbol-detail symbol)
+     (widget-button "refresh" (list :refresh)))))
+
+(defun render-system-browser-view! (view resume)
+  (let ((old-pins *widget-pins*))
+    (do
+      (set! *widget-pins* nil)
+      (let* ((next
+              (render-widget-sexp-to-element view resume))
+             (current
+              (query-selector
+               ".list[data-callee='WISP:SYSTEM-BROWSER']")))
+        (do
+          (if current
+              (js-call current "replaceWith" next)
+            (append-child! (output-buffer) next))
+          (for-each old-pins
+                    #'release-pinned-value!))))))
+
+(defun system-browser-widget (package symbol query)
+  (let ((event
+          (send!
+           :widget
+           (system-browser-sexp package symbol query))))
+    (ecase (head event)
+      (:package
+       (system-browser-widget (second event) nil ""))
+      (:symbol
+       (system-browser-widget package
+                              (second event)
+                              query))
+      (:query
+       (system-browser-widget package
+                              nil
+                              (second event)))
+      (:refresh
+       (system-browser-widget package symbol query)))))
+
+(defun start-system-browser-widget! ()
+  (call-with-effect-handler
+   :widget
+   (fn ()
+     (system-browser-widget
+      (find-package "WISP") nil ""))
+   (fn (view resume raise)
+     (render-system-browser-view! view resume))))
+
+(defun install-system-browser! ()
+  (unless
+      (query-selector
+       ".list[data-callee='WISP:SYSTEM-BROWSER']")
+    (start-system-browser-widget!)))
 
 (defun guard-interactively (body)
   (try (call body)
@@ -631,7 +925,8 @@
         (do
          (idom-patch! (query-selector "wisp-frame")
                       (make-callback 'draw-app) forms)
-         (install-host-controls!)))))
+         (install-host-controls!)
+         (install-system-browser!)))))
 
 (defun open-app! (forms)
   (do
@@ -877,6 +1172,10 @@
   (with-simple-error-handler
       (fn ()
           (for-each forms #'render-sexp))))
+
+(defun do-render-widget-sexp (data)
+  (binding ((*widget-resume* (head data)))
+    (render-sexp (second data))))
 
 (defmacro note (date &rest notes)
   `(quote (note ,date ,@notes)))

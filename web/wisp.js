@@ -432,6 +432,11 @@ export class WASD {
         idom.attr(attr.toLowerCase(), val);
       },
 
+      prop: (attrptr, attrlen, val) => {
+        let attr = this.wisp.getString(attrptr, attrlen);
+        idom.attr(attr.toLowerCase(), this.convertFromWisp(val));
+      },
+
       close: (tagptr, taglen) => {
         let tag = this.wisp.getString(tagptr, taglen);
         idom.elementClose(tag.toLowerCase());
@@ -517,6 +522,8 @@ export function domCode(root) {
     } else {
       return "todo";
     }
+  } else if (root.matches(".wisp-widget")) {
+    return "";
   }
 
   console.error("unknown element", root);

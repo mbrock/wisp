@@ -148,6 +148,45 @@ const wispHost = {
     return system.wasd.convertFromWisp(result);
   },
 
+  inspect(systemId = this.activeSystemId) {
+    const system = systems.get(systemId);
+    if (!system) {
+      throw new Error(`unknown Wisp system ${systemId}`);
+    }
+
+    const { api, heap } = system.ctx;
+    const tableNames = [
+      "duo",
+      "sym",
+      "fun",
+      "mac",
+      "v08",
+      "v32",
+      "pkg",
+      "run",
+      "ktx",
+      "ext",
+    ];
+
+    return {
+      id: system.id,
+      parentId: system.parentId,
+      heap,
+      era: api.wisp_heap_era(heap),
+      residentBytes: api.wisp_heap_bytesize(heap),
+      imageBytes: api.wisp_tape_size(heap),
+      stringBytes: api.wisp_heap_v08_len(heap),
+      vectorWords: api.wisp_heap_v32_len(heap),
+      packageCount: api.wisp_heap_package_count(heap),
+      pinCount: api.wisp_heap_pin_count(heap),
+      rootCount: api.wisp_heap_root_count(heap),
+      tables: tableNames.map((name, index) => ({
+        name,
+        count: api.wisp_heap_table_len(heap, index),
+      })),
+    };
+  },
+
   describe() {
     return Array.from(systems.values(), (system) => ({
       id: system.id,

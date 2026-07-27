@@ -621,6 +621,8 @@ fn copyContinuationSlice(
     ktx: u32,
     tag: u32,
 ) !?ContinuationCopyResult {
+    if (ktx == top) return null;
+
     if (try isMatchingPrompt(heap, ktx, tag)) {
         return ContinuationCopyResult{
             .handler = try heap.get(.ktx, .arg, ktx),
@@ -847,6 +849,14 @@ pub fn @"PACKAGE-SYMBOLS"(step: *Step, pkg: u32) anyerror!void {
     step.give(.val, try step.heap.get(.pkg, .sym, pkg));
 }
 
+pub fn PACKAGES(step: *Step) anyerror!void {
+    var packages = nil;
+    for (step.heap.pkgmap.values()) |pkg| {
+        packages = try step.heap.cons(pkg, packages);
+    }
+    step.give(.val, packages);
+}
+
 pub fn @"FIND-PACKAGE"(step: *Step, name: u32) anyerror!void {
     const bytes = try step.heap.v08slice(name);
     if (step.heap.pkgmap.get(bytes)) |pkg| {
@@ -1021,6 +1031,16 @@ pub fn @"VECTOR-LENGTH"(step: *Step, v32: u32) anyerror!void {
 
 pub fn @"MAKE-PINNED-VALUE"(step: *Step, val: u32) anyerror!void {
     step.give(.val, try step.heap.newPin(val));
+}
+
+pub fn @"RELEASE-PINNED-VALUE!"(
+    step: *Step,
+    pin: u32,
+) anyerror!void {
+    if (tagOf(pin) != .pin)
+        return step.failTypeMismatch(pin, step.heap.kwd.PIN);
+    step.heap.releasePin(pin);
+    step.give(.val, nil);
 }
 
 pub fn @"VECTOR-FROM-LIST"(step: *Step, list: u32) anyerror!void {

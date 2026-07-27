@@ -88,6 +88,11 @@ const IDOM = struct {
         valptr: [*]const u8,
         vallen: usize,
     ) void;
+    extern "dom" fn prop(
+        attrptr: [*]const u8,
+        attrlen: usize,
+        val: u32,
+    ) void;
 };
 
 pub fn @"IDOM-PATCH!"(
@@ -141,6 +146,16 @@ pub fn @"IDOM-ATTR!"(
         valstr.ptr,
         valstr.len,
     );
+    step.give(.val, nil);
+}
+
+pub fn @"IDOM-PROP!"(
+    step: *Step,
+    attr: u32,
+    val: u32,
+) anyerror!void {
+    const attrstr = try step.heap.v08slice(attr);
+    IDOM.prop(attrstr.ptr, attrstr.len, val);
     step.give(.val, nil);
 }
 

@@ -1294,6 +1294,57 @@ test "CALL-WITH-EFFECT-HANDLER reinstalls its prompt" {
     );
 }
 
+test "CALL-WITH-EFFECT-HANDLER resumes after its first evaluation" {
+    var heap = try newTestHeap();
+    defer heap.deinit();
+
+    _ = try evalString(
+        &heap,
+        \\(do
+        \\  (defvar *saved-widget-pin* nil)
+        \\  (defparameter *widget-resume* nil))
+    );
+    const first = try evalString(
+        &heap,
+        \\(call-with-effect-handler 'widget
+        \\  (fn () (do (send! 'widget 'first)
+        \\             (send! 'widget 'second)))
+        \\  (fn (view resume raise)
+        \\    (binding ((*widget-resume* resume))
+        \\      (let ((local-resume *widget-resume*))
+        \\        (set! *saved-widget-pin*
+        \\              (make-pinned-value
+        \\               (fn (event)
+        \\                 (call local-resume event))))))
+        \\    view))
+    );
+    const first_string = try Sexp.printAlloc(heap.orb, &heap, first);
+    defer heap.orb.free(first_string);
+    try expectEqualStrings("FIRST", first_string);
+    _ = try evalString(&heap, "(gc)");
+
+    const pin = try evalString(&heap, "*saved-widget-pin*");
+    const fun = heap.pins.get(Wisp.Imm.from(pin).idx).?;
+    const again = try evalString(&heap, "'again");
+    const args = try heap.cons(again, nil);
+    var run = initRun(nil);
+    var tmp_buffer: [4096]u8 = undefined;
+    var tmp = std.heap.BufferFirstAllocator.init(
+        &tmp_buffer,
+        heap.orb,
+    );
+    var step = Step{
+        .heap = &heap,
+        .run = &run,
+        .tmp = tmp.allocator(),
+    };
+    try step.call(fun, args, false);
+    const second = try evaluate(&heap, &run, 1_000_000);
+    const second_string = try Sexp.printAlloc(heap.orb, &heap, second);
+    defer heap.orb.free(second_string);
+    try expectEqualStrings("SECOND", second_string);
+}
+
 test "CALL-WITH-EFFECT-HANDLER raises into the suspended continuation" {
     try expectEval(
         \\(caught nope)

@@ -348,6 +348,106 @@ ins { text-decoration: none; }
   border-radius: 8px;
 }
 
+.wisp-widget {
+  appearance: none;
+  min-width: 0;
+  height: 25px;
+  margin: 1px 0;
+  padding: 1px 7px;
+  color: #d6e6e1;
+  background: #09110f;
+  border: 1px solid #42655e;
+  border-radius: 0;
+  font: 12px/21px ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+}
+
+.wisp-button {
+  cursor: pointer;
+}
+
+.wisp-button:hover,
+.wisp-button:focus,
+.wisp-button.selected {
+  color: #08110f;
+  background: var(--listener);
+  border-color: #a9e1d5;
+  outline: none;
+}
+
+.wisp-input {
+  flex: 1 1 14rem;
+  width: min(22rem, 100%);
+  color: var(--text);
+  background: #020504;
+}
+
+.wisp-input:focus {
+  border-color: var(--focus);
+  outline: 1px solid var(--focus);
+  outline-offset: -3px;
+}
+
+.list[data-callee='WISP:SYSTEM-BROWSER'] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  width: 100%;
+  padding: 7px;
+  align-items: start;
+  background: #030806;
+  border: 1px solid var(--listener);
+  border-width: 1px 3px;
+  border-radius: 0;
+}
+
+.list[data-callee='WISP:SYSTEM-BROWSER']
+  > .symbol:first-child {
+  grid-column: 1 / -1;
+  color: var(--listener);
+  font: 700 11px/17px ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.list[data-callee='WISP:SYSTEM-BROWSER'] > .list {
+  min-width: 0;
+  padding: 5px 7px;
+  align-content: flex-start;
+  background: #07100d;
+  border-color: #47675f;
+  border-radius: 0;
+}
+
+.list[data-callee='WISP:SYSTEM-BROWSER']
+  > .list[data-callee='WISP:OBJECTS'],
+.list[data-callee='WISP:SYSTEM-BROWSER']
+  > .list[data-callee='WISP:PACKAGES'],
+.list[data-callee='WISP:SYSTEM-BROWSER']
+  > .list[data-callee='WISP:PACKAGE'],
+.list[data-callee='WISP:SYSTEM-BROWSER']
+  > .list[data-callee='WISP:SYMBOL'],
+.list[data-callee='WISP:SYSTEM-BROWSER']
+  > .list[data-callee='WISP:SELECTION'] {
+  grid-column: 1 / -1;
+}
+
+.list[data-callee='WISP:SYSTEM-BROWSER']
+  > .wisp-button:last-child {
+  justify-self: start;
+}
+
+@media (max-width: 920px) {
+  .list[data-callee='WISP:SYSTEM-BROWSER'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .list[data-callee='WISP:SYSTEM-BROWSER'] > * {
+    grid-column: 1;
+  }
+}
+
 .list:hover {
   border-color: #fff7;
   cursor: pointer;

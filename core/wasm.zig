@@ -402,6 +402,36 @@ export fn wisp_heap_v32_ptr(heap: *Wisp.Heap) [*]u32 {
     return heap.v32.list.items.ptr;
 }
 
+export fn wisp_heap_bytesize(heap: *Wisp.Heap) usize {
+    return heap.bytesize();
+}
+
+export fn wisp_heap_era(heap: *Wisp.Heap) u32 {
+    return @backingInt(heap.era);
+}
+
+export fn wisp_heap_table_len(
+    heap: *Wisp.Heap,
+    table_index: u32,
+) usize {
+    inline for (Wisp.pointerTags, 0..) |tag, i| {
+        if (table_index == i) return heap.tab(tag).list.len;
+    }
+    return 0;
+}
+
+export fn wisp_heap_package_count(heap: *Wisp.Heap) usize {
+    return heap.pkgmap.count();
+}
+
+export fn wisp_heap_pin_count(heap: *Wisp.Heap) usize {
+    return heap.pins.count();
+}
+
+export fn wisp_heap_root_count(heap: *Wisp.Heap) usize {
+    return heap.roots.items.len;
+}
+
 export fn wisp_alloc(heap: *Wisp.Heap, n: u32) usize {
     const buf = heap.orb.alloc(u8, n) catch return 0;
     return @intFromPtr(buf.ptr);
