@@ -28,6 +28,7 @@ const Step = @import("./step.zig");
 const Sexp = @import("./sexp.zig");
 const Keys = @import("./keys.zig");
 const Tape = @import("./tape.zig");
+const Profile = @import("./profile.zig");
 
 const Tag = Word.Tag;
 const Era = Word.Era;
@@ -423,6 +424,7 @@ pub const Heap = struct {
     }
 
     pub fn new(heap: *Heap, comptime tag: Tag, data: Row(tag)) !u32 {
+        Profile.recordAllocation(tag);
         return try heap.tab(tag).new(heap.orb, heap.era, data);
     }
 
@@ -515,6 +517,7 @@ pub const Heap = struct {
     }
 
     pub fn newv08(heap: *Heap, dat: []const u8) !u32 {
+        Profile.recordV08Bytes(dat.len);
         try heap.v08.appendSlice(heap.orb, dat);
         return heap.new(.v08, .{
             .idx = @intCast(heap.v08.items.len - dat.len),
@@ -527,6 +530,7 @@ pub const Heap = struct {
     }
 
     pub fn newv32(heap: *Heap, dat: []const u32) !u32 {
+        Profile.recordV32Words(dat.len);
         for (dat) |x| {
             if (x == 0xaaaaaaaa) {
                 unreachable;

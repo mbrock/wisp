@@ -27,6 +27,7 @@ const std = @import("std");
 const Wisp = @import("./wisp.zig");
 const Step = @import("./step.zig");
 const Sexp = @import("./sexp.zig");
+const Profile = @import("./profile.zig");
 
 const Heap = Wisp.Heap;
 const Col = Wisp.Col;
@@ -37,6 +38,14 @@ const Tab = Wisp.Tab;
 const Tag = Wisp.Tag;
 
 pub fn gc(heap: *Heap, roots: []*u32) !void {
+    const started = if (comptime Profile.enabled)
+        Profile.beginGc(heap.cap, heap.bytesize())
+    else
+        0;
+    defer {
+        if (comptime Profile.enabled) Profile.leaveGc();
+    }
+
     var this = try init(heap);
     try this.root();
 
@@ -46,6 +55,9 @@ pub fn gc(heap: *Heap, roots: []*u32) !void {
 
     try this.scan();
     heap.* = this.done();
+    if (comptime Profile.enabled) {
+        Profile.finishGc(heap.cap, started, heap.bytesize());
+    }
 }
 
 pub fn init(old: *Heap) !Tidy {

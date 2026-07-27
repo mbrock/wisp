@@ -2,8 +2,10 @@ all: core-fast web
 core-debug:; cd core && zig build
 core-fast:; cd core && zig build -Doptimize=ReleaseFast
 test:; cd core && zig build test
+bench:; cd core && zig build bench -Doptimize=ReleaseFast
+bench-sweep:; python3 benchmarks/cross-language/sweep.py
 
-.PHONY: web core dev pages
+.PHONY: web core dev pages bench bench-sweep
 
 web: core-fast
 	cd web && ./build

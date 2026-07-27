@@ -24,6 +24,7 @@ const Tidy = @import("./tidy.zig");
 const Sexp = @import("./sexp.zig");
 const Jets = @import("./jets.zig");
 const Tape = @import("./tape.zig");
+const Profile = @import("./profile.zig");
 
 const Step = @This();
 const Heap = Wisp.Heap;
@@ -137,18 +138,29 @@ fn findVariable(step: *Step, sym: u32) !void {
         // as a lexical variable.
     }
 
+    var frames: u32 = 0;
+    var comparisons: u32 = 0;
     var cur = step.run.env;
     while (cur != nil) {
+        if (comptime Profile.enabled) frames += 1;
         const curduo = try step.heap.row(.duo, cur);
         const v32 = try step.heap.v32slice(curduo.car);
         var i: usize = 0;
         while (i < v32.len) : (i += 2) {
-            if (v32[i] == sym)
+            if (comptime Profile.enabled) comparisons += 1;
+            if (v32[i] == sym) {
+                Profile.recordLexicalLookup(
+                    frames,
+                    comparisons,
+                    false,
+                );
                 return step.give(.val, v32[i + 1]);
+            }
         }
         cur = curduo.cdr;
     }
 
+    Profile.recordLexicalLookup(frames, comparisons, true);
     switch (try step.heap.get(.sym, .val, sym)) {
         nah => {
             const err = [2]u32{
@@ -166,12 +178,15 @@ fn findVariable(step: *Step, sym: u32) !void {
 
 pub fn findDynamicBinding(step: *Step, name: u32) !?u32 {
     var cur = step.run.way;
+    var hops: u32 = 0;
 
     while (cur != top) {
+        if (comptime Profile.enabled) hops += 1;
         const fun = try step.heap.get(.ktx, .fun, cur);
         if (fun == step.heap.kwd.BINDING) {
             const acc = try step.heap.get(.ktx, .acc, cur);
             if (acc == name) {
+                Profile.recordDynamicLookup(hops, true);
                 return cur;
             }
         }
@@ -179,6 +194,7 @@ pub fn findDynamicBinding(step: *Step, name: u32) !?u32 {
         cur = try step.heap.get(.ktx, .hop, cur);
     }
 
+    Profile.recordDynamicLookup(hops, false);
     return null;
 }
 
@@ -307,8 +323,11 @@ fn scan(
     defer vals.deinit(step.tmp);
 
     if (rev)
+        Profile.recordListReverse(vals.items.len);
+    if (rev)
         std.mem.reverse(u32, vals.items);
 
+    Profile.recordCallArity(vals.items.len);
     var scope = try step.tmp.alloc(u32, 2 * pars.items.len);
     defer step.tmp.free(scope);
 
@@ -395,6 +414,7 @@ pub fn call(
         },
 
         .fun => {
+            Profile.recordCall(.fun);
             const fun = try step.heap.row(.fun, funptr);
             step.run.env = fun.env;
             try step.scan(funptr, fun.exp, fun.par, args, rev);
@@ -402,6 +422,7 @@ pub fn call(
         },
 
         .mac => {
+            Profile.recordCall(.mac);
             const mac = try step.heap.row(.mac, funptr);
             step.run.env = mac.env;
             try step.scan(funptr, mac.exp, mac.par, args, rev);
@@ -409,6 +430,7 @@ pub fn call(
         },
 
         .ktx => {
+            Profile.recordCall(.continuation);
             var vals = try step.scanListAlloc(args);
             defer vals.deinit(step.tmp);
 
@@ -425,6 +447,7 @@ pub fn call(
 
         .sys => {
             if (funptr == top) {
+                Profile.recordCall(.continuation);
                 var vals = try step.scanListAlloc(args);
                 defer vals.deinit(step.tmp);
 
@@ -496,6 +519,7 @@ pub fn debug(heap: *Heap, txt: []const u8, val: u32) !void {
 
 const Ktx = struct {
     fn funargs(step: *Step, ktx: Row(.ktx)) !void {
+        Profile.recordArgument();
         const acc = try step.heap.cons(step.run.val, ktx.acc);
 
         // Come back to the environment of the call form.
@@ -696,11 +720,14 @@ pub fn scanListAllocAllowDotted(heap: *Heap, tmp: Wisp.Orb, list: u32) !List {
     errdefer xs.deinit(tmp);
 
     var cur = list;
+    var cells: usize = 0;
     while (tagOf(cur) == .duo) {
         const duo = try heap.row(.duo, cur);
         try xs.append(tmp, duo.car);
         cur = duo.cdr;
+        if (comptime Profile.enabled) cells += 1;
     }
+    Profile.recordListScan(cells);
 
     if (cur == nil) {
         return List{ .proper = xs };
@@ -752,11 +779,15 @@ fn cast(
 fn reverseList(heap: *Heap, list: u32) !u32 {
     var cur = list;
     var rev = nil;
+    var cells: usize = 0;
     while (cur != nil) {
         const duo = try heap.row(.duo, cur);
         rev = try heap.cons(duo.car, rev);
         cur = duo.cdr;
+        if (comptime Profile.enabled) cells += 1;
     }
+    Profile.recordListReverse(cells);
+    Profile.recordCallArity(cells);
     return rev;
 }
 
@@ -801,12 +832,17 @@ fn oper(step: *Step, jet: u32, arg: u32, rev: bool) !void {
 
 fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
     const def = Jets.jets[Wisp.Imm.from(jet).idx];
+    Profile.recordCall(.jet);
 
     switch (def.tag) {
         .f0x => {
             var args = try step.scanListAlloc(arg);
             defer args.deinit(step.tmp);
-            if (rev) std.mem.reverse(u32, args.items);
+            if (rev) {
+                Profile.recordListReverse(args.items.len);
+                std.mem.reverse(u32, args.items);
+            }
+            Profile.recordCallArity(args.items.len);
             const fun = cast(.f0x, def);
             try fun(step, args.items);
         },
@@ -828,7 +864,11 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         .f1x => {
             var args = try step.scanListAlloc(arg);
             defer args.deinit(step.tmp);
-            if (rev) std.mem.reverse(u32, args.items);
+            if (rev) {
+                Profile.recordListReverse(args.items.len);
+                std.mem.reverse(u32, args.items);
+            }
+            Profile.recordCallArity(args.items.len);
             const fun = cast(.f1x, def);
             try fun(step, args.items[0], args.items[1..args.items.len]);
         },
@@ -839,7 +879,11 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
             if (args.items.len < 2) {
                 return step.invalidArgumentCount(jet);
             } else {
-                if (rev) std.mem.reverse(u32, args.items);
+                if (rev) {
+                    Profile.recordListReverse(args.items.len);
+                    std.mem.reverse(u32, args.items);
+                }
+                Profile.recordCallArity(args.items.len);
                 const fun = cast(.f2x, def);
                 try fun(
                     step,
@@ -851,6 +895,7 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
         },
 
         .f0 => {
+            Profile.recordCallArity(if (arg == nil) 0 else 1);
             if (arg == nil) {
                 const fun = cast(.f0, def);
                 try fun(step);
@@ -863,6 +908,7 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
             var list = try step.scanListAlloc(arg);
             const args = list.items;
             defer list.deinit(step.tmp);
+            Profile.recordCallArity(args.len);
 
             if (args.len == 1) {
                 const fun = cast(.f1, def);
@@ -876,9 +922,13 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
             var list = try step.scanListAlloc(arg);
             const args = list.items;
             defer list.deinit(step.tmp);
+            Profile.recordCallArity(args.len);
 
             if (args.len == 2) {
-                if (rev) std.mem.reverse(u32, args);
+                if (rev) {
+                    Profile.recordListReverse(args.len);
+                    std.mem.reverse(u32, args);
+                }
                 const fun = cast(.f2, def);
                 try fun(step, args[0], args[1]);
             } else {
@@ -890,9 +940,13 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
             var list = try step.scanListAlloc(arg);
             const args = list.items;
             defer list.deinit(step.tmp);
+            Profile.recordCallArity(args.len);
 
             if (args.len == 3) {
-                if (rev) std.mem.reverse(u32, args);
+                if (rev) {
+                    Profile.recordListReverse(args.len);
+                    std.mem.reverse(u32, args);
+                }
                 const fun = cast(.f3, def);
                 try fun(step, args[0], args[1], args[2]);
             } else {
@@ -904,9 +958,13 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
             var list = try step.scanListAlloc(arg);
             const args = list.items;
             defer list.deinit(step.tmp);
+            Profile.recordCallArity(args.len);
 
             if (args.len == 4) {
-                if (rev) std.mem.reverse(u32, args);
+                if (rev) {
+                    Profile.recordListReverse(args.len);
+                    std.mem.reverse(u32, args);
+                }
                 const fun = cast(.f4, def);
                 try fun(step, args[0], args[1], args[2], args[3]);
             } else {
@@ -919,9 +977,13 @@ fn invokeJet(step: *Step, jet: u32, arg: u32, rev: bool) !void {
             var list = try step.scanListAlloc(arg);
             const args = list.items;
             defer list.deinit(step.tmp);
+            Profile.recordCallArity(args.len);
 
             if (args.len == 5) {
-                if (rev) std.mem.reverse(u32, args);
+                if (rev) {
+                    Profile.recordListReverse(args.len);
+                    std.mem.reverse(u32, args);
+                }
                 const fun = cast(.f5, def);
                 try fun(step, args[0], args[1], args[2], args[3], args[4]);
             } else {
@@ -989,8 +1051,23 @@ pub fn evaluateUntilSpecificContinuation(
             // var timer = try std.time.Timer.start();
             // const s0 = heap.bytesize();
 
+            const gc_started = if (comptime Profile.enabled)
+                Profile.beginGc(heap.cap, heap.bytesize())
+            else
+                0;
+            defer {
+                if (comptime Profile.enabled) Profile.leaveGc();
+            }
+
             var gc = try prepareToTidy(&step);
             try finishTidying(&step, &gc);
+            if (comptime Profile.enabled) {
+                Profile.finishGc(
+                    heap.cap,
+                    gc_started,
+                    heap.bytesize(),
+                );
+            }
 
             // const s1 = heap.bytesize();
             // const nanoseconds = timer.read();
@@ -1013,6 +1090,7 @@ pub fn evaluateUntilSpecificContinuation(
             return run.val;
         }
 
+        Profile.evaluatorStep();
         if (step.attemptOneStep() catch |e| step.handleError(e)) {
             i += 1;
         } else |err| {

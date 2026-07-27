@@ -33,6 +33,11 @@ fn addNanoarrow(
 pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const standardTarget = b.standardTargetOptions(.{});
+    const semanticProfile = b.option(
+        bool,
+        "semantic-profile",
+        "Count evaluator operations in wisp-bench",
+    ) orelse true;
     const wasiTarget = b.resolveTargetQuery(.{
         .cpu_arch = .wasm32,
         .os_tag = .wasi,
@@ -77,6 +82,25 @@ pub fn build(b: *std.Build) void {
         }),
     });
     exe.root_module.linkLibrary(nanoarrow);
+
+    const benchmark = b.addExecutable(.{
+        .name = "wisp-bench",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("benchmark.zig"),
+            .target = standardTarget,
+            .optimize = optimize,
+        }),
+    });
+    const benchmarkOptions = b.addOptions();
+    benchmarkOptions.addOption(
+        bool,
+        "semantic_profile",
+        semanticProfile,
+    );
+    benchmark.root_module.addOptions(
+        "build_options",
+        benchmarkOptions,
+    );
 
     // const wasmExe = b.addExecutable(.{
     //     .name = "wisp",
@@ -179,6 +203,7 @@ pub fn build(b: *std.Build) void {
     const testsArrowRun = b.addRunArtifact(testsArrow);
 
     exe.step.dependOn(&bootRun.step);
+    benchmark.step.dependOn(&bootRun.step);
     wasmLib.step.dependOn(&bootRun.step);
     tests.step.dependOn(&bootRun.step);
     testsPrty.step.dependOn(&bootRun.step);
@@ -200,4 +225,23 @@ pub fn build(b: *std.Build) void {
 
     const runStep = b.step("run", "Run the Wisp REPL");
     runStep.dependOn(&runCmd.step);
+
+    const benchmarkCmd = b.addRunArtifact(benchmark);
+    benchmarkCmd.addPassthruArgs();
+
+    const benchmarkStep = b.step(
+        "bench",
+        "Run evaluator diagnostic benchmarks",
+    );
+    benchmarkStep.dependOn(&benchmarkCmd.step);
+
+    const installBenchmark = b.addInstallArtifact(
+        benchmark,
+        .{},
+    );
+    const benchmarkBuildStep = b.step(
+        "bench-build",
+        "Build the evaluator benchmark executable",
+    );
+    benchmarkBuildStep.dependOn(&installBenchmark.step);
 }

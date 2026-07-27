@@ -24,6 +24,7 @@ const Wisp = @import("./wisp.zig");
 const Disk = @import("./disk.zig");
 const File = @import("./file.zig");
 const Jets = @import("./jets.zig");
+const Profile = @import("./profile.zig");
 const Sexp = @import("./sexp.zig");
 const Step = @import("./step.zig");
 const Tape = @import("./tape.zig");
@@ -621,9 +622,13 @@ fn copyContinuationSlice(
     ktx: u32,
     tag: u32,
 ) !?ContinuationCopyResult {
-    if (ktx == top) return null;
+    if (ktx == top) {
+        Profile.recordContinuationSearch(0, false);
+        return null;
+    }
 
     if (try isMatchingPrompt(heap, ktx, tag)) {
+        Profile.recordContinuationSearch(0, true);
         return ContinuationCopyResult{
             .handler = try heap.get(.ktx, .arg, ktx),
             .e1 = try heap.get(.ktx, .hop, ktx),
@@ -633,10 +638,12 @@ fn copyContinuationSlice(
 
     const new = try heap.copy(.ktx, ktx);
     var cur = new;
+    var frames: u32 = 1;
 
     while (cur != Wisp.top) {
         const hop = try heap.get(.ktx, .hop, cur);
         if (try isMatchingPrompt(heap, hop, tag)) {
+            Profile.recordContinuationSearch(frames, true);
             try heap.set(.ktx, .hop, cur, top);
             return ContinuationCopyResult{
                 .handler = try heap.get(.ktx, .arg, hop),
@@ -645,9 +652,11 @@ fn copyContinuationSlice(
             };
         } else {
             cur = hop;
+            frames += 1;
         }
     }
 
+    Profile.recordContinuationSearch(frames, false);
     return null;
 }
 

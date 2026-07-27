@@ -62,6 +62,110 @@ make
 make test
 #+END_SRC
 
+* Evaluator profiling
+
+Run the diagnostic evaluator suite with semantic counters enabled:
+
+#+BEGIN_SRC sh
+make bench
+#+END_SRC
+
+The benchmark runner writes one JSON object per case.  A single
+case and iteration count can be selected explicitly:
+
+#+BEGIN_SRC sh
+cd core
+zig build bench -Doptimize=ReleaseFast -- call-16 25000
+zig build bench -Doptimize=ReleaseFast -- --list
+#+END_SRC
+
+The counters cover evaluator steps, calls, argument-list scans and
+reversals, lexical lookup depth and comparisons, continuation
+searches, captures, and copied frames, logical heap allocations, GC
+copies, and GC time.  The final bucket in the =call_arity= and
+=lexical_depth= histograms means 16 or more.  Core loading,
+benchmark setup, and parsing are excluded from the counters and
+elapsed time.
+
+The suite has two layers.  The =call-*= and =lookup-*=
+diagnostics isolate evaluator mechanisms.  Four small
+Gabriel-derived programs exercise them in recognizable Lisp
+workloads:
+
+- =tak= uses the historical =(18 12 6)= input and stresses
+  non-tail calls and argument binding.
+- =deriv= performs symbolic differentiation and allocates syntax
+  trees.
+- =diviter= and =divrec= divide a prebuilt list of 1000 =NIL=s,
+  contrasting tail-recursive and non-tail-recursive traversal.
+
+Four repository-derived cases exercise Wisp as it is used here:
+
+- =stdlib-list= runs a map/append/reverse/remove pipeline using the
+  boot core's list functions.
+- =backquote= calls the boot core's actual
+  =bq-completely-process= implementation on a nested unquote and
+  unquote-splicing form.
+- =router-hit= and =router-miss= preserve =web/http.wisp='s route
+  matcher and nested continuation-prompt search, with fixed data in
+  place of the Deno request and response bridge.
+
+Each program checks its result after timing.  When no iteration
+count is supplied, each case uses a workload-appropriate default;
+an explicit count still overrides it:
+
+#+BEGIN_SRC sh
+cd core
+zig build bench -Doptimize=ReleaseFast -- tak 1
+zig build bench -Doptimize=ReleaseFast -- deriv 100
+#+END_SRC
+
+The JSON =input= field identifies the fixed program workload.
+Sources are adapted from the
+[[https://github.com/ecraven/r7rs-benchmarks][R7RS benchmark collection]]; the repetition count is the
+harness parameter and is not part of that fixed input.
+
+For an uncontaminated native CPU profile, compile the semantic
+counters out and record a sufficiently long single case:
+
+#+BEGIN_SRC sh
+cd core
+zig build bench-build \
+  -Doptimize=ReleaseFast \
+  -Dsemantic-profile=false
+xcrun xctrace record \
+  --template 'Time Profiler' \
+  --output /tmp/wisp-call-16.trace \
+  --launch -- \
+  "$PWD/zig-out/bin/wisp-bench" call-16 5000000
+#+END_SRC
+
+The resulting trace opens in Instruments.  On Linux, the older
+=etc/profile= script provides a starting point for recording with
+=perf=.
+
+** Cross-language sweep
+
+Run the Gabriel workloads in Wisp, Python, Ruby, Tcl, JavaScript,
+Wren, Chibi-Scheme, Racket, Common Lisp, and optimized C.  The
+repository-derived Lisp cases run in Wisp, Racket, Chibi-Scheme, and
+Common Lisp; the continuation router currently runs in Wisp and
+Racket:
+
+#+BEGIN_SRC sh
+make bench-sweep
+#+END_SRC
+
+The sweep verifies results, takes five samples by default, prints
+per-case rankings, a Wisp-focused comparison with the slowest other
+runtime in each case, and a normalized geometric mean for runtimes
+that support every selected case.  It saves raw JSONL samples outside
+version control.  Unsupported cases are omitted rather than replaced
+with unlike mechanisms.  Its pinned Wren and Chibi-Scheme runtimes
+are built locally on first use, not installed system-wide.  See
+[[file:benchmarks/cross-language/README.md][the cross-language benchmark notes]] for workload and
+comparability details.
+
 * Browser development
 
 Start the Wisp development server and open
