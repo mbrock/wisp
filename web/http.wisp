@@ -10,9 +10,6 @@
     "Access-Control-Allow-Credentials" "true"
     "Access-Control-Allow-Headers" "Content-Type, Authorization"))
 
-(deno-import
- (<server> "https://deno.land/std@0.135.0/http/server.ts"))
-
 (defparameter *request* nil)
 (defparameter *response* nil)
 
@@ -25,31 +22,46 @@
 (defun set-response-body! (body)
   (vector-set! *response* 2 body))
 
-(defun serve (port cert-file key-file handler)
+(defun request-handler (handler)
+  (callback (request)
+    (async
+     (fn ()
+       (binding ((*request* request)
+                 (*response* (vector 200 (new <headers>) nil)))
+         (try
+           (call-with-prompt :respond
+             (fn () (call handler))
+             (fn (value continuation)
+               (set! *response* value)))
+           (catch (condition continuation)
+             (print `(http-condition ,condition))
+             (set! *response*
+                   (vector 500 (new <headers>)
+                           "Internal Server Error"))))
+         (if (eq? 'external (type-of *response*))
+             *response*
+           (new <response> (vector-get *response* 2)
+                (js-object
+                 "status" (vector-get *response* 0)
+                 "headers" (vector-get *response* 1)))))))))
+
+(defun serve-http (port handler)
   (returning
-      (js-call <server> "serveTls"
-        (callback (request)
-          (async
-           (fn ()
-             (binding ((*request* request)
-                       (*response* (vector 200 (new <headers>) nil)))
-                      (try (with-simple-error-handler
-                               (fn ()
-                                   (call-with-prompt :respond
-                                                     (fn () (call handler))
-                                                     (fn (v k) (set! *response* v)))))
-                 (catch (e k)
-                   (set! *response*
-                         (vector 500 nil "Internal Server Error"))))
-               (returning (new <response> (vector-get *response* 2)
-                               (js-object "status" (vector-get *response* 0)
-                                          "headers" (vector-get *response* 1)))
-                 (print `(status ,(vector-get *response* 0))))))))
-        (js-object "port" port
-                   "certFile" cert-file
-                   "keyFile" key-file
-                   ))
+      (js-call <deno> "serve"
+        (js-object "port" port)
+        (request-handler handler))
     (print `(http server port ,port))))
+
+(defun serve (port cert-file key-file handler)
+  (async
+   (fn ()
+     (returning
+         (js-call <deno> "serve"
+           (js-object "port" port
+                      "cert" (read-text-file cert-file)
+                      "key" (read-text-file key-file))
+           (request-handler handler))
+       (print `(https server port ,port))))))
 
 (defun request-header (header)
   (js-call (js-get *request* "headers") "get" header))

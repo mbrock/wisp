@@ -65,6 +65,7 @@ pub fn init(old: *Heap) !Tidy {
             .pkgmap = old.pkgmap,
             .roots = old.roots,
             .pins = old.pins,
+            .nextPinId = old.nextPinId,
         },
     };
 }
@@ -100,12 +101,12 @@ pub fn root(tidy: *Tidy) !void {
     try tidy.move(&tidy.new.keyPackage);
     try tidy.move(&tidy.new.pkg);
 
-    inline for (std.meta.fields(@TypeOf(tidy.new.kwd))) |s| {
-        try tidy.move(&@field(tidy.new.kwd, s.name));
+    inline for (comptime std.meta.fieldNames(@TypeOf(tidy.new.kwd))) |name| {
+        try tidy.move(&@field(tidy.new.kwd, name));
     }
 
-    inline for (std.meta.fields(@TypeOf(tidy.new.commonStrings))) |s| {
-        try tidy.move(&@field(tidy.new.commonStrings, s.name));
+    inline for (comptime std.meta.fieldNames(@TypeOf(tidy.new.commonStrings))) |name| {
+        try tidy.move(&@field(tidy.new.commonStrings, name));
     }
 
     for (tidy.new.pkgmap.entries.items(.value)) |*pkg| {
@@ -143,8 +144,8 @@ fn push(tidy: *Tidy, comptime tag: Tag, x: u32) !u32 {
     const ptr = Ptr.from(x);
     if (ptr.era == tidy.new.era) return x;
 
-    var c0 = tidy.old.col(tag, @enumFromInt(0));
-    var c1 = tidy.old.col(tag, @enumFromInt(1));
+    var c0 = tidy.old.col(tag, @fromBackingInt(@intCast(0)));
+    var c1 = tidy.old.col(tag, @fromBackingInt(@intCast(1)));
 
     if (c0[ptr.idx] == Wisp.zap) return c1[ptr.idx];
 
@@ -208,8 +209,8 @@ fn pull(tidy: *Tidy, comptime tag: Tag) !void {
 }
 
 fn drag(tidy: *Tidy, comptime tag: Tag, tab: *Tab(tag), i: Ptr.Idx) !void {
-    inline for (std.meta.fields(Col(tag)), 0..) |_, j| {
-        const col: Col(tag) = @enumFromInt(j);
+    inline for (comptime std.meta.fieldNames(Col(tag)), 0..) |_, j| {
+        const col: Col(tag) = @fromBackingInt(@intCast(j));
         const new = try tidy.copy(tab.list.items(col)[i]);
         tab.list.items(col)[i] = new;
     }
@@ -236,6 +237,28 @@ test "garbage collection of conses" {
 
     try std.testing.expectEqual(heap.vat.duo.list.len, 1);
     try std.testing.expectEqual(cons, try heap.row(.duo, cons2));
+}
+
+test "garbage collection preserves the pin sequence" {
+    var heap = try Heap.init(
+        std.testing.allocator,
+        std.testing.io,
+        .e0,
+    );
+    defer heap.deinit();
+
+    const first = try heap.newPin(41);
+    try gc(&heap, &.{});
+    const second = try heap.newPin(42);
+
+    try std.testing.expectEqual(
+        @as(u27, 1),
+        Wisp.Imm.from(first).idx,
+    );
+    try std.testing.expectEqual(
+        @as(u27, 2),
+        Wisp.Imm.from(second).idx,
+    );
 }
 
 test "read and tidy" {

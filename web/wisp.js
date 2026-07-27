@@ -30,6 +30,9 @@ export class Wisp {
     this.api = this.instance.exports;
     this.sys = this.loadSys();
     this.heap = this.api.wisp_heap_init();
+    if (!this.heap) {
+      throw new Error("could not initialize Wisp heap");
+    }
   }
 
   loadSys() {
@@ -150,6 +153,80 @@ export class Wisp {
   eval(exp) {
     return this.api.wisp_eval(this.heap, exp, 10000) >>> 0;
   }
+
+  snapshot() {
+    const tidyResult = this.api.wisp_heap_tidy(this.heap) >>> 0;
+    if (tidyResult === this.sys.zap) {
+      throw new Error("could not compact Wisp heap");
+    }
+
+    const size = this.api.wisp_tape_size(this.heap);
+    const ptr = this.api.wisp_alloc(this.heap, size);
+    if (!ptr) {
+      throw new Error(`could not allocate ${size} byte heap image`);
+    }
+
+    try {
+      const written = this.api.wisp_tape_write(
+        this.heap,
+        ptr,
+        size
+      );
+      if (written !== size) {
+        throw new Error(
+          `short heap image write: ${written} of ${size} bytes`
+        );
+      }
+
+      return new Uint8Array(
+        this.api.memory.buffer,
+        ptr,
+        written
+      ).slice();
+    } finally {
+      this.api.wisp_free_n(this.heap, ptr, size);
+    }
+  }
+
+  restore(snapshot) {
+    const bytes =
+      snapshot instanceof Uint8Array
+        ? snapshot
+        : new Uint8Array(snapshot);
+    const oldHeap = this.heap;
+    const ptr = this.api.wisp_alloc(oldHeap, bytes.byteLength);
+    if (!ptr) {
+      throw new Error(
+        `could not allocate ${bytes.byteLength} byte heap image`
+      );
+    }
+
+    new Uint8Array(
+      this.api.memory.buffer,
+      ptr,
+      bytes.byteLength
+    ).set(bytes);
+    const loaded = this.api.wisp_heap_from_tape(
+      ptr,
+      bytes.byteLength
+    );
+    this.api.wisp_free_n(oldHeap, ptr, bytes.byteLength);
+
+    if (!loaded) {
+      throw new Error("could not restore Wisp heap image");
+    }
+
+    this.api.wisp_heap_deinit(oldHeap);
+    this.heap = loaded;
+    return this;
+  }
+
+  close() {
+    if (this.heap) {
+      this.api.wisp_heap_deinit(this.heap);
+      this.heap = 0;
+    }
+  }
 }
 
 export class WASD {
@@ -168,6 +245,15 @@ export class WASD {
 
   setWisp(wisp) {
     this.wisp = wisp;
+  }
+
+  cloneBindings() {
+    const clone = new WASD();
+    clone.ext = new Map(this.ext);
+    clone.elements = new Map(this.elements);
+    clone.nextExt = this.nextExt;
+    clone.nextElementId = this.nextElementId;
+    return clone;
   }
 
   newExt(x) {

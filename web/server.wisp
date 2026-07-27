@@ -1,5 +1,6 @@
 ;;; * wisp.town git hosting
 
+(load "deno.wisp")
 (load "http.wisp")
 (load "auth.wisp")
 

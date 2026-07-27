@@ -170,6 +170,22 @@
 (defun output-buffer ()
   (query-selector "wisp-window.output > main"))
 
+(defun computed-style (selector property)
+  (let ((element (query-selector selector)))
+    (if element
+        (js-call
+         (js-call *window* "getComputedStyle" element)
+         "getPropertyValue" property)
+      (error 'element-not-found selector))))
+
+(defun set-style! (selector property value)
+  (let ((element (query-selector selector)))
+    (if element
+        (returning value
+          (js-call (js-get element "style")
+                   "setProperty" property value))
+      (error 'element-not-found selector))))
+
 (defun create-element (tag-name)
   (js-call *document* "createElement" tag-name))
 
@@ -210,6 +226,64 @@
            (call action)))))))
 
 (defvar *interactive-condition-marker* (fresh-symbol!))
+(defvar <websocket> (js-get *window* "WebSocket"))
+(defvar *dev-socket* nil)
+(defvar *dev-ticket-number* 0)
+(defvar *dev-tickets* nil)
+(defvar *wisp-host* (js-get *window* "wispHost"))
+
+(defun download-system! ()
+  (async
+   (fn ()
+     (let ((image
+             (await
+              (js-call *wisp-host* "download"))))
+       (append-child!
+        (output-buffer)
+        (render-sexp-to-element
+         (list
+          'downloaded
+          (js-get image "name")
+          (list (js-get image "bytes") 'bytes))))))))
+
+(defun fork-system! ()
+  (async
+   (fn ()
+     (let ((system
+             (await (js-call *wisp-host* "fork"))))
+       (append-child!
+        (output-buffer)
+        (render-sexp-to-element
+         (list
+          'forked-system
+          (js-get system "id")
+          (list 'parent
+                (js-get system "parentId"))
+          (list 'heap-image
+                (js-get system "bytes")
+                'bytes))))))))
+
+(defun send-system! (system-id source)
+  (js-call *wisp-host* "evaluate" system-id source))
+
+(defun install-host-controls! ()
+  (unless (query-selector ".download-system")
+    (let ((control
+            (button "download" #'download-system!)))
+      (do
+       (js-set! control "className"
+                "window-action download-system")
+       (append-child!
+        (query-selector "wisp-window.output > header")
+        control))))
+  (unless (query-selector ".fork-system")
+    (let ((control (button "fork" #'fork-system!)))
+      (do
+       (js-set! control "className"
+                "window-action fork-system")
+       (append-child!
+        (query-selector "wisp-window.output > header")
+        control)))))
 
 (defun guard-interactively (body)
   (try (call body)
@@ -229,6 +303,81 @@
 
 (defun interactive-condition-retry (report)
   (head (tail (tail (tail report)))))
+
+(defun find-dev-ticket (number tickets)
+  (if (nil? tickets)
+      nil
+    (let ((entry (head tickets)))
+      (if (eq? number (head entry))
+          entry
+        (find-dev-ticket number (tail tickets))))))
+
+(defun dev-tickets ()
+  (map
+   (fn (entry)
+     (list (head entry)
+           (interactive-condition-value (second entry))))
+   *dev-tickets*))
+
+(defun install-dev-ticket! (report element)
+  (set! *dev-ticket-number* (+ *dev-ticket-number* 1))
+  (set! *dev-tickets*
+        (cons (list *dev-ticket-number* report element)
+              *dev-tickets*))
+  (when element
+    (append-child!
+     (query-selector ".debugger-title" element)
+     (text-element
+      "SPAN" "debugger-ticket"
+      (string-append
+       "ticket "
+       (print-to-string *dev-ticket-number*)))))
+  *dev-ticket-number*)
+
+(defun forget-dev-report! (report)
+  (set! *dev-tickets*
+        (remove-if
+         (fn (entry)
+           (eq? report (second entry)))
+         *dev-tickets*)))
+
+(defun take-dev-ticket! (number)
+  (let ((entry (find-dev-ticket number *dev-tickets*)))
+    (if entry
+        (returning entry
+          (set! *dev-tickets*
+                (remove-if
+                 (fn (candidate)
+                   (eq? number (head candidate)))
+                 *dev-tickets*)))
+      (error 'no-such-dev-ticket number))))
+
+(defun clear-dev-ticket-element! (entry)
+  (let ((element (third entry)))
+    (when element
+      (element-remove! element))))
+
+(defun use-dev-ticket! (number value)
+  (let* ((entry (take-dev-ticket! number))
+         (report (second entry)))
+    (do
+      (clear-dev-ticket-element! entry)
+      (call (interactive-condition-continuation report) value))))
+
+(defun retry-dev-ticket! (number)
+  (let* ((entry (take-dev-ticket! number))
+         (report (second entry)))
+    (do
+      (clear-dev-ticket-element! entry)
+      (call (interactive-condition-retry report)))))
+
+(defun abort-dev-ticket! (number)
+  (let* ((entry (take-dev-ticket! number))
+         (report (second entry)))
+    (do
+      (clear-dev-ticket-element! entry)
+      (list 'aborted number
+            (interactive-condition-value report)))))
 
 (defun condition-name (condition)
   (let ((name
@@ -273,11 +422,13 @@
    (guard-interactively
     (fn () (call continuation value)))))
 
-(defun restart-condition-with-source! (element continuation)
+(defun restart-condition-with-source!
+    (element continuation report)
   (let ((source (js-call *window* "prompt"
                          "Lisp value to return from the condition:"
                          "nil")))
     (when source
+      (forget-dev-report! report)
       (let ((value
               (guard-interactively
                (fn () (eval (read-from-string source))))))
@@ -302,6 +453,8 @@
            (element-with-class "ARTICLE" "wisp-debugger"))
          (header
            (element-with-class "HEADER" "debugger-title"))
+         (condition-body
+           (element-with-class "SECTION" "debugger-condition"))
          (restarts
            (element-with-class "NAV" "debugger-restarts"))
          (context
@@ -318,38 +471,41 @@
       (append-child! debugger header)
 
       (append-child!
-       debugger
+       condition-body
        (render-sexp-to-element
         (list 'condition condition)))
+      (append-child! debugger condition-body)
 
       (append-child!
        restarts
        (button "use nil"
          (fn ()
+           (forget-dev-report! report)
            (restart-condition! debugger continuation nil))))
       (append-child!
        restarts
        (button "supply value…"
          (fn ()
            (restart-condition-with-source!
-            debugger continuation))))
+            debugger continuation report))))
       (append-child!
        restarts
        (button "retry"
          (fn ()
+           (forget-dev-report! report)
            (retry-condition! debugger retry))))
       (append-child!
        restarts
        (button "abort"
          (fn ()
+           (forget-dev-report! report)
            (abort-condition! debugger condition))))
       (append-child! debugger restarts)
 
-      (js-set! context "open" t)
       (append-child!
        context
        (text-element "SUMMARY" "debugger-context-title"
-                     "suspended continuation"))
+                     "continuation"))
       (append-child!
        context
        (render-sexp-to-element
@@ -359,10 +515,97 @@
 
 (defun display-condition-report! (report)
   (let ((home (or (output-buffer)
-                  (query-selector "wisp-frame"))))
-    (when home
-      (element-insert-adjacent!
-       home :beforeend (debugger-element report)))))
+                  (query-selector "wisp-frame")))
+        (element (debugger-element report)))
+    (returning element
+      (when home
+        (element-insert-adjacent!
+         home :beforeend element)))))
+
+(defun eval-dev-forms (forms)
+  (if (nil? forms)
+      nil
+    (let ((value (await (eval (head forms)))))
+      (if (nil? (tail forms))
+          value
+        (eval-dev-forms (tail forms))))))
+
+(defun send-dev-outcome! (socket outcome)
+  (if (interactive-condition? outcome)
+      (let ((ticket
+              (install-dev-ticket!
+               outcome
+               (display-condition-report! outcome))))
+        (js-call socket "send"
+          (print-to-string
+           (list :condition
+                 ticket
+                 (interactive-condition-value outcome)
+                 (list :restarts
+                       :use-value :retry :abort)))))
+    (js-call socket "send"
+      (print-to-string (list :ok outcome)))))
+
+(defun eval-dev-source! (socket source)
+  (let ((outcome
+          (guard-interactively
+           (fn ()
+             (async
+              (fn ()
+                (eval-dev-forms
+                 (read-many-from-string source))))))))
+    (if (promise? outcome)
+        (async
+         (fn ()
+           (send-dev-outcome!
+            socket
+            (guard-interactively
+             (fn () (await outcome))))))
+      (send-dev-outcome! socket outcome))))
+
+(defun local-development-host? ()
+  (let ((hostname
+          (js-get (js-get *window* "location") "hostname")))
+    (or (equal? hostname "127.0.0.1")
+        (equal? hostname "localhost"))))
+
+(defun schedule-dev-reconnect! ()
+  (js-call *window* "setTimeout"
+    (callback (ignored)
+      (connect-dev-server!)
+      nil)
+    500))
+
+(defun connect-dev-server! ()
+  (when (and (local-development-host?)
+             (nil? *dev-socket*))
+    (let* ((location (js-get *window* "location"))
+           (scheme
+             (if (equal? (js-get location "protocol") "https:")
+                 "wss://" "ws://"))
+           (socket
+             (new <websocket>
+               (string-append scheme
+                              (js-get location "host")
+                              "/swank"))))
+      (do
+        (set! *dev-socket* socket)
+        (js-set! socket "onopen"
+          (callback (event)
+            (js-call socket "send"
+              (print-to-string
+               (list :hello "browser wisp")))
+            nil))
+        (js-set! socket "onmessage"
+          (callback (event)
+            (eval-dev-source! socket
+                              (js-get event "data"))
+            nil))
+        (js-set! socket "onclose"
+          (callback (event)
+            (set! *dev-socket* nil)
+            (schedule-dev-reconnect!)
+            nil))))))
 
 (defun with-interactive-condition-handler (body)
   (let ((outcome (guard-interactively body)))
@@ -385,8 +628,15 @@
 (defun render-app (forms)
   (with-simple-error-handler
       (fn ()
-        (idom-patch! (query-selector "wisp-frame")
-                     (make-callback 'draw-app) forms))))
+        (do
+         (idom-patch! (query-selector "wisp-frame")
+                      (make-callback 'draw-app) forms)
+         (install-host-controls!)))))
+
+(defun open-app! (forms)
+  (do
+    (render-app forms)
+    (connect-dev-server!)))
 
 (defun key-info-string (key-info)
   (with-vector-elements key-info (key ctrl shift alt meta repeat)
@@ -826,7 +1076,7 @@
          (fn ()
            (let ((repo-key (repo-key)))
              (if (nil? repo-key)
-                 (render-app '())
+                 (open-app! forms)
                (let* ((has-clone?
                         (equal? :yes
                                 (try (returning :yes
@@ -844,7 +1094,7 @@
                              (string-append "/" repo-key "/index.wisp"))
                             (catch (e k)
                               "(file-not-found \"index.wisp\")")))))
-                   (render-app file-code))))))))))
+                   (open-app! file-code))))))))))
 
 (defun new-auth0-client ()
   (await (js-call *window* "createAuth0Client"

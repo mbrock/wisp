@@ -24,43 +24,168 @@ import * as grammar from "./lib/wisplang.js";
 import { Wisp, WASD, domCode } from "./wisp.js";
 import WASI from "./wasi.js";
 
-onload = async () => {
-  const wasi = new WASI();
-  const wasd = new WASD();
+const systems = new Map();
+let nextSystemId = 1;
 
+function exec(ctx, code) {
+  const src = ctx.read(`
+      (with-simple-error-handler (fn () (do
+         ${code}
+      )))`);
+  const run = ctx.api.wisp_run_init(ctx.heap, src);
+  const x = ctx.api.wisp_run_eval(ctx.heap, run, 8_000_000) >>> 0;
+
+  if (x === ctx.sys.zap) {
+    throw new Error("Wisp evaluation failed");
+  }
+  return x;
+}
+
+async function newSystem({ snapshot, bindings, parentId = null } = {}) {
+  const wasi = new WASI();
+  const wasd = bindings ? bindings.cloneBindings() : new WASD();
   const instance = await WebAssembly.instantiate(await wispModule, {
     wasi_snapshot_preview1: wasi.exports(),
     dom: wasd.exports(),
   });
+  wasi.setMemory(instance.exports.memory);
 
-  const exports = instance.exports;
-
-  wasi.setMemory(exports.memory);
-
-  let ctx = new Wisp(instance);
-
+  const ctx = new Wisp(instance);
   wasd.setWisp(ctx);
-
-  function exec(code) {
-    const src = ctx.read(`
-      (with-simple-error-handler (fn () (do
-         ${code}
-      )))`);
-    const run = ctx.api.wisp_run_init(ctx.heap, src);
-    const x = ctx.api.wisp_run_eval(ctx.heap, run, 8_000_000) >>> 0;
-
-    if (x === ctx.sys.zap) throw new Error();
+  if (snapshot) {
+    ctx.restore(snapshot);
   }
 
-  const basecode = await fetch("./js.wisp").then((x) => x.text());
-  const dexpcode = await fetch("./dexp.wisp").then((x) => x.text());
-  const democode = await fetch("./demo.wisp").then((x) => x.text());
+  const system = {
+    id: nextSystemId++,
+    parentId,
+    createdAt: new Date(),
+    ctx,
+    wasd,
+    wasi,
+  };
+  systems.set(system.id, system);
+  return system;
+}
 
-  exec(basecode);
-  exec(dexpcode);
+const wispHost = {
+  systems,
+  activeSystemId: null,
 
-  const file = dexpcode;
-  const forms = file ? ctx.readMany(file) : ctx.sys.nil;
+  snapshot(systemId = this.activeSystemId) {
+    const system = systems.get(systemId);
+    if (!system) {
+      throw new Error(`unknown Wisp system ${systemId}`);
+    }
+    return system.ctx.snapshot();
+  },
+
+  async download(systemId = this.activeSystemId) {
+    // As with fork(), leave the reentrant Wisp -> JS callback
+    // before compacting the heap. The suspended continuation is
+    // pinned while this promise is pending.
+    await Promise.resolve();
+
+    const snapshot = this.snapshot(systemId);
+    const stamp = new Date()
+      .toISOString()
+      .replaceAll(":", "-")
+      .replaceAll(".", "-");
+    const name = `wisp-${systemId}-${stamp}.core`;
+    const blob = new Blob([snapshot], {
+      type: "application/octet-stream",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1_000);
+    return { name, bytes: snapshot.byteLength };
+  },
+
+  async fork(sourceId = this.activeSystemId) {
+    // Leave the reentrant Wisp -> JS callback first. The
+    // suspended Wisp continuation is pinned before this resumes,
+    // so the heap can now compact safely.
+    await Promise.resolve();
+
+    const source = systems.get(sourceId);
+    if (!source) {
+      throw new Error(`unknown Wisp system ${sourceId}`);
+    }
+
+    const snapshot = source.ctx.snapshot();
+    const child = await newSystem({
+      snapshot,
+      bindings: source.wasd,
+      parentId: source.id,
+    });
+
+    // Exercise the restored reader, evaluator, package, and
+    // function tables before reporting a healthy child.
+    exec(child.ctx, "(length '(little fork awake))");
+
+    return {
+      id: child.id,
+      parentId: child.parentId,
+      bytes: snapshot.byteLength,
+      heap: child.ctx.heap,
+    };
+  },
+
+  evaluate(systemId, code) {
+    const system = systems.get(systemId);
+    if (!system) {
+      throw new Error(`unknown Wisp system ${systemId}`);
+    }
+    const result = exec(
+      system.ctx,
+      `(print-to-string (do ${code}))`
+    );
+    return system.wasd.convertFromWisp(result);
+  },
+
+  describe() {
+    return Array.from(systems.values(), (system) => ({
+      id: system.id,
+      parentId: system.parentId,
+      heap: system.ctx.heap,
+      createdAt: system.createdAt,
+    }));
+  },
+};
+
+globalThis.wispHost = wispHost;
+
+if ("serviceWorker" in navigator) {
+  addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("./service-worker.js")
+      .catch((error) =>
+        console.warn("could not install Wisp service worker", error)
+      );
+  });
+}
+
+onload = async () => {
+  const main = await newSystem();
+  const { ctx } = main;
+  wispHost.activeSystemId = main.id;
+
+  const loadText = (path) =>
+    fetch(path, { cache: "no-store" }).then((x) => x.text());
+
+  const basecode = await loadText("./js.wisp");
+  const dexpcode = await loadText("./dexp.wisp");
+  const democode = await loadText("./demo.wisp");
+
+  exec(ctx, basecode);
+  exec(ctx, dexpcode);
+
+  const forms = ctx.readMany(democode);
 
   let packageName = "WISP";
   let functionName = "WISP-BOOT";

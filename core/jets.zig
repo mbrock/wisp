@@ -126,10 +126,10 @@ fn makeOpArray(
     var ops: [decls.len]Op = undefined;
 
     var i = 0;
-    inline for (decls) |x| {
-        const f = @field(S, x.name);
+    inline for (decls) |name| {
+        const f = @field(S, name);
         ops[i] = .{
-            .txt = x.name,
+            .txt = name,
             .ilk = ilk,
             .tag = FnTag.from(@TypeOf(f)),
             .fun = f,

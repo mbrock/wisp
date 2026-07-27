@@ -19,6 +19,7 @@
 
 const std = @import("std");
 
+const Arrow = @import("./arrow.zig");
 const File = @import("./file.zig");
 const Jets = @import("./jets.zig");
 const Sexp = @import("./sexp.zig");
@@ -104,6 +105,13 @@ pub fn main(init: std.process.Init) anyerror!void {
         var heap = try makeHeap(orb, cap);
         try @import("./tidy.zig").gc(&heap, &.{});
         try @import("./tape.zig").save(&heap, name);
+    } else if (std.mem.eql(u8, cmd, "arrow")) {
+        const name = args.next() orelse return help(stderr);
+
+        var heap = try makeHeap(orb, cap);
+        defer heap.deinit();
+        try @import("./tidy.zig").gc(&heap, &.{});
+        try Arrow.save(&heap, name);
     } else if (std.mem.eql(u8, cmd, "load")) {
         const name = args.next() orelse return help(stderr);
 
@@ -123,6 +131,7 @@ fn help(stderr: anytype) !void {
         \\  wisp run        run a program
         \\  wisp repl       start a REPL
         \\  wisp core       save a boot core
+        \\  wisp arrow      export a heap as one Arrow IPC file
         \\  wisp load       load a boot core
         \\  wisp keygen     print a unique key
         \\  wisp version    print the Wisp version

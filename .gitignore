@@ -19,4 +19,5 @@ tmp
 .zig-cache
 .DS_Store
 web/cors-proxy.pid
+web/pages
 **/.zig-cache

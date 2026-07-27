@@ -63,8 +63,16 @@ const tagOf = Wisp.tagOf;
 const top = Wisp.top;
 
 pub fn once(heap: *Heap, run: *Run) !void {
-    var tmp = std.heap.stackFallback(4096, heap.orb);
-    var step = Step{ .heap = heap, .run = run, .tmp = tmp.get() };
+    var tmp_buffer: [4096]u8 = undefined;
+    var tmp = std.heap.BufferFirstAllocator.init(
+        &tmp_buffer,
+        heap.orb,
+    );
+    var step = Step{
+        .heap = heap,
+        .run = run,
+        .tmp = tmp.allocator(),
+    };
     step.attemptOneStep() catch |e| try step.handleError(e);
 }
 
@@ -961,12 +969,16 @@ pub fn evaluateUntilSpecificContinuation(
 ) !u32 {
     if (run.err != nil) return error.ErrorAlreadyPresent;
 
-    var tmp = std.heap.stackFallback(4096, heap.orb);
+    var tmp_buffer: [4096]u8 = undefined;
+    var tmp = std.heap.BufferFirstAllocator.init(
+        &tmp_buffer,
+        heap.orb,
+    );
 
     var step = Step{
         .heap = heap,
         .run = run,
-        .tmp = tmp.get(),
+        .tmp = tmp.allocator(),
     };
 
     var i: u32 = 0;

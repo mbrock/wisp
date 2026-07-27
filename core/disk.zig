@@ -102,7 +102,7 @@ pub fn save(step: *Step, name: []const u8) !u32 {
     try file.print("* wisp\n", .{});
     try file.print("** ver 1\n\n", .{});
     try file.print("* step\n", .{});
-    try tellvar(file, "** era", @intCast(@intFromEnum(heap.era)));
+    try tellvar(file, "** era", @intCast(@backingInt(heap.era)));
     try tellvar(file, "** bas", heap.base);
     try tellvar(file, "** env", step.run.env);
     try tellvar(file, "** way", step.run.way);
@@ -133,8 +133,8 @@ pub fn save(step: *Step, name: []const u8) !u32 {
                 tab.list.len,
             });
 
-            inline for (std.meta.fields(Wisp.Row(tag)), 0..) |_, j| {
-                const col = @as(Wisp.Col(tag), @enumFromInt(j));
+            inline for (comptime std.meta.fieldNames(Wisp.Row(tag)), 0..) |_, j| {
+                const col = @as(Wisp.Col(tag), @fromBackingInt(@intCast(j)));
                 for (heap.col(tag, col)) |x| {
                     try tell(file, x);
                     try file.print(" ", .{});

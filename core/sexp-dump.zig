@@ -143,9 +143,9 @@ pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
         .ktx => {
             const ktx = try heap.row(.ktx, x);
             try out.print("<%ktx", .{});
-            inline for (std.meta.fields(@TypeOf(ktx))) |field| {
-                try out.print(" {s}=", .{field.name});
-                try dump(heap, out, @field(ktx, field.name));
+            inline for (comptime std.meta.fieldNames(@TypeOf(ktx))) |name| {
+                try out.print(" {s}=", .{name});
+                try dump(heap, out, @field(ktx, name));
             }
             try out.print(">", .{});
         },
@@ -174,9 +174,9 @@ pub fn dump(heap: *Heap, out: anytype, x: u32) anyerror!void {
         .run => {
             const run = try heap.row(.run, x);
             try out.print("<run", .{});
-            inline for (std.meta.fields(@TypeOf(run))) |field| {
-                try out.print(" {s}=", .{field.name});
-                try dump(heap, out, @field(run, field.name));
+            inline for (comptime std.meta.fieldNames(@TypeOf(run))) |name| {
+                try out.print(" {s}=", .{name});
+                try dump(heap, out, @field(run, name));
             }
             try out.print(">", .{});
         },

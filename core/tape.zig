@@ -23,18 +23,8 @@ const Wisp = @import("./wisp.zig");
 
 const rownum = Wisp.pointerTags.len;
 
-const colnum = blk: {
-    var i = 0;
-
-    for (Wisp.pointerTags) |tag| {
-        i += std.meta.fields(Wisp.Row(tag)).len;
-    }
-
-    break :blk i;
-};
-
 fn currentVersion() [32]u8 {
-    var array: [32]u8 = .{0} ** 32;
+    var array: [32]u8 = @splat(0);
     std.mem.copyForwards(u8, &array, "wisp tape v0.8.0\n");
     return array;
 }
@@ -49,27 +39,8 @@ const Header = extern struct {
     tabSizes: [rownum]u32,
 };
 
-var empty: [1]u8 = .{0};
-
-fn mkvec_const(ptr: anytype, len: usize) std.posix.iovec_const {
-    return if (len == 0) .{
-        .base = &empty,
-        .len = 0,
-    } else .{
-        .base = @as([*]const u8, @ptrCast(ptr)),
-        .len = len,
-    };
-}
-
-fn mkvec(ptr: anytype, len: usize) std.posix.iovec {
-    return if (len == 0) .{
-        .base = &empty,
-        .len = 0,
-    } else .{
-        .base = @as([*]u8, @ptrCast(ptr)),
-        .len = len,
-    };
-}
+const pins_magic = "wispins1";
+const pins_header_size = pins_magic.len + 2 * @sizeOf(u32);
 
 pub fn save(heap: *Wisp.Heap, name: []const u8) !void {
     var arena = std.heap.ArenaAllocator.init(heap.orb);
@@ -80,53 +51,110 @@ pub fn save(heap: *Wisp.Heap, name: []const u8) !void {
     const file = try rootdir.createFile(cap, name, .{});
     defer file.close(cap);
 
-    var header = Header{
+    var file_writer = file.writerStreaming(cap, &.{});
+    try write(heap, &file_writer.interface);
+    try file_writer.interface.flush();
+}
+
+fn makeHeader(heap: *Wisp.Heap) Header {
+    var result = Header{
         .version = currentVersion(),
         .v08len = @as(u32, @intCast(heap.v08.items.len)),
         .v32len = @as(u32, @intCast(heap.v32.list.items.len)),
-        .tabSizes = .{0} ** rownum,
-        .era = @intFromEnum(heap.era),
+        .tabSizes = @splat(0),
+        .era = @backingInt(heap.era),
         .pkg = heap.pkg,
         .commonStrings = heap.commonStrings,
     };
 
-    var iovecs: [1 + 1 + 1 + colnum]std.posix.iovec_const = undefined;
-
-    iovecs[0] = mkvec_const(&header, @sizeOf(Header));
-    iovecs[1] = mkvec_const(
-        heap.v08.items.ptr,
-        heap.v08.items.len,
-    );
-
-    iovecs[2] = mkvec_const(
-        heap.v32.list.items.ptr,
-        4 * heap.v32.list.items.len,
-    );
-
-    var i: u8 = 0;
     inline for (Wisp.pointerTags, 0..) |tag, tagidx| {
         const tab = heap.tab(tag);
-        inline for (std.meta.fields(Wisp.Row(tag)), 0..) |_, j| {
-            const col = tab.col(@as(Wisp.Col(tag), @enumFromInt(j)));
-            if (col.len > 0) {
-                header.tabSizes[tagidx] = @as(u32, @intCast(col.len));
-                iovecs[i + 3] = mkvec_const(col.ptr, col.len * 4);
+        result.tabSizes[tagidx] = @as(
+            u32,
+            @intCast(tab.list.len),
+        );
+    }
 
-                i += 1;
-            }
+    return result;
+}
+
+pub fn byteSize(heap: *Wisp.Heap) usize {
+    var size: usize = @sizeOf(Header);
+    size += heap.v08.items.len;
+    size += heap.v32.list.items.len * @sizeOf(u32);
+
+    inline for (Wisp.pointerTags) |tag| {
+        const tab = heap.tab(tag);
+        size += tab.list.len *
+            @sizeOf(Wisp.Row(tag));
+    }
+
+    size += pins_header_size;
+    size += heap.pins.count() * 2 * @sizeOf(u32);
+    return size;
+}
+
+pub fn write(
+    heap: *Wisp.Heap,
+    writer: *std.Io.Writer,
+) !void {
+    var tape_header = makeHeader(heap);
+    try writer.writeAll(std.mem.asBytes(&tape_header));
+    try writer.writeAll(heap.v08.items);
+    try writer.writeAll(std.mem.sliceAsBytes(
+        heap.v32.list.items,
+    ));
+
+    inline for (Wisp.pointerTags) |tag| {
+        const tab = heap.tab(tag);
+        inline for (
+            comptime std.meta.fieldNames(Wisp.Row(tag)),
+            0..,
+        ) |_, j| {
+            const col = tab.col(@as(
+                Wisp.Col(tag),
+                @fromBackingInt(@intCast(j)),
+            ));
+            try writer.writeAll(std.mem.sliceAsBytes(col));
         }
     }
 
-    var file_writer = file.writerStreaming(cap, &.{});
-    for (iovecs[0 .. i + 3]) |iov| {
-        try file_writer.interface.writeAll(iov.base[0..iov.len]);
+    try writer.writeAll(pins_magic);
+    try writer.writeInt(
+        u32,
+        @intCast(heap.pins.count()),
+        .little,
+    );
+    try writer.writeInt(
+        u32,
+        @as(u32, heap.nextPinId),
+        .little,
+    );
+    for (
+        heap.pins.entries.items(.key),
+        heap.pins.entries.items(.value),
+    ) |id, value| {
+        try writer.writeInt(u32, id, .little);
+        try writer.writeInt(u32, value, .little);
     }
-    try file_writer.interface.flush();
+}
+
+pub fn writeToMemory(
+    heap: *Wisp.Heap,
+    bytes: []u8,
+) !usize {
+    const size = byteSize(heap);
+    if (bytes.len < size) return error.WriteFailed;
+
+    var writer = std.Io.Writer.fixed(bytes[0..size]);
+    try write(heap, &writer);
+    return writer.end;
 }
 
 const Error = error{
     WIP,
     PackageMissing,
+    InvalidPinsTrailer,
 };
 
 pub fn load(orb: Wisp.Orb, cap: std.Io, name: []const u8) !Wisp.Heap {
@@ -145,13 +173,15 @@ pub fn load(orb: Wisp.Orb, cap: std.Io, name: []const u8) !Wisp.Heap {
 
 pub fn loadFromMemory(orb: Wisp.Orb, cap: std.Io, bytes: []const u8) !Wisp.Heap {
     var reader = std.Io.Reader.fixed(bytes);
-    const header = try reader.takeStruct(Header, .little);
-    const header_value = header;
+    const header_value = try reader.takeStruct(
+        Header,
+        .little,
+    );
 
     var heap = Wisp.Heap{
         .orb = orb,
         .cap = cap,
-        .era = @as(Wisp.Era, @enumFromInt(header_value.era)),
+        .era = @as(Wisp.Era, @fromBackingInt(@intCast(header_value.era))),
         .pkg = header_value.pkg,
         .commonStrings = header_value.commonStrings,
         .base = 0,
@@ -181,8 +211,8 @@ pub fn loadFromMemory(orb: Wisp.Orb, cap: std.Io, bytes: []const u8) !Wisp.Heap 
         try tab.list.ensureTotalCapacity(orb, cnt);
         tab.list.len = cnt;
 
-        inline for (std.meta.fields(Wisp.Row(tag)), 0..) |_, j| {
-            const col = tab.col(@as(Wisp.Col(tag), @enumFromInt(j)));
+        inline for (comptime std.meta.fieldNames(Wisp.Row(tag)), 0..) |_, j| {
+            const col = tab.col(@as(Wisp.Col(tag), @fromBackingInt(@intCast(j))));
             if (col.len > 0) {
                 try reader.readSliceAll(
                     @as([*]u8, @ptrCast(col.ptr))[0 .. col.len * 4],
@@ -207,10 +237,81 @@ pub fn loadFromMemory(orb: Wisp.Orb, cap: std.Io, bytes: []const u8) !Wisp.Heap 
         heap.keyPackage = heap.pkgmap.get("KEY") orelse return Error.PackageMissing;
     }
 
-    inline for (std.meta.fields(Wisp.Kwd)) |s| {
-        const sym = try heap.intern(s.name, heap.base);
-        @field(heap.kwd, s.name) = sym;
+    inline for (comptime std.meta.fieldNames(Wisp.Kwd)) |name| {
+        const sym = try heap.intern(name, heap.base);
+        @field(heap.kwd, name) = sym;
+    }
+
+    if (reader.bufferedLen() != 0) {
+        const magic = try reader.takeArray(pins_magic.len);
+        if (!std.mem.eql(u8, magic, pins_magic))
+            return Error.InvalidPinsTrailer;
+
+        const pin_count = std.mem.readInt(
+            u32,
+            try reader.takeArray(@sizeOf(u32)),
+            .little,
+        );
+        const next_pin_id = std.mem.readInt(
+            u32,
+            try reader.takeArray(@sizeOf(u32)),
+            .little,
+        );
+        heap.nextPinId = @intCast(next_pin_id);
+
+        try heap.pins.ensureTotalCapacity(orb, pin_count);
+        for (0..pin_count) |_| {
+            const id = std.mem.readInt(
+                u32,
+                try reader.takeArray(@sizeOf(u32)),
+                .little,
+            );
+            const value = std.mem.readInt(
+                u32,
+                try reader.takeArray(@sizeOf(u32)),
+                .little,
+            );
+            try heap.pins.putNoClobber(
+                orb,
+                @intCast(id),
+                value,
+            );
+        }
     }
 
     return heap;
+}
+
+test "in-memory tape preserves pinned values" {
+    const testing = std.testing;
+
+    var heap = try Wisp.Heap.init(
+        testing.allocator,
+        testing.io,
+        .e0,
+    );
+    defer heap.deinit();
+
+    const value = try heap.cons(1, 2);
+    _ = try heap.newPin(value);
+
+    const bytes = try testing.allocator.alloc(
+        u8,
+        byteSize(&heap),
+    );
+    defer testing.allocator.free(bytes);
+    try testing.expectEqual(
+        bytes.len,
+        try writeToMemory(&heap, bytes),
+    );
+
+    var clone = try loadFromMemory(
+        testing.allocator,
+        testing.io,
+        bytes,
+    );
+    defer clone.deinit();
+
+    try testing.expectEqual(@as(u27, 2), clone.nextPinId);
+    try testing.expectEqual(value, clone.pins.get(1).?);
 }

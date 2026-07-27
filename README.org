@@ -51,6 +51,79 @@ Wisp has:
 
   - and more!
 
+* Building
+
+Wisp follows Zig master and currently requires
+=0.17.0-dev.1465+8b2d0ce21=.  The exact lower bound is also
+recorded in =core/build.zig.zon=.
+
+#+BEGIN_SRC sh
+make
+make test
+#+END_SRC
+
+* Browser development
+
+Start the Wisp development server and open
+[[http://127.0.0.1:8765/]] in a browser:
+
+#+BEGIN_SRC sh
+./wisp-web start
+#+END_SRC
+
+Evaluate Wisp inside that live browser image from the shell:
+
+#+BEGIN_SRC sh
+./wisp-web '(+ 20 22)'
+./wisp-web - < program.wisp
+#+END_SRC
+
+The result comes back as a Wisp form rendered by Wisp's own
+pretty printer. Conditions remain suspended in the browser and
+can be resumed from a later shell invocation:
+
+#+BEGIN_SRC sh
+./wisp-web '(oopsfail!)'
+./wisp-web tickets
+./wisp-web use 1 42
+./wisp-web retry 1
+./wisp-web abort 1
+#+END_SRC
+
+* GitHub Pages
+
+Every push to =master= builds, tests, and publishes the browser
+workbench at [[https://mbrock.github.io/wisp/]].  The workbench
+uses only relative asset URLs, so the same files work at the
+repository subpath and at a custom domain.
+
+The listener's =download= button compacts the active Wisp system
+and downloads its complete tape image as a =.core= file.  A
+small service worker keeps the static workbench available after
+it has been visited once.  Local named images can later use the
+same snapshot bytes in IndexedDB without changing the Wisp tape
+format.
+
+* Arrow heap export
+
+Export the native boot heap as one Apache Arrow IPC file:
+
+#+BEGIN_SRC sh
+./core/zig-out/bin/wisp arrow wisp.arrow
+#+END_SRC
+
+The file contains one nested heap record.  Its byte and word
+arenas are Arrow arrays, and every Vat table is a list of
+structs backed by the table's physical columns.  Zig presents
+those existing buffers through the Arrow C Data Interface;
+vendored nanoarrow 0.8.0 writes the IPC envelope.  The included
+=core/arrow.sql= adds DuckDB views for the nested tables, Wisp
+word decoding, strings, and symbols:
+
+#+BEGIN_SRC sh
+duckdb < core/arrow.sql
+#+END_SRC
+
 * Local Variables :noexport:
   Local Variables:
   fill-column: 62

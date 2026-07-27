@@ -159,7 +159,7 @@ pub fn Col(comptime tag: Tag) type {
 pub fn Tab(comptime tag: Tag) type {
     return struct {
         const This = @This();
-        const prefix: u32 = @intFromEnum(tag) << (32 - 5);
+        const prefix: u32 = @backingInt(tag) << (32 - 5);
 
         pub const Field = std.MultiArrayList(Row(tag)).Field;
 
@@ -226,8 +226,8 @@ pub const Vat = struct {
 
     pub fn bytesize(vat: Vat) usize {
         var n: usize = 0;
-        inline for (std.meta.fields(Vat)) |field| {
-            n += @field(vat, field.name).bytesize();
+        inline for (comptime std.meta.fieldNames(Vat)) |name| {
+            n += @field(vat, name).bytesize();
         }
         return n;
     }
@@ -313,14 +313,14 @@ pub const Heap = struct {
         heap.pkg = heap.base;
 
         // Make symbols in WISP for the keyword cache.
-        inline for (std.meta.fields(Kwd)) |s| {
-            const sym = try heap.intern(s.name, heap.base);
-            @field(heap.kwd, s.name) = sym;
+        inline for (comptime std.meta.fieldNames(Kwd)) |name| {
+            const sym = try heap.intern(name, heap.base);
+            @field(heap.kwd, name) = sym;
         }
 
-        inline for (std.meta.fields(CommonStrings)) |s| {
-            const v08 = try heap.newv08(s.name);
-            @field(heap.commonStrings, s.name) = v08;
+        inline for (comptime std.meta.fieldNames(CommonStrings)) |name| {
+            const v08 = try heap.newv08(name);
+            @field(heap.commonStrings, name) = v08;
         }
 
         return heap;
@@ -343,9 +343,17 @@ pub const Heap = struct {
     pub fn load(heap: *Heap, str: []const u8) !u32 {
         var result = nil;
 
-        var tmp = std.heap.stackFallback(512, heap.orb);
+        var tmp_buffer: [512]u8 = undefined;
+        var tmp = std.heap.BufferFirstAllocator.init(
+            &tmp_buffer,
+            heap.orb,
+        );
         var byteread = std.Io.Reader.fixed(str);
-        var sexpread = Sexp.makeReader(heap, tmp.get(), &byteread);
+        var sexpread = Sexp.makeReader(
+            heap,
+            tmp.allocator(),
+            &byteread,
+        );
 
         while (try sexpread.readValueOrEOF()) |form| {
             var run = Step.initRun(form);
@@ -395,10 +403,11 @@ pub const Heap = struct {
 
         heap.pkgmap.deinit(heap.orb);
 
-        inline for (std.meta.fields(Vat)) |field| {
-            @field(heap.vat, field.name).list.deinit(heap.orb);
+        inline for (comptime std.meta.fieldNames(Vat)) |name| {
+            @field(heap.vat, name).list.deinit(heap.orb);
         }
 
+        heap.pins.deinit(heap.orb);
         heap.roots.deinit(heap.orb);
     }
 

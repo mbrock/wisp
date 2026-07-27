@@ -25,6 +25,7 @@ const Wisp = @import("./wisp.zig");
 const Read = @import("./sexp-read.zig");
 const Sexp = @import("./sexp.zig");
 const Step = @import("./step.zig");
+const Tidy = @import("./tidy.zig");
 const Jets = @import("./jets.zig");
 const Keys = @import("./keys.zig");
 const Tape = @import("./tape.zig");
@@ -36,6 +37,17 @@ pub fn main() void {}
 var io_backend = std.Io.Threaded.init(std.heap.wasm_allocator, .{});
 
 export fn _initialize() void {}
+
+const ArrowError = extern struct {
+    message: [1024]u8,
+};
+
+extern fn ArrowIpcCheckRuntime(err: *ArrowError) c_int;
+
+export fn wisp_arrow_ipc_check() c_int {
+    var err: ArrowError = .{ .message = @splat(0) };
+    return ArrowIpcCheckRuntime(&err);
+}
 
 pub const wisp_tag_int = Wisp.Tag.int;
 pub const wisp_tag_sys = Wisp.Tag.sys;
@@ -68,6 +80,47 @@ fn heap_init() !*Wisp.Heap {
 
 export fn wisp_heap_init() ?*Wisp.Heap {
     return heap_init() catch null;
+}
+
+export fn wisp_heap_deinit(heap: *Wisp.Heap) void {
+    heap.deinit();
+    orb.destroy(heap);
+}
+
+export fn wisp_heap_tidy(heap: *Wisp.Heap) u32 {
+    Tidy.gc(heap, heap.roots.items) catch return Wisp.zap;
+    return Wisp.nil;
+}
+
+export fn wisp_tape_size(heap: *Wisp.Heap) usize {
+    return Tape.byteSize(heap);
+}
+
+export fn wisp_tape_write(
+    heap: *Wisp.Heap,
+    bytes: [*]u8,
+    len: usize,
+) usize {
+    return Tape.writeToMemory(
+        heap,
+        bytes[0..len],
+    ) catch 0;
+}
+
+export fn wisp_heap_from_tape(
+    bytes: [*]const u8,
+    len: usize,
+) ?*Wisp.Heap {
+    const heap = orb.create(Wisp.Heap) catch return null;
+    heap.* = Tape.loadFromMemory(
+        orb,
+        io_backend.io(),
+        bytes[0..len],
+    ) catch {
+        orb.destroy(heap);
+        return null;
+    };
+    return heap;
 }
 
 export fn wisp_read(heap: *Wisp.Heap, str: [*:0]const u8) u32 {
@@ -116,9 +169,13 @@ fn run_eval(
     runptr: u32,
     max: u32,
 ) !u32 {
-    var run = try heap.row(.run, runptr);
+    var rooted_runptr = runptr;
+    try heap.roots.append(heap.orb, &rooted_runptr);
+    defer _ = heap.roots.pop();
+
+    var run = try heap.row(.run, rooted_runptr);
     const val = try Step.evaluate(heap, &run, max);
-    try heap.put(.run, runptr, run);
+    try heap.put(.run, rooted_runptr, run);
     return val;
 }
 
@@ -179,14 +236,14 @@ fn Field(comptime name: [:0]const u8, t: type) std.builtin.Type.StructField {
 }
 
 fn TabDat(tag: Wisp.Tag) type {
-    const n = std.meta.fields(Wisp.Row(tag)).len;
+    const n = std.meta.fieldNames(Wisp.Row(tag)).len;
     var names: [1 + n][:0]const u8 = undefined;
     var types: [1 + n]type = undefined;
 
     names[0] = "n";
     types[0] = u32;
-    for (std.meta.fields(Wisp.Row(tag)), 0..) |field, i| {
-        names[1 + i] = field.name;
+    for (std.meta.fieldNames(Wisp.Row(tag)), 0..) |name, i| {
+        names[1 + i] = name;
         types[1 + i] = usize;
     }
 
@@ -218,9 +275,9 @@ export fn wisp_dat_read(heap: *Wisp.Heap, dat: *Dat) void {
         const tab = heap.tab(tag);
         var tagdat = &@field(dat, @tagName(tag));
         tagdat.n = @as(u32, @intCast(tab.list.len));
-        inline for (std.meta.fields(Wisp.Row(tag)), 0..) |field, i| {
+        inline for (comptime std.meta.fieldNames(Wisp.Row(tag)), 0..) |name, i| {
             const slice = tab.list.slice();
-            @field(tagdat, field.name) = @intFromPtr(slice.items(@as(E, @enumFromInt(i))).ptr);
+            @field(tagdat, name) = @intFromPtr(slice.items(@as(E, @fromBackingInt(@intCast(i)))).ptr);
         }
     }
 }
@@ -277,7 +334,7 @@ export fn wisp_heap_load_tab_col(
         .len = len,
     };
 
-    return switch (@as(Wisp.Tag, @enumFromInt(tag))) {
+    return switch (@as(Wisp.Tag, @fromBackingInt(@intCast(tag)))) {
         .duo => loadColumn(.duo, params),
         .sym => loadColumn(.sym, params),
         .fun => loadColumn(.fun, params),
@@ -395,8 +452,16 @@ export fn wisp_call(
     const funptr = heap.pins.get(pinidx) orelse return Wisp.zap;
 
     var run = Step.initRun(Wisp.nil);
-    var tmp = std.heap.stackFallback(4096, heap.orb);
-    var step = Step{ .heap = heap, .run = &run, .tmp = tmp.get() };
+    var tmp_buffer: [4096]u8 = undefined;
+    var tmp = std.heap.BufferFirstAllocator.init(
+        &tmp_buffer,
+        heap.orb,
+    );
+    var step = Step{
+        .heap = heap,
+        .run = &run,
+        .tmp = tmp.allocator(),
+    };
 
     if (step.call(funptr, argptr, false)) {} else |e| {
         var stderr_buf: [4096]u8 = undefined;

@@ -1,0 +1,179 @@
+#!/bin/sh
+set -eu
+
+root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+url=${WISP_WEB_URL:-http://127.0.0.1:8765}
+state=${TMPDIR:-/tmp}/wisp-web-${UID:-local}
+log=$state/server.log
+
+usage()
+{
+  cat <<EOF
+usage:
+  ./wisp-web '(+ 1 2)'
+  ./wisp-web eval '(+ 1 2)'
+  ./wisp-web - < program.wisp
+  ./wisp-web tickets
+  ./wisp-web use TICKET VALUE
+  ./wisp-web retry TICKET
+  ./wisp-web abort TICKET
+  ./wisp-web start
+  ./wisp-web server
+  ./wisp-web replies
+  ./wisp-web log
+
+WISP_WEB_URL defaults to $url
+EOF
+}
+
+server_ready()
+{
+  curl -fsS --max-time 1 "$url/" >/dev/null 2>&1
+}
+
+ensure_server()
+{
+  server_ready && return
+
+  mkdir -p "$state"
+  nohup make -C "$root" dev \
+    >"$log" 2>&1 </dev/null &
+
+  n=0
+  until server_ready; do
+    n=$((n + 1))
+    if [ "$n" -ge 100 ]; then
+      echo "wisp-web: server did not start; see $log" >&2
+      exit 1
+    fi
+    sleep 0.05
+  done
+}
+
+send_source()
+{
+  source=$1
+
+  ensure_server
+  curl -fsS "$url/swank/replies" >/dev/null
+
+  n=0
+  while :; do
+    sent=$(curl -sS --data-binary "$source" "$url/swank/eval")
+    case $sent in
+      sent\ to\ *) break ;;
+      no\ browser\ connected*)
+        n=$((n + 1))
+        if [ "$n" -ge 100 ]; then
+          echo "wisp-web: no browser Wisp is connected to $url" >&2
+          exit 1
+        fi
+        sleep 0.05
+        ;;
+      *)
+        echo "wisp-web: $sent" >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  n=0
+  while :; do
+    replies=$(curl -fsS "$url/swank/replies")
+    case $replies in
+      *"(:OK"*|*"(:CONDITION"*)
+        printf '%s\n' "$replies" |
+          sed '/^(:HELLO /d'
+        ticket=$(
+          printf '%s\n' "$replies" |
+            sed -n 's/^(:CONDITION \([0-9][0-9]*\).*/\1/p' |
+            head -n 1
+        )
+        if [ -n "$ticket" ]; then
+          cat >&2 <<EOF
+
+ticket $ticket is suspended
+  ./wisp-web use $ticket VALUE
+  ./wisp-web retry $ticket
+  ./wisp-web abort $ticket
+EOF
+        fi
+        return
+        ;;
+    esac
+
+    n=$((n + 1))
+    if [ "$n" -ge 200 ]; then
+      echo "wisp-web: timed out waiting for browser Wisp" >&2
+      exit 1
+    fi
+    sleep 0.05
+  done
+}
+
+command=${1:-help}
+
+ticket_number()
+{
+  case ${1:-} in
+    ''|*[!0-9]*)
+      echo "wisp-web: expected a numeric ticket" >&2
+      exit 1
+      ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+case $command in
+  start)
+    ensure_server
+    echo "Wisp is serving $url"
+    ;;
+  server)
+    exec make -C "$root" dev
+    ;;
+  replies)
+    ensure_server
+    curl -fsS "$url/swank/replies"
+    ;;
+  tickets)
+    send_source "(dev-tickets)"
+    ;;
+  use)
+    ticket=$(ticket_number "${2:-}")
+    shift 2
+    if [ "$#" -eq 0 ]; then
+      echo "wisp-web: use requires a Wisp value" >&2
+      exit 1
+    fi
+    send_source "(use-dev-ticket! $ticket $*)"
+    ;;
+  retry)
+    ticket=$(ticket_number "${2:-}")
+    send_source "(retry-dev-ticket! $ticket)"
+    ;;
+  abort)
+    ticket=$(ticket_number "${2:-}")
+    send_source "(abort-dev-ticket! $ticket)"
+    ;;
+  log)
+    [ -f "$log" ] && tail -n 80 "$log"
+    ;;
+  eval)
+    shift
+    if [ "$#" -eq 0 ]; then
+      send_source "$(cat)"
+    else
+      send_source "$*"
+    fi
+    ;;
+  -)
+    send_source "$(cat)"
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    send_source "$*"
+    ;;
+esac

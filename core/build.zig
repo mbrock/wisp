@@ -1,5 +1,35 @@
 const std = @import("std");
 
+fn addNanoarrow(
+    b: *std.Build,
+    name: []const u8,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    c_flags: []const []const u8,
+) *std.Build.Step.Compile {
+    const module = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    module.addIncludePath(
+        b.path("vendor/nanoarrow/include"),
+    );
+    module.addCSourceFiles(.{
+        .root = b.path("vendor/nanoarrow"),
+        .files = &.{
+            "src/nanoarrow.c",
+            "src/nanoarrow_ipc.c",
+            "src/flatcc.c",
+        },
+        .flags = c_flags,
+    });
+    return b.addLibrary(.{
+        .name = name,
+        .root_module = module,
+    });
+}
+
 pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const standardTarget = b.standardTargetOptions(.{});
@@ -19,6 +49,25 @@ pub fn build(b: *std.Build) void {
     const bootRun = b.addRunArtifact(boot);
     bootRun.setCwd(b.path("."));
 
+    const nanoarrow = addNanoarrow(
+        b,
+        "nanoarrow",
+        standardTarget,
+        optimize,
+        &.{"-std=c11"},
+    );
+    const nanoarrowWasi = addNanoarrow(
+        b,
+        "nanoarrow-wasi",
+        wasiTarget,
+        optimize,
+        &.{
+            "-std=c11",
+            "-D_WASI_EMULATED_SIGNAL",
+            "-DENODATA=120",
+        },
+    );
+
     const exe = b.addExecutable(.{
         .name = "wisp",
         .root_module = b.createModule(.{
@@ -27,6 +76,7 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+    exe.root_module.linkLibrary(nanoarrow);
 
     // const wasmExe = b.addExecutable(.{
     //     .name = "wisp",
@@ -44,13 +94,20 @@ pub fn build(b: *std.Build) void {
     });
 
     wasmLib.entry = .disabled;
+    wasmLib.root_module.linkLibrary(nanoarrowWasi);
     wasmLib.root_module.export_symbol_names = &[_][]const u8{
         "wisp_sys_t",
         "wisp_sys_nil",
         "wisp_sys_nah",
         "wisp_sys_zap",
         "wisp_sys_top",
+        "wisp_arrow_ipc_check",
         "wisp_heap_init",
+        "wisp_heap_deinit",
+        "wisp_heap_tidy",
+        "wisp_tape_size",
+        "wisp_tape_write",
+        "wisp_heap_from_tape",
         "wisp_read",
         "wisp_read_many",
         "wisp_eval",
@@ -105,6 +162,16 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    const testsArrow = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("arrow.zig"),
+            .target = standardTarget,
+            .optimize = optimize,
+        }),
+    });
+    testsArrow.root_module.linkLibrary(nanoarrow);
+    const testsArrowRun = b.addRunArtifact(testsArrow);
+
     exe.step.dependOn(&bootRun.step);
     wasmLib.step.dependOn(&bootRun.step);
     tests.step.dependOn(&bootRun.step);
@@ -116,16 +183,14 @@ pub fn build(b: *std.Build) void {
 
     const testStep = b.step("test", "Run unit tests");
     testStep.dependOn(&tests.step);
+    testStep.dependOn(&testsArrowRun.step);
 
     const testPrtyStep = b.step("test-prty", "Run tests for Prty");
     testPrtyStep.dependOn(&testsPrty.step);
 
     const runCmd = b.addRunArtifact(exe);
     runCmd.step.dependOn(b.getInstallStep());
-
-    if (b.args) |args| {
-        runCmd.addArgs(args);
-    }
+    runCmd.addPassthruArgs();
 
     const runStep = b.step("run", "Run the Wisp REPL");
     runStep.dependOn(&runCmd.step);

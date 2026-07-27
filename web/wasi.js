@@ -51,6 +51,17 @@ export default class WASI {
     return {
       proc_exit() {},
 
+      args_sizes_get: (count, size) => {
+        const view = this.getDataView();
+        view.setUint32(count, 0, true);
+        view.setUint32(size, 0, true);
+        return WASI_ESUCCESS;
+      },
+
+      args_get() {
+        return WASI_ESUCCESS;
+      },
+
       environ_sizes_get: (count, size) => {
         const view = this.getDataView();
         view.setUint32(count, 0, true);
@@ -171,6 +182,9 @@ export default class WASI {
       path_remove_directory() {},
       path_unlink_file() {},
       path_filestat_get() {
+        return WASI_ENOSYS;
+      },
+      path_filestat_set_times() {
         return WASI_ENOSYS;
       },
 

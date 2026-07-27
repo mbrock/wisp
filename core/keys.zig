@@ -23,7 +23,7 @@ pub const zb32AlphabetUpper = "YBNDRFG8EJKMCPQXOT1UWISZA345H769";
 pub const zb32AlphabetLower = "ybndrfg8ejkmcpqxot1uwisza345h769";
 
 pub const zb32AlphabetMap: [256]i6 = blk: {
-    var map: [256]i6 = .{-1} ** 256;
+    var map: [256]i6 = @splat(-1);
     for (zb32AlphabetUpper, 0..) |c, i| map[c] = i;
     for (zb32AlphabetLower, 0..) |c, i| map[c] = i;
     break :blk map;
@@ -154,7 +154,7 @@ pub fn parseDate(str: []const u8) !u16 {
     while (monthX < month) : (monthX += 1) {
         epochDay += std.time.epoch.getDaysInMonth(
             year,
-            @as(std.time.epoch.Month, @enumFromInt(monthX)),
+            @as(std.time.epoch.Month, @fromBackingInt(@intCast(monthX))),
         );
     }
 

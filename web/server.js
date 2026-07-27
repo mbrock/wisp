@@ -17,21 +17,13 @@
 // <https://www.gnu.org/licenses/>.
 //
 
-import Context
-  from "https://deno.land/std@0.127.0/wasi/snapshot_preview1.ts"
-
-import * as DOM
-  from "https://deno.land/x/deno_dom/deno-dom-wasm.ts"
-
 import { Wisp, WASD }
   from "./wisp.js"
+import WASI
+  from "./wasi.js"
 
-globalThis.NodeList = DOM.NodeList
-globalThis.HTMLCollection = DOM.HTMLCollection
-globalThis.document = (new DOM.DOMParser()).parseFromString(
-  "<div id=wisp-app></div>",
-  "text/html",
-)
+globalThis.NodeList = class NodeList {}
+globalThis.HTMLCollection = class HTMLCollection {}
 
 globalThis.wisp = {
   "import": x => {
@@ -41,15 +33,15 @@ globalThis.wisp = {
 
 const wasd = new WASD
 const wasmCode = await Deno.readFile(
-  "../core/zig-out/lib/wisp.wasm")
+  "../core/zig-out/bin/wisp.wasm")
 const wasmModule = new WebAssembly.Module(wasmCode)
-const wasiContext = new Context({ args: [], env: {} })
+const wasi = new WASI()
 const wasmInstance = new WebAssembly.Instance(wasmModule, {
-  wasi_snapshot_preview1: wasiContext.exports,
+  wasi_snapshot_preview1: wasi.exports(),
   dom: wasd.exports(),
 })
 
-wasiContext.initialize(wasmInstance)
+wasi.setMemory(wasmInstance.exports.memory)
 const wisp = new Wisp(wasmInstance)
 wasd.setWisp(wisp)
 
@@ -80,7 +72,6 @@ await exec(`
 (async
  (fn ()
   (with-simple-error-handler (fn () (do
-   (load "deno.wisp")
    (load "${Deno.args[0]}")
 )))))
 `)
