@@ -422,31 +422,17 @@
    (list :symbol symbol)
    (eq? symbol current)))
 
-(defun system-browser-table-sexp (table)
-  (list
-   (js-get table "name")
-   (js-get table "count")))
-
 (defun system-browser-status-sexp (stats)
   (list
    'status
-   (list
-    'system
-    (js-get stats "id")
-    (list 'parent (js-get stats "parentId")))
+   (list 'system (js-get stats "id"))
    (list
     'heap
     (list 'era (js-get stats "era"))
     (list 'resident
-          (js-get stats "residentBytes")
-          'bytes)
-    (list 'pins (js-get stats "pinCount"))
-    (list 'roots (js-get stats "rootCount")))
-   (cons
-    'objects
-    (map #'system-browser-table-sexp
-         (list-from-vector
-          (js-get stats "tables"))))))
+          (/ (js-get stats "residentBytes") 1048576)
+          'megabytes)
+    (list 'pins (js-get stats "pinCount")))))
 
 (defun system-browser-symbol-detail (symbol)
   (if (nil? symbol)
