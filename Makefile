@@ -5,7 +5,8 @@ test:; cd core && zig build test
 
 .PHONY: web core dev pages
 
-web:; cd web && ./build
+web: core-fast
+	cd web && ./build
 pages: web
 	rm -rf web/pages
 	mkdir -p web/pages/lib web/pages/dist
