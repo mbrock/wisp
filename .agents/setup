@@ -3,19 +3,24 @@ set -euo pipefail
 
 zig_version=0.16.0
 node_version=24.20.0
+deno_version=2.9.6
 
 case "$(uname -m)" in
   x86_64)
     zig_arch=x86_64
     node_arch=x64
+    deno_arch=x86_64
     zig_sha256=70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
     node_sha256=2f2c0da162318f0de47665410c7c8c2ed3d36c8f3105de4bbc61176c70a7cbf2
+    deno_sha256=394f07f4da2bebe6ce6f1e7ce0fa16429b29b08c35e3fac3fe25972676dff4b2
     ;;
   aarch64)
     zig_arch=aarch64
     node_arch=arm64
+    deno_arch=aarch64
     zig_sha256=ea4b09bfb22ec6f6c6ceac57ab63efb6b46e17ab08d21f69f3a48b38e1534f17
     node_sha256=5f4ddab610c1ab2016b3c227cebdbf6d9495161487e4739c7b90090595f465f7
+    deno_sha256=9a46afc6c392c7cd2ff71a31558935545b46408d0e87f7a86908c712721c046e
     ;;
   *)
     echo "Unsupported orb architecture: $(uname -m)" >&2
@@ -26,6 +31,7 @@ esac
 missing_packages=()
 command -v curl >/dev/null || missing_packages+=(curl)
 command -v xz >/dev/null || missing_packages+=(xz-utils)
+command -v unzip >/dev/null || missing_packages+=(unzip)
 if ((${#missing_packages[@]})); then
   echo "Installing system packages: ${missing_packages[*]}"
   sudo apt-get update
@@ -71,9 +77,26 @@ install_archive \
   "https://nodejs.org/dist/v$node_version/$node_archive" \
   "$node_sha256" "$node_archive" "${node_archive%.tar.xz}"
 
+deno_dir="$HOME/.local/opt/deno-$deno_version"
+if [[ -x "$deno_dir/deno" ]]; then
+  echo "deno $deno_version already installed"
+else
+  echo "Installing deno $deno_version"
+  tmp=$(mktemp -d)
+  deno_archive="deno-$deno_arch-unknown-linux-gnu.zip"
+  curl -fL --retry 3 \
+    "https://github.com/denoland/deno/releases/download/v$deno_version/$deno_archive" \
+    -o "$tmp/$deno_archive"
+  printf '%s  %s\n' "$deno_sha256" "$tmp/$deno_archive" | sha256sum -c -
+  mkdir -p "$deno_dir"
+  unzip -q "$tmp/$deno_archive" -d "$deno_dir"
+  rm -rf "$tmp"
+fi
+
 zig_dir="$HOME/.local/opt/zig-$zig_version"
 node_dir="$HOME/.local/opt/node-$node_version"
 ln -sfn "$zig_dir/zig" "$HOME/.local/bin/zig"
+ln -sfn "$deno_dir/deno" "$HOME/.local/bin/deno"
 for command in node npm npx corepack; do
   ln -sfn "$node_dir/bin/$command" "$HOME/.local/bin/$command"
 done
@@ -104,5 +127,5 @@ trap restore_yarn_lock EXIT
 restore_yarn_lock
 trap - EXIT
 
-printf 'Wisp orb setup complete: Zig %s, Node %s\n' \
-  "$(zig version)" "$(node --version)"
+printf 'Wisp orb setup complete: Zig %s, Node %s, Deno %s\n' \
+  "$(zig version)" "$(node --version)" "$(deno --version | sed -n '1p')"

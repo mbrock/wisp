@@ -2,5 +2,5 @@
 set -euo pipefail
 
 export PATH="$HOME/.local/bin:$PATH"
-printf 'Wisp orb ready: Zig %s, Node %s\n' \
-  "$(zig version)" "$(node --version)"
+printf 'Wisp orb ready: Zig %s, Node %s, Deno %s\n' \
+  "$(zig version)" "$(node --version)" "$(deno --version | sed -n '1p')"
