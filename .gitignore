@@ -21,3 +21,4 @@ tmp
 web/cors-proxy.pid
 web/pages
 **/.zig-cache
+.amp/portals/*

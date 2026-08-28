@@ -2,7 +2,7 @@
     .name = .wisp_core,
     .version = "0.1.0",
     .fingerprint = 0x9b47c41c0fd397cb,
-    .minimum_zig_version = "0.17.0-dev.1465+8b2d0ce21",
+    .minimum_zig_version = "0.16.0",
     .paths = .{""},
     .dependencies = .{},
 }

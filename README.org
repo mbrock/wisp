@@ -53,9 +53,8 @@ Wisp has:
 
 * Building
 
-Wisp follows Zig master and currently requires
-=0.17.0-dev.1465+8b2d0ce21=.  The exact lower bound is also
-recorded in =core/build.zig.zon=.
+Wisp currently requires Zig =0.16.0=.  The exact lower bound is
+also recorded in =core/build.zig.zon=.
 
 #+BEGIN_SRC sh
 make

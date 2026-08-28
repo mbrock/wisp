@@ -126,7 +126,8 @@ fn makeOpArray(
     var ops: [decls.len]Op = undefined;
 
     var i = 0;
-    inline for (decls) |name| {
+    inline for (decls) |decl| {
+        const name = decl.name;
         const f = @field(S, name);
         ops[i] = .{
             .txt = name,

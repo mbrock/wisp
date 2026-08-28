@@ -147,7 +147,7 @@ pub inline fn recordDynamicLookup(hops: u32, hit: bool) void {
 
 pub inline fn recordAllocation(comptime tag: Tag) void {
     if (!enabled) return;
-    const index = @backingInt(tag);
+    const index = @intFromEnum(tag);
     if (in_gc)
         stats.gc_copies[index] += 1
     else
@@ -196,11 +196,11 @@ pub inline fn leaveGc() void {
 }
 
 fn allocationCount(snapshot: Stats, comptime tag: Tag) u64 {
-    return snapshot.allocations[@backingInt(tag)];
+    return snapshot.allocations[@intFromEnum(tag)];
 }
 
 fn gcCopyCount(snapshot: Stats, comptime tag: Tag) u64 {
-    return snapshot.gc_copies[@backingInt(tag)];
+    return snapshot.gc_copies[@intFromEnum(tag)];
 }
 
 pub fn writeJson(

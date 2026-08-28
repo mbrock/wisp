@@ -62,7 +62,7 @@ fn makeHeader(heap: *Wisp.Heap) Header {
         .v08len = @as(u32, @intCast(heap.v08.items.len)),
         .v32len = @as(u32, @intCast(heap.v32.list.items.len)),
         .tabSizes = @splat(0),
-        .era = @backingInt(heap.era),
+        .era = @intFromEnum(heap.era),
         .pkg = heap.pkg,
         .commonStrings = heap.commonStrings,
     };
@@ -113,7 +113,7 @@ pub fn write(
         ) |_, j| {
             const col = tab.col(@as(
                 Wisp.Col(tag),
-                @fromBackingInt(@intCast(j)),
+                @enumFromInt(j),
             ));
             try writer.writeAll(std.mem.sliceAsBytes(col));
         }
@@ -181,7 +181,7 @@ pub fn loadFromMemory(orb: Wisp.Orb, cap: std.Io, bytes: []const u8) !Wisp.Heap 
     var heap = Wisp.Heap{
         .orb = orb,
         .cap = cap,
-        .era = @as(Wisp.Era, @fromBackingInt(@intCast(header_value.era))),
+        .era = @as(Wisp.Era, @enumFromInt(header_value.era)),
         .pkg = header_value.pkg,
         .commonStrings = header_value.commonStrings,
         .base = 0,
@@ -212,7 +212,7 @@ pub fn loadFromMemory(orb: Wisp.Orb, cap: std.Io, bytes: []const u8) !Wisp.Heap 
         tab.list.len = cnt;
 
         inline for (comptime std.meta.fieldNames(Wisp.Row(tag)), 0..) |_, j| {
-            const col = tab.col(@as(Wisp.Col(tag), @fromBackingInt(@intCast(j))));
+            const col = tab.col(@as(Wisp.Col(tag), @enumFromInt(j)));
             if (col.len > 0) {
                 try reader.readSliceAll(
                     @as([*]u8, @ptrCast(col.ptr))[0 .. col.len * 4],

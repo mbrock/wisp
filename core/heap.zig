@@ -160,7 +160,7 @@ pub fn Col(comptime tag: Tag) type {
 pub fn Tab(comptime tag: Tag) type {
     return struct {
         const This = @This();
-        const prefix: u32 = @backingInt(tag) << (32 - 5);
+        const prefix: u32 = @intFromEnum(tag) << (32 - 5);
 
         pub const Field = std.MultiArrayList(Row(tag)).Field;
 
@@ -344,15 +344,11 @@ pub const Heap = struct {
     pub fn load(heap: *Heap, str: []const u8) !u32 {
         var result = nil;
 
-        var tmp_buffer: [512]u8 = undefined;
-        var tmp = std.heap.BufferFirstAllocator.init(
-            &tmp_buffer,
-            heap.orb,
-        );
+        var tmp = std.heap.stackFallback(512, heap.orb);
         var byteread = std.Io.Reader.fixed(str);
         var sexpread = Sexp.makeReader(
             heap,
-            tmp.allocator(),
+            tmp.get(),
             &byteread,
         );
 

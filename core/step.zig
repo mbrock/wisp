@@ -64,15 +64,11 @@ const tagOf = Wisp.tagOf;
 const top = Wisp.top;
 
 pub fn once(heap: *Heap, run: *Run) !void {
-    var tmp_buffer: [4096]u8 = undefined;
-    var tmp = std.heap.BufferFirstAllocator.init(
-        &tmp_buffer,
-        heap.orb,
-    );
+    var tmp = std.heap.stackFallback(4096, heap.orb);
     var step = Step{
         .heap = heap,
         .run = run,
-        .tmp = tmp.allocator(),
+        .tmp = tmp.get(),
     };
     step.attemptOneStep() catch |e| try step.handleError(e);
 }
@@ -1051,16 +1047,12 @@ pub fn evaluateUntilSpecificContinuation(
 ) !u32 {
     if (run.err != nil) return error.ErrorAlreadyPresent;
 
-    var tmp_buffer: [4096]u8 = undefined;
-    var tmp = std.heap.BufferFirstAllocator.init(
-        &tmp_buffer,
-        heap.orb,
-    );
+    var tmp = std.heap.stackFallback(4096, heap.orb);
 
     var step = Step{
         .heap = heap,
         .run = run,
-        .tmp = tmp.allocator(),
+        .tmp = tmp.get(),
     };
 
     var i: u32 = 0;
@@ -1448,15 +1440,11 @@ test "CALL-WITH-EFFECT-HANDLER resumes after its first evaluation" {
     const again = try evalString(&heap, "'again");
     const args = try heap.cons(again, nil);
     var run = initRun(nil);
-    var tmp_buffer: [4096]u8 = undefined;
-    var tmp = std.heap.BufferFirstAllocator.init(
-        &tmp_buffer,
-        heap.orb,
-    );
+    var tmp = std.heap.stackFallback(4096, heap.orb);
     var step = Step{
         .heap = &heap,
         .run = &run,
-        .tmp = tmp.allocator(),
+        .tmp = tmp.get(),
     };
     try step.call(fun, args, false);
     const second = try evaluate(&heap, &run, 1_000_000);

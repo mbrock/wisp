@@ -154,7 +154,7 @@ pub fn parseDate(str: []const u8) !u16 {
     while (monthX < month) : (monthX += 1) {
         epochDay += std.time.epoch.getDaysInMonth(
             year,
-            @as(std.time.epoch.Month, @fromBackingInt(@intCast(monthX))),
+            @as(std.time.epoch.Month, @enumFromInt(monthX)),
         );
     }
 

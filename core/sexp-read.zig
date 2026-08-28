@@ -670,56 +670,40 @@ pub fn makeReader(
 }
 
 pub fn readValueFromStream(heap: *Heap, stream: anytype) !?u32 {
-    var tmp_buffer: [512]u8 = undefined;
-    var tmp = std.heap.BufferFirstAllocator.init(
-        &tmp_buffer,
-        heap.orb,
-    );
-    var reader = makeReader(heap, tmp.allocator(), stream);
+    var tmp = std.heap.stackFallback(512, heap.orb);
+    var reader = makeReader(heap, tmp.get(), stream);
     return reader.readValueOrEOF();
 }
 
 pub fn readFromStringStream(heap: *Heap, stream: u32) !?u32 {
-    var tmp_buffer: [512]u8 = undefined;
-    var tmp = std.heap.BufferFirstAllocator.init(
-        &tmp_buffer,
-        heap.orb,
-    );
+    var tmp = std.heap.stackFallback(512, heap.orb);
     var reader = makeStringStreamReader(
         heap,
-        tmp.allocator(),
+        tmp.get(),
         stream,
     );
     return reader.readValueOrEOF();
 }
 
 pub fn read(heap: *Heap, text: []const u8) !u32 {
-    var tmp_buffer: [512]u8 = undefined;
-    var tmp = std.heap.BufferFirstAllocator.init(
-        &tmp_buffer,
-        heap.orb,
-    );
+    var tmp = std.heap.stackFallback(512, heap.orb);
     var reader_state = std.Io.Reader.fixed(text);
     var reader = makeReader(
         heap,
-        tmp.allocator(),
+        tmp.get(),
         &reader_state,
     );
     return reader.readValue();
 }
 
 pub fn readMany(heap: *Heap, text: []const u8) !std.ArrayList(u32) {
-    var tmp_buffer: [512]u8 = undefined;
-    var tmp = std.heap.BufferFirstAllocator.init(
-        &tmp_buffer,
-        heap.orb,
-    );
+    var tmp = std.heap.stackFallback(512, heap.orb);
     var list: std.ArrayList(u32) = .empty;
     errdefer list.deinit(heap.orb);
     var reader_state = std.Io.Reader.fixed(text);
     var reader = makeReader(
         heap,
-        tmp.allocator(),
+        tmp.get(),
         &reader_state,
     );
 

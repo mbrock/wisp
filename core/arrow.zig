@@ -335,7 +335,7 @@ fn vat(
             table.col(
                 @as(
                     Wisp.Col(tag),
-                    @fromBackingInt(@intCast(index)),
+                    @enumFromInt(index),
                 ),
             ),
         );
@@ -444,7 +444,7 @@ fn heapPair(
         arena,
         "era",
         "C",
-        @as(u8, @backingInt(heap.era)),
+        @as(u8, @intFromEnum(heap.era)),
     );
     count += 1;
     fields[count] = try scalar(

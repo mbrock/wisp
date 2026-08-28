@@ -221,13 +221,13 @@ pub fn build(b: *std.Build) void {
 
     const runCmd = b.addRunArtifact(exe);
     runCmd.step.dependOn(b.getInstallStep());
-    runCmd.addPassthruArgs();
+    if (b.args) |args| runCmd.addArgs(args);
 
     const runStep = b.step("run", "Run the Wisp REPL");
     runStep.dependOn(&runCmd.step);
 
     const benchmarkCmd = b.addRunArtifact(benchmark);
-    benchmarkCmd.addPassthruArgs();
+    if (b.args) |args| benchmarkCmd.addArgs(args);
 
     const benchmarkStep = b.step(
         "bench",

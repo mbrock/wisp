@@ -443,15 +443,11 @@ pub fn prettyPrint(heap: *Wisp.Heap, exp: u32, max: u32) ![]const u8 {
     var arena = std.heap.ArenaAllocator.init(heap.orb);
     defer arena.deinit();
     const gpa = arena.allocator();
-    var tmp_buffer: [256]u8 = undefined;
-    var tmp = std.heap.BufferFirstAllocator.init(
-        &tmp_buffer,
-        heap.orb,
-    );
+    var tmp = std.heap.stackFallback(256, heap.orb);
 
     const doc = try pretty(
         gpa,
-        tmp.allocator(),
+        tmp.get(),
         heap,
         exp,
         0,

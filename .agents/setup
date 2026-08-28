@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+zig_version=0.16.0
+node_version=24.20.0
+
+case "$(uname -m)" in
+  x86_64)
+    zig_arch=x86_64
+    node_arch=x64
+    zig_sha256=70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
+    node_sha256=2f2c0da162318f0de47665410c7c8c2ed3d36c8f3105de4bbc61176c70a7cbf2
+    ;;
+  aarch64)
+    zig_arch=aarch64
+    node_arch=arm64
+    zig_sha256=ea4b09bfb22ec6f6c6ceac57ab63efb6b46e17ab08d21f69f3a48b38e1534f17
+    node_sha256=5f4ddab610c1ab2016b3c227cebdbf6d9495161487e4739c7b90090595f465f7
+    ;;
+  *)
+    echo "Unsupported orb architecture: $(uname -m)" >&2
+    exit 1
+    ;;
+esac
+
+missing_packages=()
+command -v curl >/dev/null || missing_packages+=(curl)
+command -v xz >/dev/null || missing_packages+=(xz-utils)
+if ((${#missing_packages[@]})); then
+  echo "Installing system packages: ${missing_packages[*]}"
+  sudo apt-get update
+  sudo apt-get install -y "${missing_packages[@]}"
+fi
+
+mkdir -p "$HOME/.local/bin" "$HOME/.local/opt"
+
+install_archive() {
+  local name=$1
+  local version=$2
+  local url=$3
+  local sha256=$4
+  local archive=$5
+  local extracted_dir=$6
+  local install_dir="$HOME/.local/opt/$name-$version"
+
+  if [[ -x "$install_dir/bin/$name" || -x "$install_dir/$name" ]]; then
+    echo "$name $version already installed"
+    return
+  fi
+
+  echo "Installing $name $version"
+  local tmp
+  tmp=$(mktemp -d)
+  curl -fL --retry 3 "$url" -o "$tmp/$archive"
+  printf '%s  %s\n' "$sha256" "$tmp/$archive" | sha256sum -c -
+  tar -xJf "$tmp/$archive" -C "$tmp"
+  rm -rf "$install_dir"
+  mv "$tmp/$extracted_dir" "$install_dir"
+  rm -rf "$tmp"
+}
+
+zig_archive="zig-$zig_arch-linux-$zig_version.tar.xz"
+install_archive \
+  zig "$zig_version" \
+  "https://ziglang.org/download/$zig_version/$zig_archive" \
+  "$zig_sha256" "$zig_archive" "${zig_archive%.tar.xz}"
+
+node_archive="node-v$node_version-linux-$node_arch.tar.xz"
+install_archive \
+  node "$node_version" \
+  "https://nodejs.org/dist/v$node_version/$node_archive" \
+  "$node_sha256" "$node_archive" "${node_archive%.tar.xz}"
+
+zig_dir="$HOME/.local/opt/zig-$zig_version"
+node_dir="$HOME/.local/opt/node-$node_version"
+ln -sfn "$zig_dir/zig" "$HOME/.local/bin/zig"
+for command in node npm npx corepack; do
+  ln -sfn "$node_dir/bin/$command" "$HOME/.local/bin/$command"
+done
+
+profile_marker='# Wisp orb toolchain'
+if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+  cat >>"$HOME/.bash_profile" <<'EOF'
+
+# Wisp orb toolchain
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+EOF
+fi
+
+export PATH="$HOME/.local/bin:$PATH"
+echo "Installing browser dependencies"
+# npm 11 rewrites this legacy, platform-specific Yarn lockfile during npm ci.
+yarn_lock_backup=$(mktemp)
+cp web/yarn.lock "$yarn_lock_backup"
+restore_yarn_lock() {
+  cp "$yarn_lock_backup" web/yarn.lock
+  rm -f "$yarn_lock_backup"
+}
+trap restore_yarn_lock EXIT
+(cd web && npm ci)
+restore_yarn_lock
+trap - EXIT
+
+printf 'Wisp orb setup complete: Zig %s, Node %s\n' \
+  "$(zig version)" "$(node --version)"

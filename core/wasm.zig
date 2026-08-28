@@ -277,7 +277,7 @@ export fn wisp_dat_read(heap: *Wisp.Heap, dat: *Dat) void {
         tagdat.n = @as(u32, @intCast(tab.list.len));
         inline for (comptime std.meta.fieldNames(Wisp.Row(tag)), 0..) |name, i| {
             const slice = tab.list.slice();
-            @field(tagdat, name) = @intFromPtr(slice.items(@as(E, @fromBackingInt(@intCast(i)))).ptr);
+            @field(tagdat, name) = @intFromPtr(slice.items(@as(E, @enumFromInt(i))).ptr);
         }
     }
 }
@@ -334,7 +334,7 @@ export fn wisp_heap_load_tab_col(
         .len = len,
     };
 
-    return switch (@as(Wisp.Tag, @fromBackingInt(@intCast(tag)))) {
+    return switch (@as(Wisp.Tag, @enumFromInt(tag))) {
         .duo => loadColumn(.duo, params),
         .sym => loadColumn(.sym, params),
         .fun => loadColumn(.fun, params),
@@ -407,7 +407,7 @@ export fn wisp_heap_bytesize(heap: *Wisp.Heap) usize {
 }
 
 export fn wisp_heap_era(heap: *Wisp.Heap) u32 {
-    return @backingInt(heap.era);
+    return @intFromEnum(heap.era);
 }
 
 export fn wisp_heap_table_len(
@@ -482,15 +482,11 @@ export fn wisp_call(
     const funptr = heap.pins.get(pinidx) orelse return Wisp.zap;
 
     var run = Step.initRun(Wisp.nil);
-    var tmp_buffer: [4096]u8 = undefined;
-    var tmp = std.heap.BufferFirstAllocator.init(
-        &tmp_buffer,
-        heap.orb,
-    );
+    var tmp = std.heap.stackFallback(4096, heap.orb);
     var step = Step{
         .heap = heap,
         .run = &run,
-        .tmp = tmp.allocator(),
+        .tmp = tmp.get(),
     };
 
     if (step.call(funptr, argptr, false)) {} else |e| {
