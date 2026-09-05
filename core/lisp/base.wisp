@@ -200,9 +200,15 @@
 ;;;
 ;;; We define a code walker that can expand macros recursively.
 ;;;
-;;; Unfortunately, this makes recursive macros loop forever.
-;;; Maybe a recursion limit would be a reasonable way to
-;;; solve that.
+;;; Recursive macros may emit themselves, even in multiple branches.
+;;; Share a finite expansion budget across the whole walk, including
+;;; reentrant expansion by FN or a macro's helper functions. When it
+;;; runs out, leave ordinary macro forms for the runtime evaluator.
+
+(defvar *macroexpand-limit* 256)
+(set-symbol-dynamic! '*macroexpand-limit* t)
+(defvar *macroexpand-budget* nil)
+(set-symbol-dynamic! '*macroexpand-budget* t)
 
 (defun iterative-fixpoint (f x)
   (let ((y (call f x)))
@@ -228,10 +234,15 @@
   (iterative-fixpoint #'macroexpand-1x form))
 
 (defun macroexpand-completely (form)
-  (iterative-fixpoint #'macroexpand-recursively form))
+  (if *macroexpand-budget*
+      (macroexpand-recursively form)
+      (call-with-binding '*macroexpand-budget* *macroexpand-limit*
+        (%fn nil () (macroexpand-recursively form)))))
 
 (defun macroexpand-recursively (form)
-  (if (atom? form) form
+  (if (nil? *macroexpand-budget*)
+      (macroexpand-completely form)
+    (if (or (atom? form) (< *macroexpand-budget* 1)) form
       (let ((head (head form)))
         (cond
           ((or (eq? head 'if)
@@ -255,21 +266,38 @@
                         (eq? body body-expansion))
                    form
                    (cons 'let (cons bindings-expansion body-expansion))))))
-          ((eq? head 'quote) form)
-          ((eq? head 'backquote) (bq-completely-process (second form)))
+          ((or (eq? head 'quote) (eq? head 'function)) form)
           ((eq? head '%fn)
-           (let ((params (second form))
+           (let ((name (second form))
+                 (params (head (tail (tail form))))
                  (body (head (last form))))
              (let ((body-expansion
                      (macroexpand-completely body)))
                (if (eq? body body-expansion)
                    form
-                   `(%fn ,params ,body-expansion)))))
+                   (list '%fn name params body-expansion)))))
+          ((eq? head '%macro-fn)
+           (let ((params (second form))
+                 (body (head (last form))))
+             (let ((body-expansion (macroexpand-completely body)))
+               (if (eq? body body-expansion)
+                   form
+                   (list '%macro-fn params body-expansion)))))
           (t
-           (let ((expansion (macroexpand form)))
-             (if (eq? form expansion)
-                 form
-                 (macroexpand-completely expansion))))))))
+           (if (symbol? head)
+               (let ((function (symbol-function head)))
+                 (cond
+                   ((eq? (type-of function) 'macro)
+                    (do
+                      (%set! '*macroexpand-budget* (- *macroexpand-budget* 1))
+                      (macroexpand-completely (macroexpand-1 form))))
+                   ((jet-ctl? function) form)
+                   (t
+                    ;; Only arguments are expressions; the head is a name.
+                    (let ((args (maptree #'macroexpand-completely (tail form))))
+                      (if (eq? args (tail form)) form
+                        (cons head args))))))
+               form)))))))
 
 ;;; Now we redefine DEFUN to use macroexpansion.
 (defmacro defun (name args &rest body)
@@ -294,6 +322,12 @@
           (compile! function))))))
 
 (compile-many! (find-package "WISP"))
+
+;; Bootstrap the walker with the simple FN above before making FN
+;; eager. Its own callbacks are now %FN forms, so constructing them
+;; does not recursively invoke the walker.
+(defmacro fn (params &rest body)
+  (list '%fn nil params (macroexpand-completely (prognify body))))
 
 (for-each (reverse (package-symbols (find-package "WISP")))
           (fn (symbol)
@@ -447,15 +481,16 @@
 
 ;;; * Utilities for delimited continuation control
 
+;; A private identity sentinel must be collectible, not interned.
 (defun send-or-invoke (tag value function)
-  (let* ((default (fresh-symbol!))
+  (let* ((default (cons nil nil))
          (result (send-with-default! tag value default)))
     (if (eq? result default)
         (call function value)
         result)))
 
 (defun send-to-or-invoke (continuation tag value function)
-  (let* ((default (fresh-symbol!))
+  (let* ((default (cons nil nil))
          (result (send-to-with-default! continuation tag value default)))
     (if (eq? result default)
         (call function value)

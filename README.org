@@ -61,6 +61,29 @@ make
 make test
 #+END_SRC
 
+* Macro expansion
+
+=defun= pre-expands its body, including nested callbacks. =fn=
+also pre-expands its body when the function is constructed, so
+standalone lambdas do not repeatedly expand their macros on
+every call. Quoted data, parameter lists, and function names
+are not walked as expressions. =%fn= remains the low-level
+constructor for an explicit function expression.
+
+Pre-expansion shares a budget of =*macroexpand-limit*= macro
+applications (256 by default) across the entire walk and any
+reentrant expansion. This bounds macros that reproduce
+themselves or branch recursively. On exhaustion, remaining
+macro forms are left for normal runtime evaluation rather
+than rejected. The limit can be dynamically bound when
+calling =macroexpand-completely=; zero disables the walk.
+There is no repeated fixed-point pass that restarts the budget.
+
+Ordinary recursive helper functions used by macros still run
+normally: the walker expands syntax, not function calls. The
+budget does not interrupt a macro implementation that itself
+never returns.
+
 * Evaluator profiling
 
 Run the diagnostic evaluator suite with semantic counters enabled:

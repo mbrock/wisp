@@ -1520,3 +1520,157 @@ test "STRING-SLICE" {
         \\(string-slice "FOOBAR!" 3 (+ 3 3))
     );
 }
+
+test "preexpansion walks callback bodies and preserves function metadata" {
+    try expectEval(
+        \\(future-callee (%fn nil (x &optional y &rest zs) (if x (list y zs) nil)))
+    ,
+        \\(macroexpand-completely
+        \\ '(future-callee (fn (x &optional y &rest zs) (when x (list y zs)))))
+    );
+    try expectEval("(%fn named (x) (if x x nil))",
+        \\(macroexpand-completely '(%fn named (x) (when x x)))
+    );
+    try expectEval("(%macro-fn (x) (if x x nil))",
+        \\(macroexpand-completely '(%macro-fn (x) (when x x)))
+    );
+    try expectEval("(let ((x (if t 7 nil))) (%fn nil (y) (+ x y)))",
+        \\(macroexpand-completely '(let ((x (when t 7))) (fn (y) (+ x y))))
+    );
+}
+
+test "preexpansion preserves quoted data and unchanged form identity" {
+    try expectEval("t",
+        \\(let ((form '(list '(fn (when) (when x)) (function when)
+        \\                   (%fn named (when) when))))
+        \\  (eq? form (macroexpand-completely form)))
+    );
+    try expectEval("(append (list (if t 7 nil)) (quote nil))",
+        \\(macroexpand-completely '(backquote ((unquote (when t 7)))))
+    );
+}
+
+test "preexpansion makes standalone lambdas eager and keeps lexical scope" {
+    try expectEval("((11 12) t)",
+        \\(do
+        \\  (defmacro %test-add (x) (list '+ x 10))
+        \\  (let ((f (let ((offset 1))
+        \\             (fn (x) (%test-add (+ offset x))))))
+        \\    (let ((before (function-call-count #'%test-add)))
+        \\      (list (list (call f 0) (call f 1))
+        \\            (eq? before (function-call-count #'%test-add))))))
+    );
+}
+
+test "preexpansion supports terminating recursive macro helpers" {
+    try expectEval("(1 2 3 4)",
+        \\(do
+        \\  (defun %test-expand-list (xs)
+        \\    (if (nil? xs) nil
+        \\      (list 'cons (head xs) (%test-expand-list (tail xs)))))
+        \\  (defmacro %test-list (&rest xs) (%test-expand-list xs))
+        \\  (call (fn () (%test-list 1 2 3 4))))
+    );
+    try expectEval("(cons 1 (cons 2 (cons 3 nil)))",
+        \\(do
+        \\  (defmacro %test-recursive-list (&rest xs)
+        \\    (if (nil? xs) nil
+        \\      (list 'cons (head xs) (cons '%test-recursive-list (tail xs)))))
+        \\  (macroexpand-completely '(%test-recursive-list 1 2 3)))
+    );
+}
+
+test "preexpansion bounds branching recursive macros and leaves runtime forms" {
+    try expectEval("(7 t nil)",
+        \\(do
+        \\  (defmacro %test-branch (x)
+        \\    (list 'if x
+        \\      (list 'list (list '%test-branch x) (list '%test-branch x)) 7))
+        \\  (let ((before (function-call-count #'%test-branch)))
+        \\    (let ((f (call-with-binding '*macroexpand-limit* 8
+        \\               (%fn nil () (fn (x) (%test-branch x))))))
+        \\      (list (call f nil)
+        \\            (eq? 8 (- (function-call-count #'%test-branch) before))
+        \\            *macroexpand-budget*))))
+    );
+}
+
+test "preexpansion shares its budget with reentrant eager lambda expansion" {
+    try expectEval("(t nil)",
+        \\(do
+        \\  (defmacro %test-nested-fn () (list 'fn nil (list '%test-nested-fn)))
+        \\  (let ((before (function-call-count #'%test-nested-fn)))
+        \\    (call-with-binding '*macroexpand-limit* 8
+        \\      (%fn nil () (macroexpand-completely '(%test-nested-fn))))
+        \\    (list (< (- (function-call-count #'%test-nested-fn) before) 9)
+        \\          *macroexpand-budget*)))
+    );
+}
+
+test "preexpansion bounds self-reproducing macros and can be disabled" {
+    try expectEval("((%test-self 1) t)",
+        \\(do
+        \\  (defmacro %test-self (&rest args) (cons '%test-self args))
+        \\  (list
+        \\    (call-with-binding '*macroexpand-limit* 4
+        \\      (%fn nil () (macroexpand-completely '(%test-self 1))))
+        \\    (let ((form '(when t 1)))
+        \\      (call-with-binding '*macroexpand-limit* 0
+        \\        (%fn nil () (eq? form (macroexpand-completely form)))))))
+    );
+}
+
+test "preexpansion budget unwinds on nonlocal exit" {
+    try expectEval("(17 nil)",
+        \\(do
+        \\  (defmacro %test-expansion-exit () (send! 'expand-exit 17))
+        \\  (list
+        \\    (call-with-prompt 'expand-exit
+        \\      (fn () (macroexpand-completely '(%test-expansion-exit)))
+        \\      (fn (value continuation) value))
+        \\    *macroexpand-budget*))
+    );
+}
+
+test "effect sentinels do not intern symbols and preserve fallback values" {
+    var heap = try newTestHeap();
+    defer heap.deinit();
+    _ = try evalString(&heap,
+        \\(defun %test-sentinels (n)
+        \\  (if (eq? n 0) nil
+        \\    (do
+        \\      (send-or-invoke 'missing 1 (fn (v) v))
+        \\      (send-to-or-invoke (get/cc) 'missing 2 (fn (v) v))
+        \\      (call-with-prompt 'found
+        \\        (fn () (send! 'found 3))
+        \\        (fn (v k) (do (gc) v)))
+        \\      (%test-sentinels (- n 1)))))
+    );
+    const before = try Wisp.length(&heap, try heap.get(.pkg, .sym, heap.keyPackage));
+    try expectEvalHeap(&heap, "nil", "(%test-sentinels 100)");
+    _ = try evalString(&heap, "(gc)");
+    try expectEqual(before, try Wisp.length(&heap, try heap.get(.pkg, .sym, heap.keyPackage)));
+    try expectEvalHeap(&heap, "(nil (1 . 2))",
+        \\(list
+        \\  (send-or-invoke 'missing nil (fn (v) (do (gc) v)))
+        \\  (send-to-or-invoke (get/cc) 'missing (cons 1 2)
+        \\    (fn (v) (do (gc) v))))
+    );
+}
+
+test "preexpansion eliminates runtime router macro expansion" {
+    var heap = try newTestHeap();
+    defer heap.deinit();
+    _ = try heap.load(@embedFile("lisp/repo-benchmarks.wisp"));
+    try expectEvalHeap(&heap, "((\"alice\") not-found t t t)",
+        \\(let ((handles (function-call-count #'handle))
+        \\      (lambdas (function-call-count #'fn))
+        \\      (backquotes (function-call-count #'backquote)))
+        \\  (let ((hit (%benchmark-router-hit 100))
+        \\        (miss (%benchmark-router-miss 100)))
+        \\    (list hit miss
+        \\      (eq? handles (function-call-count #'handle))
+        \\      (eq? lambdas (function-call-count #'fn))
+        \\      (eq? backquotes (function-call-count #'backquote)))))
+    );
+}
