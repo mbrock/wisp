@@ -25,7 +25,7 @@ const rownum = Wisp.pointerTags.len;
 
 fn currentVersion() [32]u8 {
     var array: [32]u8 = @splat(0);
-    std.mem.copyForwards(u8, &array, "wisp tape v0.8.0\n");
+    std.mem.copyForwards(u8, &array, "wisp tape v0.9.0\n");
     return array;
 }
 
@@ -177,6 +177,8 @@ pub fn loadFromMemory(orb: Wisp.Orb, cap: std.Io, bytes: []const u8) !Wisp.Heap 
         Header,
         .little,
     );
+    if (!std.mem.eql(u8, &header_value.version, &currentVersion()))
+        return error.UnsupportedTapeVersion;
 
     var heap = Wisp.Heap{
         .orb = orb,
@@ -279,6 +281,8 @@ pub fn loadFromMemory(orb: Wisp.Orb, cap: std.Io, bytes: []const u8) !Wisp.Heap 
         }
     }
 
+    // Captured contexts in the image may share any restored frame.
+    heap.freezeContinuations();
     return heap;
 }
 
@@ -314,4 +318,15 @@ test "in-memory tape preserves pinned values" {
 
     try testing.expectEqual(@as(u27, 2), clone.nextPinId);
     try testing.expectEqual(value, clone.pins.get(1).?);
+}
+
+test "tapes with the pre-segmentation layout are rejected before loading tables" {
+    var heap = try Wisp.Heap.init(std.testing.allocator, std.testing.io, .e0);
+    defer heap.deinit();
+    const bytes = try heap.orb.alloc(u8, byteSize(&heap));
+    defer heap.orb.free(bytes);
+    _ = try writeToMemory(&heap, bytes);
+    const old_version = "wisp tape v0.8.0\n";
+    std.mem.copyForwards(u8, bytes[0..old_version.len], old_version);
+    try std.testing.expectError(error.UnsupportedTapeVersion, loadFromMemory(std.testing.allocator, std.testing.io, bytes));
 }

@@ -157,6 +157,7 @@ export fn wisp_eval(heap: *Wisp.Heap, exp: u32, max: u32) u32 {
 export fn wisp_run_init(heap: *Wisp.Heap, exp: u32) u32 {
     return heap.new(.run, .{
         .way = Wisp.top,
+        .meta = Wisp.top,
         .env = Wisp.nil,
         .err = Wisp.nil,
         .val = Wisp.nah,
@@ -204,7 +205,7 @@ fn eval_step(heap: *Wisp.Heap, runptr: u32, mode: StepMode) !u32 {
 
     try heap.put(.run, runptr, run);
 
-    return if (run.val != Wisp.nah and run.way == Wisp.top)
+    return if (run.val != Wisp.nah and run.way == Wisp.top and run.meta == Wisp.top)
         Wisp.nil
     else
         Wisp.t;
@@ -571,4 +572,29 @@ export fn wisp_intern_keyword(
 
 test "sanity" {
     try std.testing.expectEqual(0x88000000, wisp_sys_nil);
+}
+
+test "segmented stepping finishes only after both registers are exhausted" {
+    var heap = try Step.newTestHeap();
+    defer heap.deinit();
+    const runptr = try heap.new(.run, Step.initRun(try Sexp.read(&heap,
+        \\(call-with-prompt 'outer
+        \\  (%fn nil ()
+        \\    (call-with-binding 'x 7 (%fn nil () 2)))
+        \\  (%fn nil (v k) 99))
+    )));
+    var steps: usize = 0;
+    while (true) : (steps += 1) {
+        try std.testing.expect(steps < 1000);
+        const status = try eval_step(&heap, runptr, .into);
+        const run = try heap.row(.run, runptr);
+        if (run.val == 2 and run.way == Wisp.top) {
+            try std.testing.expect(run.meta != Wisp.top);
+            try std.testing.expectEqual(Wisp.t, status);
+            break;
+        }
+    }
+    try std.testing.expectEqual(Wisp.t, try eval_step(&heap, runptr, .into));
+    try std.testing.expectEqual(Wisp.nil, try eval_step(&heap, runptr, .into));
+    try std.testing.expectEqual(@as(u32, 2), try heap.get(.run, .val, runptr));
 }

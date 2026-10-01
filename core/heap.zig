@@ -50,7 +50,7 @@ pub fn ColEnum(comptime t: Tag) type {
         .v32 => enum { idx, len },
         .pkg => enum { nam, sym, use },
         .ktx => enum { hop, env, fun, acc, arg },
-        .run => enum { exp, val, err, env, way },
+        .run => enum { exp, val, err, env, way, meta },
         .ext => enum { idx, val },
     };
 }
@@ -94,6 +94,7 @@ pub const Kwd = enum {
     PACKAGE,
     PIN,
     PROMPT,
+    RESUME,
     STRING,
     SYMBOL,
     VECTOR,
@@ -278,6 +279,9 @@ pub const Heap = struct {
 
     roots: std.ArrayList(*u32) = .empty,
 
+    // Every frame below this allocation watermark may be shared
+    // by a captured context. Freeze in O(1), copy on first write.
+    frozen_ktx: usize = 0,
     please_tidy: bool = false,
     inhibit_gc: bool = false,
 
@@ -550,31 +554,28 @@ pub const Heap = struct {
         });
     }
 
+    pub fn freezeContinuations(heap: *Heap) void {
+        heap.frozen_ktx = heap.tab(.ktx).list.len;
+    }
+
     pub fn clonev32(heap: *Heap, ptr: u32) !u32 {
         const vector = try heap.row(.v32, ptr);
         try heap.v32.list.ensureUnusedCapacity(heap.orb, vector.len);
-        const items =
-            heap.v32.list.items[vector.idx .. vector.idx + vector.len];
+        const items = heap.v32.list.items[vector.idx .. vector.idx + vector.len];
         const idx = heap.v32.list.items.len;
         heap.v32.list.appendSliceAssumeCapacity(items);
         Profile.recordV32Words(vector.len);
-        return heap.new(.v32, .{
-            .idx = @intCast(idx),
-            .len = vector.len,
-        });
+        return heap.new(.v32, .{ .idx = @intCast(idx), .len = vector.len });
     }
 
+    // Called only when executing a frozen frame that will change.
+    // Lexical environments are shared store; argument vectors are
+    // private control state and must become writable with the frame.
     pub fn copyContinuationFrame(heap: *Heap, ptr: u32) !u32 {
         var frame = try heap.row(.ktx, ptr);
         const tag = Wisp.tagOf(frame.fun);
-        // Lexical environments are shared store, but a partially
-        // filled argument vector is mutable control state.  A
-        // continuation copy must snapshot the latter.
-        if ((tag == .fun or tag == .jet) and
-            Wisp.tagOf(frame.acc) == .v32)
-        {
+        if ((tag == .fun or tag == .jet) and Wisp.tagOf(frame.acc) == .v32)
             frame.acc = try heap.clonev32(frame.acc);
-        }
         return heap.new(.ktx, frame);
     }
 

@@ -24,10 +24,10 @@ const Wisp = @import("./wisp.zig");
 const Disk = @import("./disk.zig");
 const File = @import("./file.zig");
 const Jets = @import("./jets.zig");
-const Profile = @import("./profile.zig");
 const Sexp = @import("./sexp.zig");
 const Step = @import("./step.zig");
 const Tape = @import("./tape.zig");
+const Continuation = @import("./continuation.zig");
 
 const Heap = Wisp.Heap;
 const Rest = Jets.Rest;
@@ -293,7 +293,7 @@ pub fn @"TYPE-OF"(step: *Step, x: u32) anyerror!void {
 }
 
 pub fn @"GET/CC"(step: *Step) anyerror!void {
-    step.give(.val, step.run.way);
+    step.give(.val, try Continuation.snapshot(step.heap, Continuation.Context.fromRun(step.run.*)));
 }
 
 pub fn SAVE(step: *Step) anyerror!void {
@@ -360,6 +360,7 @@ pub fn ENV(step: *Step) anyerror!void {
 pub fn RUN(step: *Step, exp: u32) anyerror!void {
     const run = Wisp.Row(.run){
         .way = top,
+        .meta = top,
         .env = step.run.env,
         .err = nil,
         .val = nah,
@@ -486,15 +487,8 @@ pub fn @"CALL-WITH-PROMPT"(
     THUNK: u32,
     HANDLER: u32,
 ) anyerror!void {
-    const ktx = try step.heap.new(.ktx, .{
-        .hop = step.run.way,
-        .env = step.run.env,
-        .fun = step.heap.kwd.PROMPT,
-        .acc = TAG,
-        .arg = HANDLER,
-    });
-
-    step.run.way = ktx;
+    step.run.meta = try Continuation.boundary(step.heap, step.run.*, step.heap.kwd.PROMPT, TAG, HANDLER);
+    step.run.way = top;
 
     try step.call(THUNK, nil, false);
 }
@@ -505,15 +499,8 @@ pub fn @"CALL-WITH-BINDING"(
     VALUE: u32,
     THUNK: u32,
 ) anyerror!void {
-    const ktx = try step.heap.new(.ktx, .{
-        .hop = step.run.way,
-        .env = step.run.env,
-        .fun = step.heap.kwd.BINDING,
-        .acc = SYMBOL,
-        .arg = VALUE,
-    });
-
-    step.run.way = ktx;
+    step.run.meta = try Continuation.boundary(step.heap, step.run.*, step.heap.kwd.BINDING, SYMBOL, VALUE);
+    step.run.way = top;
 
     try step.call(THUNK, nil, false);
 }
@@ -525,25 +512,16 @@ pub fn @"SEND-TO-WITH-DEFAULT!"(
     VALUE: u32,
     DEFAULT: u32,
 ) anyerror!void {
-    if (try copyContinuationSlice(
+    if (try Continuation.capture(
         step.heap,
-        CONTINUATION,
+        try Continuation.context(step.heap, CONTINUATION),
         TAG,
     )) |result| {
         const args = try Wisp.list(
             step.heap,
-            &[_]u32{ VALUE, result.e2 },
+            &[_]u32{ VALUE, try Continuation.snapshot(step.heap, result.inside) },
         );
-
-        const e3 = try step.composeContinuation(result.e1);
-
-        if (e3 == top) {
-            step.run.way = top;
-            step.run.env = nil;
-        } else {
-            step.run.way = e3;
-        }
-
+        (try Continuation.compose(step.heap, result.outside, step.run.*)).install(step.run);
         return step.call(result.handler, args, false);
     } else {
         if (DEFAULT == Wisp.nah) {
@@ -565,35 +543,20 @@ pub fn @"SEND-WITH-DEFAULT!"(
     VALUE: u32,
     DEFAULT: u32,
 ) anyerror!void {
-    // We search the current context for a prompt that matches
-    // the tag.  If we don't find it, return DEFAULT.
-    //
-    // As we're searching, we're copying the context, ending
-    // with TOP when we get to the matching tag.
-    //
-    // Then we invoke the handler function with the given value
-    // and the delimited continuation we've created.
-    //
+    // Search only dynamic boundaries, sharing ordinary segments.
+    // The matching prompt is excluded from the capture; deep
+    // handlers explicitly reinstall it when resuming.
     //   𝐸₁[call-with-prompt 𝐸₂[send 𝑣] 𝑒] ⟶ 𝐸₁[𝑒 𝑣 (λ𝑥. 𝐸₂[𝑥])]
-    //
-
-    if (try copyContinuationSlice(
+    if (try Continuation.capture(
         step.heap,
-        step.run.way,
+        Continuation.Context.fromRun(step.run.*),
         TAG,
     )) |result| {
         const args = try Wisp.list(
             step.heap,
-            &[_]u32{ VALUE, result.e2 },
+            &[_]u32{ VALUE, try Continuation.snapshot(step.heap, result.inside) },
         );
-
-        if (result.e1 == top) {
-            step.run.way = top;
-            step.run.env = nil;
-        } else {
-            step.run.way = result.e1;
-        }
-
+        result.outside.install(step.run);
         return step.call(result.handler, args, false);
     } else {
         if (DEFAULT == Wisp.nah) {
@@ -608,72 +571,10 @@ pub fn @"SEND-WITH-DEFAULT!"(
     }
 }
 
-fn isMatchingPrompt(
-    heap: *Heap,
-    ktx: u32,
-    tag: u32,
-) !bool {
-    if (ktx == top) return false;
-    return tag == try heap.get(.ktx, .acc, ktx);
-}
-
-fn copyContinuationSlice(
-    heap: *Heap,
-    ktx: u32,
-    tag: u32,
-) !?ContinuationCopyResult {
-    if (ktx == top) {
-        Profile.recordContinuationSearch(0, false);
-        return null;
-    }
-
-    if (try isMatchingPrompt(heap, ktx, tag)) {
-        Profile.recordContinuationSearch(0, true);
-        return ContinuationCopyResult{
-            .handler = try heap.get(.ktx, .arg, ktx),
-            .e1 = try heap.get(.ktx, .hop, ktx),
-            .e2 = top,
-        };
-    }
-
-    const new = try heap.copyContinuationFrame(ktx);
-    var cur = new;
-    var frames: u32 = 1;
-
-    while (cur != Wisp.top) {
-        const hop = try heap.get(.ktx, .hop, cur);
-        if (hop == Wisp.top) {
-            cur = Wisp.top;
-        } else if (try isMatchingPrompt(heap, hop, tag)) {
-            Profile.recordContinuationSearch(frames, true);
-            try heap.set(.ktx, .hop, cur, top);
-            return ContinuationCopyResult{
-                .handler = try heap.get(.ktx, .arg, hop),
-                .e1 = try heap.get(.ktx, .hop, hop),
-                .e2 = new,
-            };
-        } else {
-            const copied_hop = try heap.copyContinuationFrame(hop);
-            try heap.set(.ktx, .hop, cur, copied_hop);
-            cur = copied_hop;
-            frames += 1;
-        }
-    }
-
-    Profile.recordContinuationSearch(frames, false);
-    return null;
-}
-
-const ContinuationCopyResult = struct {
-    handler: u32,
-    e1: u32,
-    e2: u32,
-};
-
 pub fn @"%SET!"(step: *Step, sym: u32, val: u32) anyerror!void {
     if ((try step.heap.get(.sym, .dyn, sym)) != nil) {
         if (try step.findDynamicBinding(sym)) |ktx| {
-            try step.heap.set(.ktx, .arg, ktx, val);
+            step.run.meta = try Continuation.setBinding(step.heap, step.run.meta, ktx, val);
             return step.give(.val, val);
         }
     }
@@ -709,33 +610,33 @@ pub fn @"%SET!"(step: *Step, sym: u32, val: u32) anyerror!void {
 }
 
 pub fn @"KTX-HOP"(step: *Step, ktx: u32) anyerror!void {
-    const hop = try step.heap.get(.ktx, .hop, ktx);
+    const hop = (try Continuation.view(step.heap, ktx)).hop;
     step.give(.val, hop);
 }
 
 pub fn @"KTX-FUN"(step: *Step, ktx: u32) anyerror!void {
-    const fun = try step.heap.get(.ktx, .fun, ktx);
+    const fun = (try Continuation.view(step.heap, ktx)).fun;
     step.give(.val, fun);
 }
 
 pub fn @"KTX-ENV"(step: *Step, ktx: u32) anyerror!void {
-    const env = try step.heap.get(.ktx, .env, ktx);
+    const env = (try Continuation.view(step.heap, ktx)).env;
     step.give(.val, env);
 }
 
 pub fn @"KTX-ACC"(step: *Step, ktx: u32) anyerror!void {
-    const acc = try step.heap.get(.ktx, .acc, ktx);
+    const acc = (try Continuation.view(step.heap, ktx)).acc;
     step.give(.val, acc);
 }
 
 pub fn @"KTX-ARG"(step: *Step, ktx: u32) anyerror!void {
-    const arg = try step.heap.get(.ktx, .arg, ktx);
+    const arg = (try Continuation.view(step.heap, ktx)).arg;
     step.give(.val, arg);
 }
 
 pub fn @"KTX-POS"(step: *Step, ktx: u32) anyerror!void {
-    const acc = try step.heap.get(.ktx, .acc, ktx);
-    const pos = if (Wisp.tagOf(acc) == .v32)
+    const acc = (try Continuation.view(step.heap, ktx)).acc;
+    const pos = if (tagOf(acc) == .v32)
         (try step.heap.v32slice(acc))[0]
     else
         0;
@@ -826,11 +727,11 @@ pub fn EVAL(step: *Step, exp: u32) anyerror!void {
 }
 
 pub fn @"COMPOSE-CONTINUATION"(step: *Step, ktx: u32) anyerror!void {
-    step.give(.val, try step.composeContinuation(ktx));
+    step.give(.val, try Continuation.snapshot(step.heap, try step.composeContinuation(ktx)));
 }
 
 pub fn @"RUN-WAY"(step: *Step, run: u32) anyerror!void {
-    step.give(.val, try step.heap.get(.run, .way, run));
+    step.give(.val, try Continuation.snapshot(step.heap, Continuation.Context.fromRun(try step.heap.row(.run, run))));
 }
 
 pub fn @"RUN-EXP"(step: *Step, run: u32) anyerror!void {

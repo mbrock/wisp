@@ -103,7 +103,9 @@ pub fn done(tidy: *Tidy) Heap {
     }
 
     tidy.old.deinit();
-
+    // Compaction changes frame indices. Conservatively freeze all
+    // survivors, including frames reachable from captured contexts.
+    tidy.new.freezeContinuations();
     return tidy.new;
 }
 

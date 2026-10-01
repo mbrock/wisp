@@ -15,6 +15,19 @@ pub const wisp_profile = build_options.semantic_profile;
 
 const program_source = @embedFile("lisp/benchmarks.wisp");
 const repo_source = @embedFile("lisp/repo-benchmarks.wisp");
+const effect_source =
+    \\(defun %bench-effect-depth (depth)
+    \\  (if (eq? depth 0) (send! 'pulse 5)
+    \\    (+ 1 (%bench-effect-depth (- depth 1)))))
+    \\(defun %bench-effect-series (count depth)
+    \\  (if (eq? count 1) (%bench-effect-depth depth)
+    \\    (do (%bench-effect-depth depth)
+    \\        (%bench-effect-series (- count 1) depth))))
+    \\(defun %bench-effects (count depth)
+    \\  (call-with-effect-handler 'pulse
+    \\    (fn () (%bench-effect-series count depth))
+    \\    (fn (request resume raise) (call resume request))))
+;
 
 const Check = union(enum) {
     dump: []const u8,
@@ -181,6 +194,22 @@ const cases = [_]Case{
         \\       (%bench-lookup-outer-8-leaf)
         \\       (%bench-lookup-outer-8 (- count 1)))))
         ,
+    },
+    .{
+        .name = "effect-shallow",
+        .entry = "%BENCH-EFFECTS",
+        .arguments = " 0",
+        .default_iterations = 1_000,
+        .setup = effect_source,
+        .check = .{ .dump = "5" },
+    },
+    .{
+        .name = "effect-deep",
+        .entry = "%BENCH-EFFECTS",
+        .arguments = " 64",
+        .default_iterations = 1_000,
+        .setup = effect_source,
+        .check = .{ .dump = "69" },
     },
     .{
         .name = "tak",

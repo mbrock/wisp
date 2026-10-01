@@ -106,6 +106,7 @@ pub fn save(step: *Step, name: []const u8) !u32 {
     try tellvar(file, "** bas", heap.base);
     try tellvar(file, "** env", step.run.env);
     try tellvar(file, "** way", step.run.way);
+    try tellvar(file, "** meta", step.run.meta);
     try tellvar(file, "** exp", step.run.exp);
     try tellvar(file, "** val", step.run.val);
     try tellvar(file, "** err", step.run.err);

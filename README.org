@@ -61,6 +61,34 @@ make
 make test
 #+END_SRC
 
+* Segmented continuations
+
+The evaluator keeps an ordinary frame segment in =run.way= and a
+meta-continuation in =run.meta=. Prompts and dynamic bindings suspend
+the current segment and begin another. Returning from a segment
+restores the suspended one; only exhausting both registers finishes
+the run.
+
+Sending to a prompt searches dynamic boundaries, not ordinary
+frames. Capture and composition share segments and copy only the
+intervening meta spine. Captured frames and argument vectors are
+protected by copy-on-write: capture freezes existing frames with an
+allocation watermark, and execution copies a frozen frame only when
+it needs to modify it. Ordinary uncaptured calls keep their mutable
+argument-vector fast path. GC and image loading freeze restored
+frames too.
+
+The matching prompt is excluded from a capture; deep effect handlers
+continue to reinstall it explicitly on resumption. Captured dynamic
+bindings retain their values independently across resumptions, while
+lexical assignment remains shared store. =get/cc= now returns a
+stable snapshot rather than an alias to advancing control frames.
+=KTX-*= and =RUN-WAY= expose a flattened debugger view, hiding the
+internal composition boundaries.
+
+The added run register changes the image layout to tape =v0.9.0=.
+Older tapes are rejected explicitly; there is no image migration.
+
 * Macro expansion
 
 =defun= pre-expands its body, including nested callbacks. =fn=
@@ -108,6 +136,11 @@ copies, and GC time.  The final bucket in the =call_arity= and
 =lexical_depth= histograms means 16 or more.  Core loading,
 benchmark setup, and parsing are excluded from the counters and
 elapsed time.
+
+The =effect-shallow= and =effect-deep= diagnostics repeatedly resume
+a deep handler with zero or 64 pending arithmetic frames. The
+=continuation_boundaries= counter reports search work; the retained
+=continuation_frames= counter is zero with segmented capture.
 
 The suite has two layers.  The =call-*= and =lookup-*=
 diagnostics isolate evaluator mechanisms.  Four small

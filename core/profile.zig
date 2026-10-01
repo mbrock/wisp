@@ -35,6 +35,7 @@ pub const Stats = struct {
     continuation_searches: u64 = 0,
     continuation_captures: u64 = 0,
     continuation_frames: u64 = 0,
+    continuation_boundaries: u64 = 0,
     call_arity: [histogram_len]u64 = @splat(0),
 
     arguments_accumulated: u64 = 0,
@@ -100,12 +101,12 @@ pub inline fn recordCallArity(arity: usize) void {
 }
 
 pub inline fn recordContinuationSearch(
-    frames: u32,
+    boundaries: u32,
     captured: bool,
 ) void {
     if (!enabled) return;
     stats.continuation_searches += 1;
-    stats.continuation_frames += frames;
+    stats.continuation_boundaries += boundaries;
     if (captured) stats.continuation_captures += 1;
 }
 
@@ -224,6 +225,7 @@ pub fn writeJson(
             "\"continuation_searches\":{d}," ++
             "\"continuation_captures\":{d}," ++
             "\"continuation_frames\":{d}," ++
+            "\"continuation_boundaries\":{d}," ++
             "\"arguments_accumulated\":{d}," ++
             "\"lists_scanned\":{d},\"list_cells_scanned\":{d}," ++
             "\"lists_reversed\":{d},\"list_cells_reversed\":{d}," ++
@@ -246,6 +248,7 @@ pub fn writeJson(
             snapshot.continuation_searches,
             snapshot.continuation_captures,
             snapshot.continuation_frames,
+            snapshot.continuation_boundaries,
             snapshot.arguments_accumulated,
             snapshot.lists_scanned,
             snapshot.list_cells_scanned,

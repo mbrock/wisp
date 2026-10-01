@@ -25,6 +25,7 @@ const Sexp = @import("./sexp.zig");
 const Jets = @import("./jets.zig");
 const Tape = @import("./tape.zig");
 const Profile = @import("./profile.zig");
+const Continuation = @import("./continuation.zig");
 
 const Step = @This();
 const Heap = Wisp.Heap;
@@ -42,6 +43,7 @@ pub var wtf = false;
 pub fn initRun(exp: u32) Run {
     return .{
         .way = top,
+        .meta = top,
         .env = nil,
         .err = nil,
         .val = nah,
@@ -126,7 +128,7 @@ fn findVariable(step: *Step, sym: u32) !void {
     const dyn = try step.heap.get(.sym, .dyn, sym);
     if (dyn != nil) {
         if (try step.findDynamicBinding(sym)) |ktx| {
-            step.give(.val, try step.heap.get(.ktx, .arg, ktx));
+            step.give(.val, try Continuation.value(step.heap, ktx));
             return;
         }
 
@@ -173,25 +175,7 @@ fn findVariable(step: *Step, sym: u32) !void {
 }
 
 pub fn findDynamicBinding(step: *Step, name: u32) !?u32 {
-    var cur = step.run.way;
-    var hops: u32 = 0;
-
-    while (cur != top) {
-        if (comptime Profile.enabled) hops += 1;
-        const fun = try step.heap.get(.ktx, .fun, cur);
-        if (fun == step.heap.kwd.BINDING) {
-            const acc = try step.heap.get(.ktx, .acc, cur);
-            if (acc == name) {
-                Profile.recordDynamicLookup(hops, true);
-                return cur;
-            }
-        }
-
-        cur = try step.heap.get(.ktx, .hop, cur);
-    }
-
-    Profile.recordDynamicLookup(hops, false);
-    return null;
+    return Continuation.findBinding(step.heap, step.run.meta, name);
 }
 
 pub fn fail(step: *Step, xs: []const u32) !void {
@@ -249,11 +233,8 @@ fn intoJet(step: *Step, fun: u32, arg: u32) !void {
 }
 
 fn iter(step: *Step, fun: u32, arg: u32) !void {
-    // Start evaluating the first argument with a
-    // continuation of the remaining arguments.  ACC stays NIL
-    // for unary calls.  If another argument exists, FUNARGS
-    // replaces it with [position, value ...], a mutable vector
-    // whose first word is the number of completed arguments.
+    // Argument vectors stay writable until capture freezes their
+    // frame. A resumed frame gets a private vector on first write.
     const duo = try step.heap.row(.duo, arg);
     step.give(.exp, duo.car);
     step.run.way = try step.heap.new(.ktx, .{
@@ -289,8 +270,14 @@ fn intoMacro(step: *Step, fun: u32, arg: u32) !void {
 
 pub fn proceed(step: *Step, x: u32) !void {
     if (step.run.way == top) {
-        step.run.env = nil;
-        step.give(.val, x);
+        if (step.run.meta == top) {
+            step.run.env = nil;
+            step.give(.val, x);
+        } else {
+            const entry = try step.heap.row(.ktx, step.run.meta);
+            (try Continuation.outer(step.heap, entry)).install(step.run);
+            step.run.env = entry.env;
+        }
         return;
     }
 
@@ -450,7 +437,8 @@ pub fn call(
                     step.heap.kwd.@"CONTINUATION-CALL-ERROR",
                 });
             } else {
-                step.run.way = try step.composeContinuation(funptr);
+                (try step.composeContinuation(funptr)).install(step.run);
+                step.give(.val, vals.items[0]);
                 try step.proceed(vals.items[0]);
             }
         },
@@ -467,7 +455,8 @@ pub fn call(
                         step.heap.kwd.@"CONTINUATION-CALL-ERROR",
                     });
                 } else {
-                    step.run.way = try step.composeContinuation(funptr);
+                    (try step.composeContinuation(funptr)).install(step.run);
+                    step.give(.val, vals.items[0]);
                     try step.proceed(vals.items[0]);
                 }
             } else {
@@ -506,46 +495,27 @@ pub fn warn(step: *Step, text: []const u8, exp: u32) !void {
     try Sexp.warn(text, step.heap, exp);
 }
 
-pub fn composeContinuation(step: *Step, way: u32) !u32 {
-    if (way == top) {
-        return step.run.way;
-    } else {
-        const new = try step.heap.copyContinuationFrame(way);
-        var cur = new;
-
-        while (cur != top) {
-            cur = switch (tagOf(cur)) {
-                .ktx => try lookForTop(step, cur),
-                else => return error.BadContinuationTag,
-            };
-        }
-
-        return new;
-    }
-}
-
-fn lookForTop(
-    step: *Step,
-    cur: u32,
-) !u32 {
-    const hop = try step.heap.get(.ktx, .hop, cur);
-    if (hop == top) {
-        try step.heap.set(.ktx, .hop, cur, step.run.way);
-        return top;
-    } else {
-        const new = try step.heap.copyContinuationFrame(hop);
-        try step.heap.set(.ktx, .hop, cur, new);
-        return new;
-    }
+pub fn composeContinuation(step: *Step, way: u32) !Continuation.Context {
+    return Continuation.compose(step.heap, try Continuation.context(step.heap, way), step.run.*);
 }
 
 pub fn debug(heap: *Heap, txt: []const u8, val: u32) !void {
     try Sexp.warn(txt, heap, val);
 }
 
+fn writableFrame(step: *Step, frame: Row(.ktx)) !Row(.ktx) {
+    if (ref(step.run.way) >= step.heap.frozen_ktx) return frame;
+    step.run.way = try step.heap.copyContinuationFrame(step.run.way);
+    return step.heap.row(.ktx, step.run.way);
+}
+
 const Ktx = struct {
-    fn funargs(step: *Step, ktx: Row(.ktx)) !void {
+    fn funargs(step: *Step, original: Row(.ktx)) !void {
         Profile.recordArgument();
+        const ktx = if (original.acc == nil and original.arg == nil)
+            original
+        else
+            try step.writableFrame(original);
 
         // Come back to the environment of the call form.
         step.run.env = ktx.env;
@@ -555,8 +525,6 @@ const Ktx = struct {
             step.run.way = ktx.hop;
             try step.callValues(ktx.fun, &value);
         } else if (ktx.acc == nil) {
-            // The first completed value proves this is not a unary
-            // call.  Allocate its visible argument state lazily.
             const vector = try step.heap.filledv32(
                 2 + try Wisp.length(step.heap, ktx.arg),
                 nil,
@@ -575,7 +543,6 @@ const Ktx = struct {
                 return error.BadContinuationArgumentIndex;
             acc[pos + 1] = step.run.val;
             acc[0] = pos + 1;
-
             if (ktx.arg == nil) {
                 step.run.way = ktx.hop;
                 try step.callValues(ktx.fun, acc[1..]);
@@ -593,19 +560,10 @@ const Ktx = struct {
             .err = nil,
             .env = ktx.env,
             .way = ktx.hop,
+            .meta = step.run.meta,
             .exp = exp,
             .val = nah,
         };
-    }
-
-    fn PROMPT(step: *Step, ktx: Row(.ktx)) !void {
-        step.run.way = ktx.hop;
-        step.run.env = ktx.env;
-    }
-
-    fn BINDING(step: *Step, ktx: Row(.ktx)) !void {
-        step.run.way = ktx.hop;
-        step.run.env = ktx.env;
     }
 
     fn DO(step: *Step, ktx: Row(.ktx)) !void {
@@ -621,6 +579,7 @@ const Ktx = struct {
             if (argduo.cdr == nil) {
                 step.run.way = ktx.hop;
             } else {
+                _ = try step.writableFrame(ktx);
                 try step.heap.set(.ktx, .arg, step.run.way, argduo.cdr);
             }
         }
@@ -652,6 +611,7 @@ const Ktx = struct {
             const letexp = try step.heap.get(.duo, .car, letduo.cdr);
             const symacc = try step.heap.cons(letsym, valacc);
 
+            _ = try step.writableFrame(ktx);
             try step.heap.set(.ktx, .acc, step.run.way, symacc);
             try step.heap.set(.ktx, .arg, step.run.way, argduo.cdr);
 
@@ -715,10 +675,6 @@ pub fn execKtx(step: *Step, ktx: Row(.ktx)) !void {
         try Ktx.IF(step, ktx)
     else if (ktx.fun == step.heap.kwd.LET)
         try Ktx.LET(step, ktx)
-    else if (ktx.fun == step.heap.kwd.PROMPT)
-        try Ktx.PROMPT(step, ktx)
-    else if (ktx.fun == step.heap.kwd.BINDING)
-        try Ktx.BINDING(step, ktx)
     else if (ktx.fun == step.heap.kwd.EVAL)
         try Ktx.EVAL(step, ktx)
     else switch (tagOf(ktx.fun)) {
@@ -1010,7 +966,7 @@ fn invokeJetValues(step: *Step, jet: u32, args: []u32) !void {
 }
 
 pub fn stepOver(heap: *Heap, run: *Run, limit: u32) !void {
-    const breakpoint = run.way;
+    const breakpoint = try Continuation.snapshot(heap, Continuation.Context.fromRun(run.*));
     _ = try evaluateUntilSpecificContinuation(
         heap,
         run,
@@ -1023,14 +979,15 @@ pub fn stepOver(heap: *Heap, run: *Run, limit: u32) !void {
 
 pub fn getParentContinuation(heap: *Heap, way: u32) !u32 {
     return switch (tagOf(way)) {
-        .ktx => heap.get(.ktx, .hop, way),
+        .ktx => (try Continuation.view(heap, way)).hop,
         .duo => heap.get(.duo, .cdr, way),
         else => error.BadParentContinuation,
     };
 }
 
 pub fn stepOut(heap: *Heap, run: *Run, limit: u32) !void {
-    const breakpoint = try getParentContinuation(heap, run.way);
+    const ctx = try Continuation.snapshot(heap, Continuation.Context.fromRun(run.*));
+    const breakpoint = if (ctx == top) top else try getParentContinuation(heap, ctx);
     _ = try evaluateUntilSpecificContinuation(
         heap,
         run,
@@ -1046,6 +1003,12 @@ pub fn evaluateUntilSpecificContinuation(
     breakpoint: u32,
 ) !u32 {
     if (run.err != nil) return error.ErrorAlreadyPresent;
+
+    var stop = try Continuation.context(heap, breakpoint);
+    try heap.roots.append(heap.orb, &stop.way);
+    defer _ = heap.roots.pop();
+    try heap.roots.append(heap.orb, &stop.meta);
+    defer _ = heap.roots.pop();
 
     var tmp = std.heap.stackFallback(4096, heap.orb);
 
@@ -1098,7 +1061,9 @@ pub fn evaluateUntilSpecificContinuation(
             heap.please_tidy = false;
         }
 
-        if ((run.way == breakpoint or run.way == top) and run.val != nah) {
+        if (run.val != nah and ((run.way == top and run.meta == top) or
+            try Continuation.same(heap, Continuation.Context.fromRun(run.*), stop)))
+        {
             return run.val;
         }
 
@@ -1138,6 +1103,7 @@ pub fn prepareToTidy(step: *Step) !Tidy {
     try gc.move(&step.run.err);
     try gc.move(&step.run.env);
     try gc.move(&step.run.way);
+    try gc.move(&step.run.meta);
     try gc.move(&step.run.val);
     try gc.move(&step.run.exp);
 
@@ -1673,4 +1639,234 @@ test "preexpansion eliminates runtime router macro expansion" {
         \\      (eq? lambdas (function-call-count #'fn))
         \\      (eq? backquotes (function-call-count #'backquote)))))
     );
+}
+
+test "segmented prompts cross inner prompts and select the nearest matching tag" {
+    try expectEval("(116 1113)",
+        \\(list
+        \\  (call-with-prompt 'outer
+        \\    (fn ()
+        \\      (+ 100 (call-with-prompt 'inner
+        \\               (fn () (+ 10 (send! 'outer 3)))
+        \\               (fn (v k) (+ 1000 (call k v))))))
+        \\    (fn (v k) (call k (* v 2))))
+        \\  (call-with-prompt 'same
+        \\    (fn ()
+        \\      (+ 100 (call-with-prompt 'same
+        \\               (fn () (+ 10 (send! 'same 3)))
+        \\               (fn (v k) (+ 1000 (call k v))))))
+        \\    (fn (v k) 9999)))
+    );
+}
+
+test "segmented LET and DO snapshots share lexical store but not control progress" {
+    try expectEval("(pause (1 7 3 1) (1 9 3 2) 2)",
+        \\(let ((saved nil) (store 0))
+        \\  (let ((initial
+        \\          (call-with-prompt 'save
+        \\            (fn ()
+        \\              (let ((a 1) (b (send! 'save 'pause)) (c 3))
+        \\                (set! store (+ store 1))
+        \\                (list a b c store)))
+        \\            (fn (v k) (do (set! saved k) v)))))
+        \\    (list initial (call saved 7) (call saved 9) store)))
+    );
+    try expectEval("(pause 7 8 2)",
+        \\(let ((saved nil) (store 0))
+        \\  (let ((initial
+        \\          (call-with-prompt 'save
+        \\            (fn ()
+        \\              (do (send! 'save 'pause)
+        \\                  (set! store (+ store 1))
+        \\                  (+ store 6)))
+        \\            (fn (v k) (do (set! saved k) v)))))
+        \\    (list initial (call saved nil) (call saved nil) store)))
+    );
+}
+
+test "segmented dynamic bindings snapshot captured values and update caller bindings" {
+    try expectEval("(100 (11 20) 11 100)",
+        \\(do
+        \\  (defparameter *snapshot-binding* 100)
+        \\  (let ((saved nil))
+        \\    (let ((initial
+        \\            (call-with-prompt 'save
+        \\              (fn ()
+        \\                (binding ((*snapshot-binding* 10))
+        \\                  (send! 'save nil)
+        \\                  (set! *snapshot-binding* (+ *snapshot-binding* 1))
+        \\                  *snapshot-binding*))
+        \\              (fn (v k) (do (set! saved k) *snapshot-binding*)))))
+        \\      (list initial
+        \\        (binding ((*snapshot-binding* 20))
+        \\          (list (call saved nil) *snapshot-binding*))
+        \\        (call saved nil) *snapshot-binding*))))
+    );
+    try expectEval("(pause (21 21) (31 31) 100)",
+        \\(do
+        \\  (defparameter *caller-binding* 100)
+        \\  (let ((saved nil))
+        \\    (let ((initial
+        \\            (call-with-prompt 'save
+        \\              (fn ()
+        \\                (send! 'save 'pause)
+        \\                (set! *caller-binding* (+ *caller-binding* 1))
+        \\                *caller-binding*)
+        \\              (fn (v k) (do (set! saved k) v)))))
+        \\      (list initial
+        \\        (binding ((*caller-binding* 20))
+        \\          (list (call saved nil) *caller-binding*))
+        \\        (binding ((*caller-binding* 30))
+        \\          (list (call saved nil) *caller-binding*))
+        \\        *caller-binding*))))
+    );
+}
+
+test "segmented SEND-TO composes the suspended outer context without consuming it" {
+    try expectEval("(missing 3117 112)",
+        \\(let ((saved
+        \\        (call-with-prompt 'park
+        \\          (fn ()
+        \\            (+ 100 (call-with-prompt 'fault
+        \\                     (fn () (+ 10 (send! 'park nil)))
+        \\                     (fn (v k) (+ 1000 (call k v))))))
+        \\          (fn (v k) k))))
+        \\  (list
+        \\    (send-to-with-default! saved 'absent 1 'missing)
+        \\    (+ 2000 (send-to-with-default! saved 'fault 7 'missing))
+        \\    (apply saved '(2))))
+    );
+}
+
+test "segmented capture preserves a resuming caller across another capture" {
+    try expectEval("1107",
+        \\(let ((first
+        \\        (call-with-prompt 'park
+        \\          (fn () (do (send! 'park nil) (send! 'outer nil)))
+        \\          (fn (v k) k))))
+        \\  (let ((second
+        \\          (call-with-prompt 'outer
+        \\            (fn () (+ 100 (call first nil)))
+        \\            (fn (v k) k))))
+        \\    (+ 1000 (call second 7))))
+    );
+}
+
+test "segmented GET/CC is an immutable snapshot" {
+    var heap = try newTestHeap();
+    defer heap.deinit();
+    _ = try evalString(&heap, "(defvar *getcc-snapshot* nil)");
+    try expectEvalHeap(&heap, "7",
+        \\(call-with-prompt 'park
+        \\  (fn ()
+        \\    (set! *getcc-snapshot* (get/cc))
+        \\    (gc)
+        \\    (send! 'park 7)
+        \\    999)
+        \\  (fn (v k) v))
+    );
+    var saved = try evalString(&heap, "*getcc-snapshot*");
+    try heap.roots.append(heap.orb, &saved);
+    defer _ = heap.roots.pop();
+    for (0..2) |_| {
+        var run = initRun(nil);
+        var tmp = std.heap.stackFallback(4096, heap.orb);
+        var step = Step{ .heap = &heap, .run = &run, .tmp = tmp.get() };
+        try step.call(saved, try heap.cons(nil, nil), false);
+        try expectEqual(@as(u32, 7), try evaluate(&heap, &run, 10_000));
+    }
+}
+
+test "segmented images preserve captured contexts and suspended run meta" {
+    var heap = try newTestHeap();
+    defer heap.deinit();
+    try expectEvalHeap(&heap, "parked",
+        \\(do
+        \\  (defparameter *image-binding* 5)
+        \\  (defvar *image-continuation* nil)
+        \\  (call-with-prompt 'park
+        \\    (fn ()
+        \\      (binding ((*image-binding* 10))
+        \\        (call-with-prompt 'inner
+        \\          (fn () (+ *image-binding* (send! 'park nil)))
+        \\          (fn (v k) 999))))
+        \\    (fn (v k) (do (set! *image-continuation* k) 'parked))))
+    );
+    var run = initRun(try Sexp.read(&heap,
+        \\(call-with-prompt 'done
+        \\  (%fn nil ()
+        \\    (call-with-binding '*image-binding* 20
+        \\      (%fn nil () (+ 1 2 3))))
+        \\  (%fn nil (v k) 999))
+    ));
+    var steps: usize = 0;
+    while (!(run.exp == 2 and run.way != top and run.meta != top)) : (steps += 1) {
+        try std.testing.expect(steps < 1000);
+        try once(&heap, &run);
+    }
+    const pin = try heap.newPin(try Continuation.snapshot(&heap, Continuation.Context.fromRun(run)));
+    var runptr = try heap.new(.run, run);
+    var roots = [_]*u32{&runptr};
+    try Tidy.gc(&heap, &roots);
+    const bytes = try heap.orb.alloc(u8, Tape.byteSize(&heap));
+    defer heap.orb.free(bytes);
+    _ = try Tape.writeToMemory(&heap, bytes);
+    var clone = try Tape.loadFromMemory(std.testing.allocator, std.testing.io, bytes);
+    defer clone.deinit();
+    var restored = try clone.row(.run, runptr);
+    const k = clone.pins.get(Wisp.Imm.from(pin).idx).?;
+    try expectEqual(@as(u32, 6), try evaluate(&clone, &restored, 1000));
+    try expectEqual(top, restored.meta);
+    const args = try Continuation.view(&clone, k);
+    try expectEqual(@as(u32, 1), (try clone.v32slice(args.acc))[0]);
+    const binding = try Continuation.view(&clone, args.hop);
+    try expectEqual(clone.kwd.BINDING, binding.fun);
+    try expectEqual(@as(u32, 20), binding.arg);
+    const prompt = try Continuation.view(&clone, binding.hop);
+    try expectEqual(clone.kwd.PROMPT, prompt.fun);
+    try expectEqual(top, prompt.hop);
+    for ([_]u32{ 7, 9 }, [_]u32{ 11, 13 }) |input, expected| {
+        var resumed = initRun(nil);
+        var tmp = std.heap.stackFallback(4096, clone.orb);
+        var step = Step{ .heap = &clone, .run = &resumed, .tmp = tmp.get() };
+        try step.call(k, try clone.cons(input, nil), false);
+        try expectEqual(expected, try evaluate(&clone, &resumed, 1000));
+    }
+    try expectEvalHeap(&clone, "(17 19 5)",
+        \\(list (call *image-continuation* 7)
+        \\      (call *image-continuation* 9) *image-binding*)
+    );
+}
+
+test "segmented debugger stepping survives binding updates and collection" {
+    var heap = try newTestHeap();
+    defer heap.deinit();
+    _ = try evalString(&heap, "(defparameter *step-binding* 0)");
+    var run = initRun(try Sexp.read(&heap,
+        \\(binding ((*step-binding* 10))
+        \\  (+ 1 (do (set! *step-binding* 11) (gc) 2) 3))
+    ));
+    const plus = try heap.get(.sym, .fun, try heap.intern("+", heap.base));
+    var steps: usize = 0;
+    while (!(tagOf(run.exp) == .duo and
+        try heap.get(.duo, .car, run.exp) == heap.kwd.DO and
+        run.way != top and run.meta != top and
+        try heap.get(.ktx, .fun, run.way) == plus)) : (steps += 1)
+    {
+        try std.testing.expect(steps < 10_000);
+        try once(&heap, &run);
+    }
+    try stepOver(&heap, &run, 10_000);
+    try expectEqual(@as(u32, 3), run.exp);
+    const binding = (try Continuation.findBinding(&heap, run.meta, try heap.intern("*STEP-BINDING*", heap.base))).?;
+    try expectEqual(@as(u32, 11), try Continuation.value(&heap, binding));
+    try stepOut(&heap, &run, 10_000);
+    try expectEqual(@as(u32, 6), run.val);
+    try expectEqual(heap.kwd.DO, try heap.get(.ktx, .fun, run.way));
+    try stepOut(&heap, &run, 10_000);
+    try expectEqual(top, run.way);
+    try std.testing.expect(run.meta != top);
+    try stepOut(&heap, &run, 10_000);
+    try expectEqual(top, run.meta);
+    try expectEqual(@as(u32, 6), run.val);
 }

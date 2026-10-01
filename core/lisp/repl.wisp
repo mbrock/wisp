@@ -56,6 +56,8 @@
                            (tail let-acc))))
                   ((eq? fun 'prompt)
                    (list 'prompt acc terminus (list arg)))
+                  ((eq? fun 'binding)
+                   (list 'binding acc arg terminus))
                   ((vector? acc)
                    (append (list fun)
                            (argument-vector-prefix
