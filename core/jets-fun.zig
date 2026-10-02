@@ -572,13 +572,6 @@ pub fn @"SEND-WITH-DEFAULT!"(
 }
 
 pub fn @"%SET!"(step: *Step, sym: u32, val: u32) anyerror!void {
-    if ((try step.heap.get(.sym, .dyn, sym)) != nil) {
-        if (try step.findDynamicBinding(sym)) |ktx| {
-            step.run.meta = try Continuation.setBinding(step.heap, step.run.meta, ktx, val);
-            return step.give(.val, val);
-        }
-    }
-
     var cur = step.run.env;
     while (cur != nil) {
         const curduo = try step.heap.row(.duo, cur);
@@ -591,6 +584,13 @@ pub fn @"%SET!"(step: *Step, sym: u32, val: u32) anyerror!void {
             }
         }
         cur = curduo.cdr;
+    }
+
+    if ((try step.heap.get(.sym, .dyn, sym)) != nil) {
+        if (try step.findDynamicBinding(sym)) |ktx| {
+            step.run.meta = try Continuation.setBinding(step.heap, step.run.meta, ktx, val);
+            return step.give(.val, val);
+        }
     }
 
     switch (try step.heap.get(.sym, .val, sym)) {
@@ -722,6 +722,9 @@ pub fn @"WRITE-ERROR"(step: *Step, v08s: []u32) anyerror!void {
 }
 
 pub fn EVAL(step: *Step, exp: u32) anyerror!void {
+    // Public source evaluation has no implicit caller locals,
+    // but keeps the caller's dynamic context and continuation.
+    step.run.env = nil;
     step.run.exp = exp;
     step.run.val = nah;
 }

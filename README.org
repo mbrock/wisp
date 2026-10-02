@@ -89,6 +89,36 @@ internal composition boundaries.
 The added run register changes the image layout to tape =v0.9.0=.
 Older tapes are rejected explicitly; there is no image migration.
 
+* Variable scope and evaluation
+
+Function parameters and =let= bindings are always lexical. Reads and
+=set!= first resolve the nearest captured lexical binding, then an
+active dynamic binding when the symbol is declared dynamic, then the
+global symbol value. Assignment to an otherwise unbound variable
+still signals an error. =let= initializers run in the outer scope,
+and closures share their captured mutable lexical store.
+
+=defparameter= marks a symbol for dynamic lookup; it does not turn
+same-named lexical binders into dynamic bindings. =binding= explicitly
+installs dynamic values. Changing =set-symbol-dynamic!= cannot redirect
+lexical reads or writes, but still changes free-variable lookup at
+runtime. Free-variable classification is not frozen at expansion time.
+Code that previously used a dynamic binding to override a lexical
+local must remove or rename that local.
+
+Public =eval= evaluates source without caller lexical bindings, while
+retaining the current dynamic bindings, effect handlers and continuation.
+It cannot read, assign or capture the caller's locals implicitly.
+Macro-result evaluation is different: expansions still execute in the
+lexical environment of the macro call site. =env=, =KTX-ENV= and =run=
+remain explicit reflective operations; ordinary =eval= is not a debugger
+"evaluate in this frame" operation.
+
+Ordinary calls resolve the symbol's live function cell before evaluating
+arguments. New calls observe redefinitions, but a saved function object
+or an invocation already evaluating its arguments retains its callee,
+including across continuation capture and multi-shot resumption.
+
 * Macro expansion
 
 =defun= pre-expands its body, including nested callbacks. =fn=

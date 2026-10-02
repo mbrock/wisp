@@ -125,17 +125,8 @@ fn findVariable(step: *Step, sym: u32) !void {
         return;
     }
 
-    const dyn = try step.heap.get(.sym, .dyn, sym);
-    if (dyn != nil) {
-        if (try step.findDynamicBinding(sym)) |ktx| {
-            step.give(.val, try Continuation.value(step.heap, ktx));
-            return;
-        }
-
-        // If dynamic variable has no dynamic binding, treat it
-        // as a lexical variable.
-    }
-
+    // Explicit lexical binders remain lexical, even when the
+    // symbol is declared dynamic or dynamically bound later.
     var frames: u32 = 0;
     var comparisons: u32 = 0;
     var cur = step.run.env;
@@ -156,6 +147,14 @@ fn findVariable(step: *Step, sym: u32) !void {
             }
         }
         cur = curduo.cdr;
+    }
+
+    if ((try step.heap.get(.sym, .dyn, sym)) != nil) {
+        if (try step.findDynamicBinding(sym)) |ktx| {
+            Profile.recordLexicalLookup(frames, comparisons, false);
+            step.give(.val, try Continuation.value(step.heap, ktx));
+            return;
+        }
     }
 
     Profile.recordLexicalLookup(frames, comparisons, true);
@@ -1236,6 +1235,63 @@ test "let" {
     );
 }
 
+test "lexical bindings take precedence over dynamic bindings for reads and writes" {
+    try expectEval("(2 4 10 1)",
+        \\(do
+        \\  (defparameter scope-x 100)
+        \\  (binding ((scope-x 10))
+        \\    (list
+        \\      (let ((scope-x 1)) (set! scope-x 2) scope-x)
+        \\      (call (fn (scope-x) (set! scope-x (+ scope-x 1)) scope-x) 3)
+        \\      scope-x
+        \\      (let ((scope-x 1))
+        \\        (let ((scope-x 2) (seen scope-x)) seen)))))
+    );
+}
+
+test "dynamic declarations cannot redirect captured lexical reads or writes" {
+    try expectEval("(2 100 (3 10 10) (4 100 100))",
+        \\(do
+        \\  (defvar scope-toggle 100)
+        \\  (let ((closed
+        \\          (let ((scope-toggle 1))
+        \\            (fn ()
+        \\              (set! scope-toggle (+ scope-toggle 1))
+        \\              scope-toggle)))
+        \\        (free (fn () scope-toggle)))
+        \\    (binding ((scope-toggle 10))
+        \\      (list
+        \\        (call closed)
+        \\        (call free)
+        \\        (do
+        \\          (set-symbol-dynamic! 'scope-toggle t)
+        \\          (list (call closed)
+        \\                (let ((scope-toggle 777)) (call free))
+        \\                scope-toggle))
+        \\        (do
+        \\          (set-symbol-dynamic! 'scope-toggle nil)
+        \\          (list (call closed) (call free) scope-toggle))))))
+    );
+}
+
+test "multi-shot lexical assignment stays lexical under a same-named dynamic binding" {
+    try expectEval("(PAUSE (2 10) (3 10) 100)",
+        \\(do
+        \\  (defparameter scope-resume 100)
+        \\  (let ((saved nil) (free (fn () scope-resume)))
+        \\    (let ((initial
+        \\            (call-with-prompt 'save-scope
+        \\              (fn ()
+        \\                (let ((scope-resume 1))
+        \\                  (binding ((scope-resume 10))
+        \\                    (send! 'save-scope 'pause)
+        \\                    (set! scope-resume (+ scope-resume 1))
+        \\                    (list scope-resume (call free)))))
+        \\              (fn (v k) (do (set! saved k) v)))))
+        \\      (list initial (call saved nil) (call saved nil) scope-resume))))
+    );
+}
+
 test "calling a closure" {
     try expectEval("13",
         \\ (do
@@ -1252,6 +1308,89 @@ test "calling a macro closure" {
         \\      (%macro-fn (x y z)
         \\        (list y x z)))
         \\   (frob 1 + 2))
+    );
+}
+
+test "EVAL uses global lexical scope without capturing or modifying caller locals" {
+    try expectEval("(100 101 1 101 8 1)",
+        \\(do
+        \\  (defvar eval-x 100)
+        \\  (let ((eval-x 1))
+        \\    (list (eval 'eval-x)
+        \\          (eval '(set! eval-x 101))
+        \\          eval-x
+        \\          (call (eval '(fn () eval-x)))
+        \\          (eval '(let ((eval-x 7)) (set! eval-x 8) eval-x))
+        \\          eval-x)))
+    );
+    // Macro-result evaluation is not public EVAL: its result
+    // still executes in the lexical environment of the call site.
+    try expectEval("37",
+        \\(do
+        \\  (set-symbol-function! 'scope-macro (%macro-fn () 'scope-local))
+        \\  (let ((scope-local 37)) (scope-macro)))
+    );
+}
+
+test "EVAL retains dynamic bindings while excluding same-named caller locals" {
+    try expectEval("(10 11 1 11 1)",
+        \\(do
+        \\  (defparameter eval-dynamic 100)
+        \\  (let ((eval-dynamic 1))
+        \\    (binding ((eval-dynamic 10))
+        \\      (list (eval 'eval-dynamic)
+        \\            (eval '(set! eval-dynamic 11))
+        \\            eval-dynamic
+        \\            (call (eval '(fn () eval-dynamic)))
+        \\            eval-dynamic))))
+    );
+}
+
+test "EVAL retains effects and resumes into the caller lexical environment" {
+    try expectEval("(2 (105 37) (109 37))",
+        \\(let ((saved nil))
+        \\  (let ((initial
+        \\          (call-with-prompt 'eval-request
+        \\            (fn ()
+        \\              (let ((caller-local 37))
+        \\                (list (eval '(+ 100 (send! 'eval-request 2)))
+        \\                      caller-local)))
+        \\            (fn (v k) (do (set! saved k) v)))))
+        \\    (list initial (call saved 5) (call saved 9))))
+    );
+    try expectEval("\"eval WORLD\\n\"",
+        \\(call-with-effect-handler 'capture
+        \\  (fn ()
+        \\    (binding ((*standard-output* 'capture))
+        \\      (eval '(do (write "eval ") (print 'world) ""))))
+        \\  (fn (request resume raise)
+        \\    (string-append
+        \\      (apply #'string-append (tail request))
+        \\      (call resume nil))))
+    );
+    try expectEval("EVAL-FAILURE",
+        \\(try (eval '(error 'eval-failure))
+        \\  (catch (condition restart) (head condition)))
+    );
+}
+
+test "live redefinition affects new calls but not saved or suspended callees" {
+    try expectEval("(PAUSED 102 3 6 10 103 1003)",
+        \\(do
+        \\  (defun live-target (x) (+ x 1))
+        \\  (defun live-caller (x) (live-target x))
+        \\  (let ((old #'live-target) (saved nil))
+        \\    (let ((initial
+        \\            (call-with-prompt 'save-call
+        \\              (fn () (live-target (send! 'save-call 'paused)))
+        \\              (fn (v k) (do (set! saved k) v)))))
+        \\      (defun live-target (x) (+ x 100))
+        \\      (list initial (live-caller 2) (call old 2)
+        \\            (call saved 5) (call saved 9)
+        \\            (live-target
+        \\              (do (set-symbol-function! 'live-target (fn (x) (+ x 1000)))
+        \\                  3))
+        \\            (live-caller 3)))))
     );
 }
 
