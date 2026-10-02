@@ -29,7 +29,8 @@
     "esbuild": "^0.14.25",
     "idb": "^7.0.0",
     "incremental-dom": "^0.7.0",
-    "isomorphic-git": "^1.17.0"
+    "isomorphic-git": "^1.17.0",
+    "sha.js": "2.4.12"
   },
   "scripts": {
     "build": "./build",
