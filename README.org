@@ -18,7 +18,8 @@ It aims to offer an unusually pleasant developer experience
 both while hacking and in production, though it's still /very
 immature/ and far from ready for any serious use.
 
-You can try the live browser-based IDE at [[https://wisp.town][Wisp.Town]].
+Try the [[https://mbrock.github.io/wisp/][live browser playground]] with runnable examples,
+or edit them locally using the browser development server below.
 
 Feel free to join the [[https://discord.gg/BeKtM3x687][Wisp Discord chat]] if you're interested
 in following the development work, hacking on the system, or
@@ -285,6 +286,22 @@ Every push to =master= builds, tests, and publishes the browser
 workbench at [[https://mbrock.github.io/wisp/]].  The workbench
 uses only relative asset URLs, so the same files work at the
 repository subpath and at a custom domain.
+
+The playground opens with runnable examples from =web/demo.wisp=.
+Click a form and press =e= (or use the =evaluate= button) to send
+its result to the listener.  Press =i= to edit the selection and
+=Enter= to apply the edit.  Reloading starts a fresh system;
+playground edits are not automatically saved.
+
+To build the same static artifact locally:
+
+#+BEGIN_SRC sh
+cd web && npm ci && cd ..
+make pages
+#+END_SRC
+
+The output is =web/pages/=.  No application server or login is
+needed to use the playground.
 
 The listener's =download= button compacts the active Wisp system
 and downloads its complete tape image as a =.core= file.  A
